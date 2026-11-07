@@ -10,6 +10,51 @@ import { Composer } from '@/components/Composer';
 import { PostList } from '@/components/PostList';
 import { AccountUpdates, ArchivedCard, usePollMe, WaitlistCard } from '@/components/Lifecycle';
 import { CheckoutNotice } from '@/components/Billing';
+import { Avatar } from '@/components/Avatar';
+import { AlertIcon, Loading, Win } from '@/components/retro';
+
+/** One face per seat. The whole network fits on one screen. */
+const SEATS = Array.from({ length: 100 }, (_, i) => `seat-${i + 1}`);
+
+function Landing() {
+  return (
+    <div className="hero">
+      <h1 className="hero-type" aria-label="Anti social.">
+        <span className="solid" aria-hidden="true">Anti</span>
+        <span className="outline" aria-hidden="true">Social<span className="stop">.</span></span>
+      </h1>
+
+      <p className="hero-sub">
+        A small network that would rather you went outside. You need an invite to get in, and there are
+        only a hundred seats. No messages, no algorithm, no follower counts.
+      </p>
+
+      <Win title="Alert" as="div" bodyClassName="dlg-body">
+        <AlertIcon />
+        <div className="stack dlg-main">
+          <p className="dlg-msg">Are you sure you want to delete &ldquo;Social Life&rdquo;?</p>
+          <div className="row dlg-actions">
+            <Link className="btn" href="/login">Sign in</Link>
+            <Link className="btn default" href="/join">Join with an invite</Link>
+          </div>
+        </div>
+      </Win>
+
+      <section className="seats" aria-label="The hundred seats">
+        <div className="seat-grid" aria-hidden="true">
+          {SEATS.map((s) => <Avatar key={s} seed={s} size={44} />)}
+        </div>
+        <p className="seats-caption">Every face is a seat. When someone stops showing up, their seat goes to the next person waiting.</p>
+      </section>
+
+      <ul className="rules">
+        <li><b>No DMs</b><span>Replies are public. If you want to talk, host an event and meet.</span></li>
+        <li><b>No algorithm</b><span>One feed, newest first. You will reach the end of it.</span></li>
+        <li><b>Show up</b><span>Disappear for 30 days and your seat goes to someone who will.</span></li>
+      </ul>
+    </div>
+  );
+}
 
 function FeedView({ onPosted }: { onPosted: () => void }) {
   const p = usePaged<Post>('feed', (c) => api.feed(c));
@@ -43,21 +88,10 @@ function StatusView({ refresh, children }: { refresh: () => Promise<void>; child
 export default function Home() {
   const { me, loading, error, refresh } = useMe();
 
-  if (loading) return <p className="muted">Loading...</p>;
+  if (loading) return <Loading />;
   if (error) return <ErrorNote message={errorMessage(error)} />;
 
-  if (!me) {
-    return (
-      <div className="stack">
-        <h1>A small, quiet network.</h1>
-        <p className="muted">Invite-only, one hundred seats, passkeys instead of passwords.</p>
-        <div className="row">
-          <Link className="btn primary" href="/join">Join with an invite</Link>
-          <Link className="btn" href="/login">Sign in with passkey</Link>
-        </div>
-      </div>
-    );
-  }
+  if (!me) return <Landing />;
 
   if (me.state === 'active' || me.state === 'flagged_lurker') {
     return (
@@ -76,7 +110,13 @@ export default function Home() {
   return (
     <StatusView refresh={refresh}>
       <div className="stack">
-        <h1>@{me.handle}</h1>
+        <div className="status-head">
+          <Avatar seed={me.handle} size={64} />
+          <div>
+            <h1>{me.displayName}</h1>
+            <p className="ui muted">@{me.handle}</p>
+          </div>
+        </div>
         <CheckoutNotice refresh={refresh} />
         {me.state === 'waitlisted' && <WaitlistCard me={me} />}
         {me.state === 'archived' && <ArchivedCard me={me} refresh={refresh} />}

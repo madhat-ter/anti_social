@@ -12,17 +12,17 @@ export function eventWhen(startsAt: string, endsAt: string | null): string {
   const s = new Date(startsAt);
   const day = s.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   const t = (d: Date) => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  if (!endsAt) return `${day} · ${t(s)}`;
+  if (!endsAt) return `${day}, ${t(s)}`;
   const e = new Date(endsAt);
   const sameDay = e.toDateString() === s.toDateString();
-  return sameDay ? `${day} · ${t(s)} – ${t(e)}` : `${day} · ${t(s)} – ${e.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${t(e)}`;
+  return sameDay ? `${day}, ${t(s)} – ${t(e)}` : `${day}, ${t(s)} – ${e.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${t(e)}`;
 }
 
 export function spotsText(e: AnEvent): string {
   if (e.started) return e.attendedCount > 0 ? `${e.attendedCount} attended` : `${e.goingCount} going`;
   if (e.capacity === null) return `${e.goingCount} going`;
   const left = Math.max(e.capacity - e.goingCount, 0);
-  return left > 0 ? `${e.goingCount} going · ${left} of ${e.capacity} spots left` : `Full · ${e.waitlistCount} on the waitlist`;
+  return left > 0 ? `${e.goingCount} going, ${left} of ${e.capacity} spots left` : `Full, ${e.waitlistCount} on the waitlist`;
 }
 
 export function MyStatus({ e }: { e: AnEvent }) {
@@ -45,7 +45,8 @@ export function EventCard({ e }: { e: AnEvent }) {
           <span className="event-title">{e.title} <MyStatus e={e} />{e.cancelledAt && <span className="tag danger">cancelled</span>}</span>
           <span className="muted small">{eventWhen(e.startsAt, e.endsAt)}</span>
           <span className="muted small">{e.location ?? 'Location shared with people going'}</span>
-          <span className="muted small">{spotsText(e)}{e.host ? ` · hosted by @${e.host.handle}` : ''}</span>
+          <span className="muted small">{spotsText(e)}</span>
+          {e.host && <span className="muted small">Hosted by @{e.host.handle}</span>}
         </span>
       </Link>
     </li>

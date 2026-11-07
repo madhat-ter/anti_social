@@ -4,6 +4,8 @@ import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 're
 import { api, errorMessage, EDIT_WINDOW_MS, POST_MAX, type Post } from '@/lib/api';
 import { fmtDate, relativeTime } from '@/lib/hooks';
 import { ErrorNote } from './ui';
+import { Avatar } from './Avatar';
+import { AlertDialog, Dot } from './retro';
 
 const URL_RE = /https?:\/\/[^\s<>"]+/g;
 
@@ -125,9 +127,10 @@ export function PostCard({
     }
   }
 
+  const [ask, setAsk] = useState<null | 'delete' | 'report'>(null);
+
   async function remove() {
-    setMenu(false);
-    if (!window.confirm('Delete this post? This cannot be undone.')) return;
+    setAsk(null);
     setErr(null);
     try {
       await api.deletePost(post.id);
@@ -138,13 +141,11 @@ export function PostCard({
   }
 
   const [reported, setReported] = useState(false);
-  async function report() {
-    setMenu(false);
-    const reason = window.prompt('Report this post to the moderators. What is wrong with it? (optional)');
-    if (reason === null) return;
+  async function report(reason: string) {
+    setAsk(null);
     setErr(null);
     try {
-      await api.flagPost(post.id, reason.trim() || undefined);
+      await api.flagPost(post.id, reason || undefined);
       setReported(true);
     } catch (e) {
       setErr(errorMessage(e));
@@ -155,6 +156,14 @@ export function PostCard({
 
   return (
     <article className={cls} id={id} aria-labelledby={`${uid}-h`}>
+      {post.author ? (
+        <Link href={`/u/${post.author.handle}`} className="post-av" tabIndex={-1} aria-hidden="true">
+          <Avatar seed={post.author.handle} size={52} />
+        </Link>
+      ) : (
+        <span className="post-av"><Avatar seed={null} size={52} /></span>
+      )}
+      <div className="post-main">
       <header className="post-head">
         <span id={`${uid}-h`}><AuthorLine post={post} /></span>
         <span className="muted dot" aria-hidden="true">·</span>
@@ -180,10 +189,10 @@ export function PostCard({
                   <button type="button" role="menuitem" onClick={() => { setMenu(false); setDraft(post.body); setEditing(true); }}>Edit</button>
                 )}
                 {post.canDelete && (
-                  <button type="button" role="menuitem" className="danger-text" onClick={remove}>Delete</button>
+                  <button type="button" role="menuitem" className="danger-text" onClick={() => { setMenu(false); setAsk('delete'); }}>Delete</button>
                 )}
                 {post.canReport && (
-                  <button type="button" role="menuitem" onClick={report} disabled={reported}>{reported ? 'Reported' : 'Report'}</button>
+                  <button type="button" role="menuitem" onClick={() => { setMenu(false); setAsk('report'); }} disabled={reported}>{reported ? 'Reported' : 'Report'}</button>
                 )}
               </div>
             )}
@@ -237,7 +246,7 @@ export function PostCard({
 
       <footer className="post-foot">
         <Link href={replyHref} className="foot-btn" aria-label={`${post.replyCount} ${post.replyCount === 1 ? 'reply' : 'replies'}`}>
-          <span aria-hidden="true">Replies</span> {post.replyCount}
+          <span aria-hidden="true">↳ {post.replyCount} {post.replyCount === 1 ? 'reply' : 'replies'}</span>
         </Link>
         <button
           type="button"
@@ -246,10 +255,31 @@ export function PostCard({
           aria-label={post.likedByMe ? `Unlike (${post.likeCount})` : `Like (${post.likeCount})`}
           onClick={toggleLike}
         >
-          <span aria-hidden="true">{post.likedByMe ? '♥' : '♡'}</span> {post.likeCount}
+          <Dot on={post.likedByMe} size=".85em" />
+          <span aria-hidden="true">{post.likeCount}</span>
         </button>
       </footer>
       <ErrorNote message={err} />
+      </div>
+
+      <AlertDialog
+        open={ask === 'delete'}
+        title="Delete post"
+        message={<>Delete this post? Replies stay, the post becomes a tombstone. <strong>This cannot be undone.</strong></>}
+        confirmLabel="Delete"
+        danger
+        onConfirm={() => void remove()}
+        onCancel={() => setAsk(null)}
+      />
+      <AlertDialog
+        open={ask === 'report'}
+        title="Report post"
+        message="Report this post to the moderators. What is wrong with it? (optional)"
+        confirmLabel="Send report"
+        input={{ label: 'Reason', placeholder: 'Spam, harassment, ...', maxLength: 500 }}
+        onConfirm={(reason) => void report(reason)}
+        onCancel={() => setAsk(null)}
+      />
     </article>
   );
 }

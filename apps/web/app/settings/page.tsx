@@ -9,12 +9,13 @@ import { fmtDate, useMe } from '@/lib/hooks';
 import { CopyButton, ErrorNote } from '@/components/ui';
 import { PayButton } from '@/components/Billing';
 import { PushToggle } from '@/components/PushToggle';
+import { Loading } from '@/components/retro';
 
 export default function Settings() {
   const router = useRouter();
   const { me, loading, error, setMe } = useMe();
 
-  if (loading) return <p className="muted">Loading...</p>;
+  if (loading) return <Loading />;
   if (error) return <ErrorNote message={errorMessage(error)} />;
   if (!me) return <p>Please <Link href="/login">sign in</Link>.</p>;
   const seated = me.state === 'active' || me.state === 'flagged_lurker';

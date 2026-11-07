@@ -6,6 +6,7 @@ import { api, errorMessage, type EventDetail } from '@/lib/api';
 import { SeatedShell } from '@/components/Shell';
 import { EventForm } from '@/components/Events';
 import { ErrorNote } from '@/components/ui';
+import { Loading } from '@/components/retro';
 
 export default function EditEventPage() {
   return <SeatedShell>{() => <Edit />}</SeatedShell>;
@@ -19,7 +20,7 @@ function Edit() {
   useEffect(() => { api.event(id).then(setEv, (e) => setErr(errorMessage(e))); }, [id]);
 
   if (err) return <ErrorNote message={err} />;
-  if (!ev) return <p className="muted" role="status">Loading...</p>;
+  if (!ev) return <Loading />;
   if (!ev.canEdit) return <p>This event can no longer be edited. <Link href={`/events/${id}`}>Back</Link></p>;
   return (
     <>

@@ -7,6 +7,8 @@ import { usePaged } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { PostList } from '@/components/PostList';
 import { ErrorNote } from '@/components/ui';
+import { Avatar } from '@/components/Avatar';
+import { Loading, Win } from '@/components/retro';
 
 export default function ProfilePage() {
   return <SeatedShell>{(me) => <Profile myHandle={me.handle} />}</SeatedShell>;
@@ -30,18 +32,21 @@ function Profile({ myHandle }: { myHandle: string }) {
   }, [handle]);
 
   if (error) return <><ErrorNote message={error} /><p><Link href="/members">Back to members</Link></p></>;
-  if (!member) return <p className="muted" role="status">Loading...</p>;
+  if (!member) return <Loading />;
 
   const mine = member.handle.toLowerCase() === myHandle.toLowerCase();
   return (
     <>
-      <section className="card stack profile" aria-labelledby="prof-h">
+      <Win title={`${member.handle}.profile`} className="profile">
+        <div className="profile-head">
+        <Avatar seed={member.handle} size={112} label={`${member.displayName}'s avatar`} />
+        <div className="stack">
         <div>
           <h1 id="prof-h">
             {member.displayName}
             {member.state === 'archived' && <span className="tag" title="This member's seat was released">archived</span>}
           </h1>
-          <p className="muted">@{member.handle}</p>
+          <p className="mono muted">@{member.handle}</p>
         </div>
         {member.bio && <p className="body">{member.bio}</p>}
         <p className="muted small">
@@ -49,8 +54,10 @@ function Profile({ myHandle }: { myHandle: string }) {
           {member.activatedAt && <>Member since {new Date(member.activatedAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}. </>}
           {member.postCount} {member.postCount === 1 ? 'post' : 'posts'}.
         </p>
-        {mine && <div className="row"><Link className="btn" href="/settings">Edit profile in Settings</Link></div>}
-      </section>
+        {mine && <div className="row"><Link className="btn" href="/settings">Edit profile</Link></div>}
+        </div>
+        </div>
+      </Win>
       <h2 className="section-h">Posts</h2>
       <PostList p={posts} empty="No posts yet." />
     </>

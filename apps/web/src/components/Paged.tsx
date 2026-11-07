@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import { ErrorNote } from './ui';
+import { Loading } from './retro';
 
 interface PagedLike {
   loading: boolean;
@@ -29,7 +30,7 @@ export function PagedFooter({ p }: { p: PagedLike }) {
   return (
     <div ref={ref} className="paged-footer">
       <ErrorNote message={moreError} />
-      {loadingMore && <p className="muted" role="status">Loading...</p>}
+      {loadingMore && <p className="muted" role="status">Loading more…</p>}
       {hasMore && !loadingMore && <button type="button" className="btn" onClick={loadMore}>Load more</button>}
     </div>
   );
@@ -37,7 +38,7 @@ export function PagedFooter({ p }: { p: PagedLike }) {
 
 /** Loading / error / empty states for a paged list. */
 export function ListStatus({ p, count, empty }: { p: PagedLike; count: number; empty: string }) {
-  if (p.loading) return <p className="muted" role="status">Loading...</p>;
+  if (p.loading) return <Loading />;
   if (p.error) return <ErrorNote message={p.error} />;
   if (count === 0) return <p className="muted">{empty}</p>;
   return null;

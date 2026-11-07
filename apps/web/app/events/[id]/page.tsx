@@ -7,6 +7,7 @@ import { fmtDate } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { ErrorNote } from '@/components/ui';
 import { eventWhen, MyStatus, spotsText } from '@/components/Events';
+import { Loading } from '@/components/retro';
 
 export default function EventPage() {
   return <SeatedShell>{() => <EventView />}</SeatedShell>;
@@ -28,7 +29,7 @@ function EventView() {
     try { await fn(); await load(); } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
   }
 
-  if (!ev) return err ? <><ErrorNote message={err} /><p><Link href="/events">Back to events</Link></p></> : <p className="muted" role="status">Loading...</p>;
+  if (!ev) return err ? <><ErrorNote message={err} /><p><Link href="/events">Back to events</Link></p></> : <Loading />;
 
   const going = ev.my?.status === 'going';
   const waiting = ev.my?.status === 'waitlisted';

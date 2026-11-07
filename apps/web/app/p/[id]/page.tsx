@@ -7,6 +7,7 @@ import { SeatedShell } from '@/components/Shell';
 import { Composer } from '@/components/Composer';
 import { PostCard } from '@/components/PostCard';
 import { ErrorNote } from '@/components/ui';
+import { Loading } from '@/components/retro';
 
 export default function ThreadPage() {
   return <SeatedShell>{() => <ThreadView />}</SeatedShell>;
@@ -44,7 +45,7 @@ function ThreadView() {
       </>
     );
   }
-  if (!thread) return <p className="muted" role="status">Loading...</p>;
+  if (!thread) return <Loading />;
 
   const { root, replies } = thread;
   const byId = new Map<string, Post>([[root.id, root], ...replies.map((r) => [r.id, r] as [string, Post])]);

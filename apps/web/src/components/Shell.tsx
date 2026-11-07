@@ -6,6 +6,8 @@ import { api, errorMessage, type Me } from '@/lib/api';
 import { isSeated, useMe } from '@/lib/hooks';
 import { ErrorNote } from './ui';
 import { LurkerBanner } from './Lifecycle';
+import { Avatar } from './Avatar';
+import { Loading } from './retro';
 
 export const UNREAD_EVENT = 'anti:unread';
 export function broadcastUnread(n: number) {
@@ -24,9 +26,9 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
     if (!loading && !own.error && !seated) router.replace('/');
   }, [loading, own.error, seated, router]);
 
-  if (loading) return <p className="muted" role="status">Loading...</p>;
+  if (loading) return <Loading />;
   if (own.error && !given) return <ErrorNote message={errorMessage(own.error)} />;
-  if (!me || !seated) return <p className="muted" role="status">Redirecting...</p>;
+  if (!me || !seated) return <Loading what="Redirecting" />;
 
   return (
     <>
@@ -70,7 +72,6 @@ function NavBar({ me }: { me: Me }) {
     { href: '/members', label: 'Members', match: (p) => p === '/members' },
     { href: '/search', label: 'Search', match: (p) => p === '/search' },
     { href: '/notifications', label: 'Notifications', match: (p) => p === '/notifications', badge: unread },
-    { href: mine, label: 'Profile', match: (p) => p === mine },
     { href: '/settings', label: 'Settings', match: (p) => p === '/settings' },
   ];
 
@@ -84,6 +85,9 @@ function NavBar({ me }: { me: Me }) {
           )}
         </Link>
       ))}
+      <Link href={mine} className="nav-me" aria-label="Your profile" aria-current={path === mine ? 'page' : undefined}>
+        <Avatar seed={me.handle} size={28} />
+      </Link>
     </nav>
   );
 }

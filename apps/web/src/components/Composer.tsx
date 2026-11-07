@@ -90,9 +90,14 @@ export function Composer({
 
   return (
     <form
-      className="composer card stack"
+      className="composer win"
       onSubmit={(e) => { e.preventDefault(); void submit(); }}
     >
+      <div className="win-bar" aria-hidden="true">
+        <span className="win-close" />
+        <span className="win-title">{parentId ? 'reply.txt' : 'new_post.txt'}</span>
+      </div>
+      <div className="win-body">
       <label htmlFor={`${id}-body`} className="sr-only">{parentId ? 'Write a reply' : 'Write a post'}</label>
       <textarea
         id={`${id}-body`}
@@ -132,7 +137,7 @@ export function Composer({
           onChange={(e) => pick(e.target.files)}
         />
         <label htmlFor={`${id}-file`} className={`btn attach${atts.length >= IMAGES_MAX ? ' disabled' : ''}`} aria-disabled={atts.length >= IMAGES_MAX}>
-          Add image
+          + Image
         </label>
         <span className="grow" />
         <span id={`${id}-count`} className={`counter${over ? ' over' : ''}`} aria-live="polite">
@@ -141,6 +146,7 @@ export function Composer({
         <button className="btn primary" type="submit" disabled={!canPost} title={hasFailed ? 'Failed uploads are skipped' : 'Ctrl/Cmd+Enter'}>
           {busy ? 'Posting...' : (submitLabel ?? (parentId ? 'Reply' : 'Post'))}
         </button>
+      </div>
       </div>
     </form>
   );
