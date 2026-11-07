@@ -1,0 +1,26 @@
+{
+  "name": "@anti/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "scripts": {
+    "dev": "pglite-server --db=../../.pglite --port=5432 --max-connections=10",
+    "generate": "drizzle-kit generate",
+    "migrate": "bun --env-file=../../.env src/migrate.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.15",
+    "drizzle-orm": "^0.45.4",
+    "postgres": "^4.1.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite-socket": "^0.2.18",
+    "drizzle-kit": "^0.31.11"
+  }
+}

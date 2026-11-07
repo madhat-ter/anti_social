@@ -1,0 +1,23 @@
+{
+  "name": "anti-site",
+  "private": true,
+  "packageManager": "bun@1.4.4",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "cd packages/db && bun run generate",
+    "db:migrate": "cd packages/db && bun run migrate",
+    "ops:mint-invites": "bun --env-file=.env apps/api/src/cli/mint-invites.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "turbo": "^2.11.10",
+    "typescript": "^7.0.2"
+  }
+}

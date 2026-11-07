@@ -1,0 +1,9 @@
+node_modules/
+.pglite/
+.env
+.env.local
+.next/
+dist/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
