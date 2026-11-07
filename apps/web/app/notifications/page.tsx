@@ -19,6 +19,9 @@ function describe(n: Notification): string {
   if (n.kind === 'seat_offered') return 'A seat opened up for you. Reinstate within 72 hours to keep it.';
   if (n.kind === 'seat_offer_expired') return 'Your seat offer expired. You can rejoin the queue.';
   if (n.kind === 'lurker_warning') return 'You have been quiet for a while. Post or reply twice in 7 days to keep your seat.';
+  if (n.kind === 'stay_fee_paid') return 'Stay fee received. You are exempt from the posting rule for 90 days.';
+  if (n.kind === 'reinstated') return 'Payment received. Welcome back, your seat is yours again.';
+  if (n.kind === 'payment_refunded') return 'Your payment was refunded.';
   return n.post ? `${who} interacted with your post` : 'Account update';
 }
 

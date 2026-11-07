@@ -1,12 +1,16 @@
 import { sql } from 'drizzle-orm';
 import { rows, scalar, type Db } from '@anti/db';
 import type { Storage } from './storage';
+import type { PaymentProvider } from './payments';
+import { expireStaleCheckouts, processRefunds } from './billing';
+
+export type JobDeps = { storage: Storage; payments: PaymentProvider };
 
 /** RFC-0001 §12. Every job body is idempotent, so running one late, early or twice is harmless. */
 export interface Job {
   name: string;
   everyMs: number;
-  run: (tx: Db, deps: { storage: Storage }) => Promise<Record<string, number> | void>;
+  run: (tx: Db, deps: JobDeps) => Promise<Record<string, number> | void>;
 }
 
 const HOUR = 3_600_000;
@@ -19,6 +23,15 @@ export const JOBS: Job[] = [
     everyMs: HOUR,
     run: async (tx) => {
       await tx.execute(sql`select run_lifecycle()`);
+    },
+  },
+  {
+    name: 'payments',
+    everyMs: HOUR,
+    run: async (tx, { payments }) => {
+      const expired = await expireStaleCheckouts(tx);
+      const r = await processRefunds(tx, payments);
+      return { expired, ...r };
     },
   },
   {
@@ -45,7 +58,7 @@ export const JOBS: Job[] = [
  * name. If another API instance holds it, this one skips. The lock is released on commit/rollback,
  * so a crashed run never leaves it held.
  */
-export async function runJob(db: Db, job: Job, deps: { storage: Storage }) {
+export async function runJob(db: Db, job: Job, deps: JobDeps) {
   return db.transaction(async (tx) => {
     const t = tx as unknown as Db;
     const got = await scalar<boolean>(t, sql`select pg_try_advisory_xact_lock(hashtext(${'anti:job:' + job.name}))`);
@@ -56,7 +69,7 @@ export async function runJob(db: Db, job: Job, deps: { storage: Storage }) {
 }
 
 /** Starts the in-process scheduler: each job once on boot, then every `everyMs`. Returns stop(). */
-export function startScheduler(db: Db, deps: { storage: Storage }, jobs: Job[] = JOBS) {
+export function startScheduler(db: Db, deps: JobDeps, jobs: Job[] = JOBS) {
   const running = new Set<string>();
   const tick = async (job: Job) => {
     if (running.has(job.name)) return; // previous run still going on this instance

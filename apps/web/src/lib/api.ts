@@ -68,6 +68,26 @@ export interface Notification {
   post: { id: string; rootId: string | null; snippet: string } | null;
 }
 export interface Page<T> { items: T[]; nextCursor: string | null }
+export type ProductKey = 'stay_fee_90d' | 'reinstatement';
+export interface Price { productKey: ProductKey; name: string; amountMinor: number; currency: string }
+export interface PaymentRecord {
+  id: string; productKey: ProductKey; amountMinor: number; currency: string;
+  status: 'paid' | 'refund_pending' | 'refunded'; refundReason: string | null;
+  createdAt: string; paidAt: string | null; refundedAt: string | null;
+}
+export interface FakeCheckout {
+  sessionId: string; productKey: ProductKey; productName: string; amountMinor: number; currency: string;
+  status: 'pending' | 'paid' | 'expired' | 'refund_pending' | 'refunded'; expiresAt: string;
+  successUrl: string; cancelUrl: string;
+}
+
+export function formatMoney(amountMinor: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency.toUpperCase() }).format(amountMinor / 100);
+  } catch {
+    return `${(amountMinor / 100).toFixed(2)} ${currency.toUpperCase()}`;
+  }
+}
 export type NotificationPage = Page<Notification> & { unreadCount: number };
 export interface Thread { root: Post; replies: Post[]; focusId: string | null }
 
@@ -142,6 +162,13 @@ export const api = {
   notifications: (cursor?: string | null, limit = 30) => get<NotificationPage>(`/notifications${qs({ cursor, limit })}`),
   unreadCount: () => get<{ unreadCount: number }>('/notifications/unread-count'),
   markRead: (ids?: string[]) => post<{ ok: true; unreadCount: number }>('/notifications/read', ids ? { ids } : {}),
+
+  pricing: () => get<Price[]>('/pricing'),
+  checkout: (productKey: ProductKey) => post<{ url: string }>('/payments/checkout', { productKey }),
+  myPayments: () => get<PaymentRecord[]>('/me/payments'),
+  fakeCheckout: (session: string) => get<FakeCheckout>(`/dev/fake-checkout/${encodeURIComponent(session)}`),
+  fakeCheckoutAction: (session: string, action: 'pay' | 'expire') =>
+    post<{ outcome: string }>(`/dev/fake-checkout/${encodeURIComponent(session)}/${action}`, {}),
 };
 
 function qs(params: Record<string, string | number | null | undefined>): string {
@@ -180,6 +207,11 @@ const MESSAGES: Record<string, string> = {
   image_unsupported: 'That image type is not supported.',
   query_invalid: 'Enter a longer search.',
   not_found: 'Not found.',
+  product_unavailable: 'That is not available to buy right now.',
+  no_open_offer: 'There is no seat being held for you any more.',
+  stay_fee_not_applicable: 'The stay fee is only for members with a seat.',
+  checkout_closed: 'This checkout is no longer open. Start a new one.',
+  payment_not_found: 'That checkout was not found.',
 };
 
 export function errorMessage(e: unknown): string {

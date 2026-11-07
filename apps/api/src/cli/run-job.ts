@@ -2,6 +2,7 @@
 import { createDb } from '@anti/db';
 import { JOBS, runJob } from '../lib/jobs';
 import { LocalDiskStorage, resolveUploadDir } from '../lib/storage';
+import { loadConfig, loadPaymentProvider } from '../config';
 
 const name = process.argv[2];
 const job = JOBS.find((j) => j.name === name);
@@ -15,6 +16,7 @@ if (!url) {
   process.exit(1);
 }
 const { db, close } = createDb(url);
-const r = await runJob(db, job, { storage: new LocalDiskStorage(resolveUploadDir()) });
+const payments = loadPaymentProvider(loadConfig());
+const r = await runJob(db, job, { storage: new LocalDiskStorage(resolveUploadDir()), payments });
 console.log(name, r);
 await close();

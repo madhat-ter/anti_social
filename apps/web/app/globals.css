@@ -158,3 +158,11 @@ input[type=search] { font: inherit; color: var(--fg); background: var(--bg); bor
 .card.offer { border-color: var(--accent); }
 ul.plain { list-style: none; margin: 0; padding: 0; gap: .5rem; }
 ul.plain li.unread { font-weight: 600; }
+
+/* ---- Milestone 4: payments ---- */
+.banner.notice { margin-bottom: 1rem; background: var(--highlight); }
+.row.between { justify-content: space-between; }
+.test-ribbon { border: 1px dashed var(--accent); color: var(--accent); border-radius: 8px; padding: .6rem .9rem; font-size: .9rem; }
+.fake-checkout .card { max-width: 26rem; }
+.fake-checkout h1 { margin: 0; }
+.fake-checkout input[readonly] { opacity: .7; }

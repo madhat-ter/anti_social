@@ -218,10 +218,18 @@ export const payments = pgTable('payments', {
   currency: text('currency').notNull(),
   stripeCheckoutSessionId: text('stripe_checkout_session_id').notNull().unique(),
   stripePaymentIntentId: text('stripe_payment_intent_id'),
-  status: text('status').notNull(), // 'pending' | 'paid' | 'expired' | 'refunded'
+  /** 'pending' → 'paid' | 'expired'; 'paid' → 'refund_pending' → 'refunded' when the paid-for transition is no longer possible. */
+  status: text('status').notNull(),
   createdAt: tstz('created_at').notNull().defaultNow(),
+  /** When the checkout session stops accepting payment. */
+  expiresAt: tstz('expires_at'),
   paidAt: tstz('paid_at'),
-});
+  refundedAt: tstz('refunded_at'),
+  refundReason: text('refund_reason'),
+}, (t) => [
+  index('payments_user').on(t.userId, t.createdAt),
+  check('payments_status', sql`${t.status} in ('pending', 'paid', 'expired', 'refund_pending', 'refunded')`),
+]);
 
 export const stripeEvents = pgTable('stripe_events', {
   id: text('id').primaryKey(),

@@ -5,6 +5,7 @@ import { formatInviteCode } from '@anti/shared';
 import { createApp } from '../src/app';
 import { generateInviteCode } from '../src/lib/crypto';
 import { MemoryStorage } from '../src/lib/storage';
+import { FakeStripeProvider } from '../src/lib/payments';
 
 const cfg = { rpId: 'localhost', rpName: 'Anti', webOrigin: 'http://localhost:3000', cookieSecure: false };
 let t: Awaited<ReturnType<typeof createTestDb>>;
@@ -22,7 +23,7 @@ async function mint() {
 
 beforeAll(async () => {
   t = await createTestDb();
-  app = createApp({ db: t.db, cfg, storage: new MemoryStorage() });
+  app = createApp({ db: t.db, cfg, storage: new MemoryStorage(), payments: new FakeStripeProvider(cfg.webOrigin) });
 });
 afterAll(() => t.close());
 

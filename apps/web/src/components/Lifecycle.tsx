@@ -5,6 +5,7 @@ import { RULES } from '@anti/shared';
 import { api, errorMessage, type Me, type Notification } from '@/lib/api';
 import { fmtDate, relativeTime } from '@/lib/hooks';
 import { ErrorNote } from './ui';
+import { PayButton } from './Billing';
 
 /** Re-renders every `ms` so countdowns stay current. */
 function useNow(ms = 30_000) {
@@ -66,7 +67,7 @@ export function LurkerBanner({ me }: { me: Me }) {
           <span className="small muted">{done} of {required}</span>
         </span>
         {!met && <button type="button" className="btn primary" onClick={() => focusComposer(router)}>Post something</button>}
-        {!met && <button type="button" className="btn" disabled title="Payments are not open yet">Pay stay fee</button>}
+        {!met && <PayButton productKey="stay_fee_90d" label="Pay stay fee" />}
       </div>
     </div>
   );
@@ -129,9 +130,8 @@ export function ArchivedCard({ me, refresh }: { me: Me; refresh: () => Promise<v
         <p><span className="big"><Countdown until={w.offeredUntil} /></span> <span className="muted">left</span></p>
         <p>Pay the reinstatement fee before {fmtDate(w.offeredUntil)} to take your seat back. If you don't, it goes to the next person in line and you can rejoin the queue.</p>
         <div className="row">
-          <button type="button" className="btn primary" disabled title="Payments are not open yet">Pay to reinstate</button>
+          <PayButton productKey="reinstatement" label="Pay to reinstate" primary />
         </div>
-        <p className="muted small">Payments are not open yet.</p>
       </div>
     );
   }
@@ -173,6 +173,7 @@ function describeAccount(n: Notification): string | null {
   switch (n.kind) {
     case 'seat_offered': return 'A seat opened up and is being held for you.';
     case 'seat_offer_expired': return 'Your seat offer expired before payment. You can rejoin the queue.';
+    case 'payment_refunded': return 'Your payment was refunded because the seat was no longer being held.';
     // 'activated' / 'lurker_warning' belong to the seated past; on a status page they are noise.
     default: return null;
   }

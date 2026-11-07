@@ -7,6 +7,7 @@ import { inviteRoutes } from './routes/invites';
 import { meRoutes } from './routes/me';
 import { postRoutes } from './routes/posts';
 import { socialRoutes } from './routes/social';
+import { paymentRoutes } from './routes/payments';
 
 export function createApp(deps: Deps) {
   return new Elysia()
@@ -41,7 +42,8 @@ export function createApp(deps: Deps) {
     .use(authRoutes(deps))
     .use(meRoutes(deps))
     .use(postRoutes(deps))
-    .use(socialRoutes(deps));
+    .use(socialRoutes(deps))
+    .use(paymentRoutes(deps));
 }
 
 export type App = ReturnType<typeof createApp>;

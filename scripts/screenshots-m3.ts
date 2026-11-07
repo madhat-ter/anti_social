@@ -17,6 +17,7 @@ import { createApp } from '../apps/api/src/app';
 import { generateInviteCode } from '../apps/api/src/lib/crypto';
 import { JOBS, runJob } from '../apps/api/src/lib/jobs';
 import { MemoryStorage } from '../apps/api/src/lib/storage';
+import { FakeStripeProvider } from '../apps/api/src/lib/payments';
 
 const WEB = process.env.WEB_URL ?? 'http://localhost:3100';
 const API_PORT = 3101;
@@ -27,9 +28,10 @@ const t = await createTestDb({ seatCap: 2 });
 const db = t.db;
 const q = (text: string, params: unknown[] = []) => t.client.query(text, params);
 const storage = new MemoryStorage();
-const server = createApp({ db, storage, cfg: { rpId: 'localhost', rpName: 'Anti', webOrigin: WEB, cookieSecure: false } })
+const payments = new FakeStripeProvider(WEB);
+const server = createApp({ db, storage, payments, cfg: { rpId: 'localhost', rpName: 'Anti', webOrigin: WEB, cookieSecure: false } })
   .listen(API_PORT);
-const lifecycle = () => runJob(db, JOBS.find((j) => j.name === 'lifecycle')!, { storage });
+const lifecycle = () => runJob(db, JOBS.find((j) => j.name === 'lifecycle')!, { storage, payments });
 const mint = async () => {
   const c = generateInviteCode();
   await q('select create_invite(null, $1)', [c]);

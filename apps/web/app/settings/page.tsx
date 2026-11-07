@@ -4,9 +4,10 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
 import { DISPLAY_NAME_MAX } from '@anti/shared';
-import { api, errorMessage, type InviteInfo, type Me, type PasskeyInfo } from '@/lib/api';
+import { api, errorMessage, formatMoney, type InviteInfo, type Me, type PasskeyInfo, type PaymentRecord } from '@/lib/api';
 import { fmtDate, useMe } from '@/lib/hooks';
 import { CopyButton, ErrorNote } from '@/components/ui';
+import { PayButton } from '@/components/Billing';
 
 export default function Settings() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function Settings() {
       <Profile me={me} onSaved={setMe} />
       <Passkeys />
       {seated && <Invites />}
+      <Payments me={me} seated={seated} />
       <Danger me={me} onGone={() => { router.push('/'); router.refresh(); }} />
     </div>
   );
@@ -136,6 +138,42 @@ function Invites() {
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+const PRODUCT_LABEL: Record<string, string> = { stay_fee_90d: 'Stay fee (90 days)', reinstatement: 'Reinstatement' };
+const STATUS_LABEL: Record<string, string> = { paid: 'Paid', refund_pending: 'Refund in progress', refunded: 'Refunded' };
+
+function Payments({ me, seated }: { me: Me; seated: boolean }) {
+  const [list, setList] = useState<PaymentRecord[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { api.myPayments().then(setList, (e) => setErr(errorMessage(e))); }, []);
+  const exempt = me.lurkerExemptUntil && new Date(me.lurkerExemptUntil).getTime() > Date.now() ? me.lurkerExemptUntil : null;
+  return (
+    <section className="card stack" aria-labelledby="pay">
+      <h2 id="pay">Payments</h2>
+      {seated && (
+        exempt
+          ? <p>You are exempt from the posting rule until {fmtDate(exempt)}. You still need to sign in at least once every 30 days.</p>
+          : <>
+              <p className="muted">Not a big poster? The stay fee exempts you from the posting rule for 90 days. It does not cover the 30-day sign-in rule.</p>
+              <div className="row"><PayButton productKey="stay_fee_90d" label="Pay stay fee" /></div>
+            </>
+      )}
+      <ErrorNote message={err} />
+      {list && (list.length === 0 ? <p className="muted">No payments yet.</p> : (
+        <ul className="list">
+          {list.map((p) => (
+            <li key={p.id}>
+              <span>{PRODUCT_LABEL[p.productKey] ?? p.productKey}<br /><small className="muted">
+                {fmtDate(p.paidAt ?? p.createdAt)}{p.refundedAt ? `, refunded ${fmtDate(p.refundedAt)}` : ''}
+              </small></span>
+              <span className="muted">{formatMoney(p.amountMinor, p.currency)} · {STATUS_LABEL[p.status] ?? p.status}</span>
+            </li>
+          ))}
+        </ul>
+      ))}
     </section>
   );
 }

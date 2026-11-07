@@ -17,7 +17,7 @@ async function world(seatCap = 3) {
     expect(r.status).toBe(200);
     return c;
   };
-  const tick = () => runJob(w.t.db, job('lifecycle'), { storage: w.storage });
+  const tick = () => runJob(w.t.db, job('lifecycle'), { storage: w.storage, payments: w.payments });
   /** Makes `handle` look like a member who has read daily for 10 days for 40 days, without posting. */
   const makeLurker = async (handle: string) => {
     const id = await uid(handle);
@@ -47,7 +47,7 @@ describe('scheduled jobs', () => {
         return { ok: 1 };
       },
     };
-    expect(await runJob(w.t.db, probe, { storage: w.storage })).toEqual({ status: 'ran', result: { ok: 1 } });
+    expect(await runJob(w.t.db, probe, { storage: w.storage, payments: w.payments })).toEqual({ status: 'ran', result: { ok: 1 } });
     expect(Number(seen[0])).toBeGreaterThanOrEqual(1);
   });
 
@@ -60,7 +60,7 @@ describe('scheduled jobs', () => {
         throw new Error('boom');
       },
     };
-    await expect(runJob(w.t.db, bad, { storage: w.storage })).rejects.toThrow('boom');
+    await expect(runJob(w.t.db, bad, { storage: w.storage, payments: w.payments })).rejects.toThrow('boom');
     expect((await w.rowsOf(sql`select value from settings where key = 'seat_cap'`))[0].value).toBe(3);
   });
 
@@ -75,7 +75,7 @@ describe('scheduled jobs', () => {
     await w.t.db.execute(sql`insert into post_images(uploader_id, r2_key, width, height, created_at)
       values (${id}, 'old.webp', 1, 1, now() - interval '25 hours'), (${id}, 'new.webp', 1, 1, now())`);
 
-    const r = await runJob(w.t.db, job('cleanup'), { storage: w.storage });
+    const r = await runJob(w.t.db, job('cleanup'), { storage: w.storage, payments: w.payments });
     expect(r).toEqual({ status: 'ran', result: { sessions: 1, challenges: 1, uploads: 1 } });
     expect(w.storage.files.has('old.webp')).toBe(false);
     expect(w.storage.files.has('new.webp')).toBe(true);

@@ -20,6 +20,12 @@ insert into settings(key, value) values
   ('ban_invite_penalty_days', '30')
 on conflict (key) do nothing;
 
+-- Placeholder prices (RFC §15 open question). Change rows in `pricing`; existing rows are never overwritten.
+insert into pricing(product_key, amount_minor, currency) values
+  ('stay_fee_90d', 500, 'usd'),
+  ('reinstatement', 1000, 'usd')
+on conflict (product_key) do nothing;
+
 create or replace function setting_int(p_key text) returns int
 language sql stable as $$
   select (value #>> '{}')::int from settings where key = p_key
@@ -223,6 +229,41 @@ begin
   end if;
   delete from waitlist where user_id = p_user;
   perform set_state(p_user, 'active', 'paid_reinstate');
+end $$;
+
+-- Applies a completed checkout (webhook `checkout.session.completed`). Idempotent per session.
+-- Returns 'applied' | 'refund' (paid, but the transition is no longer possible) | 'duplicate'.
+create or replace function complete_payment(p_session text, p_intent text) returns text
+language plpgsql as $$
+declare v payments%rowtype;
+begin
+  select * into v from payments where stripe_checkout_session_id = p_session for update;
+  if not found then raise exception 'payment_not_found' using errcode = 'P0040'; end if;
+  if v.status not in ('pending', 'expired') then return 'duplicate'; end if;
+
+  update payments set status = 'paid', paid_at = now(), stripe_payment_intent_id = p_intent where id = v.id;
+  if v.user_id is null then
+    update payments set status = 'refund_pending', refund_reason = 'account_deleted' where id = v.id;
+    return 'refund';
+  end if;
+
+  begin  -- subtransaction: a failed transition rolls back alone, the payment row stays
+    if v.product_key = 'stay_fee_90d' then
+      perform pay_stay_fee(v.user_id);
+    elsif v.product_key = 'reinstatement' then
+      perform activate_offer(v.user_id);
+    else
+      raise exception 'unknown_product' using errcode = 'P0041';
+    end if;
+  exception when sqlstate 'P0030' or sqlstate 'P0002' then  -- stay_fee_not_applicable / no_open_offer
+    update payments set status = 'refund_pending', refund_reason = sqlerrm where id = v.id;
+    return 'refund';
+  end;
+
+  insert into notifications(user_id, kind, payload)
+  values (v.user_id, case v.product_key when 'stay_fee_90d' then 'stay_fee_paid' else 'reinstated' end,
+          jsonb_build_object('paymentId', v.id));
+  return 'applied';
 end $$;
 
 -- ─── Ops / account removal ──────────────────────────────────────────────────

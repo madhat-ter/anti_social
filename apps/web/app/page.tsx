@@ -9,6 +9,7 @@ import { SeatedShell } from '@/components/Shell';
 import { Composer } from '@/components/Composer';
 import { PostList } from '@/components/PostList';
 import { AccountUpdates, ArchivedCard, usePollMe, WaitlistCard } from '@/components/Lifecycle';
+import { CheckoutNotice } from '@/components/Billing';
 
 function FeedView({ onPosted }: { onPosted: () => void }) {
   const p = usePaged<Post>('feed', (c) => api.feed(c));
@@ -62,7 +63,12 @@ export default function Home() {
     return (
       <SeatedShell me={me}>
         {/* refresh after posting so a flagged member's progress updates */}
-        {() => <FeedView onPosted={() => { if (me.state === 'flagged_lurker') void refresh(); }} />}
+        {() => (
+          <>
+            <CheckoutNotice refresh={refresh} />
+            <FeedView onPosted={() => { if (me.state === 'flagged_lurker') void refresh(); }} />
+          </>
+        )}
       </SeatedShell>
     );
   }
@@ -71,6 +77,7 @@ export default function Home() {
     <StatusView refresh={refresh}>
       <div className="stack">
         <h1>@{me.handle}</h1>
+        <CheckoutNotice refresh={refresh} />
         {me.state === 'waitlisted' && <WaitlistCard me={me} />}
         {me.state === 'archived' && <ArchivedCard me={me} refresh={refresh} />}
         <AccountUpdates />
