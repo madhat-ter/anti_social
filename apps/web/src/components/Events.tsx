@@ -99,8 +99,27 @@ export function EventForm({ initial, submitLabel, onSubmit }: {
     }
   }
 
+  const previewStart = startsAt ? new Date(startsAt) : null;
   return (
-    <form className="card stack" onSubmit={submit}>
+    <form className="win" onSubmit={submit}>
+      <div className="win-bar" aria-hidden="true">
+        <span className="win-close" />
+        <span className="win-title">{initial ? 'edit_event' : 'new_event'}</span>
+      </div>
+      <div className="win-body stack">
+      <figure className="poster-preview" aria-label="Preview of how the event will look in Events">
+        <span className="date-chip" aria-hidden>
+          <span className="m">{previewStart ? previewStart.toLocaleDateString(undefined, { month: 'short' }) : 'Date'}</span>
+          <span className="d">{previewStart ? previewStart.getDate() : '?'}</span>
+        </span>
+        <span className="event-main">
+          <span className="event-title">{title.trim() || 'Your event'}</span>
+          <span className="muted small">{startsAt ? eventWhen(fromLocalInput(startsAt)!, fromLocalInput(endsAt)) : 'Pick a time'}</span>
+          <span className="muted small">{rsvpOnly ? 'Location shared with people going' : location.trim() || 'Somewhere'}</span>
+          <span className="muted small">{capacity.trim() ? `${capacity} spots` : 'No limit on spots'}</span>
+        </span>
+        <figcaption className="ui muted">Preview</figcaption>
+      </figure>
       <label>Title<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={EVENT_TITLE_MAX} required /></label>
       <label>What is it?
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={EVENT_DESCRIPTION_MAX} rows={4} />
@@ -126,7 +145,8 @@ export function EventForm({ initial, submitLabel, onSubmit }: {
         </div>
       </details>
       <ErrorNote message={err} />
-      <div className="row"><button className="btn primary" disabled={busy}>{busy ? 'Saving...' : submitLabel}</button></div>
+      <div className="row dlg-actions"><button className="btn primary" disabled={busy}>{busy ? 'Saving…' : submitLabel}</button></div>
+      </div>
     </form>
   );
 }

@@ -85,8 +85,10 @@ export function usePaged<T>(key: string, fetchPage: (cursor: string | null) => P
       (p) => {
         if (g !== gen.current) return;
         setItems((cur) => {
-          const seen = new Set(cur.map((x) => (x as { id?: string }).id));
-          return [...cur, ...p.items.filter((x) => !seen.has((x as { id?: string }).id))];
+          // members have a handle, not an id; items with neither are never treated as duplicates
+          const keyOf = (x: T) => (x as { id?: string }).id ?? (x as { handle?: string }).handle;
+          const seen = new Set(cur.map(keyOf).filter(Boolean));
+          return [...cur, ...p.items.filter((x) => { const k = keyOf(x); return !k || !seen.has(k); })];
         });
         setCursor(p.nextCursor); setHasMore(!!p.nextCursor);
       },

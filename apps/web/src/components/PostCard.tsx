@@ -54,6 +54,7 @@ export function PostCard({
   highlight,
   replyingTo,
   id,
+  actions,
 }: {
   post: Post;
   onChange: (p: Post) => void;
@@ -61,6 +62,8 @@ export function PostCard({
   /** shown as "replying to @handle" */
   replyingTo?: string | null;
   id?: string;
+  /** extra buttons for the footer row, e.g. Reply in a thread */
+  actions?: ReactNode;
 }) {
   const uid = useId();
   const [editing, setEditing] = useState(false);
@@ -258,6 +261,7 @@ export function PostCard({
           <Dot on={post.likedByMe} size=".85em" />
           <span aria-hidden="true">{post.likeCount}</span>
         </button>
+        {actions}
       </footer>
       <ErrorNote message={err} />
       </div>

@@ -170,6 +170,17 @@ try {
   await maya.getByRole('button', { name: "I'm going" }).click();
   await maya.locator('.crowd').waitFor();
   await shot(maya, 'event-detail');
+  await maya.goto(`${WEB}/events/new`);
+  await maya.getByLabel('Title').fill('Night swim at the lido');
+  await maya.getByLabel('Starts').fill('2026-11-21T19:30');
+  await maya.getByLabel('Where').fill('Brockwell Lido, gate B');
+  await maya.getByLabel(/^Capacity/).fill('8');
+  await maya.locator('.poster-preview').getByText('Night swim').waitFor();
+  await shot(maya, 'host-event');
+  await maya.goto(`${WEB}/this-page-does-not-exist`);
+  await maya.getByText('This page left the network').waitFor();
+  await shot(maya, 'not-found', false);
+
   await maya.goto(`${WEB}/search?q=coffee`);
   await maya.locator('.posts').getByText('quiet café').waitFor();
   await shot(maya, 'search');

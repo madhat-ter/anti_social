@@ -129,19 +129,19 @@ export function ArchivedCard({ me, refresh }: { me: Me; refresh: () => Promise<v
 
   if (w?.offeredUntil) {
     return (
-      <div className="card stack offer">
+      <Win title="seat_held_for_you" className="offer" bodyClassName="stack">
         <h2>A seat is being held for you</h2>
-        <p><span className="big"><Countdown until={w.offeredUntil} /></span> <span className="muted">left</span></p>
+        <p><span className="big"><Countdown until={w.offeredUntil} /></span> <span className="ui muted">left</span></p>
         <p>Pay the reinstatement fee before {fmtDate(w.offeredUntil)} to take your seat back. If you don't, it goes to the next person in line and you can rejoin the queue.</p>
         <div className="row">
           <PayButton productKey="reinstatement" label="Pay to reinstate" primary />
         </div>
-      </div>
+      </Win>
     );
   }
 
   return (
-    <div className="card stack">
+    <Win title={wasMember ? 'seat_released' : 'left_the_line'} bodyClassName="stack">
       <h2>{wasMember ? 'Your seat was released' : 'You left the waitlist'}</h2>
       <p>{reason} Your handle, profile and posts are kept.</p>
       {w ? (
@@ -169,7 +169,7 @@ export function ArchivedCard({ me, refresh }: { me: Me; refresh: () => Promise<v
         </>
       )}
       <ErrorNote message={err} />
-    </div>
+    </Win>
   );
 }
 

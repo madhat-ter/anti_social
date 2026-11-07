@@ -72,14 +72,14 @@ function ThreadView() {
           const handle = parent?.author?.handle ?? null;
           return (
             <div key={r.id} className="reply">
-              <PostCard post={r} onChange={update} id={`post-${r.id}`} highlight={focus === r.id} replyingTo={handle} />
-              {!r.deleted && (
-                <div className="reply-actions">
-                  <button type="button" className="link-btn" onClick={() => setReplyTo(replyTo === r.id ? null : r.id)} aria-expanded={replyTo === r.id}>
+              <PostCard
+                post={r} onChange={update} id={`post-${r.id}`} highlight={focus === r.id} replyingTo={handle}
+                actions={!r.deleted && (
+                  <button type="button" className="foot-btn" onClick={() => setReplyTo(replyTo === r.id ? null : r.id)} aria-expanded={replyTo === r.id}>
                     {replyTo === r.id ? 'Cancel reply' : 'Reply'}
                   </button>
-                </div>
-              )}
+                )}
+              />
               {replyTo === r.id && <Composer parentId={r.id} onCreated={added} placeholder={`Reply to ${r.author ? '@' + r.author.handle : 'this post'}...`} />}
             </div>
           );
