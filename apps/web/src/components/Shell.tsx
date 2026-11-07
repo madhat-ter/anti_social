@@ -66,6 +66,7 @@ function NavBar({ me }: { me: Me }) {
   const mine = `/u/${me.handle}`;
   const items: { href: string; label: string; match: (p: string) => boolean; badge?: number }[] = [
     { href: '/', label: 'Feed', match: (p) => p === '/' || p.startsWith('/p/') },
+    { href: '/events', label: 'Events', match: (p) => p.startsWith('/events') },
     { href: '/members', label: 'Members', match: (p) => p === '/members' },
     { href: '/search', label: 'Search', match: (p) => p === '/search' },
     { href: '/notifications', label: 'Notifications', match: (p) => p === '/notifications', badge: unread },

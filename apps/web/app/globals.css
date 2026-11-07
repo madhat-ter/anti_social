@@ -166,3 +166,24 @@ ul.plain li.unread { font-weight: 600; }
 .fake-checkout .card { max-width: 26rem; }
 .fake-checkout h1 { margin: 0; }
 .fake-checkout input[readonly] { opacity: .7; }
+
+/* ---- Milestone 5: events ---- */
+.tabs { display: flex; gap: .3rem; border-bottom: 1px solid var(--line); }
+.tab { font: inherit; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); padding: .5rem .8rem; cursor: pointer; }
+.tab.on { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
+ul.events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .6rem; }
+.event-link { display: flex; gap: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card);
+  color: inherit; text-decoration: none; }
+.event-link:hover { background: var(--hover); }
+.date-chip { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 3.4rem; height: 3.6rem;
+  border-radius: 8px; border: 1px solid var(--line); background: var(--bg); }
+.date-chip .m { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); }
+.date-chip .d { font-size: 1.4rem; font-weight: 700; line-height: 1.1; }
+.event-main { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.event-title { font-weight: 600; }
+.event-detail h1 { margin: 0; }
+.event-detail .when { font-size: 1.1rem; margin: 0; }
+.tag.on { color: var(--accent); border-color: var(--accent); }
+.tag.danger { color: var(--danger); border-color: var(--danger); }
+.row.two > label { flex: 1 1 14rem; }
+details > summary { cursor: pointer; }

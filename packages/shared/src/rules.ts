@@ -45,3 +45,19 @@ export const PAGE_DEFAULT_LIMIT = 20;
 export const PAGE_MAX_LIMIT = 50;
 export const SEARCH_QUERY_MAX = 100;
 
+
+// ─── Events (RFC-0001 §10) ──────────────────────────────────────────────────
+export const EVENT_TITLE_MAX = 120;
+export const EVENT_DESCRIPTION_MAX = 2000;
+export const EVENT_LOCATION_MAX = 200;
+export const EVENT_PRICE_NOTE_MAX = 100;
+export const EVENT_URL_MAX = 500;
+export const EVENT_CAPACITY_MAX = 1000;
+/** Events a member can create per rolling 24 hours. */
+export const EVENTS_PER_DAY = 5;
+/** Host can confirm attendance from the start time until this many days after it. */
+export const ATTENDANCE_WINDOW_DAYS = 14;
+/** How far ahead an event can be scheduled. */
+export const EVENT_MAX_DAYS_AHEAD = 365;
+/** Without an end time, an event counts as "happening now" for this many hours after it starts. */
+export const EVENT_DEFAULT_HOURS = 3;

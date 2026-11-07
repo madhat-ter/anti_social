@@ -39,6 +39,7 @@ type NotifRow = {
   id: string; kind: string; cursor_ts: string; created_iso: string; read_iso: string | null;
   a_handle: string | null; a_display: string | null;
   p_id: string | null; p_root: string | null; p_body: string | null; p_deleted: boolean | null;
+  e_id: string | null; e_title: string | null;
 };
 
 async function unreadCount(db: Db, userId: string): Promise<number> {
@@ -116,10 +117,12 @@ export const socialRoutes = (deps: Deps) => {
           to_char(n.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_iso,
           to_char(n.read_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as read_iso,
           u.handle as a_handle, u.display_name as a_display,
-          p.id as p_id, coalesce(p.root_id, p.id) as p_root, p.body as p_body, (p.deleted_at is not null) as p_deleted
+          p.id as p_id, coalesce(p.root_id, p.id) as p_root, p.body as p_body, (p.deleted_at is not null) as p_deleted,
+          ev.id as e_id, ev.title as e_title
         from notifications n
         left join users u on u.id = case when n.payload->>'actorId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'actorId')::uuid end
         left join posts p on p.id = case when n.payload->>'postId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'postId')::uuid end
+        left join events ev on ev.id = case when n.payload->>'eventId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'eventId')::uuid end
         where n.user_id = ${uid}::uuid ${cursorBefore(sql`n.created_at`, sql`n.id`, query.cursor)}
         order by n.created_at desc, n.id desc
         limit ${limit + 1}`);
@@ -131,6 +134,7 @@ export const socialRoutes = (deps: Deps) => {
           post: r.p_id
             ? { id: r.p_id, rootId: r.p_root ?? r.p_id, snippet: r.p_deleted ? '' : (r.p_body ?? '').slice(0, 80) }
             : null,
+          event: r.e_id ? { id: r.e_id, title: r.e_title ?? '' } : null,
         })),
         nextCursor,
         unreadCount: await unreadCount(db, uid),

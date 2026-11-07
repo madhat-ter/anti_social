@@ -55,6 +55,7 @@ docs/rfc         Design docs
 - **Milestone 2 (done):** global feed, posts with up to 4 images (EXIF stripped, WebP), threaded replies, likes, edit window, soft delete, member directory and profiles, full-text search, in-app notifications. Images are stored on local disk (`.uploads/`); Cloudflare R2 comes with deployment.
 - **Milestone 3 (done):** in-process scheduler (hourly `run_lifecycle`: inactivity archival, lurker detection/grace/resolution, waitlist decay and promotion; daily cleanup of expired sessions, challenges and orphaned uploads), guarded by per-job advisory locks so multiple API instances are safe. Lurker banner with countdown and progress on every page; waitlist, archived (with reason), rejoin-queue and held-seat screens. 
 - **Milestone 4 (done):** prices (placeholders: stay fee $5, reinstatement $10, USD; edit the `pricing` table), Stripe Checkout for both products, signed idempotent webhook, automatic refund when a payment can no longer apply (seat offer lapsed, account archived or deleted), hourly retry of failed refunds, payment history in Settings. **Payments run against a built-in fake Stripe by default** (see below).
+- **Milestone 5 (done):** events: create/edit/cancel (host only; cancel and time/place changes notify everyone who RSVP'd), RSVP with capacity and a FIFO waitlist that promotes automatically, location visible only to the host and people going when marked private, attendance confirmation by the host from start to 14 days after (counts as a contribution for attendees and, with at least one confirmed attendee, for the host), upcoming/past lists. Cost is informational (price note + external payment link).
 
 ## Payments (fake Stripe)
 
@@ -64,7 +65,7 @@ With no `STRIPE_SECRET_KEY` set, the API uses a fake Stripe: "Pay" buttons open 
 
 `scripts/screenshots.ts` drives your installed Chrome with a virtual passkey through the whole flow (join → post with image → reply/like from a second member → notifications, profile, members, search, settings, phone width) and writes `.screenshots/NN-*.png`. Run it against a throwaway stack (separate DB/ports) so it never touches your data; see the script header.
 
-`scripts/screenshots-m3.ts` covers the lifecycle screens (waitlist, lurker banner, archival, rejoin, held seat). It runs the API itself on an in-memory database, so it only needs the web app pointed at it: in `apps/web`, `$env:API_URL='http://localhost:3101'; bunx next dev -p 3100`, then `bun scripts/screenshots-m3.ts`. Output: `.screenshots/m3/`. `scripts/screenshots-m4.ts` does the same for payments (`.screenshots/m4/`). If another dev server is running, give the screenshot one its own build dir: `NEXT_DIST_DIR=.next-shots`.
+`scripts/screenshots-m3.ts` covers the lifecycle screens (waitlist, lurker banner, archival, rejoin, held seat). It runs the API itself on an in-memory database, so it only needs the web app pointed at it: in `apps/web`, `$env:API_URL='http://localhost:3101'; bunx next dev -p 3100`, then `bun scripts/screenshots-m3.ts`. Output: `.screenshots/m3/`. `scripts/screenshots-m4.ts` and `screenshots-m5.ts` do the same for payments and events (`.screenshots/m4/`, `m5/`). If another dev server is running, give the screenshot one its own build dir: `NEXT_DIST_DIR=.next-shots`.
 
 ## Notes
 

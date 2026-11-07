@@ -19,6 +19,11 @@ function describe(n: Notification): string {
   if (n.kind === 'seat_offered') return 'A seat opened up for you. Reinstate within 72 hours to keep it.';
   if (n.kind === 'seat_offer_expired') return 'Your seat offer expired. You can rejoin the queue.';
   if (n.kind === 'lurker_warning') return 'You have been quiet for a while. Post or reply twice in 7 days to keep your seat.';
+  const ev = n.event ? `"${n.event.title}"` : 'an event';
+  if (n.kind === 'event_rsvp') return `${who} is going to ${ev}`;
+  if (n.kind === 'event_promoted') return `A spot opened up: you are now going to ${ev}`;
+  if (n.kind === 'event_updated') return `The time or place of ${ev} changed`;
+  if (n.kind === 'event_cancelled') return `${ev} was cancelled`;
   if (n.kind === 'stay_fee_paid') return 'Stay fee received. You are exempt from the posting rule for 90 days.';
   if (n.kind === 'reinstated') return 'Payment received. Welcome back, your seat is yours again.';
   if (n.kind === 'payment_refunded') return 'Your payment was refunded.';
@@ -68,7 +73,7 @@ function Notifications() {
       {p.items.length > 0 && (
         <ul className="notifs card">
           {p.items.map((n) => {
-            const href = n.post ? `/p/${n.post.rootId ?? n.post.id}#${n.post.id}` : null;
+            const href = n.post ? `/p/${n.post.rootId ?? n.post.id}#${n.post.id}` : n.event ? `/events/${n.event.id}` : null;
             const body = (
               <>
                 <span className="notif-title">{!n.readAt && <span className="dot-unread" aria-label="Unread" />}{describe(n)}</span>

@@ -66,8 +66,25 @@ export interface Notification {
   readAt: string | null;
   actor: { handle: string; displayName: string } | null;
   post: { id: string; rootId: string | null; snippet: string } | null;
+  event: { id: string; title: string } | null;
 }
 export interface Page<T> { items: T[]; nextCursor: string | null }
+export type RsvpStatus = 'going' | 'waitlisted' | 'cancelled';
+export interface EventPerson { handle: string; displayName: string; state: UserState; attended: boolean }
+export interface AnEvent {
+  id: string; title: string; description: string; startsAt: string; endsAt: string | null;
+  location: string | null; locationHidden: boolean; locationRsvpOnly: boolean; capacity: number | null;
+  goingCount: number; waitlistCount: number; attendedCount: number;
+  priceNote: string | null; externalPaymentUrl: string | null; cancelledAt: string | null;
+  host: { handle: string; displayName: string; state: UserState } | null; isHost: boolean;
+  my: { status: RsvpStatus; waitlistPosition: number | null; attended: boolean } | null;
+  started: boolean; rsvpOpen: boolean; canEdit: boolean; canConfirmAttendance: boolean;
+}
+export interface EventDetail extends AnEvent { going: EventPerson[]; waitlist: EventPerson[] | null }
+export interface EventInput {
+  title: string; description: string; startsAt: string; endsAt: string | null; location: string;
+  locationRsvpOnly: boolean; capacity: number | null; priceNote: string | null; externalPaymentUrl: string | null;
+}
 export type ProductKey = 'stay_fee_90d' | 'reinstatement';
 export interface Price { productKey: ProductKey; name: string; amountMinor: number; currency: string }
 export interface PaymentRecord {
@@ -163,6 +180,15 @@ export const api = {
   unreadCount: () => get<{ unreadCount: number }>('/notifications/unread-count'),
   markRead: (ids?: string[]) => post<{ ok: true; unreadCount: number }>('/notifications/read', ids ? { ids } : {}),
 
+  events: (scope: 'upcoming' | 'past', cursor?: string | null, limit = 20) => get<Page<AnEvent>>(`/events${qs({ scope, cursor, limit })}`),
+  event: (id: string) => get<EventDetail>(`/events/${encodeURIComponent(id)}`),
+  createEvent: (b: EventInput) => post<AnEvent>('/events', b),
+  updateEvent: (id: string, b: Partial<EventInput>) => call<AnEvent>('PATCH', `/events/${encodeURIComponent(id)}`, b),
+  cancelEvent: (id: string) => call<AnEvent>('DELETE', `/events/${encodeURIComponent(id)}`),
+  rsvp: (id: string) => post<AnEvent>(`/events/${encodeURIComponent(id)}/rsvp`, {}),
+  leaveEvent: (id: string) => call<AnEvent>('DELETE', `/events/${encodeURIComponent(id)}/rsvp`),
+  confirmAttendance: (id: string, handles: string[]) => post<AnEvent>(`/events/${encodeURIComponent(id)}/attendance`, { handles }),
+
   pricing: () => get<Price[]>('/pricing'),
   checkout: (productKey: ProductKey) => post<{ url: string }>('/payments/checkout', { productKey }),
   myPayments: () => get<PaymentRecord[]>('/me/payments'),
@@ -212,6 +238,12 @@ const MESSAGES: Record<string, string> = {
   stay_fee_not_applicable: 'The stay fee is only for members with a seat.',
   checkout_closed: 'This checkout is no longer open. Start a new one.',
   payment_not_found: 'That checkout was not found.',
+  event_started: 'This event has already started.',
+  event_cancelled: 'This event was cancelled.',
+  host_rsvp: 'You are hosting this event.',
+  not_host: 'Only the host can do that.',
+  capacity_below_going: 'More people are already going than that capacity allows.',
+  attendance_closed: 'Attendance can be confirmed from the start time until 14 days after.',
 };
 
 export function errorMessage(e: unknown): string {
