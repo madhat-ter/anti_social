@@ -149,3 +149,12 @@ input[type=search] { font: inherit; color: var(--fg); background: var(--bg); bor
   .card { padding: 1rem; }
   .imgs.n1 img { max-height: 22rem; }
 }
+
+/* ---- Milestone 3: lifecycle ---- */
+.banner.lurker { gap: .6rem; margin-bottom: 1rem; }
+.progress { display: inline-flex; align-items: center; gap: .3rem; margin-right: .4rem; }
+.pip { width: .7rem; height: .7rem; border-radius: 50%; border: 1px solid var(--fg); opacity: .6; }
+.pip.on { background: var(--accent); border-color: var(--accent); opacity: 1; }
+.card.offer { border-color: var(--accent); }
+ul.plain { list-style: none; margin: 0; padding: 0; gap: .5rem; }
+ul.plain li.unread { font-weight: 600; }

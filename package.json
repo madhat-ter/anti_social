@@ -13,7 +13,8 @@
     "typecheck": "turbo run typecheck",
     "db:generate": "cd packages/db && bun run generate",
     "db:migrate": "cd packages/db && bun run migrate",
-    "ops:mint-invites": "bun --env-file=.env apps/api/src/cli/mint-invites.ts"
+    "ops:mint-invites": "bun --env-file=.env apps/api/src/cli/mint-invites.ts",
+    "ops:run-job": "bun --env-file=.env apps/api/src/cli/run-job.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",

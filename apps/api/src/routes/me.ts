@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { and, asc, desc, eq, lt, or, sql } from 'drizzle-orm';
-import { invites, passkeys, users, waitlist, isUniqueViolation, scalar } from '@anti/db';
+import { invites, passkeys, users, waitlist, isUniqueViolation, rows, scalar } from '@anti/db';
 import { DISPLAY_NAME_MAX, formatInviteCode } from '@anti/shared';
 import type { Deps } from '../deps';
 import { ApiError, rethrowDb } from '../lib/errors';
@@ -9,6 +9,13 @@ import type { Auth } from '../lib/sessions';
 import { saveChallenge, takeChallenge } from '../lib/challenges';
 import { registrationOptions, verifyRegistration } from '../lib/webauthn';
 import { generateInviteCode } from '../lib/crypto';
+
+/** Queue standing. `priority` 'reinstating' = former member (seat is offered, paid); 'new' = invitee (seated free). */
+type Waitlist = { position: number; total: number; priority: 'reinstating' | 'new'; offeredUntil: string | null };
+/** Present while flagged: the member keeps the seat by contributing `required` times before `graceEndsAt`. */
+type Lurker = { flaggedAt: string; graceEndsAt: string; contributions: number; required: number };
+/** reason: 'inactive' | 'lurker_grace_expired' | 'waitlist_decay' (see run_lifecycle). */
+type Archived = { reason: string; wasMember: boolean };
 
 export const meRoutes = (deps: Deps) => {
   const { db, cfg } = deps;
@@ -21,7 +28,7 @@ export const meRoutes = (deps: Deps) => {
       const [inv] = await db.select({ handle: users.handle }).from(users).where(eq(users.id, u.invitedBy)).limit(1);
       if (inv) invitedBy = inv;
     }
-    let wl: { position: number; offeredUntil: string | null } | null = null;
+    let wl: Waitlist | null = null;
     if (u.state === 'waitlisted' || u.state === 'archived') {
       const [me] = await db.select().from(waitlist).where(eq(waitlist.userId, userId)).limit(1);
       if (me) {
@@ -32,22 +39,40 @@ export const meRoutes = (deps: Deps) => {
             lt(waitlist.priority, me.priority),
             and(eq(waitlist.priority, me.priority), lt(waitlist.enqueuedAt, me.enqueuedAt)),
           ));
-        wl = { position: (ahead?.n ?? 0) + 1, offeredUntil: me.offerExpiresAt ? me.offerExpiresAt.toISOString() : null };
+        const total = await scalar<number>(db, sql`select count(*)::int from waitlist where offered_at is null`);
+        const open = !!me.offerExpiresAt && me.offerExpiresAt.getTime() > Date.now();
+        wl = {
+          position: (ahead?.n ?? 0) + 1,
+          total: Number(total ?? 0),
+          priority: me.priority === 0 ? 'reinstating' : 'new',
+          offeredUntil: open ? me.offerExpiresAt!.toISOString() : null,
+        };
       }
     }
-    let lurker: { flaggedAt: string; graceEndsAt: string } | null = null;
+    let lurker: Lurker | null = null;
     if (u.state === 'flagged_lurker' && u.lurkerFlaggedAt) {
-      const days = Number(await scalar<number>(db, sql`select setting_int('lurker_grace_days')`));
+      const [r] = await rows<{ grace: number; required: number; done: number }>(db, sql`
+        select setting_int('lurker_grace_days') as grace, setting_int('lurker_min_contributions') as required,
+               (select count(*)::int from contributions where user_id = ${userId}::uuid and at >= ${u.lurkerFlaggedAt.toISOString()}::timestamptz) as done`);
       lurker = {
         flaggedAt: u.lurkerFlaggedAt.toISOString(),
-        graceEndsAt: new Date(u.lurkerFlaggedAt.getTime() + days * 86_400_000).toISOString(),
+        graceEndsAt: new Date(u.lurkerFlaggedAt.getTime() + Number(r!.grace) * 86_400_000).toISOString(),
+        contributions: Number(r!.done),
+        required: Number(r!.required),
       };
+    }
+    let archived: Archived | null = null;
+    if (u.state === 'archived') {
+      const reason = await scalar<string>(db, sql`
+        select reason from user_state_events where user_id = ${userId}::uuid and to_state = 'archived'
+         order by id desc limit 1`);
+      archived = { reason: reason ?? 'unknown', wasMember: !!u.activatedAt };
     }
     const iso = (d: Date | null) => (d ? d.toISOString() : null);
     return {
       id: u.id, handle: u.handle, displayName: u.displayName, bio: u.bio, state: u.state,
       invitedBy, activatedAt: iso(u.activatedAt), lastSeenAt: iso(u.lastSeenAt),
-      lurkerExemptUntil: iso(u.lurkerExemptUntil), waitlist: wl, lurker,
+      lurkerExemptUntil: iso(u.lurkerExemptUntil), waitlist: wl, lurker, archived,
     };
   }
 

@@ -10,8 +10,9 @@ export interface Me {
   activatedAt: string | null;
   lastSeenAt: string | null;
   lurkerExemptUntil: string | null;
-  waitlist: { position: number; offeredUntil: string | null } | null;
-  lurker: { flaggedAt: string; graceEndsAt: string } | null;
+  waitlist: { position: number; total: number; priority: 'reinstating' | 'new'; offeredUntil: string | null } | null;
+  lurker: { flaggedAt: string; graceEndsAt: string; contributions: number; required: number } | null;
+  archived: { reason: 'inactive' | 'lurker_grace_expired' | 'waitlist_decay' | string; wasMember: boolean } | null;
 }
 
 export interface PasskeyInfo { id: string; deviceLabel: string | null; createdAt: string; lastUsedAt: string | null }

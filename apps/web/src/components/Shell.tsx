@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { api, errorMessage, type Me } from '@/lib/api';
 import { isSeated, useMe } from '@/lib/hooks';
 import { ErrorNote } from './ui';
+import { LurkerBanner } from './Lifecycle';
 
 export const UNREAD_EVENT = 'anti:unread';
 export function broadcastUnread(n: number) {
@@ -30,6 +31,7 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
   return (
     <>
       <NavBar me={me} />
+      <LurkerBanner me={me} />
       <div className="stack">{children(me)}</div>
     </>
   );

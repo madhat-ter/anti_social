@@ -5,7 +5,7 @@ import { SEARCH_QUERY_MAX } from '@anti/shared';
 import type { Deps } from '../deps';
 import { ApiError } from '../lib/errors';
 import { cursorBefore, listPosts, paginate, parseLimit, UUID_RE, type Page } from '../lib/posts';
-import { authPlugin, requireSeated } from '../plugins/auth';
+import { authPlugin, requireSeated, requireUser } from '../plugins/auth';
 
 const pageQuery = t.Object({ cursor: t.Optional(t.String()), limit: t.Optional(t.String()) });
 const SEATED = sql`('active', 'flagged_lurker')`;
@@ -108,7 +108,7 @@ export const socialRoutes = (deps: Deps) => {
     }, { query: pageQuery })
 
     .get('/notifications', async ({ auth, query }) => {
-      const a = requireSeated(auth);
+      const a = requireUser(auth);
       const uid = a.user.id;
       const limit = parseLimit(query.limit);
       const found = await rows<NotifRow>(db, sql`
@@ -138,12 +138,12 @@ export const socialRoutes = (deps: Deps) => {
     }, { query: pageQuery })
 
     .get('/notifications/unread-count', async ({ auth }) => {
-      const a = requireSeated(auth);
+      const a = requireUser(auth);
       return { unreadCount: await unreadCount(db, a.user.id) };
     })
 
     .post('/notifications/read', async ({ auth, body }) => {
-      const a = requireSeated(auth);
+      const a = requireUser(auth);
       const uid = a.user.id;
       let filter: SQL = sql``;
       if (body?.ids !== undefined) {

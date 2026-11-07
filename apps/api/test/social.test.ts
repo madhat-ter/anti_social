@@ -39,7 +39,8 @@ describe('access control', () => {
     await w.client().register(await w.mint(), 'alice');
     const b = w.client();
     expect((await b.register(await w.mint(), 'bob')).body.state).toBe('waitlisted');
-    for (const p of ['/feed', '/members', '/search?q=a', '/notifications', '/media/x.webp']) {
+    // notifications are open to any signed-in user (account updates reach the waitlisted); see lifecycle.test.ts
+    for (const p of ['/feed', '/members', '/search?q=a', '/media/x.webp']) {
       const r = await b.get(p);
       expect([p, r.status, r.body.error]).toEqual([p, 403, 'no_seat']);
     }

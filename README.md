@@ -20,6 +20,8 @@ bun run db:migrate            # applies drizzle migrations and sql/functions.sql
 bun run ops:mint-invites -- --count 10   # prints 10 seed invite codes (no inviter)
 ```
 
+The API runs the lifecycle job on boot and hourly (set `JOBS=off` to disable). To run a job by hand: `bun run ops:run-job -- lifecycle` (or `cleanup`).
+
 To wipe local data: stop `bun run dev`, delete `.pglite/`, start again and re-run the two first-time commands.
 
 Open http://localhost:3000/join and use one of the minted codes.
@@ -51,10 +53,13 @@ docs/rfc         Design docs
 
 - **Milestone 1 (done):** invites, passkey registration/login/recovery, waitlist and seat lifecycle (in SQL), account settings, passkey and invite management, account deletion.
 - **Milestone 2 (done):** global feed, posts with up to 4 images (EXIF stripped, WebP), threaded replies, likes, edit window, soft delete, member directory and profiles, full-text search, in-app notifications. Images are stored on local disk (`.uploads/`); Cloudflare R2 comes with deployment.
+- **Milestone 3 (done):** in-process scheduler (hourly `run_lifecycle`: inactivity archival, lurker detection/grace/resolution, waitlist decay and promotion; daily cleanup of expired sessions, challenges and orphaned uploads), guarded by per-job advisory locks so multiple API instances are safe. Lurker banner with countdown and progress on every page; waitlist, archived (with reason), rejoin-queue and held-seat screens. Payment buttons are placeholders until Milestone 4.
 
 ## UI walkthrough screenshots
 
 `scripts/screenshots.ts` drives your installed Chrome with a virtual passkey through the whole flow (join → post with image → reply/like from a second member → notifications, profile, members, search, settings, phone width) and writes `.screenshots/NN-*.png`. Run it against a throwaway stack (separate DB/ports) so it never touches your data; see the script header.
+
+`scripts/screenshots-m3.ts` covers the lifecycle screens (waitlist, lurker banner, archival, rejoin, held seat). It runs the API itself on an in-memory database, so it only needs the web app pointed at it: in `apps/web`, `$env:API_URL='http://localhost:3101'; bunx next dev -p 3100`, then `bun scripts/screenshots-m3.ts`. Output: `.screenshots/m3/`.
 
 ## Notes
 
