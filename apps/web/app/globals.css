@@ -440,17 +440,21 @@ ul.events { list-style: none; margin: 0; padding: 0; display: flex; flex-directi
   .boot .zoom > .win { animation: pop 0s .7s both; }
   @keyframes pop { from { visibility: hidden; } to { visibility: visible; } }
 
-  /* an empty seat (dashed box) until its person sits down */
-  .boot .seat::before {
-    content: ''; position: absolute; inset: 8% 14% 14% 8%; border: 2px dashed var(--gray);
-    animation: vacate 0s var(--d) both;
-  }
-  /* 1-bit: a face is either there or not (no grey half-fade), then drops into its seat */
-  .boot .seat .avatar { animation: show 0s var(--d) both, sit .15s steps(3, end) var(--d) both; }
-  @keyframes vacate { to { visibility: hidden; } }
-  @keyframes show { from { visibility: hidden; } to { visibility: visible; } }
+  /* full motion: each face also drops into its seat */
+  .boot .seat-grid .seat .avatar { animation: show 0s var(--d) both, sit .15s steps(3, end) var(--d) both; }
   @keyframes sit { from { transform: translateY(-18%); } to { transform: none; } }
 }
+
+/* Seats filling is appearance, not movement, so it runs for everyone — including people
+   who turned off animations (Windows "Animation effects" off = prefers-reduced-motion).
+   Nothing moves here: each seat is an empty dashed box until its face appears in one frame. */
+.boot .seat::before {
+  content: ''; position: absolute; inset: 8% 14% 14% 8%; border: 2px dashed var(--gray);
+  animation: vacate 0s var(--d) both;
+}
+.boot .seat .avatar { animation: show 0s var(--d) both; }
+@keyframes vacate { to { visibility: hidden; } }
+@keyframes show { from { visibility: hidden; } to { visibility: visible; } }
 
 /* ─── settings: one control-panel window, label column + controls ──────── */
 .panel-body { padding: 0; }
