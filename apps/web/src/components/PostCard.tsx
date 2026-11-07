@@ -270,11 +270,12 @@ export function PostCard({
           type="button"
           className={`foot-btn like${post.likedByMe ? ' on' : ''}${stamp ? ' stamp' : ''}`}
           aria-pressed={post.likedByMe}
-          aria-label={post.likedByMe ? `Unlike (${post.likeCount})` : `Like (${post.likeCount})`}
           onClick={toggleLike}
         >
           <Dot on={post.likedByMe} size=".85em" />
-          <span aria-hidden="true">{post.likeCount}</span>
+          {/* name = "Like 3": includes the visible count, so voice control ("click 3") works */}
+          <span className="sr-only">Like</span>
+          <span>{post.likeCount}</span>
         </button>
         {actions}
       </footer>

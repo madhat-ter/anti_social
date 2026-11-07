@@ -28,12 +28,32 @@ const server = createApp({
   cfg: { rpId: 'localhost', rpName: 'Anti', webOrigin: WEB, cookieSecure: false },
 }).listen(3101);
 
+// ── accessibility: axe-core (WCAG 2.1 AA) runs on every screen we capture
+const AXE = require.resolve('axe-core/axe.min.js');
+type Finding = { id: string; impact: string; help: string; screens: Set<string>; targets: Set<string> };
+const a11y = new Map<string, Finding>();
+async function audit(page: Page, name: string) {
+  await page.addScriptTag({ path: AXE });
+  const violations = await page.evaluate(async () => {
+    // @ts-expect-error injected global
+    const r = await window.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] } });
+    return r.violations.map((v: { id: string; impact: string; help: string; nodes: { target: string[] }[] }) =>
+      ({ id: v.id, impact: v.impact, help: v.help, targets: v.nodes.slice(0, 3).map((n) => n.target.join(' ')) }));
+  });
+  for (const v of violations as { id: string; impact: string; help: string; targets: string[] }[]) {
+    const f = a11y.get(v.id) ?? { id: v.id, impact: v.impact, help: v.help, screens: new Set(), targets: new Set() };
+    f.screens.add(name); v.targets.forEach((t) => f.targets.add(t));
+    a11y.set(v.id, f);
+  }
+}
+
 let n = 0;
 async function shot(page: Page, name: string, fullPage = true) {
   await page.waitForLoadState('networkidle').catch(() => {});
   await page.waitForTimeout(500);
   const file = join(OUT, `${String(++n).padStart(2, '0')}-${name}.png`);
   await page.screenshot({ path: file, fullPage });
+  await audit(page, name);
   console.log('saved', file);
 }
 
@@ -116,7 +136,7 @@ try {
   const theo = await newUser(b);
   await join_(theo, 'theo', 'Theo Park');
   await post(theo, 'Day 3 without an algorithm telling me what to think. I read a whole book. Who am I.');
-  await theo.getByRole('button', { name: /^Like \(/ }).last().click();
+  await theo.getByRole('button', { name: /^Like \d/ }).last().click();
   await theo.getByRole('link', { name: /repl(y|ies)$/ }).last().click();
   await theo.getByPlaceholder('Write a reply...').fill('Is that the one next to the bookshop? Going Saturday.');
   await theo.getByRole('button', { name: 'Reply', exact: true }).click();
@@ -125,7 +145,7 @@ try {
   const ines = await newUser(c);
   await join_(ines, 'ines', 'Inês Moreau');
   await post(ines, 'Reminder that the best social network is a dinner table. Hosting one on Friday, see Events.');
-  await ines.getByRole('button', { name: /^Like \(/ }).nth(1).click();
+  await ines.getByRole('button', { name: /^Like \d/ }).nth(1).click();
   await ines.request.post(`${WEB}/api/events`, {
     data: {
       title: 'Long table dinner', description: 'Bring one dish and one story. Phones in a basket.',
@@ -245,6 +265,10 @@ try {
   await anon.goto(WEB);
   await anon.locator('.hero').waitFor();
   await shot(anon, 'phone-landing');
+  console.log(`\naccessibility (${SCHEME}): ${a11y.size} rule(s) violated`);
+  for (const f of a11y.values()) {
+    console.log(`- [${f.impact}] ${f.id}: ${f.help}\n    screens: ${[...f.screens].join(', ')}\n    e.g. ${[...f.targets].slice(0, 4).join(' | ')}`);
+  }
   if (pageErrors.length) throw new Error(`page errors:\n${pageErrors.join('\n')}`);
   console.log('no page errors');
 } finally {

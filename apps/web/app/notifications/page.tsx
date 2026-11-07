@@ -88,7 +88,7 @@ function Notifications() {
                   ? <Avatar seed={n.actor.handle} size={40} />
                   : <span className="notif-sys">{WARNINGS.has(n.kind) ? <AlertIcon size={28} /> : <Dot size="1.1rem" />}</span>}
                 <span className="notif-text">
-                  <span className="notif-title">{!n.readAt && <span className="dot-unread" aria-label="Unread" />}{describe(n)}</span>
+                  <span className="notif-title">{!n.readAt && <><span className="dot-unread" aria-hidden="true" /><span className="sr-only">Unread: </span></>}{describe(n)}</span>
                   {n.post?.snippet && <span className="muted small notif-snippet">{n.post.snippet}</span>}
                   <time className="muted small" dateTime={n.createdAt} title={fmtDate(n.createdAt)}>{relativeTime(n.createdAt)}</time>
                 </span>

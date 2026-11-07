@@ -18,13 +18,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${archivo.variable} ${pixel.variable}`}>
       <body>
+        <a className="skip" href="#main">Skip to content</a>
         <header className="top">
           <div className="top-inner">
             <Link href="/" className="brand" aria-label="anti, home">anti</Link>
             <span className="top-clock"><Clock /></span>
           </div>
         </header>
-        <main className="wrap">{children}</main>
+        <main className="wrap" id="main" tabIndex={-1}>{children}</main>
       </body>
     </html>
   );

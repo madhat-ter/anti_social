@@ -101,7 +101,7 @@ try {
   // ── Theo joins, likes, replies, posts
   const theo = await newUser(b);
   await join_(theo, CODES[1]!, 'theo', 'Theo Park', false);
-  await theo.getByRole('button', { name: /^Like \(/ }).first().click();
+  await theo.getByRole('button', { name: /^Like \d/ }).first().click();
   await theo.getByRole('link', { name: /repl(y|ies)$/ }).first().click();
   await theo.getByPlaceholder('Write a reply...').fill('Is that the one next to the bookshop? Going Saturday.');
   await theo.getByRole('button', { name: 'Reply', exact: true }).click();
