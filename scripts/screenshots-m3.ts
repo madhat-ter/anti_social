@@ -66,7 +66,7 @@ async function join_(page: Page, handle: string, name: string) {
   await page.goto(`${WEB}/join`);
   await page.getByPlaceholder('XXXX-XXXX-XXXX-XXXX').fill(await mint());
   await page.getByRole('button', { name: 'Check code' }).click();
-  await page.getByLabel('Handle (permanent)').fill(handle);
+  await page.getByLabel('Handle', { exact: true }).fill(handle);
   await page.getByLabel('Display name').fill(name);
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'Create passkey' }).click();

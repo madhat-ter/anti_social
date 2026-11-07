@@ -129,7 +129,7 @@ export function AlertDialog({
 }
 
 /** Striped progress bar. `value` 0–100; omit for an indeterminate shimmer. */
-export function Progress({ value, label }: { value?: number; label?: string }) {
+export function Progress({ value, label, showValue = true }: { value?: number; label?: string; showValue?: boolean }) {
   const pct = value === undefined ? undefined : Math.max(0, Math.min(100, value));
   return (
     <div
@@ -141,7 +141,7 @@ export function Progress({ value, label }: { value?: number; label?: string }) {
       aria-valuenow={pct}
     >
       <span className="progressbar-fill" style={pct === undefined ? undefined : { width: `${pct}%` }} />
-      {pct !== undefined && <span className="progressbar-text">{Math.round(pct)}%</span>}
+      {pct !== undefined && showValue && <span className="progressbar-text">{Math.round(pct)}%</span>}
     </div>
   );
 }

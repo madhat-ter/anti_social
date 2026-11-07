@@ -9,7 +9,8 @@ import { fmtDate, useMe } from '@/lib/hooks';
 import { CopyButton, ErrorNote } from '@/components/ui';
 import { PayButton } from '@/components/Billing';
 import { PushToggle } from '@/components/PushToggle';
-import { Loading } from '@/components/retro';
+import { Loading, Win } from '@/components/retro';
+import { Avatar } from '@/components/Avatar';
 
 export default function Settings() {
   const router = useRouter();
@@ -22,14 +23,16 @@ export default function Settings() {
 
   return (
     <div className="stack">
-      <div className="row"><Link href="/">Back</Link></div>
+      <div className="row"><Link href="/" className="ui">Back to the feed</Link></div>
       <h1>Settings</h1>
-      <Profile me={me} onSaved={setMe} />
-      <Passkeys />
-      <PushToggle />
-      {seated && <Invites />}
-      <Payments me={me} seated={seated} />
-      <Danger me={me} onGone={() => { router.push('/'); router.refresh(); }} />
+      <Win title="Control panel" className="panel" bodyClassName="panel-body">
+        <Profile me={me} onSaved={setMe} />
+        <Passkeys />
+        <PushToggle />
+        {seated && <Invites />}
+        <Payments me={me} seated={seated} />
+        <Danger me={me} onGone={() => { router.push('/'); router.refresh(); }} />
+      </Win>
     </div>
   );
 }
@@ -40,13 +43,16 @@ function Profile({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   return (
-    <form className="card stack" onSubmit={async (e) => {
+    <form className="panel-sec" onSubmit={async (e) => {
       e.preventDefault(); setErr(null); setMsg(null);
       try { onSaved(await api.updateMe({ displayName: displayName.trim(), bio })); setMsg('Saved.'); }
       catch (x) { setErr(errorMessage(x)); }
     }}>
       <h2>Profile</h2>
-      <p className="muted">@{me.handle} (permanent)</p>
+      <div className="row">
+        <Avatar seed={me.handle} size={56} />
+        <p className="muted">Your handle <strong className="ui">@{me.handle}</strong> is permanent, and so is the face that comes with it.</p>
+      </div>
       <label>Display name
         <input value={displayName} maxLength={DISPLAY_NAME_MAX} onChange={(e) => setDisplayName(e.target.value)} required />
       </label>
@@ -84,7 +90,7 @@ function Passkeys() {
   }
 
   return (
-    <section className="card stack" aria-labelledby="pk">
+    <section className="panel-sec" aria-labelledby="pk">
       <h2 id="pk">Passkeys</h2>
       <ul className="list">
         {list.map((p) => (
@@ -118,7 +124,7 @@ function Invites() {
   }
 
   return (
-    <section className="card stack" aria-labelledby="inv">
+    <section className="panel-sec" aria-labelledby="inv">
       <h2 id="inv">Invites</h2>
       {fresh && (
         <div className="stack" role="status">
@@ -154,7 +160,7 @@ function Payments({ me, seated }: { me: Me; seated: boolean }) {
   useEffect(() => { api.myPayments().then(setList, (e) => setErr(errorMessage(e))); }, []);
   const exempt = me.lurkerExemptUntil && new Date(me.lurkerExemptUntil).getTime() > Date.now() ? me.lurkerExemptUntil : null;
   return (
-    <section className="card stack" aria-labelledby="pay">
+    <section className="panel-sec" aria-labelledby="pay">
       <h2 id="pay">Payments</h2>
       {seated && (
         exempt
@@ -172,7 +178,7 @@ function Payments({ me, seated }: { me: Me; seated: boolean }) {
               <span>{PRODUCT_LABEL[p.productKey] ?? p.productKey}<br /><small className="muted">
                 {fmtDate(p.paidAt ?? p.createdAt)}{p.refundedAt ? `, refunded ${fmtDate(p.refundedAt)}` : ''}
               </small></span>
-              <span className="muted">{formatMoney(p.amountMinor, p.currency)} · {STATUS_LABEL[p.status] ?? p.status}</span>
+              <span className="muted">{formatMoney(p.amountMinor, p.currency)}, {(STATUS_LABEL[p.status] ?? p.status).toLowerCase()}</span>
             </li>
           ))}
         </ul>
@@ -185,13 +191,12 @@ function Danger({ me, onGone }: { me: Me; onGone: () => void }) {
   const [confirm, setConfirm] = useState('');
   const [err, setErr] = useState<string | null>(null);
   return (
-    <section className="card stack" aria-labelledby="dz">
+    <section className="panel-sec danger-zone" aria-labelledby="dz">
       <h2 id="dz">Account</h2>
       <div className="row">
         <button className="btn" onClick={async () => { try { await api.logout(); } catch { /* ignore */ } onGone(); }}>Sign out</button>
       </div>
-      <hr style={{ width: '100%', border: 0, borderTop: '1px solid var(--line)' }} />
-      <h3>Delete account</h3>
+            <h3>Delete account</h3>
       <p className="muted">This is permanent. Type <strong>{me.handle}</strong> to confirm.</p>
       <input aria-label="Type your handle to confirm" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="off" />
       <ErrorNote message={err} />

@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { AlertIcon, Win } from './retro';
 
 export function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
   const [done, setDone] = useState(false);
@@ -28,16 +29,25 @@ export function ErrorNote({ message }: { message: string | null }) {
 export function RecoveryCodeStep({ code, onDone }: { code: string; onDone: () => void }) {
   const [saved, setSaved] = useState(false);
   return (
-    <div className="card stack">
-      <h2>Save your recovery code</h2>
-      <p>This is the only way back in if you lose every passkey. It is shown once and cannot be retrieved later.</p>
-      <p className="code" aria-label="Recovery code">{code}</p>
-      <div className="row"><CopyButton text={code} /></div>
-      <label className="check">
-        <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
-        I saved it somewhere safe
-      </label>
-      <button className="btn primary" disabled={!saved} onClick={onDone}>Continue</button>
+    <div className="stack">
+      <h1>Save your recovery code</h1>
+      <Win title="recovery_code.txt" bodyClassName="stack">
+        <div className="dlg-body">
+          <AlertIcon />
+          <p>This is the only way back in if you lose every passkey. It is shown once. Write it down or put it in a password manager.</p>
+        </div>
+        <p className="code" aria-label="Recovery code">{code}</p>
+        <div className="row between">
+          <label className="check">
+            <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
+            I saved it somewhere safe
+          </label>
+          <div className="row">
+            <CopyButton text={code} />
+            <button className="btn primary" disabled={!saved} onClick={onDone}>Continue</button>
+          </div>
+        </div>
+      </Win>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { api, errorMessage, type Me, type Notification } from '@/lib/api';
 import { fmtDate, relativeTime } from '@/lib/hooks';
 import { ErrorNote } from './ui';
 import { PayButton } from './Billing';
+import { Progress, Win } from './retro';
 
 /** Re-renders every `ms` so countdowns stay current. */
 function useNow(ms = 30_000) {
@@ -85,23 +86,26 @@ export function usePollMe(refresh: () => Promise<void>, ms = 60_000) {
 
 export function WaitlistCard({ me }: { me: Me }) {
   const w = me.waitlist;
+  const total = w ? Math.max(w.total, w.position) : 0;
+  // how far along the line you are: first in line reads as nearly done
+  const pct = w ? Math.round(((total - w.position + 1) / (total + 1)) * 100) : undefined;
   return (
-    <div className="card stack">
-      <h2>You are on the waitlist</h2>
+    <Win title="waiting_for_a_seat" bodyClassName="stack">
       {w ? (
         <p>
           <span className="big">#{w.position}</span>{' '}
-          <span className="muted">of {Math.max(w.total, w.position)} waiting</span>
+          <span className="ui muted">of {total} in line</span>
         </p>
       ) : (
-        <p className="muted">Your place in the queue is being updated.</p>
+        <p className="muted">Your place in the line is being updated.</p>
       )}
-      <p>All seats are taken. When one opens you will be seated automatically and this page will turn into your feed.</p>
+      <Progress value={pct} showValue={false} label={w ? `Number ${w.position} of ${total} in line` : 'Waiting'} />
+      <p>All hundred seats are taken. When one opens you get it automatically, and this page turns into your feed.</p>
       <p className="muted small">
         Returning members are seated ahead of new invitees, so your number can go up as well as down.
         Sign in at least once every {RULES.waitlist_decay_days} days to keep your place.
       </p>
-    </div>
+    </Win>
   );
 }
 

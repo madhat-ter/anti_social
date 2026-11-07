@@ -67,7 +67,7 @@ export function PushToggle() {
   }
 
   return (
-    <section className="card stack" aria-labelledby="push">
+    <section className="panel-sec" aria-labelledby="push">
       <h2 id="push">Notifications on this device</h2>
       {state === 'loading' && <p className="muted">Checking...</p>}
       {state === 'unsupported' && <p className="muted">This browser does not support push notifications. On iPhone, add anti to your Home Screen first.</p>}

@@ -6,6 +6,11 @@ import { relativeTime, fmtDate, usePaged } from '@/lib/hooks';
 import { SeatedShell, broadcastUnread } from '@/components/Shell';
 import { ListStatus, PagedFooter } from '@/components/Paged';
 import { ErrorNote } from '@/components/ui';
+import { Avatar } from '@/components/Avatar';
+import { AlertIcon, Dot } from '@/components/retro';
+
+/** System notices that need action get the warning triangle; good news gets the red dot. */
+const WARNINGS = new Set(['lurker_warning', 'seat_offer_expired', 'payment_refunded', 'event_cancelled']);
 
 export default function NotificationsPage() {
   return <SeatedShell>{() => <Notifications />}</SeatedShell>;
@@ -78,9 +83,14 @@ function Notifications() {
             const href = n.post ? `/p/${n.post.rootId ?? n.post.id}#${n.post.id}` : n.event ? `/events/${n.event.id}` : null;
             const body = (
               <>
-                <span className="notif-title">{!n.readAt && <span className="dot-unread" aria-label="Unread" />}{describe(n)}</span>
-                {n.post?.snippet && <span className="muted small notif-snippet">{n.post.snippet}</span>}
-                <time className="muted small" dateTime={n.createdAt} title={fmtDate(n.createdAt)}>{relativeTime(n.createdAt)}</time>
+                {n.actor
+                  ? <Avatar seed={n.actor.handle} size={40} />
+                  : <span className="notif-sys">{WARNINGS.has(n.kind) ? <AlertIcon size={28} /> : <Dot size="1.1rem" />}</span>}
+                <span className="notif-text">
+                  <span className="notif-title">{!n.readAt && <span className="dot-unread" aria-label="Unread" />}{describe(n)}</span>
+                  {n.post?.snippet && <span className="muted small notif-snippet">{n.post.snippet}</span>}
+                  <time className="muted small" dateTime={n.createdAt} title={fmtDate(n.createdAt)}>{relativeTime(n.createdAt)}</time>
+                </span>
               </>
             );
             return (

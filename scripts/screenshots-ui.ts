@@ -20,7 +20,7 @@ const SCHEME = (process.env.SCHEME === 'dark' ? 'dark' : 'light') as 'light' | '
 const OUT = join(import.meta.dir, '..', '.screenshots', `ui-${SCHEME}`);
 mkdirSync(OUT, { recursive: true });
 
-const t = await createTestDb({ seatCap: 10 });
+const t = await createTestDb({ seatCap: 3 }); // the 4th member waits for a seat
 const q = (text: string, params: unknown[] = []) => t.client.query(text, params);
 const server = createApp({
   db: t.db, storage: new MemoryStorage(), payments: new FakeStripeProvider(WEB),
@@ -48,22 +48,24 @@ async function newUser(ctx: BrowserContext) {
   return page;
 }
 
-async function join_(page: Page, handle: string, name: string, capture = false) {
+async function join_(page: Page, handle: string, name: string, capture = false, waitlisted = false) {
   const code = generateInviteCode();
   await q('select create_invite(null, $1)', [code]);
   await page.goto(`${WEB}/join`);
   await page.getByPlaceholder('XXXX-XXXX-XXXX-XXXX').fill(formatInviteCode(code));
   if (capture) await shot(page, 'join-code', false);
   await page.getByRole('button', { name: 'Check code' }).click();
-  await page.getByLabel('Handle (permanent)').fill(handle);
+  await page.getByLabel('Handle', { exact: true }).fill(handle);
   await page.getByLabel('Display name').fill(name);
+  if (capture) await shot(page, 'join-this-is-you', false);
   await page.getByRole('button', { name: 'Continue' }).click();
+  if (capture) { await page.getByRole('button', { name: 'Create passkey' }).waitFor(); await shot(page, 'join-passkey', false); }
   await page.getByRole('button', { name: 'Create passkey' }).click();
   await page.getByText('Save your recovery code').waitFor();
   if (capture) await shot(page, 'join-recovery-code', false);
   await page.getByLabel('I saved it somewhere safe').check();
   await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByPlaceholder('What is on your mind?').waitFor();
+  if (!waitlisted) await page.getByPlaceholder('What is on your mind?').waitFor();
 }
 
 async function post(page: Page, text: string, image?: string) {
@@ -165,6 +167,8 @@ try {
   await shot(maya, 'events');
   await maya.getByText('Long table dinner').first().click();
   await maya.getByRole('heading', { name: /Long table dinner/i }).waitFor();
+  await maya.getByRole('button', { name: "I'm going" }).click();
+  await maya.locator('.crowd').waitFor();
   await shot(maya, 'event-detail');
   await maya.goto(`${WEB}/search?q=coffee`);
   await maya.locator('.posts').getByText('quiet café').waitFor();
@@ -172,6 +176,21 @@ try {
   await maya.goto(`${WEB}/settings`);
   await maya.getByRole('button', { name: 'Create invite' }).waitFor();
   await shot(maya, 'settings');
+
+  // ── a fourth person arrives: all 3 seats are taken, so they wait
+  const pat = await newUser(await browser.newContext(view));
+  await join_(pat, 'pat_in_line', 'Pat Okafor', false, true);
+  await pat.getByText('in line').waitFor();
+  await shot(pat, 'waitlist');
+
+  // ── signed-out screens
+  const out = await (await browser.newContext(view)).newPage();
+  await out.goto(`${WEB}/login`);
+  await out.getByRole('button', { name: 'Sign in with passkey' }).waitFor();
+  await shot(out, 'sign-in', false);
+  await out.goto(`${WEB}/recover`);
+  await out.getByRole('button', { name: 'Recover and create passkey' }).waitFor();
+  await shot(out, 'recover', false);
 
   await maya.setViewportSize({ width: 390, height: 844 });
   await maya.goto(WEB);

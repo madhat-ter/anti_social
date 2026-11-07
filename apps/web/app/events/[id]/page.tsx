@@ -7,7 +7,8 @@ import { fmtDate } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { ErrorNote } from '@/components/ui';
 import { eventWhen, MyStatus, spotsText } from '@/components/Events';
-import { Loading } from '@/components/retro';
+import { AlertDialog, Loading } from '@/components/retro';
+import { Avatar } from '@/components/Avatar';
 
 export default function EventPage() {
   return <SeatedShell>{() => <EventView />}</SeatedShell>;
@@ -18,6 +19,7 @@ function EventView() {
   const [ev, setEv] = useState<EventDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [askCancel, setAskCancel] = useState(false);
 
   const load = useCallback(async () => {
     try { setEv(await api.event(id)); } catch (e) { setErr(errorMessage(e)); }
@@ -35,26 +37,42 @@ function EventView() {
   const waiting = ev.my?.status === 'waitlisted';
   const full = ev.capacity !== null && ev.goingCount >= ev.capacity;
 
+  const start = new Date(ev.startsAt);
   return (
     <>
-      <p><Link href="/events">Back to events</Link></p>
-      <article className="card stack event-detail">
+      <p><Link href="/events" className="ui">Back to events</Link></p>
+      <article className="stack event-detail">
         {ev.cancelledAt && <div className="banner" role="status">This event was cancelled.</div>}
-        <h1>{ev.title} <MyStatus e={ev} /></h1>
-        <p className="when">{eventWhen(ev.startsAt, ev.endsAt)}</p>
-        <p>
-          {ev.location ?? <span className="muted">The location is shared with people who are going.</span>}
-          {ev.locationRsvpOnly && ev.location && <span className="tag" title="Only the host and people going can see this">private</span>}
-        </p>
-        {ev.host && <p className="muted">Hosted by <Link href={`/u/${ev.host.handle}`}>@{ev.host.handle}</Link></p>}
-        {ev.description && <p className="body">{ev.description}</p>}
-        {(ev.priceNote || ev.externalPaymentUrl) && (
-          <p className="muted">
-            {ev.priceNote}
-            {ev.externalPaymentUrl && <> · <a href={ev.externalPaymentUrl} target="_blank" rel="noopener noreferrer nofollow">Payment link</a> (paid to the host, not anti)</>}
-          </p>
-        )}
-        <p className="muted small">{spotsText(ev)}</p>
+        <header className="event-poster">
+          <span className="date-chip" aria-hidden>
+            <span className="m">{start.toLocaleDateString(undefined, { month: 'short' })}</span>
+            <span className="d">{start.getDate()}</span>
+          </span>
+          <div>
+            <h1>{ev.title}</h1>
+            <MyStatus e={ev} />
+          </div>
+        </header>
+        {ev.description && <p className="body event-desc">{ev.description}</p>}
+        <dl className="facts">
+          <dt>When</dt><dd>{eventWhen(ev.startsAt, ev.endsAt)}</dd>
+          <dt>Where</dt>
+          <dd>
+            {ev.location ?? <span className="muted">Shared with people who are going.</span>}
+            {ev.locationRsvpOnly && ev.location && <span className="tag" title="Only the host and people going can see this">private</span>}
+          </dd>
+          {ev.host && <><dt>Host</dt><dd><Link href={`/u/${ev.host.handle}`}>@{ev.host.handle}</Link></dd></>}
+          <dt>Spots</dt><dd>{spotsText(ev)}</dd>
+          {(ev.priceNote || ev.externalPaymentUrl) && (
+            <>
+              <dt>Cost</dt>
+              <dd>
+                {ev.priceNote}{ev.priceNote && ev.externalPaymentUrl ? '. ' : ''}
+                {ev.externalPaymentUrl && <><a href={ev.externalPaymentUrl} target="_blank" rel="noopener noreferrer nofollow">Payment link</a> (paid to the host, not anti)</>}
+              </dd>
+            </>
+          )}
+        </dl>
 
         <ErrorNote message={err} />
         <div className="row">
@@ -70,13 +88,21 @@ function EventView() {
           )}
           {ev.canEdit && <Link className="btn" href={`/events/${id}/edit`}>Edit</Link>}
           {ev.canEdit && (
-            <button className="btn danger" disabled={busy} onClick={() => {
-              if (window.confirm('Cancel this event? Everyone who RSVP\'d will be notified.')) void act(() => api.cancelEvent(id));
-            }}>Cancel event</button>
+            <button className="btn danger" disabled={busy} onClick={() => setAskCancel(true)}>Cancel event</button>
           )}
         </div>
         {waiting && <p className="muted small">You are #{ev.my!.waitlistPosition} on the waitlist. If a spot opens you move up automatically and get a notification.</p>}
       </article>
+      <AlertDialog
+        open={askCancel}
+        title="Cancel event"
+        message="Cancel this event? Everyone who said they were going gets a notification."
+        confirmLabel="Cancel event"
+        cancelLabel="Keep it"
+        danger
+        onConfirm={() => { setAskCancel(false); void act(() => api.cancelEvent(id)); }}
+        onCancel={() => setAskCancel(false)}
+      />
 
       {ev.canConfirmAttendance
         ? <Attendance ev={ev} onSaved={load} />
@@ -88,14 +114,17 @@ function EventView() {
 
 function People({ title, people, showAttended }: { title: string; people: EventDetail['going']; showAttended: boolean }) {
   return (
-    <section className="card stack">
-      <h2>{title}</h2>
-      {people.length === 0 ? <p className="muted">Nobody yet.</p> : (
-        <ul className="list">
+    <section className="stack">
+      <h2 className="section-h">{title}</h2>
+      {people.length === 0 ? <p className="muted">Nobody yet. Be the first.</p> : (
+        <ul className="crowd">
           {people.map((p) => (
             <li key={p.handle}>
-              <Link href={`/u/${p.handle}`}>{p.displayName} <span className="muted">@{p.handle}</span></Link>
-              {showAttended && p.attended && <span className="tag on">attended</span>}
+              <Link href={`/u/${p.handle}`}>
+                <Avatar seed={p.handle} size={64} />
+                <span className="crowd-name">{p.displayName}</span>
+              </Link>
+              {showAttended && p.attended && <span className="tag on">came</span>}
             </li>
           ))}
         </ul>
