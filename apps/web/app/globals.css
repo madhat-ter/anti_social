@@ -411,6 +411,47 @@ ul.events { list-style: none; margin: 0; padding: 0; display: flex; flex-directi
 .rules b { display: block; font-weight: 900; font-stretch: 62%; font-size: 2.1rem; line-height: 1; text-transform: uppercase; margin-bottom: .35rem; }
 .rules span { font-size: .95rem; color: var(--gray); }
 
+/* ─── landing entrance: one boot sequence ──────────────────────────────────
+   0.0–0.4s  type stamps in (stepped, like a slow 1-bit redraw)
+   0.3–0.7s  alert window opens with System 6 zoom rects
+   0.7–1.8s  the hundred seats fill with faces, scattered order
+   Everything is visible by default; only .boot animates, and reduced motion skips it. */
+.seat { position: relative; display: block; }
+.zoom { position: relative; }
+.zoom-rect { display: none; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .boot .hero-type > span { animation: stamp .36s steps(5, end) both; }
+  .boot .hero-type > .outline { animation-delay: .12s; }
+  @keyframes stamp { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+
+  .boot .zoom-rect {
+    display: block; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+    border: 2px solid var(--ink); opacity: 0;
+    animation: zoomrect .3s steps(6, end) .3s forwards;
+  }
+  .boot .zoom-rect:nth-child(2) { animation-delay: .36s; }
+  .boot .zoom-rect:nth-child(3) { animation-delay: .42s; }
+  @keyframes zoomrect {
+    0%   { opacity: 1; transform: scale(.06); }
+    99%  { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1); }
+  }
+  .boot .zoom > .win { animation: pop 0s .7s both; }
+  @keyframes pop { from { visibility: hidden; } to { visibility: visible; } }
+
+  /* an empty seat (dashed box) until its person sits down */
+  .boot .seat::before {
+    content: ''; position: absolute; inset: 8% 14% 14% 8%; border: 2px dashed var(--gray);
+    animation: vacate 0s var(--d) both;
+  }
+  /* 1-bit: a face is either there or not (no grey half-fade), then drops into its seat */
+  .boot .seat .avatar { animation: show 0s var(--d) both, sit .15s steps(3, end) var(--d) both; }
+  @keyframes vacate { to { visibility: hidden; } }
+  @keyframes show { from { visibility: hidden; } to { visibility: visible; } }
+  @keyframes sit { from { transform: translateY(-18%); } to { transform: none; } }
+}
+
 /* ─── settings: one control-panel window, label column + controls ──────── */
 .panel-body { padding: 0; }
 .panel-sec {

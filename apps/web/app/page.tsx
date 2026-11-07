@@ -16,9 +16,15 @@ import { AlertIcon, Loading, Win } from '@/components/retro';
 /** One face per seat. The whole network fits on one screen. */
 const SEATS = Array.from({ length: 100 }, (_, i) => `seat-${i + 1}`);
 
+/**
+ * Seats fill in a scattered but fixed order: i*37 mod 100 visits every seat once
+ * (37 and 100 share no factor), so it looks random but is the same every load.
+ */
+const seatDelay = (i: number) => 700 + ((i * 37) % 100) * 11; // ms: 0.7s → 1.8s
+
 function Landing() {
   return (
-    <div className="hero">
+    <div className="hero boot">
       <h1 className="hero-type" aria-label="Anti social.">
         <span className="solid" aria-hidden="true">Anti</span>
         <span className="outline" aria-hidden="true">Social<span className="stop">.</span></span>
@@ -29,20 +35,30 @@ function Landing() {
         only a hundred seats. No messages, no algorithm, no follower counts.
       </p>
 
-      <Win title="Alert" as="div" bodyClassName="dlg-body">
-        <AlertIcon />
-        <div className="stack dlg-main">
-          <p className="dlg-msg">Are you sure you want to delete &ldquo;Social Life&rdquo;?</p>
-          <div className="row dlg-actions">
-            <Link className="btn" href="/login">Sign in</Link>
-            <Link className="btn default" href="/join">Join with an invite</Link>
+      <div className="zoom">
+        {/* System 6 window-open "zoom rects" */}
+        <span className="zoom-rect" aria-hidden="true" />
+        <span className="zoom-rect" aria-hidden="true" />
+        <span className="zoom-rect" aria-hidden="true" />
+        <Win title="Alert" as="div" bodyClassName="dlg-body">
+          <AlertIcon />
+          <div className="stack dlg-main">
+            <p className="dlg-msg">Are you sure you want to delete &ldquo;Social Life&rdquo;?</p>
+            <div className="row dlg-actions">
+              <Link className="btn" href="/login">Sign in</Link>
+              <Link className="btn default" href="/join">Join with an invite</Link>
+            </div>
           </div>
-        </div>
-      </Win>
+        </Win>
+      </div>
 
       <section className="seats" aria-label="The hundred seats">
         <div className="seat-grid" aria-hidden="true">
-          {SEATS.map((s) => <Avatar key={s} seed={s} size={44} />)}
+          {SEATS.map((s, i) => (
+            <span key={s} className="seat" style={{ '--d': `${seatDelay(i)}ms` } as React.CSSProperties}>
+              <Avatar seed={s} size={44} />
+            </span>
+          ))}
         </div>
         <p className="seats-caption">Every face is a seat. When someone stops showing up, their seat goes to the next person waiting.</p>
       </section>
