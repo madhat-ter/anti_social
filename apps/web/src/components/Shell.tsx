@@ -9,6 +9,7 @@ import { LurkerBanner } from './Lifecycle';
 import { Avatar } from './Avatar';
 import { Loading } from './retro';
 import { Rail } from './Rail';
+import { PickWindow, useWide } from './Picks';
 
 export const UNREAD_EVENT = 'anti:unread';
 export function broadcastUnread(n: number) {
@@ -22,6 +23,7 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
   const me = given ?? own.me;
   const loading = given ? false : own.loading;
   const seated = isSeated(me);
+  const wide = useWide();
 
   useEffect(() => {
     if (!loading && !own.error && !seated) router.replace('/');
@@ -34,7 +36,10 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
   // phones/tablets: nav on top, one column. Wide screens: menu | content | side windows (CSS).
   return (
     <div className="shell">
-      <NavBar me={me} />
+      <div className="shell-left">
+        <NavBar me={me} />
+        {wide && <PickWindow />}
+      </div>
       <div className="shell-main">
         <LurkerBanner me={me} />
         <div className="stack">{children(me)}</div>

@@ -12,6 +12,7 @@ import { paymentRoutes } from './routes/payments';
 import { eventRoutes } from './routes/events';
 import { moderationRoutes } from './routes/moderation';
 import { pushRoutes } from './routes/push';
+import { suggestionRoutes } from './routes/suggestions';
 
 export function createApp(deps: Deps) {
   return new Elysia()
@@ -66,7 +67,8 @@ export function createApp(deps: Deps) {
     .use(paymentRoutes(deps))
     .use(eventRoutes(deps))
     .use(moderationRoutes(deps))
-    .use(pushRoutes(deps));
+    .use(pushRoutes(deps))
+    .use(suggestionRoutes(deps));
 }
 
 export type App = ReturnType<typeof createApp>;

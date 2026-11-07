@@ -12,6 +12,7 @@ import { AccountUpdates, ArchivedCard, usePollMe, WaitlistCard } from '@/compone
 import { CheckoutNotice } from '@/components/Billing';
 import { Avatar } from '@/components/Avatar';
 import { Welcome } from '@/components/Welcome';
+import { PickWindow, useWide } from '@/components/Picks';
 import { AlertIcon, Loading, Win } from '@/components/retro';
 
 /** One face per seat. The whole network fits on one screen. */
@@ -75,6 +76,7 @@ function Landing() {
 
 function FeedView({ onPosted }: { onPosted: () => void }) {
   useTitle('Feed');
+  const wide = useWide();
   const p = usePaged<Post>('feed', (c) => api.feed(c));
   useEffect(() => {
     if (window.location.hash !== '#compose') return;
@@ -92,6 +94,7 @@ function FeedView({ onPosted }: { onPosted: () => void }) {
           }}
         />
       </div>
+      {wide === false && <PickWindow className="feed-pick" />}
       <PostList p={p} empty="It is quiet in here. Write the first post: the other seats will see it next time they come in." />
     </>
   );

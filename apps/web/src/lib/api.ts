@@ -51,6 +51,18 @@ export interface Post {
   canDelete: boolean;
   canReport: boolean;
 }
+export type SuggestionKind = 'movie' | 'book' | 'place' | 'food';
+/** A member's pick: a movie, book, place or food they suggest. */
+export interface Pick {
+  id: string;
+  kind: SuggestionKind;
+  title: string;
+  note: string | null;
+  createdAt: string;
+  author: { handle: string; displayName: string } | null;
+  mine: boolean;
+}
+
 export interface MemberSummary {
   handle: string;
   displayName: string;
@@ -176,6 +188,10 @@ export const api = {
   search: (q: string) => get<{ members: MemberSummary[]; posts: Post[] }>(`/search${qs({ q })}`),
   members: (cursor?: string | null, limit = 30) => get<Page<MemberSummary>>(`/members${qs({ cursor, limit })}`),
   member: (handle: string) => get<MemberSummary>(`/members/${encodeURIComponent(handle)}`),
+  randomPick: (exclude?: string | null) => get<{ item: Pick | null }>(`/suggestions/random${qs({ exclude })}`),
+  suggest: (b: { kind: SuggestionKind; title: string; note?: string | null }) => post<Pick>('/suggestions', b),
+  deletePick: (id: string) => call<{ ok: true }>('DELETE', `/suggestions/${encodeURIComponent(id)}`),
+  memberPicks: (handle: string) => get<{ items: Pick[] }>(`/members/${encodeURIComponent(handle)}/suggestions`),
   memberPosts: (handle: string, cursor?: string | null, limit = 20) =>
     get<Page<Post>>(`/members/${encodeURIComponent(handle)}/posts${qs({ cursor, limit })}`),
   notifications: (cursor?: string | null, limit = 30) => get<NotificationPage>(`/notifications${qs({ cursor, limit })}`),
@@ -227,6 +243,8 @@ const MESSAGES: Record<string, string> = {
   invite_not_allowed_state: 'Your account cannot create invites right now.',
   rejoin_not_applicable: 'Rejoining the queue does not apply to your account.',
   challenge_invalid: 'That attempt expired. Please start again.',
+  title_invalid: 'Give it a name, up to 80 characters.',
+  note_invalid: 'Keep the note under 140 characters.',
   cursor_invalid: 'Could not load more. Refresh the page.',
   registration_failed: 'Passkey registration could not be verified. Please try again.',
   body_invalid: 'A post must be 1 to 500 characters.',

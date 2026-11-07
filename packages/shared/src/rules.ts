@@ -34,6 +34,13 @@ export type UserState = (typeof USER_STATES)[number];
 /** States that occupy one of the seats. */
 export const SEATED_STATES: readonly UserState[] = ['active', 'flagged_lurker'];
 
+// ─── Picks: members suggest a movie, book, place or food ─────────────────────
+export const SUGGESTION_KINDS = ['movie', 'book', 'place', 'food'] as const;
+export type SuggestionKind = (typeof SUGGESTION_KINDS)[number];
+export const SUGGESTION_TITLE_MAX = 80;
+export const SUGGESTION_NOTE_MAX = 140;
+export const SUGGESTIONS_PER_DAY = 10;
+
 // ─── Posts & media (RFC-0001 §10) ───────────────────────────────────────────
 export const POST_MAX_CHARS = 500;
 export const POST_MAX_IMAGES = 4;

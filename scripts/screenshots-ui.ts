@@ -177,6 +177,17 @@ try {
     },
   });
 
+  // picks from the other members, so the pick window has something to show
+  for (const [page, kind, title, note] of [
+    [theo, 'movie', 'Perfect Days', 'Watch it alone, late, phone in another room.'],
+    [ines, 'food', 'Khao soi at Mae', 'Go on a cold day. Ask for extra pickles.'],
+    [theo, 'book', 'Piranesi', null],
+    [ines, 'place', 'The lido after 7pm', 'Empty lanes, orange sky.'],
+  ] as const) {
+    const r = await page.request.post(`${WEB}/api/suggestions`, { data: { kind, title, note } });
+    if (!r.ok()) throw new Error(`suggest failed: ${r.status()} ${await r.text()}`);
+  }
+
   // spread the posts over a few days so the feed shows its day headers
   await q(`update posts set created_at = now() - interval '1 day' where body like 'Day 3%'`);
   await q(`update posts set created_at = now() - interval '3 days' where body like 'Reminder%'`);
@@ -211,6 +222,17 @@ try {
   await maya.locator('.post').filter({ hasText: 'Found a quiet café' }).getByRole('link', { name: /repl(y|ies)$/ }).click();
   await maya.getByText('next to the bookshop').waitFor();
   await shot(maya, 'thread');
+
+  // Maya suggests something through the dialog (1100px: pick window in the left column)
+  await maya.locator('.pick-win .pick-title').waitFor();
+  await maya.locator('.pick-win').getByRole('button', { name: '+ Suggest' }).click();
+  await maya.locator('dialog[open]').getByText('Book', { exact: true }).click();
+  await maya.getByLabel('Name it').fill('Stoner, by John Williams');
+  await maya.getByLabel('Why? (optional)').fill('A quiet life, told perfectly.');
+  await shot(maya, 'suggest-dialog', false);
+  await maya.locator('dialog[open]').getByRole('button', { name: 'Suggest', exact: true }).click();
+  await maya.locator('.pick-win').getByText('Stoner, by John Williams').waitFor();
+  console.log('suggest → shown in pick window ok');
 
   await maya.goto(`${WEB}/notifications`);
   await maya.getByText(/replied to your post/).waitFor();

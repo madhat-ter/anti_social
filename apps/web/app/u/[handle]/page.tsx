@@ -2,7 +2,8 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { api, errorMessage, type MemberSummary, type Post } from '@/lib/api';
+import { api, errorMessage, type MemberSummary, type Pick, type Post } from '@/lib/api';
+import { PickCard } from '@/components/Picks';
 import { usePaged, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { PostList } from '@/components/PostList';
@@ -13,6 +14,33 @@ import { Loading, Win } from '@/components/retro';
 export default function ProfilePage() {
   useTitle('Profile');
   return <SeatedShell>{(me) => <Profile myHandle={me.handle} />}</SeatedShell>;
+}
+
+/** A member's picks, newest first; you can remove your own. Hidden when there are none. */
+function MemberPicks({ handle, mine }: { handle: string; mine: boolean }) {
+  const [items, setItems] = useState<Pick[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { api.memberPicks(handle).then((r) => setItems(r.items), (e) => setErr(errorMessage(e))); }, [handle]);
+  if (err) return <ErrorNote message={err} />;
+  if (!items?.length) return null;
+  return (
+    <section className="stack" aria-labelledby="picks-h">
+      <h2 id="picks-h" className="section-h">Picks</h2>
+      <ul className="pick-grid">
+        {items.map((p) => (
+          <li key={p.id}>
+            <PickCard p={p} showAuthor={false} />
+            {mine && (
+              <button type="button" className="link-btn" onClick={async () => {
+                try { await api.deletePick(p.id); setItems((cur) => cur?.filter((x) => x.id !== p.id) ?? null); }
+                catch (e) { setErr(errorMessage(e)); }
+              }}>Remove</button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 function Profile({ myHandle }: { myHandle: string }) {
@@ -59,6 +87,7 @@ function Profile({ myHandle }: { myHandle: string }) {
         </div>
         </div>
       </Win>
+      <MemberPicks handle={member.handle} mine={mine} />
       <h2 className="section-h">Posts</h2>
       <PostList p={posts} empty="No posts yet." />
     </>

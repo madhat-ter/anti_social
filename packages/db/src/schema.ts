@@ -253,6 +253,24 @@ export const notifications = pgTable('notifications', {
   index('notif_push_queue').on(t.createdAt).where(sql`pushed_at is null`),
 ]);
 
+// ─── Picks: a member suggests a movie, book, place or food ───────────────────
+export const suggestionKind = pgEnum('suggestion_kind', ['movie', 'book', 'place', 'food']);
+
+export const suggestions = pgTable('suggestions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  authorId: uuid('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind: suggestionKind('kind').notNull(),
+  title: text('title').notNull(),
+  note: text('note'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  deletedAt: tstz('deleted_at'),
+}, (t) => [
+  check('suggestions_title_len', sql`char_length(${t.title}) between 1 and 80`),
+  check('suggestions_note_len', sql`${t.note} is null or char_length(${t.note}) <= 140`),
+  index('suggestions_author').on(t.authorId, t.createdAt),
+  index('suggestions_live').on(t.createdAt).where(sql`deleted_at is null`),
+]);
+
 export const pushSubscriptions = pgTable('push_subscriptions', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
