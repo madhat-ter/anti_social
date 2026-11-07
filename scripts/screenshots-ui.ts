@@ -89,7 +89,12 @@ async function join_(page: Page, handle: string, name: string, capture = false, 
   if (capture) await shot(page, 'join-recovery-code', false);
   await page.getByLabel('I saved it somewhere safe').check();
   await page.getByRole('button', { name: 'Continue' }).click();
-  if (!waitlisted) await page.getByPlaceholder('What is on your mind?').waitFor();
+  if (waitlisted) return;
+  await page.getByPlaceholder('What is on your mind?').waitFor();
+  // first visit: the welcome window with the house rules
+  await page.getByRole('button', { name: 'Got it' }).waitFor();
+  if (capture) await shot(page, 'welcome', false);
+  await page.getByRole('button', { name: 'Got it' }).click();
 }
 
 async function post(page: Page, text: string, image?: string) {
@@ -130,6 +135,17 @@ try {
   await shot(maya, 'landing');
   await join_(maya, 'maya', 'Maya Lind', true);
   await shot(maya, 'empty-feed', false);
+
+  // draft autosave: type, reload, the words are still there; welcome stays dismissed
+  await maya.getByPlaceholder('What is on your mind?').fill('Half-written thought that must survive a reload');
+  await maya.getByText('Draft saved').waitFor();
+  await maya.reload();
+  await maya.getByPlaceholder('What is on your mind?').waitFor();
+  const restored = await maya.getByPlaceholder('What is on your mind?').inputValue();
+  if (!restored.startsWith('Half-written')) throw new Error(`draft not restored: "${restored}"`);
+  if (await maya.getByRole('button', { name: 'Got it' }).count()) throw new Error('welcome shown twice');
+  console.log('draft restored after reload ok; welcome shown once ok');
+  await maya.getByPlaceholder('What is on your mind?').fill('');
 
   await post(maya, 'Found a quiet café on Elm Street. No wifi, no music, just coffee and people reading.\nGo early.', img);
 
@@ -261,6 +277,13 @@ try {
   await maya.goto(WEB);
   await maya.locator('.posts').getByText('dinner table').waitFor();
   await shot(maya, 'phone-feed', false);
+  await maya.setViewportSize({ width: 820, height: 1180 });
+  await maya.goto(WEB);
+  await maya.locator('.posts').getByText('dinner table').waitFor();
+  await shot(maya, 'tablet-feed', false);
+  await maya.goto(`${WEB}/members`);
+  await maya.getByText('Inês Moreau').first().waitFor();
+  await shot(maya, 'tablet-members', false);
   const anon = await (await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: SCHEME })).newPage();
   await anon.goto(WEB);
   await anon.locator('.hero').waitFor();

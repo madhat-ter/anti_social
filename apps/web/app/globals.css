@@ -579,6 +579,15 @@ input[type=search]::-webkit-search-cancel-button {
 .receipt dt { font: 700 .95rem/1.6 var(--font-ui); }
 .receipt-total { font-weight: 900; font-stretch: 62%; font-size: 2.2rem; line-height: 1; }
 
+/* first-visit welcome */
+.win.welcome { margin-bottom: 1rem; }
+.welcome-head { display: flex; gap: 1.1rem; align-items: center; }
+.welcome-head h2 { font-size: 2rem; margin-bottom: .2rem; }
+/* three equal rules, not a sequence: red dots, not numbers */
+.house-rules { margin: 0; padding: 0; list-style: none; border-top: 1.5px solid var(--ink); }
+.house-rules li { display: grid; grid-template-columns: 1.5rem 1fr; gap: .6rem; padding: .7rem 0; border-bottom: 1.5px solid var(--ink); }
+.house-rules li::before { content: ''; width: .8rem; height: .8rem; border-radius: 50%; background: var(--signal); margin-top: .45rem; }
+
 /* image viewer: each picture in its own window */
 .dlg.viewer { max-width: min(62rem, calc(100vw - 2rem)); width: auto; }
 .viewer .win { max-height: calc(100vh - 3rem); }

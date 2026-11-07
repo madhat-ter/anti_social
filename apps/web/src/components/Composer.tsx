@@ -33,6 +33,29 @@ export function Composer({
 
   useEffect(() => () => { attsRef.current.forEach((a) => URL.revokeObjectURL(a.preview)); }, []);
 
+  // Draft autosave: text only, this device only, one draft per place you can write.
+  // Restored after mount (localStorage is not available during server render).
+  const draftKey = `anti:draft:${parentId ?? 'feed'}`;
+  const [restored, setRestored] = useState(false);
+  const [savedDraft, setSavedDraft] = useState(false);
+  useEffect(() => {
+    try {
+      const d = localStorage.getItem(draftKey);
+      if (d) { setBody(d); setSavedDraft(true); }
+    } catch { /* storage blocked */ }
+    setRestored(true);
+  }, [draftKey]);
+  useEffect(() => {
+    if (!restored) return;
+    const t = setTimeout(() => {
+      try {
+        if (body.trim()) { localStorage.setItem(draftKey, body); setSavedDraft(true); }
+        else { localStorage.removeItem(draftKey); setSavedDraft(false); }
+      } catch { /* storage blocked */ }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [body, draftKey, restored]);
+
   const uploading = atts.some((a) => a.status === 'uploading');
   const hasFailed = atts.some((a) => a.status === 'error');
   const trimmed = body.trim();
@@ -79,6 +102,8 @@ export function Composer({
         ...(imageIds.length ? { imageIds } : {}),
       });
       atts.forEach((a) => URL.revokeObjectURL(a.preview));
+      try { localStorage.removeItem(draftKey); } catch { /* storage blocked */ }
+      setSavedDraft(false);
       setBody(''); setAtts([]);
       onCreated(post);
     } catch (e) {
@@ -140,6 +165,7 @@ export function Composer({
           + Image
         </label>
         <span className="grow" />
+        {savedDraft && body.trim() && <span className="counter" role="status">Draft saved</span>}
         <span id={`${id}-count`} className={`counter${over ? ' over' : ''}`} aria-live="polite">
           {body.length}/{POST_MAX}
         </span>

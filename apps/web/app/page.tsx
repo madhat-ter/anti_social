@@ -11,6 +11,7 @@ import { PostList } from '@/components/PostList';
 import { AccountUpdates, ArchivedCard, usePollMe, WaitlistCard } from '@/components/Lifecycle';
 import { CheckoutNotice } from '@/components/Billing';
 import { Avatar } from '@/components/Avatar';
+import { Welcome } from '@/components/Welcome';
 import { AlertIcon, Loading, Win } from '@/components/retro';
 
 /** One face per seat. The whole network fits on one screen. */
@@ -114,8 +115,9 @@ export default function Home() {
     return (
       <SeatedShell me={me}>
         {/* refresh after posting so a flagged member's progress updates */}
-        {() => (
+        {(m) => (
           <>
+            <Welcome me={m} />
             <CheckoutNotice refresh={refresh} />
             <FeedView onPosted={() => { if (me.state === 'flagged_lurker') void refresh(); }} />
           </>
