@@ -1,4 +1,5 @@
 'use client';
+import { useTitle } from '@/lib/hooks';
 import { useEffect, useState } from 'react';
 import { api, errorMessage, type MemberSummary, type Post } from '@/lib/api';
 import { SeatedShell } from '@/components/Shell';
@@ -7,6 +8,7 @@ import { PostCard, replaceIn } from '@/components/PostCard';
 import { ErrorNote } from '@/components/ui';
 
 export default function SearchPage() {
+  useTitle('Search');
   return <SeatedShell>{() => <Search />}</SeatedShell>;
 }
 

@@ -6,6 +6,7 @@ import { fmtDate, relativeTime } from '@/lib/hooks';
 import { ErrorNote } from './ui';
 import { Avatar } from './Avatar';
 import { AlertDialog, Dot } from './retro';
+import { ImageViewer } from './ImageViewer';
 
 const URL_RE = /https?:\/\/[^\s<>"]+/g;
 
@@ -73,6 +74,13 @@ export function PostCard({
   const [busy, setBusy] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const likeBusy = useRef(false);
+  // Every hook lives above the early return for deleted posts: deleting a post re-renders it as a
+  // tombstone, and a hook below that return would change the hook count and crash React.
+  const [ask, setAsk] = useState<null | 'delete' | 'report'>(null);
+  const [viewing, setViewing] = useState<number | null>(null);
+  /** true for a moment after *you* like it: the dot stamps in (never on page load) */
+  const [stamp, setStamp] = useState(false);
+  const [reported, setReported] = useState(false);
 
   useEffect(() => {
     if (!menu) return;
@@ -104,6 +112,7 @@ export function PostCard({
     setErr(null);
     const was = post;
     const nextLiked = !post.likedByMe;
+    if (nextLiked) { setStamp(true); setTimeout(() => setStamp(false), 400); }
     onChange({ ...post, likedByMe: nextLiked, likeCount: Math.max(0, post.likeCount + (nextLiked ? 1 : -1)) });
     try {
       const r = nextLiked ? await api.like(post.id) : await api.unlike(post.id);
@@ -130,8 +139,6 @@ export function PostCard({
     }
   }
 
-  const [ask, setAsk] = useState<null | 'delete' | 'report'>(null);
-
   async function remove() {
     setAsk(null);
     setErr(null);
@@ -143,7 +150,6 @@ export function PostCard({
     }
   }
 
-  const [reported, setReported] = useState(false);
   async function report(reason: string) {
     setAsk(null);
     setErr(null);
@@ -239,7 +245,16 @@ export function PostCard({
       {post.images.length > 0 && (
         <div className={`imgs n${Math.min(post.images.length, 4)}`}>
           {post.images.map((im, i) => (
-            <a key={im.id} href={im.url} target="_blank" rel="noopener noreferrer" aria-label={`Open image ${i + 1} of ${post.images.length}`}>
+            <a
+              key={im.id} href={im.url} target="_blank" rel="noopener noreferrer"
+              aria-label={`Open image ${i + 1} of ${post.images.length}`}
+              onClick={(e) => {
+                // plain click opens the viewer window; ctrl/cmd/middle-click still opens a tab
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                e.preventDefault();
+                setViewing(i);
+              }}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={im.url} alt={`Image ${i + 1} of ${post.images.length}`} width={im.width} height={im.height} loading="lazy" />
             </a>
@@ -253,7 +268,7 @@ export function PostCard({
         </Link>
         <button
           type="button"
-          className={`foot-btn like${post.likedByMe ? ' on' : ''}`}
+          className={`foot-btn like${post.likedByMe ? ' on' : ''}${stamp ? ' stamp' : ''}`}
           aria-pressed={post.likedByMe}
           aria-label={post.likedByMe ? `Unlike (${post.likeCount})` : `Like (${post.likeCount})`}
           onClick={toggleLike}
@@ -266,6 +281,15 @@ export function PostCard({
       <ErrorNote message={err} />
       </div>
 
+      {post.images.length > 0 && (
+        <ImageViewer
+          images={post.images}
+          index={viewing}
+          onIndex={setViewing}
+          onClose={() => setViewing(null)}
+          alt={(i) => `Image ${i + 1} of ${post.images.length}${post.author ? ` posted by @${post.author.handle}` : ''}`}
+        />
+      )}
       <AlertDialog
         open={ask === 'delete'}
         title="Delete post"

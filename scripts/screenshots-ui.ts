@@ -37,8 +37,12 @@ async function shot(page: Page, name: string, fullPage = true) {
   console.log('saved', file);
 }
 
+/** Any uncaught error in any page fails the run (e.g. a React hook-order crash). */
+const pageErrors: string[] = [];
+
 async function newUser(ctx: BrowserContext) {
   const page = await ctx.newPage();
+  page.on('pageerror', (e) => pageErrors.push(`${page.url()}: ${e.message}`));
   page.setDefaultTimeout(90_000);
   const cdp = await ctx.newCDPSession(page);
   await cdp.send('WebAuthn.enable');
@@ -153,12 +157,28 @@ try {
   await shot(maya, 'delete-dialog', false);
   await maya.getByRole('button', { name: 'Cancel' }).click();
 
+  // image viewer window
+  await maya.locator('.post').filter({ hasText: 'Found a quiet café' }).locator('.imgs a').first().click();
+  await maya.locator('dialog.viewer[open] img').waitFor();
+  await shot(maya, 'image-viewer', false);
+  await maya.keyboard.press('Escape');
+
+  // a real delete: menu → alert → tombstone, with no React error
+  await post(maya, 'Temporary post, about to delete it.');
+  const temp = maya.locator('.post').filter({ hasText: 'Temporary post' });
+  await temp.getByRole('button', { name: 'Post actions' }).click();
+  await maya.getByRole('menuitem', { name: 'Delete' }).click();
+  await maya.locator('dialog[open]').getByRole('button', { name: 'Delete' }).click();
+  await maya.getByText('This post was deleted.').waitFor();
+  console.log('delete → tombstone ok');
+
   await maya.locator('.post').filter({ hasText: 'Found a quiet café' }).getByRole('link', { name: /repl(y|ies)$/ }).click();
   await maya.getByText('next to the bookshop').waitFor();
   await shot(maya, 'thread');
 
   await maya.goto(`${WEB}/notifications`);
   await maya.getByText(/replied to your post/).waitFor();
+  console.log('tab title:', await maya.title());
   await shot(maya, 'notifications');
   await maya.goto(`${WEB}/members`);
   await maya.getByText('Inês Moreau').first().waitFor();
@@ -225,6 +245,8 @@ try {
   await anon.goto(WEB);
   await anon.locator('.hero').waitFor();
   await shot(anon, 'phone-landing');
+  if (pageErrors.length) throw new Error(`page errors:\n${pageErrors.join('\n')}`);
+  console.log('no page errors');
 } finally {
   await browser.close();
   server.stop();

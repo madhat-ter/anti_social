@@ -1,4 +1,5 @@
 'use client';
+import { useTitle } from '@/lib/hooks';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
@@ -7,6 +8,7 @@ import { ErrorNote, RecoveryCodeStep } from '@/components/ui';
 import { AlertIcon, Win } from '@/components/retro';
 
 export default function Recover() {
+  useTitle('Recover account');
   const router = useRouter();
   const [handle, setHandle] = useState('');
   const [code, setCode] = useState('');

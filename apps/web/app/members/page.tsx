@@ -1,4 +1,5 @@
 'use client';
+import { useTitle } from '@/lib/hooks';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { RULES } from '@anti/shared';
@@ -9,6 +10,7 @@ import { Avatar } from '@/components/Avatar';
 import { Loading } from '@/components/retro';
 
 export default function MembersPage() {
+  useTitle('Members');
   return <SeatedShell>{(me) => <SeatMap myHandle={me.handle} />}</SeatedShell>;
 }
 

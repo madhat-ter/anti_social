@@ -1,4 +1,5 @@
 'use client';
+import { useTitle } from '@/lib/hooks';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -24,6 +25,7 @@ function Steps({ at }: { at: number }) {
 }
 
 export default function Join() {
+  useTitle('Join');
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [code, setCode] = useState('');

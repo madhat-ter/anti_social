@@ -24,6 +24,21 @@ export function useMe() {
   return { me, loading, error, refresh, setMe };
 }
 
+// ─── tab titles: "(3) Feed – anti" ──────────────────────────────────────────
+let pageTitle = '';
+let unreadInTitle = 0;
+function applyTitle() {
+  if (typeof document === 'undefined') return;
+  const base = pageTitle ? `${pageTitle} – anti` : 'anti';
+  document.title = unreadInTitle > 0 ? `(${unreadInTitle > 99 ? '99+' : unreadInTitle}) ${base}` : base;
+}
+/** Sets this page's tab title. */
+export function useTitle(title: string) {
+  useEffect(() => { pageTitle = title; applyTitle(); }, [title]);
+}
+/** Called by the nav when the unread count changes. */
+export function setUnreadInTitle(n: number) { unreadInTitle = n; applyTitle(); }
+
 export function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '';
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });

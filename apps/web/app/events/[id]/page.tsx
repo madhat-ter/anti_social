@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { api, errorMessage, type EventDetail } from '@/lib/api';
-import { fmtDate } from '@/lib/hooks';
+import { fmtDate, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { ErrorNote } from '@/components/ui';
 import { eventWhen, MyStatus, spotsText } from '@/components/Events';
@@ -11,6 +11,7 @@ import { AlertDialog, Loading } from '@/components/retro';
 import { Avatar } from '@/components/Avatar';
 
 export default function EventPage() {
+  useTitle('Event');
   return <SeatedShell>{() => <EventView />}</SeatedShell>;
 }
 

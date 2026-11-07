@@ -1,4 +1,5 @@
 'use client';
+import { useTitle } from '@/lib/hooks';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -9,6 +10,7 @@ import { ErrorNote } from '@/components/ui';
 import { Loading } from '@/components/retro';
 
 export default function EditEventPage() {
+  useTitle('Edit event');
   return <SeatedShell>{() => <Edit />}</SeatedShell>;
 }
 

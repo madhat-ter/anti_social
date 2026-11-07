@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api, errorMessage, type MemberSummary, type Post } from '@/lib/api';
-import { usePaged } from '@/lib/hooks';
+import { usePaged, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { PostList } from '@/components/PostList';
 import { ErrorNote } from '@/components/ui';
@@ -11,6 +11,7 @@ import { Avatar } from '@/components/Avatar';
 import { Loading, Win } from '@/components/retro';
 
 export default function ProfilePage() {
+  useTitle('Profile');
   return <SeatedShell>{(me) => <Profile myHandle={me.handle} />}</SeatedShell>;
 }
 

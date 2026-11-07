@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { api, errorMessage, type Me } from '@/lib/api';
-import { isSeated, useMe } from '@/lib/hooks';
+import { isSeated, setUnreadInTitle, useMe } from '@/lib/hooks';
 import { ErrorNote } from './ui';
 import { LurkerBanner } from './Lifecycle';
 import { Avatar } from './Avatar';
@@ -42,6 +42,8 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
 function NavBar({ me }: { me: Me }) {
   const path = usePathname() ?? '/';
   const [unread, setUnread] = useState(0);
+  useEffect(() => { setUnreadInTitle(unread); }, [unread]);
+  useEffect(() => () => setUnreadInTitle(0), []);
 
   useEffect(() => {
     let alive = true;

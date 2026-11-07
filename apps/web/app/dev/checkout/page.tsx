@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api, errorMessage, formatMoney, type FakeCheckout } from '@/lib/api';
-import { fmtDate } from '@/lib/hooks';
+import { fmtDate, useTitle } from '@/lib/hooks';
 import { ErrorNote } from '@/components/ui';
 import { Loading, Win } from '@/components/retro';
 
@@ -12,6 +12,7 @@ import { Loading, Win } from '@/components/retro';
  * same code path runs as with real Stripe. With real Stripe this route is never linked.
  */
 export default function FakeCheckoutPage() {
+  useTitle('Checkout');
   const [session, setSession] = useState<string | null>(null);
   const [co, setCo] = useState<FakeCheckout | null>(null);
   const [err, setErr] = useState<string | null>(null);

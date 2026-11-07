@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
 import { DISPLAY_NAME_MAX } from '@anti/shared';
 import { api, errorMessage, formatMoney, type InviteInfo, type Me, type PasskeyInfo, type PaymentRecord } from '@/lib/api';
-import { fmtDate, useMe } from '@/lib/hooks';
+import { fmtDate, useMe, useTitle } from '@/lib/hooks';
 import { CopyButton, ErrorNote } from '@/components/ui';
 import { PayButton } from '@/components/Billing';
 import { PushToggle } from '@/components/PushToggle';
@@ -13,6 +13,7 @@ import { Loading, Win } from '@/components/retro';
 import { Avatar } from '@/components/Avatar';
 
 export default function Settings() {
+  useTitle('Settings');
   const router = useRouter();
   const { me, loading, error, setMe } = useMe();
 

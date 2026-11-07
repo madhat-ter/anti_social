@@ -2,12 +2,13 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { api, type AnEvent } from '@/lib/api';
-import { usePaged } from '@/lib/hooks';
+import { usePaged, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { ListStatus, PagedFooter } from '@/components/Paged';
 import { EventCard } from '@/components/Events';
 
 export default function EventsPage() {
+  useTitle('Events');
   return <SeatedShell>{() => <EventsList />}</SeatedShell>;
 }
 

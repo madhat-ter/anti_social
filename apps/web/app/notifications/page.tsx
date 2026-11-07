@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { api, errorMessage, type Notification } from '@/lib/api';
-import { relativeTime, fmtDate, usePaged } from '@/lib/hooks';
+import { relativeTime, fmtDate, usePaged, useTitle } from '@/lib/hooks';
 import { SeatedShell, broadcastUnread } from '@/components/Shell';
 import { ListStatus, PagedFooter } from '@/components/Paged';
 import { ErrorNote } from '@/components/ui';
@@ -13,6 +13,7 @@ import { AlertIcon, Dot } from '@/components/retro';
 const WARNINGS = new Set(['lurker_warning', 'seat_offer_expired', 'payment_refunded', 'event_cancelled']);
 
 export default function NotificationsPage() {
+  useTitle('Notifications');
   return <SeatedShell>{() => <Notifications />}</SeatedShell>;
 }
 

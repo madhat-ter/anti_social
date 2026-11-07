@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useEffect, type ReactNode } from 'react';
 import { api, errorMessage } from '@/lib/api';
 import type { Post } from '@/lib/api';
-import { usePaged, useMe } from '@/lib/hooks';
+import { usePaged, useMe, useTitle } from '@/lib/hooks';
 import { ErrorNote } from '@/components/ui';
 import { SeatedShell } from '@/components/Shell';
 import { Composer } from '@/components/Composer';
@@ -73,6 +73,7 @@ function Landing() {
 }
 
 function FeedView({ onPosted }: { onPosted: () => void }) {
+  useTitle('Feed');
   const p = usePaged<Post>('feed', (c) => api.feed(c));
   useEffect(() => {
     if (window.location.hash !== '#compose') return;

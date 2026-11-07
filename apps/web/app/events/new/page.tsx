@@ -1,4 +1,5 @@
 'use client';
+import { useTitle } from '@/lib/hooks';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -6,6 +7,7 @@ import { SeatedShell } from '@/components/Shell';
 import { EventForm } from '@/components/Events';
 
 export default function NewEventPage() {
+  useTitle('Host an event');
   const router = useRouter();
   return (
     <SeatedShell>

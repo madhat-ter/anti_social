@@ -1,4 +1,5 @@
 'use client';
+import { useTitle } from '@/lib/hooks';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -10,6 +11,7 @@ import { ErrorNote } from '@/components/ui';
 import { Loading } from '@/components/retro';
 
 export default function ThreadPage() {
+  useTitle('Post');
   return <SeatedShell>{() => <ThreadView />}</SeatedShell>;
 }
 
