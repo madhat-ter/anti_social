@@ -54,6 +54,8 @@ body {
   background: var(--paper); color: var(--ink);
   font: 400 17px/1.55 var(--font-text);
   -webkit-font-smoothing: antialiased;
+  /* the bitmap UI face has one weight; never let the browser smear a fake bold onto it */
+  font-synthesis: none;
 }
 body::after {
   content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 100;
@@ -540,6 +542,31 @@ input[type=search]::-webkit-search-cancel-button {
               linear-gradient(-45deg, transparent 43%, var(--ink) 43% 57%, transparent 57%);
 }
 
+/* feed: a poster header wherever the day changes */
+.day-h { display: flex; align-items: center; gap: .75rem; font-size: 1.5rem; padding: 1.4rem 0 .2rem; margin: 0; }
+.day-h::after { content: ''; flex: 1; height: 3px; background: var(--ink); }
+.posts > .day-h:first-child { padding-top: .9rem; }
+.posts:has(> .day-h:first-child) { border-top: 0; } /* the day header is the rule */
+.win.risk { margin-bottom: 1rem; }
+
+/* empty lists: an invitation, not a shrug */
+.empty { border: 2px dashed var(--ink); padding: 1.5rem 1.25rem; font-size: 1.05rem; text-align: center; max-width: 34rem; margin: .5rem auto; }
+
+/* lurker warning: the "will to live" loading window */
+.win.risk { border-color: var(--ink); }
+.win.risk > .win-bar { background: var(--signal); background-clip: border-box; }
+.win.risk > .win-bar .win-title { background: var(--signal); color: var(--signal-ink); }
+.win.risk > .win-bar .win-close { box-shadow: none; }
+.risk-head { display: flex; gap: 1rem; align-items: flex-start; }
+.risk-meter { display: grid; grid-template-columns: auto 1fr auto; gap: .75rem; align-items: center; }
+.risk-meter .progressbar-fill { background: repeating-linear-gradient(90deg, var(--signal) 0 7px, transparent 7px 10px); }
+
+/* test checkout receipt */
+.receipt { display: grid; grid-template-columns: 6rem 1fr; margin: 0; border-top: 1.5px solid var(--ink); }
+.receipt dt, .receipt dd { margin: 0; padding: .55rem 0; border-bottom: 1.5px solid var(--ink); }
+.receipt dt { font: 700 .95rem/1.6 var(--font-ui); }
+.receipt-total { font-weight: 900; font-stretch: 62%; font-size: 2.2rem; line-height: 1; }
+
 /* notifications with faces */
 .notif-link { flex-direction: row; align-items: flex-start; gap: .9rem; }
 .notif-text { display: flex; flex-direction: column; gap: .15rem; min-width: 0; flex: 1; }
@@ -557,6 +584,14 @@ input[type=search]::-webkit-search-cancel-button {
   .event-poster .date-chip .d { font-size: 3.4rem; }
   .event-poster .date-chip::before { width: 2.8rem; height: 2.8rem; left: 1.7rem; top: .9rem; }
   .facts { grid-template-columns: 5rem 1fr; }
+
+  /* nav: two rows of three instead of a sideways scroll that hides half the items */
+  .nav { display: grid; grid-template-columns: repeat(3, 1fr) auto; gap: 2px; background: var(--ink); overflow: visible; }
+  .nav a { border: 0; background: var(--paper); justify-content: center; padding: .5rem .35rem; font-size: .92rem; }
+  .nav a[aria-current=page] { background: var(--ink); color: var(--paper); box-shadow: inset 0 0 0 2px var(--paper); }
+  .nav .nav-me { grid-column: 4; grid-row: 1 / span 2; margin: 0; border: 0; padding: .3rem .5rem; align-items: center; }
+  .risk-meter { grid-template-columns: 1fr auto; }
+  .risk-meter > .ui:first-child { grid-column: 1 / -1; }
 }
 @media (max-width: 560px) {
   body { font-size: 16px; }

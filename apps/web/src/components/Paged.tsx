@@ -40,6 +40,6 @@ export function PagedFooter({ p }: { p: PagedLike }) {
 export function ListStatus({ p, count, empty }: { p: PagedLike; count: number; empty: string }) {
   if (p.loading) return <Loading />;
   if (p.error) return <ErrorNote message={p.error} />;
-  if (count === 0) return <p className="muted">{empty}</p>;
+  if (count === 0) return <p className="empty">{empty}</p>;
   return null;
 }

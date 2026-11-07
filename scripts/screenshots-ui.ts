@@ -137,6 +137,10 @@ try {
     },
   });
 
+  // spread the posts over a few days so the feed shows its day headers
+  await q(`update posts set created_at = now() - interval '1 day' where body like 'Day 3%'`);
+  await q(`update posts set created_at = now() - interval '3 days' where body like 'Reminder%'`);
+
   // ── Maya's view
   await maya.goto(WEB);
   await maya.locator('.posts').getByText('dinner table').waitFor();
@@ -202,6 +206,16 @@ try {
   await out.goto(`${WEB}/recover`);
   await out.getByRole('button', { name: 'Recover and create passkey' }).waitFor();
   await shot(out, 'recover', false);
+
+  // ── Maya gets flagged as a lurker: the seat_at_risk window, then the test checkout
+  await q(`update users set state = 'flagged_lurker', lurker_flagged_at = now() - interval '2 days' where handle = 'maya'`);
+  await maya.goto(WEB);
+  await maya.locator('.win.risk').waitFor();
+  await shot(maya, 'lurker-warning', false);
+  await maya.locator('.win.risk').getByRole('button', { name: /Pay stay fee/ }).click();
+  await maya.waitForURL(/\/dev\/checkout/);
+  await maya.getByText('Total').waitFor();
+  await shot(maya, 'test-checkout', false);
 
   await maya.setViewportSize({ width: 390, height: 844 });
   await maya.goto(WEB);

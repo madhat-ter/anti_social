@@ -6,7 +6,7 @@ import { api, errorMessage, type Me, type Notification } from '@/lib/api';
 import { fmtDate, relativeTime } from '@/lib/hooks';
 import { ErrorNote } from './ui';
 import { PayButton } from './Billing';
-import { Progress, Win } from './retro';
+import { AlertIcon, Progress, Win } from './retro';
 
 /** Re-renders every `ms` so countdowns stay current. */
 function useNow(ms = 30_000) {
@@ -49,28 +49,36 @@ export function LurkerBanner({ me }: { me: Me }) {
   const done = Math.min(l?.contributions ?? 0, required);
   const met = done >= required;
   return (
-    <div className="banner stack lurker" role="status">
-      <div>
-        <strong>Your seat is at risk.</strong>{' '}
-        {met ? (
-          <>Thanks — you have posted enough. Your seat is cleared at the next hourly check.</>
-        ) : (
-          <>
-            You have been reading without posting. Post or reply {required} times
-            {l ? <> in the next <Countdown until={l.graceEndsAt} /> (by {fmtDate(l.graceEndsAt)})</> : null} to keep your seat,
-            or pay the stay fee for {RULES.stay_fee_exempt_days} days of exemption. Likes do not count.
-          </>
-        )}
+    <Win title="seat_at_risk" className="risk" bodyClassName="stack" as="aside">
+      <div className="risk-head" role="status">
+        <AlertIcon />
+        <div className="stack">
+          {met ? (
+            <p><strong>That will do.</strong> You have posted enough. Your seat is cleared at the next hourly check.</p>
+          ) : (
+            <p>
+              <strong>You have been reading without posting.</strong> Post or reply {required} times
+              {l ? <> before {fmtDate(l.graceEndsAt)}</> : null} to keep your seat, or pay the stay fee
+              for {RULES.stay_fee_exempt_days} days off this rule. Likes do not count.
+            </p>
+          )}
+        </div>
       </div>
-      <div className="row">
-        <span className="progress" aria-label={`${done} of ${required} contributions`}>
-          {Array.from({ length: required }, (_, i) => <span key={i} className={i < done ? 'pip on' : 'pip'} />)}
-          <span className="small muted">{done} of {required}</span>
-        </span>
-        {!met && <button type="button" className="btn primary" onClick={() => focusComposer(router)}>Post something</button>}
-        {!met && <PayButton productKey="stay_fee_90d" label="Pay stay fee" />}
+      <div className="risk-meter">
+        <span className="ui">Will to post</span>
+        <Progress value={(done / required) * 100} showValue={false} label={`${done} of ${required} posts or replies`} />
+        <span className="ui">{done}/{required}</span>
       </div>
-    </div>
+      {!met && (
+        <div className="row between">
+          {l ? <span className="ui">Time left: <Countdown until={l.graceEndsAt} /></span> : <span />}
+          <div className="row">
+            <PayButton productKey="stay_fee_90d" label="Pay stay fee" />
+            <button type="button" className="btn primary" onClick={() => focusComposer(router)}>Post something</button>
+          </div>
+        </div>
+      )}
+    </Win>
   );
 }
 

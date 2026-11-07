@@ -1,13 +1,16 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Archivo, Pixelify_Sans } from 'next/font/google';
+import { Archivo, Tiny5 } from 'next/font/google';
 import { Clock } from '@/components/Clock';
 import './globals.css';
 
 /** One family on its width axis: ultra-condensed black for posters, normal width for reading. */
 const archivo = Archivo({ subsets: ['latin'], axes: ['wdth'], variable: '--f-archivo', display: 'swap' });
-/** Bitmap-style face for the OS chrome: windows, menus, buttons. */
-const pixel = Pixelify_Sans({ subsets: ['latin'], variable: '--f-pixel', display: 'swap' });
+/**
+ * Bitmap face for the OS chrome: windows, menus, buttons. Tiny5, not Pixelify Sans: Pixelify's
+ * 5 reads as an 8 ("$5.00" looked like "$8.00" on the pay button). See scripts/font-compare.ts.
+ */
+const pixel = Tiny5({ weight: '400', subsets: ['latin'], variable: '--f-pixel', display: 'swap' });
 
 export const metadata: Metadata = { title: 'anti', description: 'A small, invite-only network. One hundred seats.' };
 

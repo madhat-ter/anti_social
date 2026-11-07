@@ -90,7 +90,7 @@ function FeedView({ onPosted }: { onPosted: () => void }) {
           }}
         />
       </div>
-      <PostList p={p} empty="Nothing here yet. Be the first to post." />
+      <PostList p={p} empty="It is quiet in here. Write the first post: the other seats will see it next time they come in." />
     </>
   );
 }

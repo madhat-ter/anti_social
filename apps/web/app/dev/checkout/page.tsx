@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { api, errorMessage, formatMoney, type FakeCheckout } from '@/lib/api';
 import { fmtDate } from '@/lib/hooks';
 import { ErrorNote } from '@/components/ui';
+import { Loading, Win } from '@/components/retro';
 
 /**
  * Local stand-in for Stripe's hosted Checkout page (API running with PAYMENTS=fake).
@@ -38,13 +39,15 @@ export default function FakeCheckoutPage() {
   return (
     <div className="stack fake-checkout">
       <div className="test-ribbon" role="note">Test checkout. No real money moves. This page stands in for Stripe while payments run in fake mode.</div>
-      {!co && !err && <p className="muted">Loading checkout...</p>}
+      {!co && !err && <Loading what="Opening checkout" />}
       <ErrorNote message={err} />
       {co && (
-        <div className="card stack">
-          <p className="muted small">Pay anti</p>
-          <h1>{formatMoney(co.amountMinor, co.currency)}</h1>
-          <p>{co.productName}</p>
+        <Win title="checkout (test mode)" bodyClassName="stack">
+          <dl className="receipt">
+            <dt>Pay to</dt><dd>anti</dd>
+            <dt>For</dt><dd>{co.productName}</dd>
+            <dt>Total</dt><dd className="receipt-total">{formatMoney(co.amountMinor, co.currency)}</dd>
+          </dl>
           {co.status === 'pending' ? (
             <>
               <label>Card number<input value="4242 4242 4242 4242" readOnly aria-readonly /></label>
@@ -66,7 +69,7 @@ export default function FakeCheckoutPage() {
           ) : (
             <p>This checkout is {co.status.replace('_', ' ')}. <Link href="/">Back to anti</Link></p>
           )}
-        </div>
+        </Win>
       )}
     </div>
   );
