@@ -8,6 +8,7 @@ import { ErrorNote } from './ui';
 import { LurkerBanner } from './Lifecycle';
 import { Avatar } from './Avatar';
 import { Loading } from './retro';
+import { Rail } from './Rail';
 
 export const UNREAD_EVENT = 'anti:unread';
 export function broadcastUnread(n: number) {
@@ -30,12 +31,16 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
   if (own.error && !given) return <ErrorNote message={errorMessage(own.error)} />;
   if (!me || !seated) return <Loading what="Redirecting" />;
 
+  // phones/tablets: nav on top, one column. Wide screens: menu | content | side windows (CSS).
   return (
-    <>
+    <div className="shell">
       <NavBar me={me} />
-      <LurkerBanner me={me} />
-      <div className="stack">{children(me)}</div>
-    </>
+      <div className="shell-main">
+        <LurkerBanner me={me} />
+        <div className="stack">{children(me)}</div>
+      </div>
+      <Rail me={me} />
+    </div>
   );
 }
 
@@ -87,8 +92,11 @@ function NavBar({ me }: { me: Me }) {
           )}
         </Link>
       ))}
-      <Link href={mine} className="nav-me" aria-label="Your profile" aria-current={path === mine ? 'page' : undefined}>
+      <Link href={mine} className="nav-me" aria-current={path === mine ? 'page' : undefined}>
         <Avatar seed={me.handle} size={28} />
+        {/* name: "Your profile @maya" — always contains the visible "@maya" (desktop shows it) */}
+        <span className="sr-only">Your profile </span>
+        <span className="nav-me-label">@{me.handle}</span>
       </Link>
     </nav>
   );

@@ -3,7 +3,8 @@ import { useTitle } from '@/lib/hooks';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { RULES } from '@anti/shared';
-import { api, errorMessage, type MemberSummary } from '@/lib/api';
+import { errorMessage, type MemberSummary } from '@/lib/api';
+import { loadAllMembers } from '@/lib/members';
 import { SeatedShell } from '@/components/Shell';
 import { ErrorNote } from '@/components/ui';
 import { Avatar } from '@/components/Avatar';
@@ -14,24 +15,12 @@ export default function MembersPage() {
   return <SeatedShell>{(me) => <SeatMap myHandle={me.handle} />}</SeatedShell>;
 }
 
-/** Every member, all pages: there are at most a hundred. */
-async function loadAll(): Promise<MemberSummary[]> {
-  const all: MemberSummary[] = [];
-  let cursor: string | null = null;
-  for (let i = 0; i < 10; i++) {
-    const page = await api.members(cursor, 50);
-    all.push(...page.items);
-    cursor = page.nextCursor;
-    if (!cursor) break;
-  }
-  return all;
-}
 
 /** The members page is the room: one cell per seat, taken seats show their person. */
 function SeatMap({ myHandle }: { myHandle: string }) {
   const [members, setMembers] = useState<MemberSummary[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => { loadAll().then(setMembers, (e) => setErr(errorMessage(e))); }, []);
+  useEffect(() => { loadAllMembers().then(setMembers, (e) => setErr(errorMessage(e))); }, []);
 
   if (err) return <ErrorNote message={err} />;
   if (!members) return <Loading />;

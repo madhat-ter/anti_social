@@ -284,6 +284,21 @@ try {
   await maya.goto(`${WEB}/members`);
   await maya.getByText('Inês Moreau').first().waitFor();
   await shot(maya, 'tablet-members', false);
+
+  // full desktop: menu | feed | side windows
+  await maya.setViewportSize({ width: 1440, height: 960 });
+  await maya.goto(WEB);
+  await maya.locator('.posts').getByText('dinner table').waitFor();
+  await maya.locator('.rail-events li').first().waitFor();
+  await shot(maya, 'desktop-feed', false);
+  await maya.goto(`${WEB}/events`);
+  await maya.getByText('Long table dinner').first().waitFor();
+  await shot(maya, 'desktop-events', false);
+  const wide = await (await browser.newContext({ viewport: { width: 1440, height: 960 }, colorScheme: SCHEME })).newPage();
+  await wide.goto(WEB);
+  await wide.locator('.hero').waitFor();
+  await wide.waitForTimeout(2200); // let the entrance finish
+  await shot(wide, 'desktop-landing', false);
   const anon = await (await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: SCHEME })).newPage();
   await anon.goto(WEB);
   await anon.locator('.hero').waitFor();

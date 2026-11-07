@@ -608,6 +608,76 @@ input[type=search]::-webkit-search-cancel-button {
 .notif-text { display: flex; flex-direction: column; gap: .15rem; min-width: 0; flex: 1; }
 .notif-sys { width: 40px; height: 40px; display: grid; place-items: center; flex: none; }
 
+/* ─── desktop: the screen becomes a desktop ────────────────────────────────
+   < 900px   nav on top, one column (phones, tablets)
+   ≥ 900px   menu window on the left | content
+   ≥ 1180px  menu | content (kept at a reading width) | side windows
+   Only pages inside the seated shell, and the landing page, widen; forms stay narrow. */
+.rail { display: none; }
+.nav-me-label { display: none; }
+
+@media (min-width: 900px) {
+  .wrap:has(> .shell) { max-width: 68rem; }
+  .top-inner { max-width: 68rem; }
+  .shell { display: grid; grid-template-columns: 12.5rem minmax(0, 1fr); gap: 2rem; align-items: start; }
+  .shell-main { min-width: 0; }
+
+  /* the menu bar turns into a tall menu window */
+  .shell > .nav {
+    flex-direction: column; position: sticky; top: 4.6rem; overflow: visible; margin: 0;
+    box-shadow: var(--shadow);
+  }
+  .shell > .nav a { border-right: 0; border-bottom: 2px solid var(--ink); padding: .6rem .85rem; justify-content: flex-start; font-size: 1rem; }
+  .shell > .nav a .badge { margin-left: auto; }
+  .shell > .nav .nav-me { margin: 0; border: 0; order: -1; border-bottom: 3px solid var(--ink); padding: .7rem .85rem; gap: .6rem; }
+  .shell > .nav .nav-me .avatar { width: 36px; height: 36px; }
+  .shell > .nav .nav-me .nav-me-label { display: inline; font: 400 .95rem var(--font-ui); }
+  /* @you is last in the DOM but shown first (order: -1): Settings is the visual last item */
+  .shell > .nav a:nth-last-child(2) { border-bottom: 0; }
+  .shell > .nav a.nav-me:last-child { border-bottom: 3px solid var(--ink); }
+}
+
+@media (min-width: 1180px) {
+  .wrap:has(> .shell) { max-width: 84rem; }
+  .top-inner { max-width: 84rem; }
+  .shell { grid-template-columns: 12.5rem minmax(0, 42rem) 17.5rem; justify-content: space-between; gap: 2.25rem; }
+  .rail { display: flex; flex-direction: column; gap: 1.25rem; position: sticky; top: 4.6rem; }
+}
+
+/* side windows */
+.rail .win-body { padding: .9rem 1rem; }
+.rail-you { display: flex; flex-direction: column; gap: .8rem; }
+.rail-you-link { display: flex; gap: .75rem; align-items: center; text-decoration: none; color: var(--ink); }
+.rail-you-link:hover .rail-name { text-decoration: underline; text-underline-offset: 3px; }
+.rail-name { display: block; font-weight: 700; }
+.rail-you .btn { align-self: flex-start; }
+.seat-chart.small { grid-template-columns: repeat(10, 1fr); gap: 3px; max-width: none; }
+.seat-chart.small span { border-width: 1.5px; }
+.rail-seats .ui strong { font: 900 1.3rem/1 var(--font-text); font-stretch: 62%; }
+.rail-events { list-style: none; margin: 0; padding: 0; border-top: 1.5px solid var(--ink); }
+.rail-events li { border-bottom: 1.5px solid var(--ink); }
+.rail-events a { display: grid; grid-template-columns: 2.6rem 1fr; gap: .6rem; align-items: center; padding: .55rem 0; text-decoration: none; color: var(--ink); }
+.rail-events a:hover .rail-ev-title { text-decoration: underline; text-decoration-color: var(--signal); text-underline-offset: 3px; }
+.rail-date { display: flex; flex-direction: column; align-items: center; line-height: 1; }
+.rail-date .d { font-weight: 900; font-stretch: 62%; font-size: 1.7rem; }
+.rail-date .m { font: 400 .78rem var(--font-ui); }
+.rail-ev-title { font-weight: 900; font-stretch: 62%; text-transform: uppercase; font-size: 1.15rem; line-height: 1.05; overflow-wrap: anywhere; }
+
+/* landing on wide screens: type + alert on the left, the hundred faces on the right */
+@media (min-width: 1000px) {
+  .wrap:has(> .hero) { max-width: 78rem; }
+  .hero {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 4rem; row-gap: 2rem; align-items: start;
+    grid-template-areas: "type seats" "sub seats" "alert seats" "rules rules";
+  }
+  .hero-type { grid-area: type; }
+  .hero-type > span { font-size: clamp(6rem, 12.5vw, 11.5rem); }
+  .hero-sub { grid-area: sub; }
+  .hero > .zoom { grid-area: alert; }
+  .hero > .seats { grid-area: seats; padding-top: .75rem; }
+  .hero > .rules { grid-area: rules; }
+}
+
 /* ─── responsive ───────────────────────────────────────────────────────── */
 @media (max-width: 560px) {
   .panel-sec { grid-template-columns: 1fr; padding: 1.25rem 1rem; }
