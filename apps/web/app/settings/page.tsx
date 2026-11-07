@@ -8,6 +8,7 @@ import { api, errorMessage, formatMoney, type InviteInfo, type Me, type PasskeyI
 import { fmtDate, useMe } from '@/lib/hooks';
 import { CopyButton, ErrorNote } from '@/components/ui';
 import { PayButton } from '@/components/Billing';
+import { PushToggle } from '@/components/PushToggle';
 
 export default function Settings() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function Settings() {
       <h1>Settings</h1>
       <Profile me={me} onSaved={setMe} />
       <Passkeys />
+      <PushToggle />
       {seated && <Invites />}
       <Payments me={me} seated={seated} />
       <Danger me={me} onGone={() => { router.push('/'); router.refresh(); }} />

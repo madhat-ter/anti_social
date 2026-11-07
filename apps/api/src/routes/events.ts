@@ -12,6 +12,7 @@ import {
   eventSelect, getEvent, promoteEventWaitlist, toEvent, upcomingCond, type EventRow, type EventView,
 } from '../lib/events';
 import { authPlugin, requireSeated } from '../plugins/auth';
+import { hit } from '../lib/ratelimit';
 
 const DAY = 86_400_000;
 const nullableStr = (max: number) => t.Optional(t.Union([t.String({ maxLength: max * 4 }), t.Null()]));
@@ -229,6 +230,7 @@ export const eventRoutes = (deps: Deps) => {
     .post('/events/:id/rsvp', async ({ auth, params }) => {
       const a = requireSeated(auth);
       const uid = a.user.id;
+      await hit(db, 'rsvp', uid);
       await db.transaction(async (txx) => {
         const tx = txx as unknown as Db;
         const e = await lock(tx, params.id);

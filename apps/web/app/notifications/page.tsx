@@ -27,6 +27,8 @@ function describe(n: Notification): string {
   if (n.kind === 'stay_fee_paid') return 'Stay fee received. You are exempt from the posting rule for 90 days.';
   if (n.kind === 'reinstated') return 'Payment received. Welcome back, your seat is yours again.';
   if (n.kind === 'payment_refunded') return 'Your payment was refunded.';
+  if (n.kind === 'post_removed') return 'A moderator removed one of your posts after it was reported.';
+  if (n.kind === 'flag_threshold') return 'A post was hidden after 5 reports and needs review (bun run ops -- flags).';
   return n.post ? `${who} interacted with your post` : 'Account update';
 }
 

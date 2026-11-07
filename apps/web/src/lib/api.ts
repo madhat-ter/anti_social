@@ -49,6 +49,7 @@ export interface Post {
   images: Image[];
   canEdit: boolean;
   canDelete: boolean;
+  canReport: boolean;
 }
 export interface MemberSummary {
   handle: string;
@@ -165,6 +166,7 @@ export const api = {
   editPost: (id: string, body: string) => call<Post>('PATCH', `/posts/${encodeURIComponent(id)}`, { body }),
   deletePost: (id: string) => call<{ ok: true }>('DELETE', `/posts/${encodeURIComponent(id)}`),
   like: (id: string) => post<{ likeCount: number; likedByMe: boolean }>(`/posts/${encodeURIComponent(id)}/like`, {}),
+  flagPost: (id: string, reason?: string) => post<{ flagged: true }>(`/posts/${encodeURIComponent(id)}/flag`, reason ? { reason } : {}),
   unlike: (id: string) => call<{ likeCount: number; likedByMe: boolean }>('DELETE', `/posts/${encodeURIComponent(id)}/like`),
   upload: (file: File) => {
     const fd = new FormData();
@@ -188,6 +190,10 @@ export const api = {
   rsvp: (id: string) => post<AnEvent>(`/events/${encodeURIComponent(id)}/rsvp`, {}),
   leaveEvent: (id: string) => call<AnEvent>('DELETE', `/events/${encodeURIComponent(id)}/rsvp`),
   confirmAttendance: (id: string, handles: string[]) => post<AnEvent>(`/events/${encodeURIComponent(id)}/attendance`, { handles }),
+
+  pushConfig: () => get<{ enabled: boolean; publicKey: string | null }>('/push/config'),
+  pushSubscribe: (b: { endpoint: string; keys: { p256dh: string; auth: string } }) => post<{ ok: true }>('/push/subscriptions', b),
+  pushUnsubscribe: (endpoint: string) => call<{ ok: true }>('DELETE', '/push/subscriptions', { endpoint }),
 
   pricing: () => get<Price[]>('/pricing'),
   checkout: (productKey: ProductKey) => post<{ url: string }>('/payments/checkout', { productKey }),
@@ -242,6 +248,7 @@ const MESSAGES: Record<string, string> = {
   event_cancelled: 'This event was cancelled.',
   host_rsvp: 'You are hosting this event.',
   not_host: 'Only the host can do that.',
+  own_post: 'You cannot report your own post.',
   capacity_below_going: 'More people are already going than that capacity allows.',
   attendance_closed: 'Attendance can be confirmed from the start time until 14 days after.',
 };

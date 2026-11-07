@@ -11,6 +11,7 @@ import {
   getPost, listPosts, mediaUrl, postSelect, toPost, UUID_RE, type Post, type PostRow,
 } from '../lib/posts';
 import { isValidKey } from '../lib/storage';
+import { hit } from '../lib/ratelimit';
 import { authPlugin, requireSeated } from '../plugins/auth';
 
 const MAX_PENDING_UPLOADS = 20;
@@ -159,6 +160,7 @@ export const postRoutes = (deps: Deps) => {
     .post('/posts/:id/like', async ({ auth, params }) => {
       const a = requireSeated(auth);
       const uid = a.user.id;
+      await hit(db, 'like', uid);
       const p = await visiblePost(params.id);
       if (!p || p.deleted) throw new ApiError(404, 'not_found');
       const inserted = await rows(db, sql`
@@ -188,6 +190,7 @@ export const postRoutes = (deps: Deps) => {
 
     .post('/uploads', async ({ auth, body }) => {
       const a = requireSeated(auth);
+      await hit(db, 'upload', a.user.id);
       const uid = a.user.id;
       const file = (body as { file?: unknown }).file as File | undefined;
       if (!file || typeof file.arrayBuffer !== 'function') throw new ApiError(400, 'bad_request', 'Missing file.');

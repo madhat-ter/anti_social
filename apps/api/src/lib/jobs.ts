@@ -3,8 +3,9 @@ import { rows, scalar, type Db } from '@anti/db';
 import type { Storage } from './storage';
 import type { PaymentProvider } from './payments';
 import { expireStaleCheckouts, processRefunds } from './billing';
+import { fanOutPush, NoPushSender, type PushSender } from './push';
 
-export type JobDeps = { storage: Storage; payments: PaymentProvider };
+export type JobDeps = { storage: Storage; payments: PaymentProvider; push?: PushSender };
 
 /** RFC-0001 §12. Every job body is idempotent, so running one late, early or twice is harmless. */
 export interface Job {
@@ -35,6 +36,12 @@ export const JOBS: Job[] = [
     },
   },
   {
+    // Web Push fan-out of new notifications (RFC §12: near real time).
+    name: 'push',
+    everyMs: 10_000,
+    run: async (tx, { push }) => fanOutPush(tx, push ?? new NoPushSender()),
+  },
+  {
     name: 'cleanup',
     everyMs: DAY,
     run: async (tx, { storage }) => {
@@ -48,7 +55,9 @@ export const JOBS: Job[] = [
         returning r2_key`);
       // Blobs are removed after the rows; a failed blob delete leaves an unreferenced file, never a dangling row.
       for (const o of orphans) await storage.delete(o.r2_key).catch((e) => console.error('orphan delete failed', o.r2_key, e));
-      return { sessions: sessions[0]?.n ?? 0, challenges: challenges[0]?.n ?? 0, uploads: orphans.length };
+      const limits = await rows<{ n: number }>(tx, sql`
+        with d as (delete from rate_limits where window_start < now() - interval '2 days' returning 1) select count(*)::int as n from d`);
+      return { sessions: sessions[0]?.n ?? 0, challenges: challenges[0]?.n ?? 0, uploads: orphans.length, rateLimits: limits[0]?.n ?? 0 };
     },
   },
 ];

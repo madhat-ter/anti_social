@@ -6,6 +6,7 @@ import { createApp } from '../src/app';
 import { generateInviteCode } from '../src/lib/crypto';
 import { MemoryStorage } from '../src/lib/storage';
 import { FakeStripeProvider } from '../src/lib/payments';
+import { MemoryPushSender } from '../src/lib/push';
 import { FakeAuthenticator } from './fake-authenticator';
 
 export const ORIGIN = 'http://localhost:3000';
@@ -106,12 +107,13 @@ export async function setup(opts: { seatCap?: number } = {}) {
   envs.push(t);
   const storage = new MemoryStorage();
   const payments = new FakeStripeProvider(ORIGIN);
-  const app = createApp({ db: t.db, cfg, storage, payments });
+  const push = new MemoryPushSender();
+  const app = createApp({ db: t.db, cfg, storage, payments, push });
   const mint = async () => {
     const code = generateInviteCode();
     await t.db.execute(sql`select create_invite(null, ${code})`);
     return formatInviteCode(code);
   };
   const client = () => new Client(app);
-  return { t, app, storage, payments, mint, client };
+  return { t, app, storage, payments, push, mint, client };
 }

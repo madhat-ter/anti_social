@@ -18,6 +18,7 @@ bun run dev                   # DB on :5432, API on :3001, web on :3000 (leave r
 # in a second terminal, first time only:
 bun run db:migrate            # applies drizzle migrations and sql/functions.sql
 bun run ops:mint-invites -- --count 10   # prints 10 seed invite codes (no inviter)
+bun run ops -- grant <handle>            # after joining: make yourself ops (moderation)
 ```
 
 The API runs the lifecycle job on boot and hourly (set `JOBS=off` to disable). To run a job by hand: `bun run ops:run-job -- lifecycle` (or `cleanup`).
@@ -56,6 +57,9 @@ docs/rfc         Design docs
 - **Milestone 3 (done):** in-process scheduler (hourly `run_lifecycle`: inactivity archival, lurker detection/grace/resolution, waitlist decay and promotion; daily cleanup of expired sessions, challenges and orphaned uploads), guarded by per-job advisory locks so multiple API instances are safe. Lurker banner with countdown and progress on every page; waitlist, archived (with reason), rejoin-queue and held-seat screens. 
 - **Milestone 4 (done):** prices (placeholders: stay fee $5, reinstatement $10, USD; edit the `pricing` table), Stripe Checkout for both products, signed idempotent webhook, automatic refund when a payment can no longer apply (seat offer lapsed, account archived or deleted), hourly retry of failed refunds, payment history in Settings. **Payments run against a built-in fake Stripe by default** (see below).
 - **Milestone 5 (done):** events: create/edit/cancel (host only; cancel and time/place changes notify everyone who RSVP'd), RSVP with capacity and a FIFO waitlist that promotes automatically, location visible only to the host and people going when marked private, attendance confirmation by the host from start to 14 days after (counts as a contribution for attendees and, with at least one confirmed attendee, for the host), upcoming/past lists. Cost is informational (price note + external payment link).
+- **Milestone 6 (done):** reporting (5 distinct reports hide a post; ops reviews via `bun run ops -- flags` / `resolve` or `/ops/*`), ops bans and founder invites, Postgres-backed rate limits (invite checks, auth, likes, reports, uploads, checkouts, RSVPs), Web Push for replies/seat/event changes (service worker + Settings toggle; off until VAPID keys are set), concurrent seat race tests, production config guards and security headers, deployment and launch guide in [docs/deploy.md](docs/deploy.md).
+
+All six RFC milestones are implemented. What remains is deploying (domain, Neon, Fly, Vercel, Stripe live keys) and minting the 10 founder invites; see [docs/deploy.md](docs/deploy.md).
 
 ## Payments (fake Stripe)
 

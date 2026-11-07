@@ -9,7 +9,7 @@ export type Post = {
   id: string; body: string; createdAt: string; editedAt: string | null; deleted: boolean;
   author: Author | null; parentId: string | null; rootId: string | null;
   replyCount: number; likeCount: number; likedByMe: boolean; images: Image[];
-  canEdit: boolean; canDelete: boolean;
+  canEdit: boolean; canDelete: boolean; canReport: boolean;
 };
 export type Page<T> = { items: T[]; nextCursor: string | null };
 
@@ -109,6 +109,7 @@ export function toPost(r: PostRow, viewerId: string): Post {
     images: deleted ? [] : imgs.map((i) => ({ id: i.id, url: mediaUrl(i.key), width: i.width, height: i.height })),
     canEdit: mine && !deleted && withinWindow,
     canDelete: mine && !deleted,
+    canReport: !mine && !deleted,
   };
 }
 

@@ -137,6 +137,20 @@ export function PostCard({
     }
   }
 
+  const [reported, setReported] = useState(false);
+  async function report() {
+    setMenu(false);
+    const reason = window.prompt('Report this post to the moderators. What is wrong with it? (optional)');
+    if (reason === null) return;
+    setErr(null);
+    try {
+      await api.flagPost(post.id, reason.trim() || undefined);
+      setReported(true);
+    } catch (e) {
+      setErr(errorMessage(e));
+    }
+  }
+
   const minutesLeft = Math.max(0, Math.ceil((new Date(post.createdAt).getTime() + EDIT_WINDOW_MS - Date.now()) / 60000));
 
   return (
@@ -148,7 +162,7 @@ export function PostCard({
           <time dateTime={post.createdAt}>{relativeTime(post.createdAt)}</time>
         </Link>
         {post.editedAt && <span className="muted edited" title={`Edited ${fmtDate(post.editedAt)}`}>(edited)</span>}
-        {(post.canEdit || post.canDelete) && (
+        {(post.canEdit || post.canDelete || post.canReport) && (
           <div className="menu" ref={menuRef}>
             <button
               type="button"
@@ -168,12 +182,16 @@ export function PostCard({
                 {post.canDelete && (
                   <button type="button" role="menuitem" className="danger-text" onClick={remove}>Delete</button>
                 )}
+                {post.canReport && (
+                  <button type="button" role="menuitem" onClick={report} disabled={reported}>{reported ? 'Reported' : 'Report'}</button>
+                )}
               </div>
             )}
           </div>
         )}
       </header>
 
+      {reported && <p className="muted small" role="status">Reported. Thanks, a moderator will take a look.</p>}
       {replyingTo && (
         <p className="muted replying">replying to <Link href={`/u/${replyingTo}`}>@{replyingTo}</Link></p>
       )}

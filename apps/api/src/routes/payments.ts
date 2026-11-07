@@ -6,6 +6,7 @@ import { ApiError } from '../lib/errors';
 import { PRODUCTS, processEvent, startCheckout } from '../lib/billing';
 import { FakeStripeProvider, WebhookSignatureError } from '../lib/payments';
 import { authPlugin, requireUser } from '../plugins/auth';
+import { hit } from '../lib/ratelimit';
 
 const iso = (col: string) => sql.raw(`to_char(${col} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`);
 
@@ -41,6 +42,7 @@ export const paymentRoutes = (deps: Deps) => {
 
     .post('/payments/checkout', async ({ auth, body }) => {
       const a = requireUser(auth);
+      await hit(db, 'checkout', a.user.id);
       const { url } = await startCheckout(db, payments, cfg.webOrigin, a.user, body.productKey);
       return { url };
     }, { body: t.Object({ productKey: t.String({ maxLength: 40 }) }) })

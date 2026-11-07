@@ -14,7 +14,9 @@
     "db:generate": "cd packages/db && bun run generate",
     "db:migrate": "cd packages/db && bun run migrate",
     "ops:mint-invites": "bun --env-file=.env apps/api/src/cli/mint-invites.ts",
-    "ops:run-job": "bun --env-file=.env apps/api/src/cli/run-job.ts"
+    "ops:run-job": "bun --env-file=.env apps/api/src/cli/run-job.ts",
+    "ops": "bun --env-file=.env apps/api/src/cli/ops.ts",
+    "ops:vapid-keys": "bun apps/api/src/cli/vapid-keys.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",

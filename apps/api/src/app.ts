@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia';
 import type { Deps } from './deps';
 import { ApiError } from './lib/errors';
+import { clientIp, hit } from './lib/ratelimit';
 import { SESSION_COOKIE } from './plugins/auth';
 import { authRoutes } from './routes/auth';
 import { inviteRoutes } from './routes/invites';
@@ -9,10 +10,12 @@ import { postRoutes } from './routes/posts';
 import { socialRoutes } from './routes/social';
 import { paymentRoutes } from './routes/payments';
 import { eventRoutes } from './routes/events';
+import { moderationRoutes } from './routes/moderation';
+import { pushRoutes } from './routes/push';
 
 export function createApp(deps: Deps) {
   return new Elysia()
-    .onRequest(({ request }) => {
+    .onRequest(async ({ request, server }) => {
       // CSRF: cookie-bearing state-changing requests must come from our web origin.
       if (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS') return;
       const origin = request.headers.get('origin');
@@ -20,6 +23,22 @@ export function createApp(deps: Deps) {
       if (origin && cookies.includes(`${SESSION_COOKIE}=`) && origin !== deps.cfg.webOrigin) {
         return new ApiError(403, 'bad_origin', 'Origin not allowed.').toResponse();
       }
+      // Per-IP limits on unauthenticated endpoints (RFC §13).
+      const path = new URL(request.url).pathname;
+      const limit = path === '/invites/check' ? 'inviteCheck' : path.startsWith('/auth/') && path !== '/auth/logout' ? 'auth' : null;
+      if (limit) {
+        try {
+          await hit(deps.db, limit, clientIp(request, server, deps.cfg.trustProxy ?? false));
+        } catch (e) {
+          if (e instanceof ApiError) return e.toResponse();
+          throw e;
+        }
+      }
+    })
+    .onAfterHandle({ as: 'global' }, ({ set }) => {
+      // Media and JSON are served from here: never sniff, never leak the URL onward.
+      set.headers['x-content-type-options'] = 'nosniff';
+      set.headers['referrer-policy'] = 'no-referrer';
     })
     .onError({ as: 'global' }, ({ error, code, set }) => {
       if (error instanceof ApiError) {
@@ -45,7 +64,9 @@ export function createApp(deps: Deps) {
     .use(postRoutes(deps))
     .use(socialRoutes(deps))
     .use(paymentRoutes(deps))
-    .use(eventRoutes(deps));
+    .use(eventRoutes(deps))
+    .use(moderationRoutes(deps))
+    .use(pushRoutes(deps));
 }
 
 export type App = ReturnType<typeof createApp>;

@@ -158,7 +158,10 @@ export const flags = pgTable('flags', {
   createdAt: tstz('created_at').notNull().defaultNow(),
   resolvedAt: tstz('resolved_at'),
   resolution: text('resolution'), // 'restored' | 'removed'
-}, (t) => [primaryKey({ columns: [t.userId, t.postId] })]);
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.postId] }),
+  index('flags_open').on(t.postId).where(sql`resolved_at is null`),
+]);
 
 // ─── Events ─────────────────────────────────────────────────────────────────
 
@@ -243,7 +246,12 @@ export const notifications = pgTable('notifications', {
   payload: jsonb('payload').notNull(),
   readAt: tstz('read_at'),
   createdAt: tstz('created_at').notNull().defaultNow(),
-}, (t) => [index('notif_inbox').on(t.userId, t.createdAt)]);
+  /** Set once Web Push fan-out has handled this row (sent, or nothing to send). */
+  pushedAt: tstz('pushed_at'),
+}, (t) => [
+  index('notif_inbox').on(t.userId, t.createdAt),
+  index('notif_push_queue').on(t.createdAt).where(sql`pushed_at is null`),
+]);
 
 export const pushSubscriptions = pgTable('push_subscriptions', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -253,3 +261,11 @@ export const pushSubscriptions = pgTable('push_subscriptions', {
   keys: jsonb('keys').notNull(),
   createdAt: tstz('created_at').notNull().defaultNow(),
 });
+
+// ─── Rate limiting (fixed windows; shared by all API instances) ─────────────
+
+export const rateLimits = pgTable('rate_limits', {
+  key: text('key').notNull(),            // e.g. 'like:<userId>', 'auth:<ip>'
+  windowStart: tstz('window_start').notNull(),
+  count: integer('count').notNull(),
+}, (t) => [primaryKey({ columns: [t.key, t.windowStart] }), index('rate_limits_window').on(t.windowStart)]);
