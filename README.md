@@ -47,8 +47,16 @@ packages/shared  Rules constants, handle and invite-code helpers
 docs/rfc         Design docs
 ```
 
-## Milestone 1 status
+## Status
 
-Done: invites, passkey registration/login/recovery, waitlist and seat lifecycle (in SQL), account settings, passkey and invite management, account deletion.
+- **Milestone 1 (done):** invites, passkey registration/login/recovery, waitlist and seat lifecycle (in SQL), account settings, passkey and invite management, account deletion.
+- **Milestone 2 (done):** global feed, posts with up to 4 images (EXIF stripped, WebP), threaded replies, likes, edit window, soft delete, member directory and profiles, full-text search, in-app notifications. Images are stored on local disk (`.uploads/`); Cloudflare R2 comes with deployment.
 
-Not done / unverified: no posting or timeline yet; the web UI has not been exercised in a real browser against a live API and Postgres; `src/index.ts` and the mint CLI have not been run against a real Postgres server.
+## UI walkthrough screenshots
+
+`scripts/screenshots.ts` drives your installed Chrome with a virtual passkey through the whole flow (join → post with image → reply/like from a second member → notifications, profile, members, search, settings, phone width) and writes `.screenshots/NN-*.png`. Run it against a throwaway stack (separate DB/ports) so it never touches your data; see the script header.
+
+## Notes
+
+- `postgres` (postgres.js) is pinned to v3: Drizzle 0.45 does not run transactions correctly on v4. `packages/db/test/postgres-js.test.ts` guards this.
+- The PGlite dev server is single-connection underneath; keep `DATABASE_POOL_MAX=1` with it.

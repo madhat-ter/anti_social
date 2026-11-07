@@ -131,12 +131,19 @@ export const posts = pgTable('posts', {
 
 export const postImages = pgTable('post_images', {
   id: uuid('id').primaryKey().defaultRandom(),
-  postId: uuid('post_id').notNull().references(() => posts.id, { onDelete: 'cascade' }),
+  /** Null while the upload is pending (not yet attached to a post). */
+  postId: uuid('post_id').references(() => posts.id, { onDelete: 'cascade' }),
+  uploaderId: uuid('uploader_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   r2Key: text('r2_key').notNull(),
   width: integer('width').notNull(),
   height: integer('height').notNull(),
-  position: integer('position').notNull(),
-}, (t) => [check('post_images_position', sql`${t.position} between 0 and 3`)]);
+  position: integer('position').notNull().default(0),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+}, (t) => [
+  check('post_images_position', sql`${t.position} between 0 and 3`),
+  index('post_images_post').on(t.postId),
+  index('post_images_uploader').on(t.uploaderId),
+]);
 
 export const likes = pgTable('likes', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

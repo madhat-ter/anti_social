@@ -8,6 +8,13 @@
       "when": 1794058942629,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794067190249,
+      "tag": "0001_m2_media",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,147 @@
+'use client';
+import { useEffect, useId, useRef, useState } from 'react';
+import { api, errorMessage, IMAGE_MAX_BYTES, IMAGES_MAX, POST_MAX, type Image, type Post } from '@/lib/api';
+import { ErrorNote } from './ui';
+
+interface Att {
+  key: string;
+  preview: string;
+  status: 'uploading' | 'done' | 'error';
+  image?: Image;
+  error?: string;
+}
+
+export function Composer({
+  parentId,
+  onCreated,
+  placeholder,
+  submitLabel,
+}: {
+  parentId?: string;
+  onCreated: (p: Post) => void;
+  placeholder?: string;
+  submitLabel?: string;
+}) {
+  const id = useId();
+  const [body, setBody] = useState('');
+  const [atts, setAtts] = useState<Att[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const attsRef = useRef<Att[]>([]);
+  attsRef.current = atts;
+
+  useEffect(() => () => { attsRef.current.forEach((a) => URL.revokeObjectURL(a.preview)); }, []);
+
+  const uploading = atts.some((a) => a.status === 'uploading');
+  const hasFailed = atts.some((a) => a.status === 'error');
+  const trimmed = body.trim();
+  const over = body.length > POST_MAX;
+  const hasImage = atts.some((a) => a.status === 'done');
+  const canPost = !busy && !uploading && (trimmed.length > 0 || hasImage) && !over;
+
+  function pick(files: FileList | null) {
+    if (!files) return;
+    setErr(null);
+    const room = IMAGES_MAX - atts.length;
+    const chosen = Array.from(files);
+    if (chosen.length > room) setErr(`You can attach up to ${IMAGES_MAX} images.`);
+    for (const f of chosen.slice(0, Math.max(room, 0))) {
+      if (!f.type.startsWith('image/')) { setErr(`"${f.name}" is not an image.`); continue; }
+      if (f.size > IMAGE_MAX_BYTES) { setErr(`"${f.name}" is larger than 5 MB.`); continue; }
+      const key = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const preview = URL.createObjectURL(f);
+      setAtts((cur) => [...cur, { key, preview, status: 'uploading' }]);
+      api.upload(f).then(
+        (image) => setAtts((cur) => cur.map((a) => (a.key === key ? { ...a, status: 'done', image } : a))),
+        (e) => setAtts((cur) => cur.map((a) => (a.key === key ? { ...a, status: 'error', error: errorMessage(e) } : a))),
+      );
+    }
+    if (fileRef.current) fileRef.current.value = '';
+  }
+
+  function remove(key: string) {
+    setAtts((cur) => {
+      const a = cur.find((x) => x.key === key);
+      if (a) URL.revokeObjectURL(a.preview);
+      return cur.filter((x) => x.key !== key);
+    });
+  }
+
+  async function submit() {
+    if (!canPost) return;
+    setBusy(true); setErr(null);
+    try {
+      const imageIds = atts.filter((a) => a.status === 'done' && a.image).map((a) => a.image!.id);
+      const post = await api.createPost({
+        body: trimmed,
+        ...(parentId ? { parentId } : {}),
+        ...(imageIds.length ? { imageIds } : {}),
+      });
+      atts.forEach((a) => URL.revokeObjectURL(a.preview));
+      setBody(''); setAtts([]);
+      onCreated(post);
+    } catch (e) {
+      setErr(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form
+      className="composer card stack"
+      onSubmit={(e) => { e.preventDefault(); void submit(); }}
+    >
+      <label htmlFor={`${id}-body`} className="sr-only">{parentId ? 'Write a reply' : 'Write a post'}</label>
+      <textarea
+        id={`${id}-body`}
+        value={body}
+        rows={parentId ? 3 : 4}
+        placeholder={placeholder ?? (parentId ? 'Write a reply...' : 'What is on your mind?')}
+        onChange={(e) => setBody(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void submit(); }
+        }}
+        aria-describedby={`${id}-count`}
+      />
+      {atts.length > 0 && (
+        <ul className="thumbs" aria-label="Attached images">
+          {atts.map((a, i) => (
+            <li key={a.key} className={`thumb ${a.status}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={a.preview} alt={`Attachment ${i + 1} of ${atts.length}`} />
+              {a.status === 'uploading' && <span className="spinner" role="status" aria-label="Uploading" />}
+              {a.status === 'error' && <span className="thumb-err" title={a.error}>Failed</span>}
+              <button type="button" className="thumb-x" onClick={() => remove(a.key)} aria-label={`Remove image ${i + 1}`}>×</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {atts.filter((a) => a.error).map((a) => <ErrorNote key={a.key} message={a.error ?? null} />)}
+      <ErrorNote message={err} />
+      <div className="row composer-bar">
+        <input
+          ref={fileRef}
+          id={`${id}-file`}
+          type="file"
+          accept="image/*"
+          multiple
+          disabled={atts.length >= IMAGES_MAX}
+          className="sr-only"
+          onChange={(e) => pick(e.target.files)}
+        />
+        <label htmlFor={`${id}-file`} className={`btn attach${atts.length >= IMAGES_MAX ? ' disabled' : ''}`} aria-disabled={atts.length >= IMAGES_MAX}>
+          Add image
+        </label>
+        <span className="grow" />
+        <span id={`${id}-count`} className={`counter${over ? ' over' : ''}`} aria-live="polite">
+          {body.length}/{POST_MAX}
+        </span>
+        <button className="btn primary" type="submit" disabled={!canPost} title={hasFailed ? 'Failed uploads are skipped' : 'Ctrl/Cmd+Enter'}>
+          {busy ? 'Posting...' : (submitLabel ?? (parentId ? 'Reply' : 'Post'))}
+        </button>
+      </div>
+    </form>
+  );
+}

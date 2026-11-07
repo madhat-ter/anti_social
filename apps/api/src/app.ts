@@ -5,6 +5,8 @@ import { SESSION_COOKIE } from './plugins/auth';
 import { authRoutes } from './routes/auth';
 import { inviteRoutes } from './routes/invites';
 import { meRoutes } from './routes/me';
+import { postRoutes } from './routes/posts';
+import { socialRoutes } from './routes/social';
 
 export function createApp(deps: Deps) {
   return new Elysia()
@@ -37,7 +39,9 @@ export function createApp(deps: Deps) {
     .get('/health', () => ({ ok: true }))
     .use(inviteRoutes(deps))
     .use(authRoutes(deps))
-    .use(meRoutes(deps));
+    .use(meRoutes(deps))
+    .use(postRoutes(deps))
+    .use(socialRoutes(deps));
 }
 
 export type App = ReturnType<typeof createApp>;

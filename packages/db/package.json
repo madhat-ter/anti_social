@@ -17,7 +17,7 @@
   "dependencies": {
     "@electric-sql/pglite": "^0.5.15",
     "drizzle-orm": "^0.45.4",
-    "postgres": "^4.1.0"
+    "postgres": "^3.4.7"
   },
   "devDependencies": {
     "@electric-sql/pglite-socket": "^0.2.18",

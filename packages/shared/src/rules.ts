@@ -33,3 +33,15 @@ export type UserState = (typeof USER_STATES)[number];
 
 /** States that occupy one of the seats. */
 export const SEATED_STATES: readonly UserState[] = ['active', 'flagged_lurker'];
+
+// ─── Posts & media (RFC-0001 §10) ───────────────────────────────────────────
+export const POST_MAX_CHARS = 500;
+export const POST_MAX_IMAGES = 4;
+export const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const IMAGE_MAX_DIMENSION = 2048;
+export const EDIT_WINDOW_MINUTES = 15;
+export const POSTS_PER_HOUR = 20;
+export const PAGE_DEFAULT_LIMIT = 20;
+export const PAGE_MAX_LIMIT = 50;
+export const SEARCH_QUERY_MAX = 100;
+

@@ -4,6 +4,7 @@ import { createTestDb } from '@anti/db/testing';
 import { formatInviteCode } from '@anti/shared';
 import { createApp } from '../src/app';
 import { generateInviteCode } from '../src/lib/crypto';
+import { MemoryStorage } from '../src/lib/storage';
 
 const cfg = { rpId: 'localhost', rpName: 'Anti', webOrigin: 'http://localhost:3000', cookieSecure: false };
 let t: Awaited<ReturnType<typeof createTestDb>>;
@@ -21,7 +22,7 @@ async function mint() {
 
 beforeAll(async () => {
   t = await createTestDb();
-  app = createApp({ db: t.db, cfg });
+  app = createApp({ db: t.db, cfg, storage: new MemoryStorage() });
 });
 afterAll(() => t.close());
 

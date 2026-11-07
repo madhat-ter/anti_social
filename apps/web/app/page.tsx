@@ -2,8 +2,23 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { api, errorMessage } from '@/lib/api';
-import { fmtDate, useMe } from '@/lib/hooks';
+import type { Post } from '@/lib/api';
+import { fmtDate, usePaged, useMe } from '@/lib/hooks';
 import { ErrorNote } from '@/components/ui';
+import { SeatedShell } from '@/components/Shell';
+import { Composer } from '@/components/Composer';
+import { PostList } from '@/components/PostList';
+
+function FeedView() {
+  const p = usePaged<Post>('feed', (c) => api.feed(c));
+  return (
+    <>
+      <h1 className="sr-only">Feed</h1>
+      <Composer onCreated={(post) => p.setItems((cur) => [post, ...cur.filter((x) => x.id !== post.id)])} />
+      <PostList p={p} empty="Nothing here yet. Be the first to post." />
+    </>
+  );
+}
 
 export default function Home() {
   const { me, loading, error, refresh } = useMe();
@@ -29,6 +44,24 @@ export default function Home() {
   async function rejoin() {
     setBusy(true); setErr(null);
     try { await api.rejoin(); await refresh(); } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
+  }
+
+  if (me.state === 'active' || me.state === 'flagged_lurker') {
+    return (
+      <SeatedShell me={me}>
+        {(m) => (
+          <>
+            {m.state === 'flagged_lurker' && (
+              <div className="banner" role="status">
+                You have not been active lately.{' '}
+                {m.lurker ? <>Post or interact before {fmtDate(m.lurker.graceEndsAt)} to keep your seat.</> : 'Interact soon to keep your seat.'}
+              </div>
+            )}
+            <FeedView />
+          </>
+        )}
+      </SeatedShell>
+    );
   }
 
   return (
@@ -58,24 +91,7 @@ export default function Home() {
         </div>
       )}
 
-      {me.state === 'flagged_lurker' && (
-        <div className="banner" role="status">
-          You have not been active lately.{' '}
-          {me.lurker ? <>Post or interact before {fmtDate(me.lurker.graceEndsAt)} to keep your seat.</> : 'Interact soon to keep your seat.'}
-        </div>
-      )}
-
-      {(me.state === 'active' || me.state === 'flagged_lurker') && (
-        <div className="card stack">
-          <h2>The feed arrives in Milestone 2</h2>
-          <p className="muted">Nothing to read yet.</p>
-          <div className="row"><Link className="btn" href="/settings">Settings</Link></div>
-        </div>
-      )}
-
-      {(me.state === 'waitlisted' || me.state === 'archived') && (
-        <div className="row"><Link href="/settings">Settings</Link></div>
-      )}
+      <div className="row"><Link href="/settings">Settings</Link></div>
     </div>
   );
 }

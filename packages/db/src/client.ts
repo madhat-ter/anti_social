@@ -7,8 +7,13 @@ import * as schema from './schema';
 /** Driver-agnostic database handle (postgres-js in prod, PGlite in tests). */
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-export function createDb(url: string): { db: Db; close: () => Promise<void> } {
-  const client = postgres(url, { max: 10 });
+/**
+ * Pool size: DATABASE_POOL_MAX (default 10). The local PGlite dev server is single-connection
+ * underneath, so a second connection running while a transaction is open gets dropped — use 1 there.
+ */
+export function createDb(url: string, opts: { max?: number } = {}): { db: Db; close: () => Promise<void> } {
+  const max = opts.max ?? (Number(process.env.DATABASE_POOL_MAX) || 10);
+  const client = postgres(url, { max });
   const db = drizzle({ client, schema }) as unknown as Db;
   return { db, close: () => client.end() };
 }
