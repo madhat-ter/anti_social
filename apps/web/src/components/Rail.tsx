@@ -12,6 +12,7 @@ import { Avatar } from './Avatar';
 import { BirthdaysWindow } from './Birthday';
 import { NameMarks } from './Marks';
 import { Win } from './retro';
+import { VisitorWindow } from './Visitor';
 
 function You({ me }: { me: Me }) {
   return (
@@ -80,7 +81,7 @@ function NextEvents() {
 export function Rail({ me }: { me: Me }) {
   return (
     <aside className="rail" aria-label="At a glance">
-      <You me={me} />
+      {me.visitor ? <VisitorWindow expiresAt={me.visitor.expiresAt} /> : <You me={me} />}
       <Seats me={me} />
       <BirthdaysWindow />
       <NextEvents />

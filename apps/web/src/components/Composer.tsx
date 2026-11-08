@@ -2,6 +2,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { api, errorMessage, IMAGE_MAX_BYTES, IMAGES_MAX, POST_MAX, type Image, type Post } from '@/lib/api';
 import { ErrorNote } from './ui';
+import { VISITOR_NOTE, useReadOnly } from './Visitor';
 
 interface Att {
   key: string;
@@ -35,6 +36,8 @@ export function Composer({
   submitLabel?: string;
 }) {
   const id = useId();
+  /** a visitor (RFC §10.8) sees the composer and can't use it: that is the point */
+  const readOnly = useReadOnly();
   const [body, setBody] = useState('');
   const [atts, setAtts] = useState<Att[]>([]);
   const [busy, setBusy] = useState(false);
@@ -74,7 +77,7 @@ export function Composer({
   const trimmed = body.trim();
   const over = body.length > POST_MAX;
   const hasImage = atts.some((a) => a.status === 'done');
-  const canPost = !busy && !uploading && (trimmed.length > 0 || hasImage) && !over;
+  const canPost = !busy && !uploading && (trimmed.length > 0 || hasImage) && !over && !readOnly;
 
   function pick(files: FileList | null) {
     if (!files) return;
@@ -143,7 +146,9 @@ export function Composer({
         id={`${id}-body`}
         value={body}
         rows={parentId ? 3 : 4}
-        placeholder={placeholder ?? (parentId ? 'Write a reply...' : 'What is on your mind?')}
+        placeholder={readOnly ? VISITOR_NOTE : placeholder ?? (parentId ? 'Write a reply...' : 'What is on your mind?')}
+        disabled={readOnly}
+        title={readOnly ? VISITOR_NOTE : undefined}
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void submit(); }
@@ -180,11 +185,11 @@ export function Composer({
           type="file"
           accept="image/*"
           multiple
-          disabled={atts.length >= IMAGES_MAX}
+          disabled={atts.length >= IMAGES_MAX || readOnly}
           className="sr-only"
           onChange={(e) => pick(e.target.files)}
         />
-        <label htmlFor={`${id}-file`} className={`btn attach${atts.length >= IMAGES_MAX ? ' disabled' : ''}`} aria-disabled={atts.length >= IMAGES_MAX}>
+        <label htmlFor={`${id}-file`} className={`btn attach${atts.length >= IMAGES_MAX || readOnly ? ' disabled' : ''}`} aria-disabled={atts.length >= IMAGES_MAX || readOnly} title={readOnly ? VISITOR_NOTE : undefined}>
           + Image
         </label>
         <span className="grow" />
@@ -192,7 +197,7 @@ export function Composer({
         <span id={`${id}-count`} className={`counter${over ? ' over' : ''}`} aria-live="polite">
           {body.length}/{POST_MAX}
         </span>
-        <button className="btn primary" type="submit" disabled={!canPost} title={hasFailed ? 'Failed uploads are skipped' : 'Ctrl/Cmd+Enter'}>
+        <button className="btn primary" type="submit" disabled={!canPost} title={readOnly ? VISITOR_NOTE : hasFailed ? 'Failed uploads are skipped' : 'Ctrl/Cmd+Enter'}>
           {busy ? 'Posting...' : (submitLabel ?? (parentId ? 'Reply' : 'Post'))}
         </button>
       </div>

@@ -34,6 +34,16 @@ export interface Me {
   contact: { phone: string | null; email: string | null; updatedAt: string | null } | null;
   /** when an admin verified you (the badge shows by your name) */
   verifiedAt: string | null;
+  /** RFC §10.8: set when "you" are a visitor on an admin's pass: an hour of reading, nothing else */
+  visitor?: { expiresAt: string };
+}
+
+/** RFC §10.8: one visitor pass as the admin panel lists it (the code is shown once, at creation). */
+export interface VisitorPassInfo {
+  id: string; label: string;
+  status: 'unopened' | 'active' | 'ended' | 'expired' | 'revoked';
+  createdAt: string; codeExpiresAt: string; openedAt: string | null; expiresAt: string | null; revokedAt: string | null;
+  createdByHandle: string | null;
 }
 
 /** One reported post or project in the moderation queue. */
@@ -396,7 +406,13 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
   const text = await res.text();
   let data: any = null;
   try { data = text ? JSON.parse(text) : null; } catch { /* non-JSON */ }
-  if (!res.ok) throw new ApiError(res.status, data?.error ?? 'unknown', data?.detail);
+  if (!res.ok) {
+    // a visitor's hour is up (RFC §10.8): whatever page they were on, show them the ended page
+    if (res.status === 401 && data?.error === 'visitor_expired' && typeof window !== 'undefined' && !window.location.pathname.startsWith('/visit/')) {
+      window.location.assign('/visit/ended');
+    }
+    throw new ApiError(res.status, data?.error ?? 'unknown', data?.detail);
+  }
   return data as T;
 }
 
@@ -422,6 +438,12 @@ export const api = {
     call<Me | { closed: true }>('PUT', '/me/setup', b),
   deleteMe: () => call<{ ok: true }>('DELETE', '/me'),
   checkInvite: (code: string) => post<{ valid: boolean; wouldWaitlist: boolean }>('/invites/check', { code }),
+  /** RFC §10.8: enter a visitor code; the hour starts and the cookie is set */
+  visit: (code: string) => post<{ expiresAt: string }>('/visit', { code }),
+  leaveVisit: () => post<{ ok: true }>('/visit/leave', {}),
+  opsVisitorPasses: () => get<{ items: VisitorPassInfo[]; active: number }>('/ops/visitor-passes'),
+  opsCreateVisitorPass: (label: string) => post<VisitorPassInfo & { code: string }>('/ops/visitor-passes', { label }),
+  opsRevokeVisitorPass: (id: string) => post<VisitorPassInfo>(`/ops/visitor-passes/${encodeURIComponent(id)}/revoke`, {}),
   registerOptions: (b: { code: string; handle: string; displayName: string }) => post<Challenge>('/auth/register/options', b),
   registerVerify: (b: { challengeId: string; response: unknown }) =>
     post<{ state: UserState; recoveryCode: string }>('/auth/register/verify', b),
@@ -644,6 +666,11 @@ const MESSAGES: Record<string, string> = {
   own_offer: 'That is your own offer.',
   not_consultant: 'Only the person asked can do that.',
   not_requester: 'Only the person who asked can do that.',
+  visitor_readonly: 'Visitors can only watch.',
+  visitor_expired: 'Your hour is up.',
+  visitor_pass_invalid: 'That visitor code is not valid, or has expired.',
+  visitor_pass_used: 'This pass has already been used.',
+  already_member: 'You are already a member. No pass needed.',
 };
 
 export function errorMessage(e: unknown): string {

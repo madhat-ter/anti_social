@@ -118,6 +118,22 @@ main:focus { outline: none; }
 /* on your own profile the row goes black; the face keeps its ink lines on its own paper tile */
 .nav .nav-me[aria-current=page] .avatar { color: var(--ink); }
 .badge { background: var(--signal); color: var(--signal-ink); font: 700 .78rem/1 var(--font-ui); padding: .2rem .35rem; }
+/* a visitor (RFC §10.8): where your face would be, a grey one and the time left; never a link */
+.nav .nav-visitor { display: inline-flex; gap: .45rem; align-items: center; cursor: default; color: var(--gray); }
+.nav .nav-visitor .avatar { width: 30px; height: 30px; color: var(--gray); }
+.visitor-pill { display: inline-flex; align-items: center; gap: .3rem; font: 700 .82rem/1.2 var(--font-ui); border: 2px solid var(--gray); color: var(--ink); background: var(--paper); padding: .3rem .5rem; white-space: nowrap; }
+.visitor-pill.soon { background: var(--signal); color: var(--signal-ink); border-color: var(--signal); }
+.visitor-soon { color: var(--signal-text); font-weight: 700; }
+/* in the desktop menu column the pill sits under the face so the time left never gets cut off */
+.shell-left > .nav .nav-visitor { flex-wrap: wrap; row-gap: .4rem; }
+.shell-left > .nav .nav-visitor .visitor-pill { font-size: .85rem; white-space: normal; }
+/* entering a visitor code: on the landing page under the alert, and on /visit/<code> */
+.visit-form { display: flex; flex-direction: column; gap: .5rem; }
+.visit-row { align-items: stretch; flex-wrap: wrap; }
+.visit-row .code-input { flex: 1 1 10rem; min-width: 0; text-transform: uppercase; }
+.visit-form.compact .code-input { font-size: 1rem; padding: .45rem .6rem; }
+.visit-entry { max-width: 34rem; }
+.watch-only { margin: 0; }
 
 /* ─── windows (retro.tsx) ──────────────────────────────────────────────── */
 .win { border: 2px solid var(--ink); background: var(--paper); box-shadow: var(--shadow); display: flex; flex-direction: column; min-width: 0; }
@@ -700,12 +716,13 @@ input[type=search]::-webkit-search-cancel-button {
   .wrap:has(> .hero) { max-width: 78rem; }
   .hero {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 4rem; row-gap: 2rem; align-items: start;
-    grid-template-areas: "type seats" "sub seats" "alert seats" "rules rules";
+    grid-template-areas: "type seats" "sub seats" "alert seats" "visit seats" "rules rules";
   }
   .hero-type { grid-area: type; }
   .hero-type > span { font-size: clamp(6rem, 12.5vw, 11.5rem); }
   .hero-sub { grid-area: sub; }
   .hero > .zoom { grid-area: alert; }
+  .hero > .visit-entry { grid-area: visit; }
   .hero > .seats { grid-area: seats; padding-top: .75rem; }
   .hero > .rules { grid-area: rules; }
 }
@@ -949,6 +966,10 @@ input[type=search]::-webkit-search-cancel-button {
   .nav:has(a[href="/consultations"]) a[href="/settings"] { grid-column: span 2; }
   /* moderators get one more link: a full-width row of its own */
   .nav .nav-admin { grid-column: 1 / -1; }
+  /* a visitor (RFC §10.8) has five links: two rows, Search fills row two, the pill spans both rows on paper */
+  .nav .nav-visitor { grid-column: 4; grid-row: 1 / span 2; margin: 0; padding: .3rem .5rem; background: var(--paper); flex-direction: column; justify-content: center; gap: .3rem; }
+  .shell.visiting .nav a[href="/search"] { grid-column: span 2; }
+  .nav .nav-visitor .visitor-pill { font-size: .78rem; white-space: normal; text-align: center; }
   .risk-meter { grid-template-columns: 1fr auto; }
   .risk-meter > .ui:first-child { grid-column: 1 / -1; }
 }
@@ -1000,6 +1021,14 @@ input[type=search]::-webkit-search-cancel-button {
 .adm-members > li:first-child { border-top: 0; }
 .adm-member-main { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
 .adm-member-main .name { font-weight: 700; }
+/* visitor passes (RFC §10.8) */
+.adm-visit-form { align-items: end; flex-wrap: wrap; }
+.adm-visit-form .btn { margin-bottom: 2px; }
+.adm-visit-made .code { font-size: 1.05rem; }
+.adm-visit-made .adm-visit-link { font-size: .85rem; letter-spacing: 0; }
+ul.list.adm-visits li { flex-wrap: wrap; }
+.adm-visit-main { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.adm-visits .btn { padding: .3rem .65rem; font-size: .85rem; }
 .adm-member-actions { grid-column: 2; gap: .45rem; }
 .adm-member-actions .btn { padding: .3rem .65rem; font-size: .85rem; }
 /* Setup page (RFC §10.3) */

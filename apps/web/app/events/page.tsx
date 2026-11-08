@@ -6,6 +6,7 @@ import { usePaged, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { ListStatus, PagedFooter } from '@/components/Paged';
 import { EventCard } from '@/components/Events';
+import { WatchOnly, useReadOnly } from '@/components/Visitor';
 
 export default function EventsPage() {
   useTitle('Events');
@@ -14,12 +15,13 @@ export default function EventsPage() {
 
 function EventsList() {
   const [scope, setScope] = useState<'upcoming' | 'past'>('upcoming');
+  const readOnly = useReadOnly();
   const p = usePaged<AnEvent>(`events:${scope}`, (c) => api.events(scope, c));
   return (
     <>
       <div className="row between">
         <h1>Events</h1>
-        <Link className="btn primary" href="/events/new">Host an event</Link>
+        {readOnly ? <WatchOnly>Host an event</WatchOnly> : <Link className="btn primary" href="/events/new">Host an event</Link>}
       </div>
       <div className="tabs" role="tablist">
         {(['upcoming', 'past'] as const).map((s) => (

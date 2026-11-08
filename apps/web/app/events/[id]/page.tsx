@@ -16,6 +16,7 @@ import { eventWhen, MyStatus, spotsText } from '@/components/Events';
 import { AlertDialog, Loading } from '@/components/retro';
 import { Avatar } from '@/components/Avatar';
 import { NameMarks } from '@/components/Marks';
+import { VISITOR_NOTE, useReadOnly } from '@/components/Visitor';
 
 export default function EventPage() {
   useTitle('Event');
@@ -30,6 +31,9 @@ function EventView() {
   const [askCancel, setAskCancel] = useState(false);
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState('');
+  const readOnly = useReadOnly();
+  /** a visitor sees the buttons a member would, and can't press them */
+  const ro = readOnly ? { disabled: true, title: VISITOR_NOTE } : {};
 
   const load = useCallback(async () => {
     try { setEv(await api.event(id)); } catch (e) { setErr(errorMessage(e)); }
@@ -99,7 +103,7 @@ function EventView() {
         )}
         <div className="row">
           {!ev.isHost && ev.rsvpOpen && !going && !waiting && ev.joinMode === 'approve' && !ev.invited && ev.request === null && !asking && (
-            <button className="btn primary" disabled={busy} onClick={() => setAsking(true)}>Ask to come</button>
+            <button className="btn primary" disabled={busy} onClick={() => setAsking(true)} {...ro}>Ask to come</button>
           )}
           {!ev.isHost && !going && !waiting && ev.request === 'pending' && (
             <>
@@ -109,7 +113,7 @@ function EventView() {
           )}
           {!ev.isHost && !going && !waiting && ev.request === 'declined' && <span className="muted">This one is full of people already. Plenty more in Events.</span>}
           {!ev.isHost && ev.rsvpOpen && !going && !waiting && !ev.invited && ev.joinMode === 'open' && (
-            <button className="btn primary" disabled={busy} onClick={() => act(() => api.rsvp(id))}>
+            <button className="btn primary" disabled={busy} onClick={() => act(() => api.rsvp(id))} {...ro}>
               {full ? 'Join the waitlist' : "I'm going"}
             </button>
           )}

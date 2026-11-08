@@ -8,6 +8,7 @@ import { SeatedShell } from '@/components/Shell';
 import { ErrorNote } from '@/components/ui';
 import { Loading } from '@/components/retro';
 import { CollabCard } from '@/components/Collabs';
+import { WatchOnly, useReadOnly } from '@/components/Visitor';
 
 export default function CollabsPage() {
   useTitle('Collabs');
@@ -15,6 +16,7 @@ export default function CollabsPage() {
 }
 
 function CollabsList({ hasInterests }: { hasInterests: boolean }) {
+  const readOnly = useReadOnly();
   const [tab, setTab] = useState<'for-you' | 'all'>(hasInterests ? 'for-you' : 'all');
   const [interest, setInterest] = useState('');
   const [all, setAll] = useState<Interest[]>([]);
@@ -32,7 +34,7 @@ function CollabsList({ hasInterests }: { hasInterests: boolean }) {
     <>
       <div className="row between">
         <h1>Collabs</h1>
-        <Link className="btn primary" href="/collabs/new">Start a collab</Link>
+        {readOnly ? <WatchOnly>Start a collab</WatchOnly> : <Link className="btn primary" href="/collabs/new">Start a collab</Link>}
       </div>
       <p className="muted">Projects and activities people here do together: a zine, a band, a cleanup, a short film. Join one, or start your own and find your people.</p>
       <div className="row between collab-bar">
@@ -56,7 +58,9 @@ function CollabsList({ hasInterests }: { hasInterests: boolean }) {
           {tab === 'for-you'
             ? hasInterests
               ? <>Nothing recruiting that matches your interests right now. <button type="button" className="link-btn" onClick={() => setTab('all')}>See all collabs</button>, or start one.</>
-              : <>Pick your interests in <Link href="/settings#interests">Settings</Link> and collabs that match show up here.</>
+              : readOnly
+                ? <>Members pick interests, and collabs that match show up here. <button type="button" className="link-btn" onClick={() => setTab('all')}>See all collabs</button>.</>
+                : <>Pick your interests in <Link href="/settings#interests">Settings</Link> and collabs that match show up here.</>
             : 'No collabs yet. Start the first one.'}
         </p>
       ) : (

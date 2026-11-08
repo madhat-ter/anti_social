@@ -18,12 +18,15 @@ export default function Settings() {
   useTitle('Settings');
   const router = useRouter();
   const { me, loading, error, setMe } = useMe();
-  useEffect(() => { if (me?.setupNeeded) router.replace('/setup'); }, [me, router]);
+  useEffect(() => {
+    if (me?.visitor) router.replace('/'); // RFC §10.8: a visitor has nothing to set
+    else if (me?.setupNeeded) router.replace('/setup');
+  }, [me, router]);
 
   if (loading) return <Loading />;
   if (error) return <ErrorNote message={errorMessage(error)} />;
   if (!me) return <p>Please <Link href="/login">sign in</Link>.</p>;
-  if (me.setupNeeded) return <Loading what="Redirecting" />;
+  if (me.setupNeeded || me.visitor) return <Loading what="Redirecting" />;
   const seated = me.state === 'active' || me.state === 'flagged_lurker';
 
   return (

@@ -20,6 +20,7 @@ import { ImageViewer } from './ImageViewer';
 import { nn, styleClass, TagEditor } from './Portfolio';
 import { AlertDialog, Win } from './retro';
 import { ErrorNote } from './ui';
+import { useReadOnly } from './Visitor';
 
 /** "2026 · Industrial designer · Group of two · 3 weeks · Fusion 360, KeyShot" */
 export function detailsLine(p: { year: number | null; role: string; team: string; duration: string; tools: string[] }): string {
@@ -27,6 +28,7 @@ export function detailsLine(p: { year: number | null; role: string; team: string
 }
 
 export function ProjectView({ project: p, siblings, style }: { project: Project; siblings: ProjectSummary[]; style: PfStyle }) {
+  const readOnly = useReadOnly();
   const [viewing, setViewing] = useState<number | null>(null);
   const [asking, setAsking] = useState(false);
   const [reported, setReported] = useState(false);
@@ -91,7 +93,7 @@ export function ProjectView({ project: p, siblings, style }: { project: Project;
                 <Link className="btn" href={`${home}/work/${p.id}/edit`}>Edit project</Link>
               </div>
             )}
-            {p.canReport && (
+            {p.canReport && !readOnly && (
               <div className="row pj-actions">
                 {reported
                   ? <p className="muted small" role="status">Reported. Thanks, a moderator will take a look.</p>

@@ -18,6 +18,7 @@ import { InterestPicker, InterestTags } from './Interests';
 import { NameMarks } from './Marks';
 import { AlertDialog } from './retro';
 import { ErrorNote } from './ui';
+import { WatchOnly, useReadOnly } from './Visitor';
 
 /** 18 or over: consultations exist for you at all. */
 export function isAdult(me: Pick<Me, 'birthday'> | null): boolean {
@@ -147,6 +148,7 @@ export function OfferEditor({ initial, onSaved }: { initial: MyConsultOffer; onS
 // ─── The Consulting section on a portfolio ──────────────────────────────────
 
 export function ConsultingSection({ handle, viewerAdult }: { handle: string; viewerAdult: boolean }) {
+  const readOnly = useReadOnly();
   const [o, setO] = useState<ConsultOffer | null | undefined>(undefined);
   const [all, setAll] = useState(false);
   const [more, setMore] = useState<ConsultOffer['thanks'] | null>(null);
@@ -177,7 +179,7 @@ export function ConsultingSection({ handle, viewerAdult }: { handle: string; vie
         <h2 id="pf-consult-h" className="pf-sec-h">Consulting</h2>
         {o.mine
           ? <Link className="btn" href="/consultations?tab=offer">Edit offer</Link>
-          : o.canBook && <Link className="btn primary" href={`/u/${handle}/consult`}>Book a consultation</Link>}
+          : o.canBook && (readOnly ? <WatchOnly>Book a consultation</WatchOnly> : <Link className="btn primary" href={`/u/${handle}/consult`}>Book a consultation</Link>)}
       </div>
       {o.hidden && <p className="tag danger">hidden after reports</p>}
       <InterestTags slugs={o.topics} />
@@ -203,7 +205,7 @@ export function ConsultingSection({ handle, viewerAdult }: { handle: string; vie
         <button type="button" className="link-btn" onClick={() => setAll(true)}>All {o.thanksCount} thank-yous</button>
       )}
       <ErrorNote message={err} />
-      {o.canReport && !reported && <button type="button" className="link-btn small" onClick={() => setReport(true)}>Report this offer</button>}
+      {o.canReport && !reported && !readOnly && <button type="button" className="link-btn small" onClick={() => setReport(true)}>Report this offer</button>}
       {reported && <p className="muted small" role="status">Reported. Thanks, an admin will take a look.</p>}
       <AlertDialog open={report} title="Report" message="Report this consultation offer to the admins? After five reports it is hidden until they look."
         confirmLabel="Report" onCancel={() => setReport(false)}

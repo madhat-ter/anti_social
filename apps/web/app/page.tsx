@@ -17,6 +17,7 @@ import { BirthdayLine } from '@/components/Birthday';
 import { PickWindow, useWide } from '@/components/Picks';
 import { AlertIcon, Loading, Win } from '@/components/retro';
 import { NameMarks } from '@/components/Marks';
+import { VisitorCodeForm } from '@/components/Visitor';
 
 /** One face per seat. The whole network fits on one screen. */
 const SEATS = Array.from({ length: 100 }, (_, i) => `seat-${i + 1}`);
@@ -56,6 +57,9 @@ function Landing() {
           </div>
         </Win>
       </div>
+
+      {/* RFC §10.8: an admin's one-hour pass; the link form of it lands on /visit/<code> */}
+      <div className="visit-entry"><VisitorCodeForm compact /></div>
 
       <section className="seats" aria-label="The hundred seats">
         <div className="seat-grid" aria-hidden="true">
@@ -133,7 +137,7 @@ export default function Home() {
         {/* refresh after posting so a flagged member's progress updates */}
         {(m) => (
           <>
-            <Intro me={m} refreshKey={posted} />
+            {!m.visitor && <Intro me={m} refreshKey={posted} />}
             <CheckoutNotice refresh={refresh} />
             <FeedView onPosted={() => { setPosted((n) => n + 1); if (me.state === 'flagged_lurker') void refresh(); }} />
           </>

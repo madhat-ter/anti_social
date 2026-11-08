@@ -9,6 +9,7 @@ import { BirthdayTag } from './Birthday';
 import { NameMarks } from './Marks';
 import { AlertDialog, Dot } from './retro';
 import { ImageViewer } from './ImageViewer';
+import { VISITOR_NOTE, useReadOnly } from './Visitor';
 
 const URL_RE = /https?:\/\/[^\s<>"]+/g;
 
@@ -75,6 +76,7 @@ export function PostCard({
   actions?: ReactNode;
 }) {
   const uid = useId();
+  const readOnly = useReadOnly();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(post.body);
   const [menu, setMenu] = useState(false);
@@ -200,7 +202,7 @@ export function PostCard({
           <time dateTime={post.createdAt}>{relativeTime(post.createdAt)}</time>
         </Link>
         {post.editedAt && <span className="muted edited" title={`Edited ${fmtDate(post.editedAt)}`}>(edited)</span>}
-        {(post.canEdit || post.canDelete || post.canReport || post.canModerate) && (
+        {!readOnly && (post.canEdit || post.canDelete || post.canReport || post.canModerate) && (
           <div className="menu" ref={menuRef}>
             <button
               type="button"
@@ -300,7 +302,8 @@ export function PostCard({
           className={`foot-btn like${post.likedByMe ? ' on' : ''}${stamp ? ' stamp' : ''}`}
           aria-pressed={post.likedByMe}
           onClick={toggleLike}
-          disabled={post.hidden}
+          disabled={post.hidden || readOnly}
+          title={readOnly ? VISITOR_NOTE : undefined}
         >
           <Dot on={post.likedByMe} size=".85em" />
           {/* name = "Like 3": includes the visible count, so voice control ("click 3") works */}

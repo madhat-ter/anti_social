@@ -2,7 +2,8 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { NameMarks } from '@/components/Marks';
-import { api, ApiError, errorMessage, type AdminContact, type AdminInterest, type AdminMember, type AdminSettings, type FlagItem, type Me, type OpsConsultation, type OpsConsultationDetail } from '@/lib/api';
+import { api, ApiError, errorMessage, type AdminContact, type AdminInterest, type AdminMember, type AdminSettings, type FlagItem, type Me, type OpsConsultation, type OpsConsultationDetail, type VisitorPassInfo } from '@/lib/api';
+import { minutesLeft } from '@/components/Visitor';
 import { fmtDate, relativeTime, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { CopyButton, ErrorNote } from '@/components/ui';
@@ -26,6 +27,7 @@ function Admin({ me }: { me: Me }) {
       <h1>Admin</h1>
       <Win title="Moderator panel" className="panel" bodyClassName="panel-body">
         <Invites />
+        <VisitorPasses />
         <Reports />
         <Members me={me} />
         <Consultations />
@@ -70,6 +72,109 @@ function Invites() {
         </div>
       )}
       <ErrorNote message={err} />
+    </section>
+  );
+}
+
+/**
+ * Visitor passes (RFC §10.8): an hour of looking around for someone without an account. The code
+ * (and the link that carries it) is shown once; the list keeps the last 30 days with each pass's
+ * state. Revoking ends an active visit on the visitor's next click and kills an unopened code.
+ */
+function VisitorPasses() {
+  const [items, setItems] = useState<VisitorPassInfo[] | null>(null);
+  const [active, setActive] = useState(0);
+  const [label, setLabel] = useState('');
+  const [made, setMade] = useState<(VisitorPassInfo & { code: string }) | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [ask, setAsk] = useState<VisitorPassInfo | null>(null);
+  const [origin, setOrigin] = useState('');
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+
+  const load = useCallback(async () => {
+    try { const r = await api.opsVisitorPasses(); setItems(r.items); setActive(r.active); } catch (e) { setErr(errorMessage(e)); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  async function create(e: FormEvent) {
+    e.preventDefault(); setBusy(true); setErr(null);
+    try { setMade(await api.opsCreateVisitorPass(label)); setLabel(''); await load(); }
+    catch (x) { setErr(errorMessage(x)); } finally { setBusy(false); }
+  }
+  async function revoke(p: VisitorPassInfo) {
+    setAsk(null); setErr(null);
+    try { await api.opsRevokeVisitorPass(p.id); if (made?.id === p.id) setMade(null); await load(); }
+    catch (x) { setErr(errorMessage(x)); }
+  }
+
+  const state = (p: VisitorPassInfo): { text: string; cls?: string } => {
+    switch (p.status) {
+      case 'unopened': return { text: `not opened yet · code works until ${fmtDate(p.codeExpiresAt)}` };
+      case 'active': return { text: `visiting now · ${minutesLeft(p.expiresAt!)} min left`, cls: 'on' };
+      case 'ended': return { text: `visited ${fmtDate(p.openedAt)} · over` };
+      case 'expired': return { text: 'never opened · code expired' };
+      case 'revoked': return { text: `revoked ${fmtDate(p.revokedAt)}`, cls: 'danger' };
+    }
+  };
+  const link = made ? `${origin}/visit/${made.code}` : '';
+
+  return (
+    <section className="panel-sec" aria-labelledby="adm-visit">
+      <h2 id="adm-visit">Visitor passes</h2>
+      <p className="muted">
+        An hour of looking around for someone who is not a member: everything members see, nothing they can do. Each pass works once,
+        in one browser; the hour starts when the code is entered. An unopened code lasts a week.
+        {active > 0 && <> <strong>{active} visiting right now.</strong></>}
+      </p>
+      <form className="row adm-visit-form" onSubmit={create}>
+        <label className="grow">Who is it for? <span className="muted">(only you see this)</span>
+          <input value={label} maxLength={80} placeholder="Priya from the agency" onChange={(e) => setLabel(e.target.value)} />
+        </label>
+        <button className="btn primary" disabled={busy}>{busy ? 'Making…' : 'Make a 1-hour pass'}</button>
+      </form>
+      {made && (
+        <div className="stack adm-visit-made" role="status">
+          <p className="muted">Send them either one. Shown only once.{made.label ? <> For <strong>{made.label}</strong>.</> : null}</p>
+          <ul className="list">
+            <li><span className="code">{made.code}</span><CopyButton text={made.code} label="Copy code" /></li>
+            <li><span className="code adm-visit-link">{link}</span><CopyButton text={link} label="Copy link" /></li>
+          </ul>
+        </div>
+      )}
+      <ErrorNote message={err} />
+      {items === null ? (err ? null : <Loading />) : items.length === 0 ? <p className="muted">No passes yet.</p> : (
+        <ul className="list adm-visits">
+          {items.map((p) => {
+            const s = state(p);
+            return (
+              <li key={p.id}>
+                <span className="adm-visit-main">
+                  <span>
+                    <strong>{p.label || 'Unnamed pass'}</strong>
+                    <span className={`tag${s.cls ? ` ${s.cls}` : ''}`}>{p.status === 'active' ? 'visiting' : p.status}</span>
+                  </span>
+                  <span className="muted small">{s.text} · made {relativeTime(p.createdAt)}{p.createdByHandle && <> by @{p.createdByHandle}</>}</span>
+                </span>
+                {(p.status === 'unopened' || p.status === 'active') && (
+                  <button type="button" className="btn danger" onClick={() => setAsk(p)}>{p.status === 'active' ? 'End the visit' : 'Revoke'}</button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <AlertDialog
+        open={ask !== null}
+        title={ask?.status === 'active' ? 'End the visit' : 'Revoke pass'}
+        message={ask?.status === 'active'
+          ? <>End <strong>{ask.label || 'this'}</strong>&apos;s visit now? They are out on their next click and see that their hour is up.</>
+          : <>Revoke the pass for <strong>{ask?.label || 'this'}</strong>? The code stops working.</>}
+        confirmLabel={ask?.status === 'active' ? 'End it' : 'Revoke'}
+        danger
+        onConfirm={() => ask && void revoke(ask)}
+        onCancel={() => setAsk(null)}
+      />
     </section>
   );
 }

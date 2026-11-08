@@ -12,6 +12,7 @@ import { Loading } from './retro';
 import { Rail } from './Rail';
 import { PickWindow, useWide } from './Picks';
 import { isAdult } from './Consult';
+import { ReadOnlyProvider, VisitorPill, isVisitor, membersOnlyPath, useVisitorEnd } from './Visitor';
 
 export const UNREAD_EVENT = 'anti:unread';
 /** a consultation changed: the menu badge re-counts what waits on you */
@@ -32,29 +33,35 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
   useStickyColumns(shellRef);
 
   const needsSetup = !!me?.setupNeeded;
+  // a visitor (RFC §10.8) on a members-only page (settings, inbox, writing, editing) goes back to the feed
+  const path = usePathname() ?? '/';
+  const visitorAstray = isVisitor(me) && membersOnlyPath(path);
+  useVisitorEnd(me);
   useEffect(() => {
     if (loading || own.error) return;
-    if (!seated) router.replace('/');
+    if (!seated || visitorAstray) router.replace('/');
     else if (needsSetup) router.replace('/setup'); // RFC §10.3: nothing else until setup is done
-  }, [loading, own.error, seated, needsSetup, router]);
+  }, [loading, own.error, seated, needsSetup, visitorAstray, router]);
 
   if (loading) return <Loading />;
   if (own.error && !given) return <ErrorNote message={errorMessage(own.error)} />;
-  if (!me || !seated || needsSetup) return <Loading what="Redirecting" />;
+  if (!me || !seated || needsSetup || visitorAstray) return <Loading what="Redirecting" />;
 
   // phones/tablets: nav on top, one column. Wide screens: menu | content | side windows (CSS).
   return (
-    <div className="shell" ref={shellRef}>
-      <div className="shell-left">
-        <NavBar me={me} />
-        {wide && <PickWindow />}
+    <ReadOnlyProvider on={isVisitor(me)}>
+      <div className={`shell${isVisitor(me) ? ' visiting' : ''}`} ref={shellRef}>
+        <div className="shell-left">
+          <NavBar me={me} />
+          {wide && <PickWindow />}
+        </div>
+        <div className="shell-main">
+          <LurkerBanner me={me} />
+          <div className="stack">{children(me)}</div>
+        </div>
+        <Rail me={me} />
       </div>
-      <div className="shell-main">
-        <LurkerBanner me={me} />
-        <div className="stack">{children(me)}</div>
-      </div>
-      <Rail me={me} />
-    </div>
+    </ReadOnlyProvider>
   );
 }
 
@@ -62,7 +69,8 @@ function NavBar({ me }: { me: Me }) {
   const path = usePathname() ?? '/';
   const [unread, setUnread] = useState(0);
   const [waiting, setWaiting] = useState(0);
-  const adult = isAdult(me);
+  const visitor = isVisitor(me);
+  const adult = isAdult(me) && !visitor;
   useEffect(() => { setUnreadInTitle(unread); }, [unread]);
   // consultations waiting on you (to answer, or a price to agree to); 18+ only
   useEffect(() => {
@@ -75,6 +83,7 @@ function NavBar({ me }: { me: Me }) {
   useEffect(() => () => setUnreadInTitle(0), []);
 
   useEffect(() => {
+    if (visitor) return; // no inbox
     let alive = true;
     const poll = () => {
       api.unreadCount().then((r) => { if (alive) setUnread(r.unreadCount); }, () => { /* keep last value */ });
@@ -94,9 +103,10 @@ function NavBar({ me }: { me: Me }) {
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener(UNREAD_EVENT, onBroadcast);
     };
-  }, []);
+  }, [visitor]);
 
   const mine = `/u/${me.handle}`;
+  // a visitor (RFC §10.8) gets the rooms, not the drawers: no inbox, no settings, no admin
   const items: { href: string; label: string; match: (p: string) => boolean; badge?: number; cls?: string }[] = [
     { href: '/', label: 'Feed', match: (p) => p === '/' || p.startsWith('/p/') },
     { href: '/collabs', label: 'Collabs', match: (p) => p.startsWith('/collabs') },
@@ -104,10 +114,23 @@ function NavBar({ me }: { me: Me }) {
     ...(adult ? [{ href: '/consultations', label: 'Consultations', match: (p: string) => p.startsWith('/consultations'), badge: waiting }] : []),
     { href: '/members', label: 'Members', match: (p) => p === '/members' },
     { href: '/search', label: 'Search', match: (p) => p === '/search' },
-    { href: '/notifications', label: 'Notifications', match: (p) => p === '/notifications', badge: unread },
-    { href: '/settings', label: 'Settings', match: (p) => p === '/settings' },
+    ...(visitor ? [] : [
+      { href: '/notifications', label: 'Notifications', match: (p: string) => p === '/notifications', badge: unread },
+      { href: '/settings', label: 'Settings', match: (p: string) => p === '/settings' },
+    ]),
     ...(me.role === 'ops' ? [{ href: '/admin', label: 'Admin', match: (p: string) => p === '/admin', cls: 'nav-admin' }] : []),
   ];
+
+  if (visitor) {
+    return (
+      <nav className="nav" aria-label="Main">
+        {items.map((i) => (
+          <Link key={i.href} href={i.href} className={i.cls} aria-current={i.match(path) ? 'page' : undefined}>{i.label}</Link>
+        ))}
+        <VisitorPill expiresAt={me.visitor.expiresAt} />
+      </nav>
+    );
+  }
 
   return (
     <nav className="nav" aria-label="Main">

@@ -69,7 +69,7 @@ describe('visitor passes: the hour', () => {
 
     const v = await w.visitor(p.code);
     const me = (await v.get('/me')).body;
-    expect(me).toMatchObject({ handle: 'visitor', displayName: 'Visitor', state: 'active', role: 'member', setupNeeded: false, interests: [] });
+    expect(me).toMatchObject({ handle: 'visitor', displayName: 'Visitor', state: 'active', role: 'member', setupNeeded: false, interests: [], gender: null, verifiedAt: null });
     const left = new Date(me.visitor.expiresAt).getTime() - Date.now();
     expect(left).toBeGreaterThan(59 * 60_000);
     expect(left).toBeLessThanOrEqual(60 * 60_000);

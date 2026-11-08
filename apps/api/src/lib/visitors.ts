@@ -18,6 +18,8 @@ export const VISITOR_COOKIE_MAX_AGE_S = VISITOR_MINUTES * 60 + 300;
 /** the nil UUID: matches no row, so "liked by me", "mine", "my vote" are all false */
 export const VISITOR_USER_ID = '00000000-0000-0000-0000-000000000000';
 export const VISITOR_HANDLE = 'visitor';
+/** a fixed, plainly made-up adult birthday: never shown, only makes 18+ content visible */
+export const VISITOR_BIRTHDAY = '1900-01-01';
 
 /**
  * Requests a visitor may not make even though they only read: their own things (they have none),
@@ -43,7 +45,9 @@ export function visitorUser(): SessionUser {
   return {
     id: VISITOR_USER_ID, handle: VISITOR_HANDLE, displayName: 'Visitor', bio: '', avatarKey: null, role: 'member', state: 'active',
     invitedBy: null, recoveryCodeHash: '', activatedAt: now, lastSeenAt: null, lastSeenOn: null, lurkerFlaggedAt: null,
-    lurkerExemptUntil: null, invitePenaltyUntil: null, stripeCustomerId: null, createdAt: now, gender: null, birthday: null,
+    lurkerExemptUntil: null, invitePenaltyUntil: null, stripeCustomerId: null, createdAt: now, gender: null,
+    // an adult, so consultation offers (RFC §10.6, 18+) show too: they are part of the place
+    birthday: VISITOR_BIRTHDAY,
     birthdayPublic: false, setupDoneAt: now, checklistDismissedAt: now, contactPhoneEnc: null, contactEmailEnc: null,
     contactUpdatedAt: null, verifiedAt: null, verifiedBy: null,
   };
@@ -55,7 +59,7 @@ export function visitorProfile(pass: VisitorPass) {
   return {
     id: u.id, handle: u.handle, displayName: u.displayName, bio: '', state: 'active' as const, role: 'member' as const,
     invitedBy: null, activatedAt: null, lastSeenAt: null, lurkerExemptUntil: null, waitlist: null, lurker: null, archived: null,
-    setupNeeded: false, gender: null, birthday: null, birthdayPublic: false, contactEnabled: false, contact: null, verifiedAt: null,
+    setupNeeded: false, gender: null, birthday: VISITOR_BIRTHDAY, birthdayPublic: false, contactEnabled: false, contact: null, verifiedAt: null,
     interests: [] as string[],
     visitor: { expiresAt: pass.expiresAt.toISOString() },
   };

@@ -17,6 +17,7 @@ import { PostList } from '@/components/PostList';
 import { eventWhen } from '@/components/Events';
 import { usePaged } from '@/lib/hooks';
 import type { Post } from '@/lib/api';
+import { VISITOR_NOTE, useReadOnly } from '@/components/Visitor';
 
 export default function CollabPage() {
   useTitle('Collab');
@@ -36,6 +37,9 @@ function CollabView({ myHandle }: { myHandle: string }) {
   const [confirm, setConfirm] = useState<null | 'leave' | 'delete' | 'report' | 'remove'>(null);
   const [reported, setReported] = useState(false);
   const [done, setDone] = useState<string | null>(null);
+  const readOnly = useReadOnly();
+  /** a visitor sees the buttons a member would, and can't press them */
+  const ro = readOnly ? { disabled: true, title: VISITOR_NOTE } : {};
 
   const load = useCallback(async () => {
     try { setC(await api.collab(id)); } catch (e) { setErr(errorMessage(e)); }
@@ -97,8 +101,8 @@ function CollabView({ myHandle }: { myHandle: string }) {
         <div className="row">
           {!onTeam && !c.my.invited && c.status === 'recruiting' && !full && c.my.request === null && (
             c.joinMode === 'open'
-              ? <button className="btn primary" disabled={busy} onClick={() => act(() => api.joinCollab(id), 'You are on the team.')}>Join</button>
-              : !asking && <button className="btn primary" disabled={busy} onClick={() => setAsking(true)}>Ask to join</button>
+              ? <button className="btn primary" disabled={busy} onClick={() => act(() => api.joinCollab(id), 'You are on the team.')} {...ro}>Join</button>
+              : !asking && <button className="btn primary" disabled={busy} onClick={() => setAsking(true)} {...ro}>Ask to join</button>
           )}
           {c.my.request === 'pending' && !onTeam && (
             <>
@@ -113,7 +117,7 @@ function CollabView({ myHandle }: { myHandle: string }) {
           {c.canManage && c.status !== 'finished' && <button className="btn" disabled={busy} onClick={() => act(() => api.updateCollab(id, { status: 'finished' }), 'Marked finished. Well done.')}>Mark finished</button>}
           {onTeam && <button className="btn" disabled={busy} onClick={() => setConfirm('leave')}>Leave</button>}
           {iAmHost && <button className="btn danger" disabled={busy} onClick={() => setConfirm('delete')}>Delete</button>}
-          {c.canReport && <button className="btn" disabled={busy || reported} onClick={() => setConfirm('report')}>{reported ? 'Reported' : 'Report'}</button>}
+          {c.canReport && !readOnly && <button className="btn" disabled={busy || reported} onClick={() => setConfirm('report')}>{reported ? 'Reported' : 'Report'}</button>}
           {c.canModerate && !iAmHost && <button className="btn danger" disabled={busy} onClick={() => setConfirm('remove')}>Remove (admin)</button>}
         </div>
         {asking && (
