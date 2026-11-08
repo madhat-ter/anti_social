@@ -9,8 +9,9 @@ import type { Deps } from '../deps';
 import { ApiError } from '../lib/errors';
 import { decodeCursor, encodeCursor, parseLimit, UUID_RE } from '../lib/posts';
 import {
-  eventSelect, getEvent, promoteEventWaitlist, toEvent, upcomingCond, type EventRow, type EventView,
+  eventSelect, eventVisible, getEvent, promoteEventWaitlist, toEvent, upcomingCond, type EventRow, type EventView,
 } from '../lib/events';
+import { listPosts } from '../lib/posts';
 import { authPlugin, requireSeated } from '../plugins/auth';
 import { hit } from '../lib/ratelimit';
 
@@ -27,7 +28,12 @@ const eventBody = {
   priceNote: nullableStr(EVENT_PRICE_NOTE_MAX),
   externalPaymentUrl: nullableStr(EVENT_URL_MAX),
 };
-const createSchema = t.Object(eventBody);
+const createSchema = t.Object({
+  ...eventBody,
+  /** RFC §10.5: a meetup for this collab (its team plans it) */
+  collabId: t.Optional(t.String({ maxLength: 40 })),
+  audience: t.Optional(t.Union([t.Literal('team'), t.Literal('anyone')])),
+});
 const patchSchema = t.Partial(t.Object(eventBody));
 type EventInput = Partial<{
   title: string; description: string; startsAt: string; endsAt: string | null; location: string;
@@ -134,7 +140,7 @@ export const eventRoutes = (deps: Deps) => {
         : sql``;
       const found = await rows<EventRow>(db, sql`
         ${eventSelect(a.user.id)}
-        where e.cancelled_at is null and ${past ? sql`not ${upcomingCond}` : upcomingCond} ${keyset}
+        where e.cancelled_at is null and ${eventVisible(a.user.id)} and ${past ? sql`not ${upcomingCond}` : upcomingCond} ${keyset}
         order by ${past ? sql`e.starts_at desc, e.id desc` : sql`e.starts_at asc, e.id asc`}
         limit ${limit + 1}`);
       const page = found.slice(0, limit);
@@ -148,6 +154,19 @@ export const eventRoutes = (deps: Deps) => {
     .post('/events', async ({ auth, body }) => {
       const a = requireSeated(auth);
       const v = clean(body);
+      let collab: { id: string; title: string } | null = null;
+      if (body.collabId) {
+        if (!UUID_RE.test(body.collabId)) throw new ApiError(404, 'not_found');
+        const [co] = await rows<{ id: string; title: string; on_team: boolean }>(db, sql`select c.id, c.title,
+            exists (select 1 from collab_members m where m.collab_id = c.id and m.user_id = ${a.user.id}::uuid) as on_team
+          from collabs c where c.id = ${body.collabId}::uuid and c.deleted_at is null and c.hidden_at is null`);
+        if (!co) throw new ApiError(404, 'not_found');
+        if (!co.on_team) throw new ApiError(403, 'not_allowed', 'Only the team plans meetups for a collab.');
+        collab = { id: co.id, title: co.title };
+      } else if (body.audience === 'team') {
+        throw new ApiError(400, 'event_invalid', 'Only collab meetups can be team-only.');
+      }
+      const audience = collab ? body.audience ?? 'team' : 'anyone';
       const id = await db.transaction(async (txx) => {
         const tx = txx as unknown as Db;
         await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${'events:' + a.user.id}, 0))`);
@@ -155,11 +174,18 @@ export const eventRoutes = (deps: Deps) => {
           select count(*)::int from events where host_id = ${a.user.id}::uuid and created_at > now() - interval '24 hours'`);
         if (Number(recent) >= EVENTS_PER_DAY) throw new ApiError(429, 'rate_limited', `You can create ${EVENTS_PER_DAY} events a day.`);
         const [r] = await rows<{ id: string }>(tx, sql`
-          insert into events(host_id, title, description, starts_at, ends_at, location, location_rsvp_only, capacity, price_note, external_payment_url)
+          insert into events(host_id, title, description, starts_at, ends_at, location, location_rsvp_only, capacity, price_note, external_payment_url, collab_id, audience)
           values (${a.user.id}::uuid, ${v.title as string}, ${(v.description as string) ?? ''}, ${toSqlValue(v.startsAt)},
                   ${v.endsAt ? toSqlValue(v.endsAt) : sql`null`}, ${v.location as string}, ${(v.locationRsvpOnly as boolean) ?? false},
-                  ${(v.capacity as number | null) ?? null}, ${(v.priceNote as string | null) ?? null}, ${(v.externalPaymentUrl as string | null) ?? null})
+                  ${(v.capacity as number | null) ?? null}, ${(v.priceNote as string | null) ?? null}, ${(v.externalPaymentUrl as string | null) ?? null},
+                  ${collab?.id ?? null}, ${audience})
           returning id`);
+        if (collab) {
+          // the team hears about it
+          await tx.execute(sql`insert into notifications (user_id, kind, payload)
+            select m.user_id, 'collab_meetup', ${JSON.stringify({ collabId: collab.id, title: collab.title, eventId: r!.id, actorId: a.user.id })}::jsonb
+              from collab_members m where m.collab_id = ${collab.id}::uuid and m.user_id <> ${a.user.id}::uuid`);
+        }
         return r!.id;
       });
       return view(a.user.id, id);
@@ -231,6 +257,7 @@ export const eventRoutes = (deps: Deps) => {
       const a = requireSeated(auth);
       const uid = a.user.id;
       await hit(db, 'rsvp', uid);
+      if (!UUID_RE.test(params.id) || !(await getEvent(db, uid, params.id))) throw new ApiError(404, 'not_found');
       await db.transaction(async (txx) => {
         const tx = txx as unknown as Db;
         const e = await lock(tx, params.id);
@@ -269,6 +296,13 @@ export const eventRoutes = (deps: Deps) => {
       });
       return view(uid, params.id);
     })
+
+    /** Updates on the event's page (RFC §10.5), newest first. */
+    .get('/events/:id/updates', async ({ auth, params, query }) => {
+      const a = requireSeated(auth);
+      if (!UUID_RE.test(params.id) || !(await getEvent(db, a.user.id, params.id))) throw new ApiError(404, 'not_found');
+      return listPosts(db, a.user.id, sql`p.event_id = ${params.id}::uuid and p.parent_id is null and p.deleted_at is null and p.hidden_at is null`, query);
+    }, { query: t.Object({ cursor: t.Optional(t.String()), limit: t.Optional(t.String()) }) })
 
     // Host confirms who actually came. Set semantics: listed handles are attended, the rest are not.
     .post('/events/:id/attendance', async ({ auth, params, body }) => {

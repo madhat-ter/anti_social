@@ -2,7 +2,10 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { api, errorMessage, type EventDetail } from '@/lib/api';
+import { api, errorMessage, type EventDetail, type Post } from '@/lib/api';
+import { Composer } from '@/components/Composer';
+import { PostList } from '@/components/PostList';
+import { usePaged } from '@/lib/hooks';
 import { fmtDate, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { ErrorNote } from '@/components/ui';
@@ -41,7 +44,7 @@ function EventView() {
   const start = new Date(ev.startsAt);
   return (
     <>
-      <p><Link href="/events" className="ui">Back to events</Link></p>
+      <p>{ev.collab ? <Link href={`/collabs/${ev.collab.id}`} className="ui">Back to {ev.collab.title}</Link> : <Link href="/events" className="ui">Back to events</Link>}</p>
       <article className="stack event-detail">
         {ev.cancelledAt && <div className="banner" role="status">This event was cancelled.</div>}
         <header className="event-poster">
@@ -52,6 +55,7 @@ function EventView() {
           <div>
             <h1>{ev.title}</h1>
             <MyStatus e={ev} />
+            {ev.audience === 'team' && <span className="tag" title="Only the collab's team can see this">team only</span>}
           </div>
         </header>
         {ev.description && <p className="body event-desc">{ev.description}</p>}
@@ -62,6 +66,7 @@ function EventView() {
             {ev.location ?? <span className="muted">Shared with people who are going.</span>}
             {ev.locationRsvpOnly && ev.location && <span className="tag" title="Only the host and people going can see this">private</span>}
           </dd>
+          {ev.collab && <><dt>Meetup for</dt><dd><Link href={`/collabs/${ev.collab.id}`}>{ev.collab.title}</Link></dd></>}
           {ev.host && <><dt>Host</dt><dd><Link href={`/u/${ev.host.handle}`}>@{ev.host.handle}</Link></dd></>}
           <dt>Spots</dt><dd>{spotsText(ev)}</dd>
           {(ev.priceNote || ev.externalPaymentUrl) && (
@@ -109,6 +114,7 @@ function EventView() {
         ? <Attendance ev={ev} onSaved={load} />
         : <People title={`Going (${ev.goingCount})`} people={ev.going} showAttended={ev.started} />}
       {ev.waitlist && ev.waitlist.length > 0 && <People title={`Waitlist (${ev.waitlist.length})`} people={ev.waitlist} showAttended={false} />}
+      <EventUpdates ev={ev} />
     </>
   );
 }
@@ -170,6 +176,22 @@ function Attendance({ ev, onSaved }: { ev: EventDetail; onSaved: () => Promise<v
         }}>Save attendance</button>
         {saved && <span className="muted" role="status">Saved.</span>}
       </div>
+    </section>
+  );
+}
+
+/** Updates on the event's page: the host and people going post (for a meetup, the team); anyone replies. */
+function EventUpdates({ ev }: { ev: EventDetail }) {
+  const p = usePaged<Post>(`event-updates:${ev.id}`, (cur) => api.eventUpdates(ev.id, cur));
+  if (!ev.canPostUpdate && p.items.length === 0 && !p.loading) return null;
+  return (
+    <section className="stack">
+      <h2 className="section-h">Updates</h2>
+      {ev.canPostUpdate && (
+        <Composer eventId={ev.id} title="update.txt" placeholder={ev.collab ? 'Notes, photos, what you got done.' : 'Photos, plans, a change of place.'}
+          submitLabel="Post update" onCreated={(post) => p.setItems((cur) => [post, ...cur])} />
+      )}
+      <PostList p={p} context="none" byDay={false} empty="No updates yet." />
     </section>
   );
 }

@@ -57,7 +57,7 @@ type NotifRow = {
   e_id: string | null; e_title: string | null;
   /** handle_changed: the new handle; project_removed: the project's title */
   x_to: string | null; x_title: string | null; x_done: string | null; x_total: string | null;
-  c_id: string | null; c_title: string | null;
+  c_id: string | null; c_title: string | null; x_project: string | null;
 };
 
 async function unreadCount(db: Db, userId: string): Promise<number> {
@@ -146,7 +146,7 @@ export const socialRoutes = (deps: Deps) => {
           p.id as p_id, coalesce(p.root_id, p.id) as p_root, p.body as p_body, (p.deleted_at is not null) as p_deleted,
           ev.id as e_id, ev.title as e_title,
           n.payload->>'to' as x_to, n.payload->>'title' as x_title, n.payload->>'done' as x_done, n.payload->>'total' as x_total,
-          co.id as c_id, coalesce(co.title, n.payload->>'title') as c_title
+          co.id as c_id, coalesce(co.title, n.payload->>'title') as c_title, n.payload->>'projectId' as x_project
         from notifications n
         left join users u on u.id = case when n.payload->>'actorId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'actorId')::uuid end
         left join posts p on p.id = case when n.payload->>'postId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'postId')::uuid end
@@ -165,6 +165,7 @@ export const socialRoutes = (deps: Deps) => {
             : null,
           event: r.e_id ? { id: r.e_id, title: r.e_title ?? '' } : null,
           collab: r.c_id ? { id: r.c_id, title: r.c_title ?? '' } : null,
+          draftId: r.kind === 'collab_finished' ? r.x_project : null,
           newHandle: r.kind === 'handle_changed' ? r.x_to : null,
           projectTitle: r.kind === 'project_removed' ? r.x_title : null,
           pickTitle: r.kind === 'pick_remark' || r.kind === 'remark_removed' ? r.x_title : null,

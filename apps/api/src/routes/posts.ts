@@ -12,6 +12,7 @@ import {
 } from '../lib/posts';
 import { isValidKey } from '../lib/storage';
 import { hit } from '../lib/ratelimit';
+import { notifyUpdate, updatePlace } from '../lib/updates';
 import { authPlugin, requireSeated } from '../plugins/auth';
 
 const MAX_PENDING_UPLOADS = 20;
@@ -51,7 +52,8 @@ export const postRoutes = (deps: Deps) => {
     .use(authPlugin(deps))
     .get('/feed', async ({ auth, query }) => {
       const a = requireSeated(auth);
-      return listPosts(db, a.user.id, sql`p.parent_id is null and p.deleted_at is null and p.hidden_at is null`, query);
+      return listPosts(db, a.user.id, sql`p.parent_id is null and p.deleted_at is null and p.hidden_at is null
+        and p.collab_id is null and p.event_id is null`, query);
     }, { query: pageQuery })
 
     .post('/posts', async ({ auth, body }) => {
@@ -63,6 +65,9 @@ export const postRoutes = (deps: Deps) => {
       }
       const text = cleanBody(body.body, imageIds.length > 0);
       if (body.parentId !== undefined && !UUID_RE.test(body.parentId)) throw new ApiError(404, 'parent_not_found');
+      if (body.parentId && (body.collabId || body.eventId)) throw new ApiError(400, 'bad_request', 'Replies follow their thread.');
+      // an update for a collab and/or an event page (RFC §10.5): checked before the transaction
+      const place = body.parentId ? null : await updatePlace(db, uid, body.collabId, body.eventId);
 
       const id = await db.transaction(async (tx) => {
         await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${uid}::text, 0))`);
@@ -72,10 +77,10 @@ export const postRoutes = (deps: Deps) => {
           throw new ApiError(429, 'rate_limited', `You can post ${POSTS_PER_HOUR} times per hour.`);
         }
 
-        let parent: { id: string; root_id: string | null; author_id: string | null } | undefined;
+        let parent: { id: string; root_id: string | null; author_id: string | null; collab_id: string | null; event_id: string | null } | undefined;
         if (body.parentId) {
           [parent] = rowsOf<NonNullable<typeof parent>>(await tx.execute(
-            sql`select id, root_id, author_id from posts
+            sql`select id, root_id, author_id, collab_id, event_id from posts
                 where id = ${body.parentId}::uuid and deleted_at is null and hidden_at is null`));
           if (!parent) throw new ApiError(404, 'parent_not_found');
         }
@@ -83,6 +88,8 @@ export const postRoutes = (deps: Deps) => {
 
         const [created] = await tx.insert(posts).values({
           authorId: uid, body: text, parentId: parent?.id ?? null, rootId,
+          collabId: parent ? parent.collab_id : place?.collabId ?? null,
+          eventId: parent ? parent.event_id : place?.eventId ?? null,
         }).returning({ id: posts.id });
         const postId = created!.id;
 
@@ -104,6 +111,7 @@ export const postRoutes = (deps: Deps) => {
             userId: parent.author_id, kind: 'reply', payload: { postId, rootId, actorId: uid },
           });
         }
+        if (place) await notifyUpdate(tx as unknown as Db, place, uid, postId);
         return postId;
       });
 
@@ -111,6 +119,7 @@ export const postRoutes = (deps: Deps) => {
     }, {
       body: t.Object({
         body: t.Optional(t.String()), parentId: t.Optional(t.String()), imageIds: t.Optional(t.Array(t.String())),
+        collabId: t.Optional(t.String()), eventId: t.Optional(t.String()),
       }),
     })
 

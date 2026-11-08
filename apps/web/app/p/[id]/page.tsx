@@ -62,7 +62,11 @@ function ThreadView() {
 
   return (
     <>
-      <p><Link href="/">Back to the feed</Link></p>
+      <p>
+        {root.collab ? <Link href={`/collabs/${root.collab.id}`}>Back to {root.collab.title}</Link>
+          : root.event ? <Link href={`/events/${root.event.id}`}>Back to {root.event.title}</Link>
+          : <Link href="/">Back to the feed</Link>}
+      </p>
       <h1 className="sr-only">Thread</h1>
       <PostCard post={root} onChange={update} id={`post-${root.id}`} />
       {/* hidden after reports: an admin is reviewing it, nobody can reply */}

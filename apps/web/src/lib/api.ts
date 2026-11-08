@@ -83,6 +83,9 @@ export interface Birthday { month: number; day: number }
 export type Author = { handle: string; displayName: string; state: UserState; role?: 'member' | 'ops'; gender?: Gender | null; birthday?: Birthday | null } | null;
 export interface Image { id: string; url: string; width: number; height: number }
 export interface Post {
+  /** an update in a collab's thread / on an event's page (RFC §10.5) */
+  collab?: { id: string; title: string } | null;
+  event?: { id: string; title: string } | null;
   id: string;
   body: string;
   createdAt: string;
@@ -211,6 +214,8 @@ export interface Notification {
   checklist?: { done: number; total: number } | null;
   /** collab_*: the collab */
   collab?: { id: string; title: string } | null;
+  /** collab_finished: your draft project */
+  draftId?: string | null;
 }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 export type RsvpStatus = 'going' | 'waitlisted' | 'cancelled';
@@ -223,11 +228,13 @@ export interface AnEvent {
   host: { handle: string; displayName: string; state: UserState; gender?: Gender | null } | null; isHost: boolean;
   my: { status: RsvpStatus; waitlistPosition: number | null; attended: boolean } | null;
   started: boolean; rsvpOpen: boolean; canEdit: boolean; canConfirmAttendance: boolean;
+  collab: { id: string; title: string } | null; audience: 'anyone' | 'team'; canPostUpdate: boolean;
 }
 export interface EventDetail extends AnEvent { going: EventPerson[]; waitlist: EventPerson[] | null }
 export interface EventInput {
   title: string; description: string; startsAt: string; endsAt: string | null; location: string;
   locationRsvpOnly: boolean; capacity: number | null; priceNote: string | null; externalPaymentUrl: string | null;
+  collabId?: string; audience?: 'anyone' | 'team';
 }
 export type CollabStatus = 'recruiting' | 'closed' | 'finished';
 export type CollabRole = 'host' | 'cohost' | 'member';
@@ -245,6 +252,7 @@ export interface Collab extends CollabSummary {
   canManage: boolean;
   requests: (CollabPerson & { note: string | null; at: string })[] | null;
   invites: CollabPerson[] | null;
+  meetups: { id: string; title: string; startsAt: string; audience: 'anyone' | 'team'; goingCount: number; past: boolean }[];
 }
 export interface CollabInput {
   title: string; description: string; requirements: string; roles: string[]; teamMax: number;
@@ -335,7 +343,7 @@ export const api = {
   rejoin: () => post<{ ok: true }>('/me/waitlist/rejoin', {}),
 
   feed: (cursor?: string | null, limit = 20) => get<Page<Post>>(`/feed${qs({ cursor, limit })}`),
-  createPost: (b: { body: string; parentId?: string; imageIds?: string[] }) => post<Post>('/posts', b),
+  createPost: (b: { body: string; parentId?: string; imageIds?: string[]; collabId?: string; eventId?: string }) => post<Post>('/posts', b),
   thread: (id: string) => get<Thread>(`/posts/${encodeURIComponent(id)}`),
   editPost: (id: string, body: string) => call<Post>('PATCH', `/posts/${encodeURIComponent(id)}`, { body }),
   deletePost: (id: string) => call<{ ok: true }>('DELETE', `/posts/${encodeURIComponent(id)}`),
@@ -400,6 +408,8 @@ export const api = {
   setCollabRole: (id: string, handle: string, role: 'cohost' | 'member') =>
     post<Collab>(`/collabs/${encodeURIComponent(id)}/members/${encodeURIComponent(handle)}/role`, { role }),
   removeFromCollab: (id: string, handle: string) => call<Collab>('DELETE', `/collabs/${encodeURIComponent(id)}/members/${encodeURIComponent(handle)}`),
+  collabUpdates: (id: string, cursor?: string | null, limit = 20) => get<Page<Post>>(`/collabs/${encodeURIComponent(id)}/updates${qs({ cursor, limit })}`),
+  eventUpdates: (id: string, cursor?: string | null, limit = 20) => get<Page<Post>>(`/events/${encodeURIComponent(id)}/updates${qs({ cursor, limit })}`),
   memberCollabs: (handle: string) => get<{ items: CollabSummary[] }>(`/members/${encodeURIComponent(handle)}/collabs`),
 
   pushConfig: () => get<{ enabled: boolean; publicKey: string | null }>('/push/config'),

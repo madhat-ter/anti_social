@@ -42,7 +42,8 @@ export function EventCard({ e }: { e: AnEvent }) {
           <span className="d">{start.getDate()}</span>
         </span>
         <span className="event-main">
-          <span className="event-title">{e.title} <MyStatus e={e} />{e.cancelledAt && <span className="tag danger">cancelled</span>}</span>
+          <span className="event-title">{e.title} <MyStatus e={e} />{e.audience === 'team' && <span className="tag">team only</span>}{e.cancelledAt && <span className="tag danger">cancelled</span>}</span>
+          {e.collab && <span className="muted small">Meetup for {e.collab.title}</span>}
           <span className="muted small">{eventWhen(e.startsAt, e.endsAt)}</span>
           <span className="muted small">{e.location ?? 'Location shared with people going'}</span>
           <span className="muted small">{spotsText(e)}</span>

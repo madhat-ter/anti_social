@@ -24,6 +24,10 @@ export type Post = {
   canModerate: boolean;
   /** hidden after reports: only ever true for an admin reviewing it (everyone else never gets it) */
   hidden: boolean;
+  /** an update in this collab's thread (RFC §10.5) */
+  collab: { id: string; title: string } | null;
+  /** an update on this event's page; null when the viewer cannot see the event (team-only meetups) */
+  event: { id: string; title: string } | null;
 };
 export type Page<T> = { items: T[]; nextCursor: string | null };
 
@@ -87,9 +91,13 @@ export function postSelect(viewerId: string): SQL {
       (select count(*)::int from likes l where l.post_id = p.id) as like_count,
       exists(select 1 from likes l where l.post_id = p.id and l.user_id = ${viewerId}::uuid) as liked_by_me,
       coalesce((select json_agg(json_build_object('id', i.id, 'key', i.r2_key, 'width', i.width, 'height', i.height)
-                                order by i.position) from post_images i where i.post_id = p.id), '[]'::json) as images
+                                order by i.position) from post_images i where i.post_id = p.id), '[]'::json) as images,
+      pc.id as pc_id, pc.title as pc_title, pe.id as pe_id, pe.title as pe_title,
+      (pe.audience = 'anyone' or exists(select 1 from collab_members m where m.collab_id = pe.collab_id and m.user_id = ${viewerId}::uuid)) as pe_visible
     from posts p
-    left join users u on u.id = p.author_id`;
+    left join users u on u.id = p.author_id
+    left join collabs pc on pc.id = p.collab_id and pc.deleted_at is null
+    left join events pe on pe.id = p.event_id`;
 }
 
 export type PostRow = {
@@ -99,6 +107,7 @@ export type PostRow = {
   viewer_ops?: boolean | null;
   reply_count: number; like_count: number; liked_by_me: boolean;
   images: Array<{ id: string; key: string; width: number; height: number }> | string;
+  pc_id?: string | null; pc_title?: string | null; pe_id?: string | null; pe_title?: string | null; pe_visible?: boolean | null;
 };
 
 export function toPost(r: PostRow, viewerId: string): Post {
@@ -128,6 +137,8 @@ export function toPost(r: PostRow, viewerId: string): Post {
     canReport: !mine && !deleted,
     canModerate: !!r.viewer_ops && !mine && !deleted,
     hidden: !!r.is_hidden,
+    collab: r.pc_id ? { id: r.pc_id, title: r.pc_title ?? '' } : null,
+    event: r.pe_id && r.pe_visible ? { id: r.pe_id, title: r.pe_title ?? '' } : null,
   };
 }
 

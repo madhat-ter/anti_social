@@ -1096,4 +1096,9 @@ form.row > input { flex: 1 1 12rem; width: auto; }
   .collab-cover { width: 4.5rem; height: 4.5rem; }
   .collab-cover.blank { font-size: 2.6rem; }
   .collab-title { font-size: 1.45rem; }
-}
+}.post-context { margin: -.15rem 0 .35rem; font-family: var(--font-ui); }
+.composer-meetup { margin: .5rem 0 0; }
+ul.list.meetups li { flex-wrap: wrap; }
+ul.list.meetups li.past > a { color: var(--muted, #666); }
+.meetup-audience { border: 0; padding: 0; margin: 0; }
+.meetup-audience legend { font: 700 .95rem var(--font-ui); margin-bottom: .3rem; }

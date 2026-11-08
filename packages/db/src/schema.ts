@@ -129,6 +129,10 @@ export const posts = pgTable('posts', {
   editedAt: tstz('edited_at'),
   deletedAt: tstz('deleted_at'),
   hiddenAt: tstz('hidden_at'),
+  /** an update in a collab's thread (RFC §10.5); replies carry it too. Kept out of the main feed. */
+  collabId: uuid('collab_id').references((): AnyPgColumn => collabs.id, { onDelete: 'cascade' }),
+  /** an update on an event's page (a collab meetup, or any event); replies carry it too */
+  eventId: uuid('event_id').references((): AnyPgColumn => events.id, { onDelete: 'cascade' }),
   search: tsvector('search').generatedAlwaysAs(sql`to_tsvector('simple', body)`),
   createdAt: tstz('created_at').notNull().defaultNow(),
 }, (t) => [
@@ -137,6 +141,8 @@ export const posts = pgTable('posts', {
     .where(sql`parent_id is null and deleted_at is null and hidden_at is null`),
   index('posts_thread').on(t.rootId, t.createdAt),
   index('posts_author').on(t.authorId, t.createdAt),
+  index('posts_collab').on(t.collabId, t.createdAt).where(sql`collab_id is not null`),
+  index('posts_event').on(t.eventId, t.createdAt).where(sql`event_id is not null`),
   index('posts_search').using('gin', t.search),
 ]);
 
@@ -189,8 +195,16 @@ export const events = pgTable('events', {
   priceNote: text('price_note'),
   externalPaymentUrl: text('external_payment_url'),
   cancelledAt: tstz('cancelled_at'),
+  /** a collab meetup (RFC §10.5) */
+  collabId: uuid('collab_id').references((): AnyPgColumn => collabs.id, { onDelete: 'cascade' }),
+  /** 'team': only the collab's team sees it; 'anyone': a normal event */
+  audience: text('audience').notNull().default('anyone'),
   createdAt: tstz('created_at').notNull().defaultNow(),
-}, (t) => [index('events_starts').on(t.startsAt)]);
+}, (t) => [
+  index('events_starts').on(t.startsAt),
+  index('events_collab').on(t.collabId).where(sql`collab_id is not null`),
+  check('events_audience', sql`(${t.audience} = 'anyone') or (${t.audience} = 'team' and ${t.collabId} is not null)`),
+]);
 
 export const rsvpStatus = pgEnum('rsvp_status', ['going', 'waitlisted', 'cancelled']);
 

@@ -30,6 +30,12 @@ export type EventView = {
   rsvpOpen: boolean;
   canEdit: boolean;
   canConfirmAttendance: boolean;
+  /** a collab meetup (RFC §10.5) */
+  collab: { id: string; title: string } | null;
+  /** 'team': only the collab's team sees it */
+  audience: 'anyone' | 'team';
+  /** may start an update on this event's page: the host and people going; for a meetup, the team */
+  canPostUpdate: boolean;
 };
 
 export type EventRow = {
@@ -40,6 +46,7 @@ export type EventRow = {
   going_count: number; waitlist_count: number; attended_count: number;
   my_status: RsvpStatus | null; my_attended: boolean | null; my_position: number | null;
   started: boolean; attendance_open: boolean;
+  collab_id: string | null; c_title: string | null; audience: 'anyone' | 'team'; on_team: boolean;
 };
 
 /** Base SELECT; callers append where/order/limit. One query per page, viewer-specific fields inline. */
@@ -59,9 +66,12 @@ export function eventSelect(viewerId: string): SQL {
           where w.event_id = e.id and w.status = 'waitlisted' and (w.created_at, w.user_id) < (me.created_at, me.user_id))
       end as my_position,
       (now() >= e.starts_at) as started,
-      (now() >= e.starts_at and now() < e.starts_at + make_interval(days => ${ATTENDANCE_WINDOW_DAYS})) as attendance_open
+      (now() >= e.starts_at and now() < e.starts_at + make_interval(days => ${ATTENDANCE_WINDOW_DAYS})) as attendance_open,
+      e.collab_id, c.title as c_title, e.audience,
+      exists (select 1 from collab_members m where m.collab_id = e.collab_id and m.user_id = ${viewerId}::uuid) as on_team
     from events e
     join users h on h.id = e.host_id
+    left join collabs c on c.id = e.collab_id and c.deleted_at is null
     left join event_rsvps me on me.event_id = e.id and me.user_id = ${viewerId}::uuid`;
 }
 
@@ -95,11 +105,21 @@ export function toEvent(r: EventRow, viewerId: string): EventView {
     rsvpOpen: !cancelled && !started,
     canEdit: isHost && !cancelled && !started,
     canConfirmAttendance: isHost && !cancelled && !!r.attendance_open,
+    collab: r.collab_id && r.c_title ? { id: r.collab_id, title: r.c_title } : null,
+    audience: r.audience === 'team' ? 'team' : 'anyone',
+    canPostUpdate: !cancelled && (r.collab_id ? !!r.on_team : isHost || r.my_status === 'going'),
   };
 }
 
+/**
+ * Who sees an event (with eventSelect's aliases): team-only meetups only the team; meetups of a
+ * deleted collab nobody.
+ */
+export const eventVisible = (viewerId: string) => sql`(e.collab_id is null or c.id is not null)
+  and (e.audience = 'anyone' or exists (select 1 from collab_members m where m.collab_id = e.collab_id and m.user_id = ${viewerId}::uuid))`;
+
 export async function getEvent(db: Db, viewerId: string, id: string): Promise<EventView | null> {
-  const [r] = await rows<EventRow>(db, sql`${eventSelect(viewerId)} where e.id = ${id}::uuid`);
+  const [r] = await rows<EventRow>(db, sql`${eventSelect(viewerId)} where e.id = ${id}::uuid and ${eventVisible(viewerId)}`);
   return r ? toEvent(r, viewerId) : null;
 }
 

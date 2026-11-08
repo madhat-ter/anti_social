@@ -19,7 +19,7 @@ export function dayLabel(iso: string, now = new Date()): string {
 }
 
 /** Posts newest first, with a poster-style header wherever the day changes. */
-export function PostList({ p, empty, byDay = true }: { p: ReturnType<typeof usePaged<Post>>; empty: string; byDay?: boolean }) {
+export function PostList({ p, empty, byDay = true, context = 'all' }: { p: ReturnType<typeof usePaged<Post>>; empty: string; byDay?: boolean; context?: 'all' | 'event' | 'none' }) {
   let last = '';
   return (
     <>
@@ -32,7 +32,7 @@ export function PostList({ p, empty, byDay = true }: { p: ReturnType<typeof useP
           return (
             <Fragment key={post.id}>
               {header && <h2 className="day-h">{day}</h2>}
-              <PostCard post={post} onChange={(np) => p.setItems((cur) => replaceIn(cur, np))} />
+              <PostCard post={post} context={context} onChange={(np) => p.setItems((cur) => replaceIn(cur, np))} />
             </Fragment>
           );
         })}

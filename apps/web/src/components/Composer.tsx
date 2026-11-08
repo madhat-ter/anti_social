@@ -13,11 +13,23 @@ interface Att {
 
 export function Composer({
   parentId,
+  collabId,
+  eventId,
+  meetups,
+  title,
   onCreated,
   placeholder,
   submitLabel,
 }: {
   parentId?: string;
+  /** an update in this collab's thread (RFC §10.5) */
+  collabId?: string;
+  /** an update on this event's page */
+  eventId?: string;
+  /** a collab's meetups: the update can be tied to one */
+  meetups?: { id: string; title: string }[];
+  /** the window title */
+  title?: string;
   onCreated: (p: Post) => void;
   placeholder?: string;
   submitLabel?: string;
@@ -27,6 +39,7 @@ export function Composer({
   const [atts, setAtts] = useState<Att[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [meetup, setMeetup] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const attsRef = useRef<Att[]>([]);
   attsRef.current = atts;
@@ -35,7 +48,7 @@ export function Composer({
 
   // Draft autosave: text only, this device only, one draft per place you can write.
   // Restored after mount (localStorage is not available during server render).
-  const draftKey = `anti:draft:${parentId ?? 'feed'}`;
+  const draftKey = `anti:draft:${parentId ?? (collabId ? `c:${collabId}` : eventId ? `e:${eventId}` : 'feed')}`;
   const [restored, setRestored] = useState(false);
   const [savedDraft, setSavedDraft] = useState(false);
   useEffect(() => {
@@ -99,6 +112,8 @@ export function Composer({
       const post = await api.createPost({
         body: trimmed,
         ...(parentId ? { parentId } : {}),
+        ...(collabId ? { collabId } : {}),
+        ...(eventId ?? meetup ? { eventId: eventId ?? meetup } : {}),
         ...(imageIds.length ? { imageIds } : {}),
       });
       atts.forEach((a) => URL.revokeObjectURL(a.preview));
@@ -120,7 +135,7 @@ export function Composer({
     >
       <div className="win-bar" aria-hidden="true">
         <span className="win-close" />
-        <span className="win-title">{parentId ? 'reply.txt' : 'new_post.txt'}</span>
+        <span className="win-title">{title ?? (parentId ? 'reply.txt' : 'new_post.txt')}</span>
       </div>
       <div className="win-body">
       <label htmlFor={`${id}-body`} className="sr-only">{parentId ? 'Write a reply' : 'Write a post'}</label>
@@ -150,6 +165,14 @@ export function Composer({
       )}
       {atts.filter((a) => a.error).map((a) => <ErrorNote key={a.key} message={a.error ?? null} />)}
       <ErrorNote message={err} />
+      {meetups && meetups.length > 0 && (
+        <label className="inline composer-meetup">From a meetup
+          <select value={meetup} onChange={(e) => setMeetup(e.target.value)}>
+            <option value="">None</option>
+            {meetups.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
+          </select>
+        </label>
+      )}
       <div className="row composer-bar">
         <input
           ref={fileRef}

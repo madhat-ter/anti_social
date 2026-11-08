@@ -11,6 +11,11 @@ import { AlertDialog, Loading } from '@/components/retro';
 import { Avatar } from '@/components/Avatar';
 import { InterestTags } from '@/components/Interests';
 import { StatusTag } from '@/components/Collabs';
+import { Composer } from '@/components/Composer';
+import { PostList } from '@/components/PostList';
+import { eventWhen } from '@/components/Events';
+import { usePaged } from '@/lib/hooks';
+import type { Post } from '@/lib/api';
 
 export default function CollabPage() {
   useTitle('Collab');
@@ -147,6 +152,9 @@ function CollabView({ myHandle }: { myHandle: string }) {
         </ul>
       </section>
 
+      <Meetups c={c} onTeam={onTeam} />
+      <Updates c={c} onTeam={onTeam} />
+
       {c.canManage && <Manage c={c} busy={busy} act={act} />}
 
       <AlertDialog
@@ -223,5 +231,48 @@ function Manage({ c, busy, act }: { c: Collab; busy: boolean; act: (fn: () => Pr
         {invites.length > 0 && <p className="muted small">Invited, not answered yet: {invites.map((i) => `@${i.handle}`).join(', ')}</p>}
       </section>
     </>
+  );
+}
+
+/** Meetups the team planned: team-only ones only the team sees. */
+function Meetups({ c, onTeam }: { c: Collab; onTeam: boolean }) {
+  if (!onTeam && c.meetups.length === 0) return null;
+  return (
+    <section className="stack">
+      <div className="row between">
+        <h2 className="section-h">Meetups</h2>
+        {onTeam && c.status !== 'finished' && <Link className="btn" href={`/events/new?collab=${c.id}`}>Plan a meetup</Link>}
+      </div>
+      {c.meetups.length === 0 ? <p className="muted">No meetups yet. Plan one to work on it together.</p> : (
+        <ul className="list meetups">
+          {c.meetups.map((m) => (
+            <li key={m.id} className={m.past ? 'past' : undefined}>
+              <Link href={`/events/${m.id}`}>{m.title}</Link>
+              <span className="muted small">
+                {eventWhen(m.startsAt, null)} · {m.goingCount} going
+                {m.audience === 'team' && <span className="tag" title="Only the team can see this one">team only</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** The public updates thread: the team posts (photos, optionally from a meetup); anyone replies. */
+function Updates({ c, onTeam }: { c: Collab; onTeam: boolean }) {
+  const p = usePaged<Post>(`collab-updates:${c.id}`, (cur) => api.collabUpdates(c.id, cur));
+  return (
+    <section className="stack">
+      <h2 className="section-h">Updates</h2>
+      {onTeam && (
+        <Composer collabId={c.id} title="update.txt" meetups={c.meetups.map((m) => ({ id: m.id, title: m.title }))}
+          placeholder="How is it going? Photos welcome." submitLabel="Post update"
+          onCreated={(post) => p.setItems((cur) => [post, ...cur])} />
+      )}
+      <PostList p={p} context="event" byDay={false}
+        empty={onTeam ? 'No updates yet. Share how it is going.' : 'No updates yet. Anyone can reply once the team posts.'} />
+    </section>
   );
 }

@@ -14,7 +14,7 @@ const WARNINGS = new Set(['lurker_warning', 'seat_offer_expired', 'payment_refun
 
 export default function NotificationsPage() {
   useTitle('Notifications');
-  return <SeatedShell>{() => <Notifications />}</SeatedShell>;
+  return <SeatedShell>{(me) => <Notifications myHandle={me.handle} />}</SeatedShell>;
 }
 
 function describe(n: Notification): string {
@@ -48,11 +48,15 @@ function describe(n: Notification): string {
   if (n.kind === 'collab_joined') return `${who} joined ${co}`;
   if (n.kind === 'collab_accepted') return `You are on the team for ${co}. Say hello.`;
   if (n.kind === 'collab_declined') return `${co} has found its people this time. There are plenty more in Collabs.`;
+  if (n.kind === 'collab_update') return `${who} posted an update in ${co}`;
+  if (n.kind === 'collab_meetup') return `${who} planned a meetup for ${co}${n.event ? `: "${n.event.title}"` : ''}`;
+  if (n.kind === 'collab_finished') return `${co} is finished. Well done. A draft project is waiting in your portfolio: edit it and publish, or delete it.`;
+  if (n.kind === 'event_update') return `${who} posted an update on ${ev}`;
   if (n.kind === 'collab_invite') return `${who} invited you to join ${co}`;
   return n.post ? `${who} interacted with your post` : 'Account update';
 }
 
-function Notifications() {
+function Notifications({ myHandle }: { myHandle: string }) {
   const p = usePaged<Notification>('notifications', async (c) => {
     const r = await api.notifications(c);
     return r;
@@ -96,6 +100,7 @@ function Notifications() {
         <ul className="notifs card">
           {p.items.map((n) => {
             const href = n.kind === 'flag_threshold' || n.kind === 'made_admin' ? '/admin'
+              : n.kind === 'collab_finished' && n.draftId ? `/u/${myHandle}/work/${n.draftId}/edit`
               : n.kind === 'checklist_reminder' ? '/'
               : n.kind === 'handle_changed' && n.newHandle ? `/u/${n.newHandle}`
               : n.post ? `/p/${n.post.rootId ?? n.post.id}#${n.post.id}` : n.event ? `/events/${n.event.id}`

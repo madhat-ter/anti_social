@@ -88,6 +88,10 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
     case 'collab_joined': return m(`@${r.actor ?? 'someone'} joined`, collab, collabUrl);
     case 'collab_accepted': return m('You are on the team', collab, collabUrl);
     case 'collab_declined': return m('Not this time', `${collab} has found its people. Plenty more to find.`, '/collabs');
+    case 'collab_update': return m(`@${r.actor ?? 'someone'} posted an update`, r.post_snippet ? `In ${collab}: ${r.post_snippet}` : collab, p.postId ? `/p/${p.postId}` : collabUrl);
+    case 'collab_meetup': return m('A meetup is planned', `For ${collab}: ${ev}`, eventUrl);
+    case 'collab_finished': return m('Finished. Well done.', `A draft project for ${collab} is waiting in your portfolio.`, collabUrl);
+    case 'event_update': return m(`@${r.actor ?? 'someone'} posted an update`, `On ${ev}.`, eventUrl);
     case 'collab_invite': return m(`@${r.actor ?? 'someone'} invited you`, `Join ${collab}?`, collabUrl);
     default: return null;
   }

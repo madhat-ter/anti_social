@@ -9,10 +9,10 @@ import { rows, scalar, type Db } from '@anti/db';
 import {
   COLLAB_DESCRIPTION_MAX, COLLAB_HOSTING_MAX, COLLAB_INTERESTS_MAX, COLLAB_INVITES_MAX, COLLAB_NOTE_MAX,
   COLLAB_PRICE_NOTE_MAX, COLLAB_REQUIREMENTS_MAX, COLLAB_ROLE_MAX, COLLAB_ROLES_MAX, COLLAB_STATUSES,
-  COLLAB_TEAM_MAX, COLLAB_TEAM_MIN, COLLAB_TITLE_MAX, type CollabStatus,
+  COLLAB_TEAM_MAX, COLLAB_TEAM_MIN, COLLAB_TITLE_MAX, PROJECTS_MAX, PROJECT_SUMMARY_MAX, type CollabStatus,
 } from '@anti/shared';
 import { ApiError } from './errors';
-import { mediaUrl, UUID_RE } from './posts';
+import { listPosts, mediaUrl, UUID_RE } from './posts';
 import { hit } from './ratelimit';
 import type { Storage } from './storage';
 
@@ -34,7 +34,10 @@ export type Collab = CollabSummary & {
   /** managers only */
   requests: (Person & { note: string | null; at: string })[] | null;
   invites: Person[] | null;
+  /** meetups the viewer can see, soonest upcoming first, then past */
+  meetups: Meetup[];
 };
+export type Meetup = { id: string; title: string; startsAt: string; audience: 'anyone' | 'team'; goingCount: number; past: boolean };
 
 const iso = (col: SQL) => sql`to_char(${col} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 const LIVE = sql`('banned', 'deleted')`;
@@ -137,10 +140,17 @@ export async function getCollab(db: Db, me: string, id: string): Promise<Collab>
        where i.collab_id = ${r.id}::uuid and i.status = 'pending' order by i.created_at`))
       .map((x) => ({ handle: x.handle, displayName: x.display_name, gender: x.gender }));
   }
+  const meetups = await rows<{ id: string; title: string; starts: string; audience: 'anyone' | 'team'; going: number; past: boolean }>(db, sql`
+    select e.id, e.title, ${iso(sql`e.starts_at`)} as starts, e.audience, (e.starts_at < now() - interval '3 hours') as past,
+      (select count(*)::int from event_rsvps x where x.event_id = e.id and x.status = 'going') as going
+      from events e where e.collab_id = ${r.id}::uuid and e.cancelled_at is null and (e.audience = 'anyone' or ${!!r.my_role})
+     order by (e.starts_at < now() - interval '3 hours'), case when e.starts_at >= now() - interval '3 hours' then e.starts_at end asc, e.starts_at desc
+     limit 50`);
   return {
     ...toSummary(r), description: r.description, requirements: r.requirements, priceNote: r.price_note, paymentUrl: r.payment_url,
     team: team.map((t) => ({ handle: t.handle, displayName: t.display_name, gender: t.gender, role: t.role, joinedAt: t.joined })),
     canManage: manage, requests, invites,
+    meetups: meetups.map((m) => ({ id: m.id, title: m.title, startsAt: m.starts, audience: m.audience, goingCount: Number(m.going), past: !!m.past })),
   };
 }
 
@@ -254,12 +264,14 @@ export async function updateCollab(db: Db, storage: Storage, me: string, id: str
   }
   const old = await db.transaction(async (txx) => {
     const tx = txx as unknown as Db;
+    const firstFinish = status === 'finished' && !!(await scalar<boolean>(tx, sql`select finished_at is null from collabs where id = ${r.id}::uuid for update`));
     await tx.execute(sql`update collabs set title = ${f.title}, description = ${f.description}, requirements = ${f.requirements},
       roles = ${JSON.stringify(f.roles)}::jsonb, team_max = ${f.teamMax}, join_mode = ${f.joinMode}, price_note = ${f.priceNote},
       payment_url = ${f.paymentUrl}, status = ${status}, updated_at = now(),
-      finished_at = case when ${status} = 'finished' then coalesce(finished_at, now()) else null end
+      finished_at = coalesce(finished_at, case when ${status} = 'finished' then now() end)
       where id = ${r.id}::uuid`);
     await saveInterests(tx, r.id, f.interests);
+    if (firstFinish) await offerDrafts(tx, r.id, f.title, f.description);
     return saveCover(tx, r.id, me, body.coverId);
   });
   if (old && body.coverId !== undefined) await storage.delete(old).catch((e) => console.error('storage delete failed', old, e));
@@ -427,4 +439,39 @@ export async function removeFromTeam(db: Db, me: string, id: string, handle: str
   if (m.role === 'host' || (r.my_role === 'cohost' && m.role === 'cohost')) throw new ApiError(403, 'not_host', 'You cannot remove them.');
   await db.execute(sql`delete from collab_members where collab_id = ${r.id}::uuid and user_id = ${u.id}::uuid`);
   return getCollab(db, me, r.id);
+}
+
+/**
+ * Finishing a collab (the first time) offers each team member a draft portfolio project they can
+ * edit and publish, or delete: title, the description, their part, team size and how long it ran.
+ * Members whose portfolio is full are skipped.
+ */
+async function offerDrafts(tx: Db, id: string, title: string, description: string) {
+  const team = await rows<{ user_id: string; role: CollabRole; n: number; days: number }>(tx, sql`
+    select m.user_id, m.role,
+      (select count(*)::int from projects p where p.user_id = m.user_id) as n,
+      (select greatest(1, ceil(extract(epoch from now() - c.created_at) / 86400))::int from collabs c where c.id = ${id}::uuid) as days
+      from collab_members m join users u on u.id = m.user_id and u.state not in ${LIVE}
+     where m.collab_id = ${id}::uuid`);
+  const flat = description.replace(/\s+/g, ' ').trim();
+  const summary = flat.length > PROJECT_SUMMARY_MAX ? `${flat.slice(0, PROJECT_SUMMARY_MAX - 1).trimEnd()}…` : flat;
+  for (const m of team) {
+    if (Number(m.n) >= PROJECTS_MAX) continue;
+    const days = Number(m.days);
+    const duration = days < 14 ? `${days} day${days === 1 ? '' : 's'}` : days < 60 ? `${Math.round(days / 7)} weeks` : `${Math.round(days / 30)} months`;
+    const role = m.role === 'host' ? 'Host' : m.role === 'cohost' ? 'Co-host' : '';
+    const [p] = await rows<{ id: string }>(tx, sql`
+      insert into projects (user_id, title, summary, body, year, role, tools, team, duration, draft, position)
+      values (${m.user_id}::uuid, ${title}, ${summary}, ${description}, extract(year from now())::int, ${role}, '[]'::jsonb,
+        ${`Team of ${team.length}`}, ${duration}, true,
+        (select coalesce(max(position), -1) + 1 from projects where user_id = ${m.user_id}::uuid))
+      returning id`);
+    await tx.execute(sql`insert into notifications (user_id, kind, payload)
+      values (${m.user_id}::uuid, 'collab_finished', ${JSON.stringify({ collabId: id, title, projectId: p!.id })}::jsonb)`);
+  }
+}
+
+export async function collabUpdates(db: Db, me: string, id: string, query: { cursor?: string; limit?: string }) {
+  const r = await load(db, me, id);
+  return listPosts(db, me, sql`p.collab_id = ${r.id}::uuid and p.parent_id is null and p.deleted_at is null and p.hidden_at is null`, query);
 }

@@ -60,7 +60,10 @@ export function PostCard({
   replyingTo,
   id,
   actions,
+  context = 'all',
 }: {
+  /** say which collab / event an update belongs to; less where the page already says it */
+  context?: 'all' | 'event' | 'none';
   post: Post;
   onChange: (p: Post) => void;
   highlight?: boolean;
@@ -228,6 +231,12 @@ export function PostCard({
         )}
       </header>
 
+      {!post.parentId && ((context === 'all' && (post.collab || post.event)) || (context === 'event' && post.event)) && (
+        <p className="muted small post-context">
+          Update{context === 'all' && post.collab && <> in <Link href={`/collabs/${post.collab.id}`}>{post.collab.title}</Link></>}
+          {post.event && <> from <Link href={`/events/${post.event.id}`}>{post.event.title}</Link></>}
+        </p>
+      )}
       {reported && <p className="muted small" role="status">Reported. Thanks, a moderator will take a look.</p>}
       {replyingTo && (
         <p className="muted replying">replying to <Link href={`/u/${replyingTo}`}>@{replyingTo}</Link></p>

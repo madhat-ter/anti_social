@@ -1,7 +1,7 @@
 import { Elysia, t } from 'elysia';
 import type { Deps } from '../deps';
 import {
-  createCollab, decideRequest, declineInvite, deleteCollab, getCollab, inviteMember, joinCollab, leaveCollab,
+  collabUpdates, createCollab, decideRequest, declineInvite, deleteCollab, getCollab, inviteMember, joinCollab, leaveCollab,
   listCollabs, memberCollabs, removeFromTeam, setTeamRole, suggestPeople, updateCollab, withdrawRequest,
 } from '../lib/collabs';
 import { authPlugin, requireSeated } from '../plugins/auth';
@@ -61,6 +61,10 @@ export const collabRoutes = (deps: Deps) => {
 
     .delete('/collabs/:id/members/:handle', async ({ auth, params }) =>
       removeFromTeam(db, requireSeated(auth).user.id, params.id, params.handle), { params: handle })
+
+    /** The updates thread (RFC §10.5): the team posts with POST /posts { collabId }, anyone replies. */
+    .get('/collabs/:id/updates', async ({ auth, params, query }) => collabUpdates(db, requireSeated(auth).user.id, params.id, query),
+    { query: t.Object({ cursor: t.Optional(t.String()), limit: t.Optional(t.String()) }) })
 
     .get('/members/:handle/collabs', async ({ auth, params }) =>
       ({ items: await memberCollabs(db, requireSeated(auth).user.id, params.handle) }),

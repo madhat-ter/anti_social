@@ -171,6 +171,61 @@ try {
   await mobile.getByText('Saturday river cleanup').waitFor();
   await shot(mobile, 'mobile-collabs');
 
+  // ── M3. meetups, updates with photos, replies from outside the team, finishing → draft project
+  await page.goto(collabUrl);
+  await page.getByRole('link', { name: 'Plan a meetup' }).click();
+  await page.getByRole('heading', { name: 'Plan a meetup' }).waitFor();
+  const d = new Date(Date.now() + 3 * 86_400_000);
+  const pad = (x: number) => String(x).padStart(2, '0');
+  await page.getByLabel('Title').fill('First night of shooting');
+  await page.getByLabel('What is it?').fill('We walk the market from 7pm and get the wide shots. Bring a charged phone.');
+  await page.getByLabel('Starts').fill(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T19:00`);
+  await page.getByLabel('Where').fill('North gate of the night market');
+  await shot(page, 'meetup-new', true);
+  await page.getByRole('button', { name: 'Plan it' }).click();
+  await page.waitForURL(/\/events\/[0-9a-f-]{36}$/);
+  await page.getByText('team only').first().waitFor();
+  await page.getByPlaceholder('Notes, photos, what you got done.').fill('Scouted the north gate today: the lanterns come on at 6:40, so we start at 7.');
+  await page.getByRole('button', { name: 'Post update' }).click();
+  await page.locator('.posts').getByText('Scouted the north gate').waitFor();
+  await shot(page, 'meetup-page', true);
+
+  await page.goto(collabUrl);
+  const sharp = (await import('../apps/api/node_modules/sharp')).default;
+  const photo = await sharp({ create: { width: 900, height: 600, channels: 3, background: { r: 228, g: 62, b: 42 } } })
+    .composite([{ input: Buffer.from('<svg width="900" height="600"><rect x="60" y="60" width="780" height="480" fill="none" stroke="#111" stroke-width="14"/><circle cx="450" cy="300" r="120" fill="#111"/></svg>'), top: 0, left: 0 }])
+    .png().toBuffer();
+  const composer = page.locator('form.composer');
+  await composer.getByPlaceholder('How is it going? Photos welcome.').fill('Test frame from the first night. The red light is the noodle stall sign.');
+  await composer.locator('input[type=file]').setInputFiles({ name: 'frame.png', mimeType: 'image/png', buffer: photo });
+  await composer.locator('.thumb.done').waitFor();
+  await composer.getByLabel('From a meetup').selectOption({ label: 'First night of shooting' });
+  await composer.getByRole('button', { name: 'Post update' }).click();
+  await page.locator('.posts').getByText('Test frame from the first night').waitFor();
+  await shot(page, 'collab-updates', true);
+
+  const zoe = await apiMember('zoe', 'Zoe Hart', 'woman');
+  const zoePage = await browse(await browser.newContext(view), zoe.jar);
+  await zoePage.goto(collabUrl);
+  await zoePage.locator('.posts').getByText('Test frame from the first night').waitFor();
+  if (await zoePage.getByText('First night of shooting').count()) throw new Error('outsider sees the team-only meetup');
+  await zoePage.locator('article.post', { hasText: 'Test frame from the first night' }).getByRole('link', { name: /repl/i }).first().click();
+  await zoePage.getByPlaceholder('Write a reply...').fill('Love the colour. Will you screen it somewhere?');
+  await zoePage.getByRole('button', { name: 'Reply', exact: true }).click();
+  await zoePage.getByText('Love the colour.').waitFor();
+  await shot(zoePage, 'update-thread', true);
+
+  await page.goto(collabUrl);
+  await page.getByRole('button', { name: 'Mark finished' }).click();
+  await page.getByText('Marked finished. Well done.').waitFor();
+  await ivyPage.goto(`${WEB}/notifications`);
+  await ivyPage.getByText(/is finished\. Well done/).waitFor();
+  await shot(ivyPage, 'notif-finished');
+  await ivyPage.getByText(/is finished\. Well done/).click();
+  await ivyPage.waitForURL(/\/work\/[0-9a-f-]{36}\/edit$/);
+  await ivyPage.getByText('A short film about the night market').first().waitFor().catch(() => {});
+  await shot(ivyPage, 'finished-draft', true);
+
   if (pageErrors.length) throw new Error(`page errors:\n${pageErrors.join('\n')}`);
   console.log('ok');
 } finally {
