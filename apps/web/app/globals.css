@@ -100,6 +100,16 @@ main:focus { outline: none; }
   text-transform: uppercase; text-decoration: none; color: var(--ink); display: inline-flex; align-items: baseline;
 }
 .brand::after { content: ''; width: .3em; height: .3em; border-radius: 50%; background: var(--signal); margin-left: .07em; }
+/* the centre of the header: a member's screen-time timer (ScreenTime.tsx fills #top-center) */
+.top-center { flex: 1; display: flex; justify-content: center; min-width: 0; }
+.time-pill {
+  font: 700 .9rem/1.2 var(--font-ui); font-variant-numeric: tabular-nums; border: 2px solid var(--ink);
+  padding: .15rem .6rem; background: var(--paper); color: var(--ink); white-space: nowrap;
+}
+.time-pill.soon { background: var(--signal); color: var(--signal-ink); border-color: var(--signal); }
+.time-pill.rest { background: var(--ink); color: var(--paper); }
+.locked { max-width: 34rem; margin: 2rem auto 0; }
+.locked .win-dark .win-body { background: var(--paper); }
 /* phones: the bell sits in the header's right corner (PhoneBar.tsx fills #top-actions); see the phone shell below */
 .top-actions { display: none; }
 .top-bell { position: relative; display: inline-grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 2px solid var(--ink); color: var(--ink); text-decoration: none; background: var(--paper); }

@@ -30,6 +30,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <header className="top">
           <div className="top-inner">
             <Link href="/" className="brand" aria-label="anti, home">anti</Link>
+            {/* the centre: a member's screen-time timer (ScreenTime.tsx) */}
+            <span className="top-center" id="top-center" />
             {/* phones: the seated shell puts the notifications bell here (PhoneBar.tsx); wide screens show nothing else */}
             <span className="top-actions" id="top-actions" />
           </div>

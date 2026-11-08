@@ -189,7 +189,7 @@ try {
   await vis.goto(`${WEB}/events`);
   const host = vis.locator('.btn[aria-disabled=true]', { hasText: 'Host an event' });
   await host.waitFor();
-  await vis.getByText('Saturday hike').waitFor();
+  await vis.getByText('Saturday hike').first().waitFor();
   await shot(vis, 'visitor-events');
   await vis.getByRole('link', { name: /Saturday hike/ }).first().click();
   await vis.getByRole('heading', { name: 'Saturday hike, north gate' }).waitFor();

@@ -15,6 +15,7 @@ import { PickWindow, useWide } from './Picks';
 import { isAdult } from './Consult';
 import { ReadOnlyProvider, VisitorPill, isVisitor, membersOnlyPath, useVisitorEnd } from './Visitor';
 import { PhoneBar, TopBell } from './PhoneBar';
+import { ScreenTime } from './ScreenTime';
 
 export const UNREAD_EVENT = 'anti:unread';
 /** a consultation changed: the menu badge re-counts what waits on you */
@@ -52,6 +53,7 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
   // phones/tablets: nav on top, one column. Wide screens: menu | content | side windows (CSS).
   return (
     <ReadOnlyProvider on={isVisitor(me)}>
+      <ScreenTime me={me}>
       <div className={`shell${isVisitor(me) ? ' visiting' : ''}`} ref={shellRef}>
         <div className="shell-left">
           <NavBar me={me} />
@@ -63,6 +65,7 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
         </div>
         <Rail me={me} />
       </div>
+      </ScreenTime>
     </ReadOnlyProvider>
   );
 }

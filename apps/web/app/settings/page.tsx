@@ -12,6 +12,7 @@ import { CopyButton, ErrorNote } from '@/components/ui';
 import { PayButton } from '@/components/Billing';
 import { PushToggle } from '@/components/PushToggle';
 import { Loading, Win } from '@/components/retro';
+import { ScreenTime } from '@/components/ScreenTime';
 import { Avatar } from '@/components/Avatar';
 
 export default function Settings() {
@@ -30,6 +31,7 @@ export default function Settings() {
   const seated = me.state === 'active' || me.state === 'flagged_lurker';
 
   return (
+    <ScreenTime me={me}>
     <div className="stack">
       <div className="row"><Link href="/" className="ui">Back to the feed</Link></div>
       <h1>Settings</h1>
@@ -58,6 +60,7 @@ export default function Settings() {
         <Danger me={me} onGone={() => { router.push('/'); router.refresh(); }} />
       </Win>
     </div>
+    </ScreenTime>
   );
 }
 
