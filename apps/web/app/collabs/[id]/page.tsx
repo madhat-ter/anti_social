@@ -32,7 +32,8 @@ function CollabView({ myHandle }: { myHandle: string }) {
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState('');
-  const [confirm, setConfirm] = useState<null | 'leave' | 'delete'>(null);
+  const [confirm, setConfirm] = useState<null | 'leave' | 'delete' | 'report' | 'remove'>(null);
+  const [reported, setReported] = useState(false);
   const [done, setDone] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -54,6 +55,7 @@ function CollabView({ myHandle }: { myHandle: string }) {
     <>
       <p><Link href="/collabs" className="ui">Back to collabs</Link></p>
       <article className="stack collab-detail">
+        {c.hidden && <div className="banner" role="status">Hidden after reports. Only the team and admins can see it until an admin decides.</div>}
         {c.cover && (
           <div className="pf-coverwrap">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -110,6 +112,8 @@ function CollabView({ myHandle }: { myHandle: string }) {
           {c.canManage && c.status !== 'finished' && <button className="btn" disabled={busy} onClick={() => act(() => api.updateCollab(id, { status: 'finished' }), 'Marked finished. Well done.')}>Mark finished</button>}
           {onTeam && <button className="btn" disabled={busy} onClick={() => setConfirm('leave')}>Leave</button>}
           {iAmHost && <button className="btn danger" disabled={busy} onClick={() => setConfirm('delete')}>Delete</button>}
+          {c.canReport && <button className="btn" disabled={busy || reported} onClick={() => setConfirm('report')}>{reported ? 'Reported' : 'Report'}</button>}
+          {c.canModerate && !iAmHost && <button className="btn danger" disabled={busy} onClick={() => setConfirm('remove')}>Remove (admin)</button>}
         </div>
         {asking && (
           <form className="stack card" onSubmit={(e) => { e.preventDefault(); void act(() => api.joinCollab(id, note.trim() || undefined), 'Asked. You will get a notification when the host decides.').then(() => setAsking(false)); }}>
@@ -159,19 +163,23 @@ function CollabView({ myHandle }: { myHandle: string }) {
 
       <AlertDialog
         open={confirm !== null}
-        title={confirm === 'delete' ? 'Delete collab' : 'Leave'}
+        title={confirm === 'delete' ? 'Delete collab' : confirm === 'report' ? 'Report' : confirm === 'remove' ? 'Remove collab' : 'Leave'}
         message={confirm === 'delete'
           ? 'Delete this collab for everyone? The team, requests and invites go with it.'
+          : confirm === 'report' ? 'Report this collab to the admins? After five reports it is hidden until they look.'
+          : confirm === 'remove' ? 'Remove this collab for everyone? The host gets a notification (not who removed it).'
           : iAmHost
             ? 'Leave the team? Your longest-standing co-host becomes host; with no co-host, the collab stops recruiting.'
             : 'Leave the team?'}
-        confirmLabel={confirm === 'delete' ? 'Delete' : 'Leave'}
-        cancelLabel="Stay"
-        danger
+        confirmLabel={confirm === 'delete' ? 'Delete' : confirm === 'report' ? 'Report' : confirm === 'remove' ? 'Remove' : 'Leave'}
+        cancelLabel={confirm === 'leave' ? 'Stay' : 'Cancel'}
+        danger={confirm !== 'report'}
         onConfirm={() => {
           const what = confirm;
           setConfirm(null);
           if (what === 'delete') void act(async () => { await api.deleteCollab(id); router.push('/collabs'); });
+          else if (what === 'remove') void act(async () => { await api.opsRemoveCollab(id); router.push('/collabs'); });
+          else if (what === 'report') void act(async () => { await api.flagCollab(id); setReported(true); }, 'Reported. Thanks, an admin will take a look.');
           else void act(() => api.leaveCollab(id), 'You left the team.');
         }}
         onCancel={() => setConfirm(null)}

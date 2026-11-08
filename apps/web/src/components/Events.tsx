@@ -3,7 +3,9 @@ import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import {
   EVENT_DESCRIPTION_MAX, EVENT_LOCATION_MAX, EVENT_PRICE_NOTE_MAX, EVENT_TITLE_MAX, EVENT_CAPACITY_MAX,
+  EVENT_INTERESTS_MAX, EVENT_REQUIREMENTS_MAX,
 } from '@anti/shared';
+import { InterestPicker, InterestTags } from './Interests';
 import { errorMessage, type AnEvent, type EventInput } from '@/lib/api';
 import { ErrorNote } from './ui';
 
@@ -44,6 +46,8 @@ export function EventCard({ e }: { e: AnEvent }) {
         <span className="event-main">
           <span className="event-title">{e.title} <MyStatus e={e} />{e.audience === 'team' && <span className="tag">team only</span>}{e.cancelledAt && <span className="tag danger">cancelled</span>}</span>
           {e.collab && <span className="muted small">Meetup for {e.collab.title}</span>}
+          {e.joinMode === 'approve' && <span className="muted small">Ask to come</span>}
+          <InterestTags slugs={e.interests ?? []} />
           <span className="muted small">{eventWhen(e.startsAt, e.endsAt)}</span>
           <span className="muted small">{e.location ?? 'Location shared with people going'}</span>
           <span className="muted small">{spotsText(e)}</span>
@@ -79,6 +83,9 @@ export function EventForm({ initial, submitLabel, onSubmit }: {
   const [capacity, setCapacity] = useState(initial?.capacity ? String(initial.capacity) : '');
   const [priceNote, setPriceNote] = useState(initial?.priceNote ?? '');
   const [payUrl, setPayUrl] = useState(initial?.externalPaymentUrl ?? '');
+  const [interests, setInterests] = useState<string[]>(initial?.interests ?? []);
+  const [requirements, setRequirements] = useState(initial?.requirements ?? '');
+  const [joinMode, setJoinMode] = useState<'open' | 'approve'>(initial?.joinMode ?? 'open');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -93,6 +100,7 @@ export function EventForm({ initial, submitLabel, onSubmit }: {
       await onSubmit({
         title, description, startsAt: fromLocalInput(startsAt)!, endsAt: fromLocalInput(endsAt), location,
         locationRsvpOnly: rsvpOnly, capacity: cap, priceNote: priceNote.trim() || null, externalPaymentUrl: payUrl.trim() || null,
+        interests, requirements, joinMode,
       });
     } catch (e) {
       setErr(errorMessage(e));
@@ -134,6 +142,18 @@ export function EventForm({ initial, submitLabel, onSubmit }: {
         <input type="checkbox" checked={rsvpOnly} onChange={(e) => setRsvpOnly(e.target.checked)} />
         Only show the location to people who are going
       </label>
+      <label>What to bring or know (optional)
+        <textarea value={requirements} onChange={(e) => setRequirements(e.target.value)} maxLength={EVENT_REQUIREMENTS_MAX} rows={2} placeholder="Comfortable shoes. Some Spanish helps." />
+      </label>
+      <fieldset className="stack event-fs">
+        <legend>Interests <span className="muted small">(optional, up to {EVENT_INTERESTS_MAX}; helps you invite people who fit)</span></legend>
+        <InterestPicker value={interests} onChange={setInterests} max={EVENT_INTERESTS_MAX} />
+      </fieldset>
+      <fieldset className="stack event-fs">
+        <legend>Who can come</legend>
+        <label className="check"><input type="radio" name="join-mode" checked={joinMode === 'open'} onChange={() => setJoinMode('open')} /> Anyone: they just say they are going</label>
+        <label className="check"><input type="radio" name="join-mode" checked={joinMode === 'approve'} onChange={() => setJoinMode('approve')} /> People ask with a note, you accept</label>
+      </fieldset>
       <label>Capacity (empty = no limit)
         <input type="number" min={1} max={EVENT_CAPACITY_MAX} value={capacity} onChange={(e) => setCapacity(e.target.value)} />
       </label>

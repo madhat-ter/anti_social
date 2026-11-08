@@ -63,6 +63,10 @@ export const COLLAB_PRICE_NOTE_MAX = 100;
 export const COLLAB_HOSTING_MAX = 3;
 /** open invitations per collab */
 export const COLLAB_INVITES_MAX = 20;
+/** events get the same tags, requirements and ask-to-join (RFC §10.5) */
+export const EVENT_REQUIREMENTS_MAX = 500;
+export const EVENT_INTERESTS_MAX = 5;
+export const EVENT_INVITES_MAX = 20;
 export const COLLAB_STATUSES = ['recruiting', 'closed', 'finished'] as const;
 export type CollabStatus = (typeof COLLAB_STATUSES)[number];
 

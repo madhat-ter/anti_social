@@ -52,6 +52,11 @@ function describe(n: Notification): string {
   if (n.kind === 'collab_meetup') return `${who} planned a meetup for ${co}${n.event ? `: "${n.event.title}"` : ''}`;
   if (n.kind === 'collab_finished') return `${co} is finished. Well done. A draft project is waiting in your portfolio: edit it and publish, or delete it.`;
   if (n.kind === 'event_update') return `${who} posted an update on ${ev}`;
+  if (n.kind === 'collab_removed') return n.collabTitle ? `An admin removed your collab "${n.collabTitle}".` : 'An admin removed one of your collabs.';
+  if (n.kind === 'event_request') return `${who} asked to come to ${ev}`;
+  if (n.kind === 'event_accepted') return `You are in: the host accepted you for ${ev}`;
+  if (n.kind === 'event_declined') return `${ev} is full of people already. There are plenty more in Events.`;
+  if (n.kind === 'event_invite') return `${who} invited you to ${ev}`;
   if (n.kind === 'collab_invite') return `${who} invited you to join ${co}`;
   return n.post ? `${who} interacted with your post` : 'Account update';
 }

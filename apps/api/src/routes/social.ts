@@ -166,6 +166,7 @@ export const socialRoutes = (deps: Deps) => {
           event: r.e_id ? { id: r.e_id, title: r.e_title ?? '' } : null,
           collab: r.c_id ? { id: r.c_id, title: r.c_title ?? '' } : null,
           draftId: r.kind === 'collab_finished' ? r.x_project : null,
+          collabTitle: r.kind === 'collab_removed' ? r.x_title : null,
           newHandle: r.kind === 'handle_changed' ? r.x_to : null,
           projectTitle: r.kind === 'project_removed' ? r.x_title : null,
           pickTitle: r.kind === 'pick_remark' || r.kind === 'remark_removed' ? r.x_title : null,

@@ -5,7 +5,10 @@ import { formatInviteCode } from '@anti/shared';
 import type { Deps } from '../deps';
 import { ApiError } from '../lib/errors';
 import { generateInviteCode } from '../lib/crypto';
-import { banUser, flagPost, flagProject, flagQueue, removePost, removeProject, resolveFlags, resolveProjectFlags } from '../lib/moderation';
+import {
+  banUser, flagCollab, flagPost, flagProject, flagQueue, removeCollab, removePost, removeProject, resolveCollabFlags, resolveFlags,
+  resolveProjectFlags,
+} from '../lib/moderation';
 import { adminMembers, getAdminSettings, renameMember, setMemberBirthday, setMemberRole, unbanMember, updateAdminSettings } from '../lib/admin';
 import { UUID_RE } from '../lib/posts';
 import { hit } from '../lib/ratelimit';
@@ -42,6 +45,25 @@ export const moderationRoutes = (deps: Deps) => {
       const r = await flagProject(db, a.user.id, params.id, body?.reason);
       return { flagged: r.flagged };
     }, { body: t.Optional(t.Object({ reason: t.Optional(t.String({ maxLength: 800 })) })) })
+
+    .post('/collabs/:id/flag', async ({ auth, params, body }) => {
+      const a = requireSeated(auth);
+      if (!UUID_RE.test(params.id)) throw new ApiError(404, 'not_found');
+      await hit(db, 'flag', a.user.id);
+      return flagCollab(db, a.user.id, params.id, body?.reason);
+    }, { body: t.Optional(t.Object({ reason: t.Optional(t.String({ maxLength: 800 })) })) })
+
+    .post('/ops/collabs/:id/resolve', async ({ auth, params, body }) => {
+      requireOps(auth);
+      if (!UUID_RE.test(params.id)) throw new ApiError(404, 'not_found');
+      return resolveCollabFlags(db, params.id, body.resolution);
+    }, { body: t.Object({ resolution: t.Union([t.Literal('restored'), t.Literal('removed')]) }) })
+
+    .post('/ops/collabs/:id/remove', async ({ auth, params }) => {
+      const a = requireOps(auth);
+      if (!UUID_RE.test(params.id)) throw new ApiError(404, 'not_found');
+      return removeCollab(db, params.id, a.user.id);
+    })
 
     .get('/ops/flags', async ({ auth }) => {
       requireOps(auth);

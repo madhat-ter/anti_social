@@ -199,10 +199,16 @@ export const events = pgTable('events', {
   collabId: uuid('collab_id').references((): AnyPgColumn => collabs.id, { onDelete: 'cascade' }),
   /** 'team': only the collab's team sees it; 'anyone': a normal event */
   audience: text('audience').notNull().default('anyone'),
+  /** RFC §10.5: what people need to bring or know (shown on the page) */
+  requirements: text('requirements').notNull().default(''),
+  /** 'open': RSVP straight away; 'approve': ask with a note, the host accepts */
+  joinMode: text('join_mode').notNull().default('open'),
   createdAt: tstz('created_at').notNull().defaultNow(),
 }, (t) => [
   index('events_starts').on(t.startsAt),
   index('events_collab').on(t.collabId).where(sql`collab_id is not null`),
+  check('events_join_mode', sql`(${t.joinMode} in ('open', 'approve'))`),
+  check('events_requirements_len', sql`char_length(${t.requirements}) <= 500`),
   check('events_audience', sql`(${t.audience} = 'anyone') or (${t.audience} = 'team' and ${t.collabId} is not null)`),
 ]);
 
@@ -400,6 +406,44 @@ export const collabInvites = pgTable('collab_invites', {
   status: text('status').notNull().default('pending'),
   createdAt: tstz('created_at').notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.collabId, t.userId] })]);
+
+/** Reports on a collab: the same shape and lifecycle as `flags` on posts (5 hide it until ops decide). */
+export const collabFlags = pgTable('collab_flags', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  collabId: uuid('collab_id').notNull().references(() => collabs.id, { onDelete: 'cascade' }),
+  reason: text('reason'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  resolvedAt: tstz('resolved_at'),
+  resolution: text('resolution'), // 'restored' | 'removed'
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.collabId] }),
+  index('collab_flags_open').on(t.collabId).where(sql`resolved_at is null`),
+]);
+
+/** Events carry interest tags too (RFC §10.5), so "people who might fit" works the same way. */
+export const eventInterests = pgTable('event_interests', {
+  eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  interest: text('interest').notNull().references(() => interests.slug, { onDelete: 'cascade' }),
+}, (t) => [primaryKey({ columns: [t.eventId, t.interest] }), index('event_interests_interest').on(t.interest)]);
+
+/** Asking to come to an 'approve' event: 'pending' | 'accepted' | 'declined' | 'withdrawn'. */
+export const eventRequests = pgTable('event_requests', {
+  eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  note: text('note'),
+  status: text('status').notNull().default('pending'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  decidedAt: tstz('decided_at'),
+}, (t) => [primaryKey({ columns: [t.eventId, t.userId] })]);
+
+/** A host's invitation to an event: 'pending' | 'accepted' | 'declined'. Skips asking. */
+export const eventInvites = pgTable('event_invites', {
+  eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  invitedBy: uuid('invited_by').references(() => users.id, { onDelete: 'set null' }),
+  status: text('status').notNull().default('pending'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.eventId, t.userId] })]);
 
 // ─── Portfolio: the profile laid out like a Behance portfolio ───────────────
 // One row per member, created on first edit. Lists are jsonb: skills/tools are string[],

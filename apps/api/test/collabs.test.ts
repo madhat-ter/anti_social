@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
 import sharp from 'sharp';
 import { rows } from '@anti/db';
+import { setOps } from '../src/lib/moderation';
 import { cleanup, setup } from './client';
 
 afterEach(cleanup);
@@ -321,5 +322,101 @@ describe('collab updates, meetups and finishing', () => {
     expect((await ana.get('/members/ana/projects')).body.items[0]).toMatchObject({ draft: true });
     const n = (await ben.get('/notifications')).body.items.find((x: any) => x.kind === 'collab_finished');
     expect(n).toMatchObject({ collab: { id, title: base.title }, draftId: mine[0].id });
+  });
+});
+
+describe('events: interests, requirements, asking, invites', () => {
+  const soon = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
+  const ev = { title: 'Darkroom evening', startsAt: soon(4), location: 'Studio B', capacity: 2 };
+
+  test('approve events: ask with a note, the host accepts or declines; invites skip asking', async () => {
+    const w = await world();
+    const ana = await w.member('ana');
+    const ben = await w.member('ben', ['photography', 'film']);
+    const cat = await w.member('cat', ['photography']);
+    const dan = await w.member('dan', ['music']);
+    const e = (await ana.post('/events', { ...ev, joinMode: 'approve', requirements: 'Bring a film roll.', interests: ['photography', 'film'] })).body;
+    expect(e).toMatchObject({ joinMode: 'approve', requirements: 'Bring a film roll.', interests: ['film', 'photography'], request: null, invited: false });
+    expect((await ana.post('/events', { ...ev, interests: ['nope'] })).body.error).toBe('event_invalid');
+
+    expect((await ben.post(`/events/${e.id}/rsvp`)).body.error).toBe('needs_request');
+    expect((await ben.post(`/events/${e.id}/request`, { note: 'I have a Pentax.' })).body.request).toBe('pending');
+    expect((await ben.post(`/events/${e.id}/request`, {})).body.error).toBe('already_requested');
+    const host = (await ana.get(`/events/${e.id}`)).body;
+    expect(host.requests).toEqual([expect.objectContaining({ handle: 'ben', note: 'I have a Pentax.' })]);
+    expect((await ben.get(`/events/${e.id}`)).body.requests).toBeNull();
+
+    expect((await ana.get(`/events/${e.id}/suggestions`)).body.items.map((x: any) => [x.handle, x.match])).toEqual([['cat', 1]]);
+    expect((await ben.get(`/events/${e.id}/suggestions`)).body.error).toBe('not_host');
+
+    const accepted = await ana.post(`/events/${e.id}/requests/ben/accept`);
+    expect(accepted.body.going.map((p: any) => p.handle)).toEqual(['ben']);
+    expect((await ben.get(`/events/${e.id}`)).body.my.status).toBe('going');
+
+    await ana.post(`/events/${e.id}/invites`, { handle: 'cat' });
+    expect((await ana.post(`/events/${e.id}/invites`, { handle: 'cat' })).body.error).toBe('already_invited');
+    expect((await cat.get(`/events/${e.id}`)).body.invited).toBe(true);
+    expect((await cat.post(`/events/${e.id}/rsvp`)).body.my.status).toBe('going');
+
+    // full now: dan asks, is declined gently
+    await dan.post(`/events/${e.id}/request`, {});
+    await ana.post(`/events/${e.id}/requests/dan/decline`);
+    expect((await dan.get(`/events/${e.id}`)).body.request).toBe('declined');
+    const kinds = async (h: string) => (await rows<{ kind: string }>(w.t.db, sql`
+      select n.kind from notifications n join users u on u.id = n.user_id where u.handle = ${h} and n.kind like 'event_%' order by n.created_at, n.id`)).map((x) => x.kind);
+    expect(await kinds('ana')).toEqual(['event_request', 'event_rsvp', 'event_request']);
+    expect(await kinds('ben')).toEqual(['event_accepted']);
+    expect(await kinds('cat')).toEqual(['event_invite']);
+    expect(await kinds('dan')).toEqual(['event_declined']);
+
+    // open events keep plain RSVPs; asking is refused
+    const open = (await ana.post('/events', { ...ev, title: 'Open studio' })).body;
+    expect((await dan.post(`/events/${open.id}/request`, {})).body.error).toBe('no_request_needed');
+    expect((await ana.patch(`/events/${open.id}`, { interests: ['music'], requirements: 'None' })).body).toMatchObject({ interests: ['music'], requirements: 'None' });
+  });
+
+  test('team-only meetups suggest and accept only the team', async () => {
+    const w = await world();
+    const ana = await w.member('ana');
+    const ben = await w.member('ben');
+    const cat = await w.member('cat', ['writing']);
+    const id = (await ana.post('/collabs', { ...base, joinMode: 'open' })).body.id;
+    await ben.post(`/collabs/${id}/join`, {});
+    const m = (await ana.post('/events', { ...ev, collabId: id, interests: ['writing'] })).body;
+    expect((await ana.get(`/events/${m.id}/suggestions`)).body.items.map((x: any) => x.handle)).toEqual(['ben']);
+    expect((await ana.post(`/events/${m.id}/invites`, { handle: 'cat' })).body.error).toBe('not_on_team');
+    expect((await ana.post(`/events/${m.id}/invites`, { handle: 'ben' })).status).toBe(200);
+  });
+});
+
+describe('reporting collabs', () => {
+  test('five reports hide it from everyone but the team and admins; admins restore or remove', async () => {
+    const w = await world();
+    const ana = await w.member('ana');
+    const boss = await w.member('boss');
+    await setOps(w.t.db, 'boss', true);
+    const others = [];
+    for (const h of ['rep1', 'rep2', 'rep3', 'rep4', 'rep5', 'viewer']) others.push(await w.member(h));
+    const id = (await ana.post('/collabs', base)).body.id;
+    expect((await ana.post(`/collabs/${id}/flag`, {})).body.error).toBe('own_collab');
+    expect((await others[5]!.get(`/collabs/${id}`)).body.canReport).toBe(true);
+    for (const c of others.slice(0, 5)) expect((await c.post(`/collabs/${id}/flag`, { reason: 'spam' })).body).toEqual({ flagged: true });
+
+    expect((await others[5]!.get(`/collabs/${id}`)).status).toBe(404);
+    expect((await others[5]!.get('/collabs?tab=all')).body.items).toEqual([]);
+    expect((await ana.get(`/collabs/${id}`)).body.hidden).toBe(true);
+    const seen = (await boss.get(`/collabs/${id}`)).body;
+    expect(seen).toMatchObject({ hidden: true, canModerate: true });
+    const q = (await boss.get('/ops/flags')).body;
+    expect(q[0]).toMatchObject({ kind: 'collab', collabId: id, author: 'ana', hidden: true, flags: 5 });
+    expect(await w.kinds('boss')).toEqual([]);
+
+    expect((await boss.post(`/ops/collabs/${id}/resolve`, { resolution: 'restored' })).body).toEqual({ resolution: 'restored' });
+    expect((await others[5]!.get(`/collabs/${id}`)).status).toBe(200);
+    expect((await others[5]!.post(`/ops/collabs/${id}/remove`)).status).toBe(404);
+    expect((await boss.post(`/ops/collabs/${id}/remove`)).body).toEqual({ removed: true });
+    expect((await ana.get(`/collabs/${id}`)).status).toBe(404);
+    const n = (await ana.get('/notifications')).body.items.find((x: any) => x.kind === 'collab_removed');
+    expect(n.collabTitle).toBe(base.title);
   });
 });

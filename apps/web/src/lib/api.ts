@@ -32,8 +32,9 @@ export interface Me {
 
 /** One reported post or project in the moderation queue. */
 export interface FlagItem {
-  kind: 'post' | 'project';
+  kind: 'post' | 'project' | 'collab';
   postId?: string;
+  collabId?: string;
   projectId?: string;
   body: string;
   author: string | null;
@@ -214,6 +215,8 @@ export interface Notification {
   checklist?: { done: number; total: number } | null;
   /** collab_*: the collab */
   collab?: { id: string; title: string } | null;
+  /** collab_removed: its title */
+  collabTitle?: string | null;
   /** collab_finished: your draft project */
   draftId?: string | null;
 }
@@ -229,12 +232,20 @@ export interface AnEvent {
   my: { status: RsvpStatus; waitlistPosition: number | null; attended: boolean } | null;
   started: boolean; rsvpOpen: boolean; canEdit: boolean; canConfirmAttendance: boolean;
   collab: { id: string; title: string } | null; audience: 'anyone' | 'team'; canPostUpdate: boolean;
+  requirements: string; joinMode: 'open' | 'approve'; interests: string[];
+  request: 'pending' | 'declined' | null; invited: boolean;
 }
-export interface EventDetail extends AnEvent { going: EventPerson[]; waitlist: EventPerson[] | null }
+export interface EventDetail extends AnEvent {
+  going: EventPerson[]; waitlist: EventPerson[] | null;
+  /** host only */
+  requests: (CollabPerson & { note: string | null; at: string })[] | null;
+  invites: CollabPerson[] | null;
+}
 export interface EventInput {
   title: string; description: string; startsAt: string; endsAt: string | null; location: string;
   locationRsvpOnly: boolean; capacity: number | null; priceNote: string | null; externalPaymentUrl: string | null;
   collabId?: string; audience?: 'anyone' | 'team';
+  requirements?: string; joinMode?: 'open' | 'approve'; interests?: string[];
 }
 export type CollabStatus = 'recruiting' | 'closed' | 'finished';
 export type CollabRole = 'host' | 'cohost' | 'member';
@@ -253,6 +264,7 @@ export interface Collab extends CollabSummary {
   requests: (CollabPerson & { note: string | null; at: string })[] | null;
   invites: CollabPerson[] | null;
   meetups: { id: string; title: string; startsAt: string; audience: 'anyone' | 'team'; goingCount: number; past: boolean }[];
+  hidden: boolean; canReport: boolean; canModerate: boolean;
 }
 export interface CollabInput {
   title: string; description: string; requirements: string; roles: string[]; teamMax: number;
@@ -390,6 +402,13 @@ export const api = {
   cancelEvent: (id: string) => call<AnEvent>('DELETE', `/events/${encodeURIComponent(id)}`),
   rsvp: (id: string) => post<AnEvent>(`/events/${encodeURIComponent(id)}/rsvp`, {}),
   leaveEvent: (id: string) => call<AnEvent>('DELETE', `/events/${encodeURIComponent(id)}/rsvp`),
+  askToCome: (id: string, note?: string) => post<AnEvent>(`/events/${encodeURIComponent(id)}/request`, note ? { note } : {}),
+  withdrawEventRequest: (id: string) => call<AnEvent>('DELETE', `/events/${encodeURIComponent(id)}/request`),
+  decideEventRequest: (id: string, handle: string, accept: boolean) =>
+    post<EventDetail>(`/events/${encodeURIComponent(id)}/requests/${encodeURIComponent(handle)}/${accept ? 'accept' : 'decline'}`, {}),
+  eventSuggestions: (id: string) => get<{ items: CollabSuggestion[] }>(`/events/${encodeURIComponent(id)}/suggestions`),
+  inviteToEvent: (id: string, handle: string) => post<EventDetail>(`/events/${encodeURIComponent(id)}/invites`, { handle }),
+  declineEventInvite: (id: string) => post<AnEvent>(`/events/${encodeURIComponent(id)}/invite/decline`, {}),
   confirmAttendance: (id: string, handles: string[]) => post<AnEvent>(`/events/${encodeURIComponent(id)}/attendance`, { handles }),
 
   collabs: (tab: 'for-you' | 'all', interest?: string | null) => get<{ items: CollabSummary[] }>(`/collabs${qs({ tab, interest })}`),
@@ -419,6 +438,10 @@ export const api = {
   opsFlags: () => get<FlagItem[]>('/ops/flags'),
   opsResolvePost: (id: string, resolution: 'restored' | 'removed') =>
     post<{ resolution: string }>(`/ops/flags/${encodeURIComponent(id)}/resolve`, { resolution }),
+  opsResolveCollab: (id: string, resolution: 'restored' | 'removed') =>
+    post<{ resolution: string }>(`/ops/collabs/${encodeURIComponent(id)}/resolve`, { resolution }),
+  opsRemoveCollab: (id: string) => post<{ removed: true }>(`/ops/collabs/${encodeURIComponent(id)}/remove`, {}),
+  flagCollab: (id: string, reason?: string) => post<{ flagged: true }>(`/collabs/${encodeURIComponent(id)}/flag`, reason ? { reason } : {}),
   opsResolveProject: (id: string, resolution: 'restored' | 'removed') =>
     post<{ resolution: string }>(`/ops/projects/${encodeURIComponent(id)}/resolve`, { resolution }),
   opsBan: (handle: string) => post<{ banned: string }>(`/ops/users/${encodeURIComponent(handle)}/ban`, {}),

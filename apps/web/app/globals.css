@@ -1085,8 +1085,8 @@ label.inline select { width: auto; }
 ul.list li .interest-tags li.tag { display: inline-block; border: 1.5px solid var(--ink); padding: 0 .35rem; margin-left: 0; }
 .who .interest-tags .tag { line-height: 1.3; }
 form.row > input { flex: 1 1 12rem; width: auto; }
-.collab-requests > li { padding: .75rem 0; border-bottom: 1.5px solid var(--ink); }
-.collab-requests > li:last-child { border-bottom: 0; }
+ul.list.collab-requests > li { padding: .75rem 0; border-bottom: 1.5px solid var(--ink); align-items: stretch; text-align: left; }
+ul.list.collab-requests > li:last-child { border-bottom: 0; }
 .collab-form fieldset { border: 0; padding: 0; margin: 0; }
 .collab-form ul.chips { list-style: none; padding: 0; margin: 0; }
 .collab-form .row > input { flex: 1 1 12rem; width: auto; }
@@ -1102,3 +1102,7 @@ ul.list.meetups li { flex-wrap: wrap; }
 ul.list.meetups li.past > a { color: var(--muted, #666); }
 .meetup-audience { border: 0; padding: 0; margin: 0; }
 .meetup-audience legend { font: 700 .95rem var(--font-ui); margin-bottom: .3rem; }
+.event-fs { border: 0; padding: 0; margin: 0; }
+.event-fs legend { font: 700 .95rem var(--font-ui); margin-bottom: .4rem; }
+.event-main .interest-tags { margin-top: .2rem; }
+.facts dd.pre { white-space: pre-wrap; }

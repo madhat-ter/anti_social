@@ -36,6 +36,13 @@ export type EventView = {
   audience: 'anyone' | 'team';
   /** may start an update on this event's page: the host and people going; for a meetup, the team */
   canPostUpdate: boolean;
+  /** RFC §10.5 */
+  requirements: string;
+  joinMode: 'open' | 'approve';
+  interests: string[];
+  /** your request to come (approve events), and whether the host invited you */
+  request: 'pending' | 'declined' | null;
+  invited: boolean;
 };
 
 export type EventRow = {
@@ -47,6 +54,7 @@ export type EventRow = {
   my_status: RsvpStatus | null; my_attended: boolean | null; my_position: number | null;
   started: boolean; attendance_open: boolean;
   collab_id: string | null; c_title: string | null; audience: 'anyone' | 'team'; on_team: boolean;
+  requirements: string; join_mode: 'open' | 'approve'; interests: string[] | null; my_request: string | null; my_invited: boolean;
 };
 
 /** Base SELECT; callers append where/order/limit. One query per page, viewer-specific fields inline. */
@@ -68,7 +76,11 @@ export function eventSelect(viewerId: string): SQL {
       (now() >= e.starts_at) as started,
       (now() >= e.starts_at and now() < e.starts_at + make_interval(days => ${ATTENDANCE_WINDOW_DAYS})) as attendance_open,
       e.collab_id, c.title as c_title, e.audience,
-      exists (select 1 from collab_members m where m.collab_id = e.collab_id and m.user_id = ${viewerId}::uuid) as on_team
+      exists (select 1 from collab_members m where m.collab_id = e.collab_id and m.user_id = ${viewerId}::uuid) as on_team,
+      e.requirements, e.join_mode,
+      array(select ei.interest from event_interests ei where ei.event_id = e.id order by ei.interest) as interests,
+      (select q.status from event_requests q where q.event_id = e.id and q.user_id = ${viewerId}::uuid) as my_request,
+      exists (select 1 from event_invites i where i.event_id = e.id and i.user_id = ${viewerId}::uuid and i.status = 'pending') as my_invited
     from events e
     join users h on h.id = e.host_id
     left join collabs c on c.id = e.collab_id and c.deleted_at is null
@@ -108,6 +120,11 @@ export function toEvent(r: EventRow, viewerId: string): EventView {
     collab: r.collab_id && r.c_title ? { id: r.collab_id, title: r.c_title } : null,
     audience: r.audience === 'team' ? 'team' : 'anyone',
     canPostUpdate: !cancelled && (r.collab_id ? !!r.on_team : isHost || r.my_status === 'going'),
+    requirements: r.requirements ?? '',
+    joinMode: r.join_mode === 'approve' ? 'approve' : 'open',
+    interests: r.interests ?? [],
+    request: r.my_request === 'pending' || r.my_request === 'declined' ? r.my_request : null,
+    invited: !!r.my_invited,
   };
 }
 

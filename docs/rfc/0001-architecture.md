@@ -696,6 +696,46 @@ to 200 characters. Rotation is weighted: score = 1 + (up - down)/4 clamped to [1
 remarks** lists everyone's vote and remark (profiles too). The suggester is notified of remarks, not
 votes. Admins remove remarks (the vote stays, the writer is told). Never a lurker contribution.
 
+### 10.5 Collabs, interests, upgraded events (added 2026-11-08)
+
+**Interests.** A fixed list of tags (`interests`, 30 seeded; admins add more). Members pick up to 10
+(`user_interests`, Settings and the 6th checklist item); collabs carry 1–5, events up to 5. "People
+who might fit" is always the overlap, best first.
+
+**Collabs** are ongoing projects or activities members do together (a zine, a band, a cleanup).
+Fields: title, description ≤ 2000, interests, "looking for" ≤ 5 roles, requirements ≤ 500, team size
+2–20 (host included), optional cover, a price or donation note and an `https://` link (anti never
+handles money). Status: recruiting → closed ("team set") → finished.
+
+- The **team** (`collab_members`): one host, co-hosts (the host promotes them; they manage requests,
+  invites and plain members), members. A leaving host hands over to the longest-standing co-host;
+  with none, the collab stops recruiting. A member hosts at most 3 recruiting collabs.
+- **Joining**: open = straight in; approve = a request with a note ≤ 300 (`collab_requests`, 10 a
+  day per member). Declines never say who decided. **Invites** (`collab_invites`, ≤ 20 open) skip
+  asking; managers see suggestions from shared interests and can invite any handle.
+- **Collabs page**: "For you" (recruiting, sharing your interests, best match first) and "All", with an
+  interest filter. Profiles have a Collabs tab.
+- **Updates**: ordinary posts with `collab_id` (and `event_id` when "from a meetup"), up to 4 photos.
+  The team starts them, anyone replies; replies inherit the link. They never appear in the main feed,
+  and count toward the posting rule like any post or reply.
+- **Meetups**: events with `collab_id`, planned by anyone on the team, **team only** (default; invisible
+  to everyone else, even in lists and post links) or **anyone** (listed in Events). The team is told.
+- **Finishing** (the first time) gives each team member a **draft** portfolio project (title, write-up,
+  their part, "Team of N", how long it ran) unless their portfolio is full.
+- **Reports**: like posts and projects; 5 open reports hide a collab from everyone but its team and
+  admins until ops restore or remove it. Admins remove any collab; the host is told, not by whom.
+
+**Events** gain the same tools: interests, requirements ("what to bring or know"), **who can come**
+(anyone, or ask with a note and the host accepts: `event_requests`), **invites** with suggestions
+(`event_invites`, ≤ 20 open; an invite skips asking; a team-only meetup only takes the team), and an
+**updates** thread on the page (posts with `event_id`: the host and people going start them, for a
+meetup the team; anyone replies). Accepted requests and invites go on the going list, or the waitlist
+when full.
+
+Notifications: `collab_request`, `collab_joined`, `collab_accepted`, `collab_declined`,
+`collab_invite`, `collab_update`, `collab_meetup`, `collab_finished`, `collab_removed`,
+`event_request`, `event_accepted`, `event_declined`, `event_invite`, `event_update`.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops.
@@ -732,7 +772,17 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST /me/projects`, `PATCH/DELETE /me/projects/:id`, `POST /me/projects/order` | A | Projects |
 | `POST /projects/:id/flag`, `POST /ops/projects/:id/resolve` | A / O | Report a project; ops restore or remove |
 | `GET/POST /events`, `GET/PATCH/DELETE /events/:id` | A | Events |
-| `POST/DELETE /events/:id/rsvp` | A | RSVP |
+| `POST/DELETE /events/:id/rsvp` | A | RSVP (approve events: only accepted or invited people) |
+| `POST/DELETE /events/:id/request`, `POST /events/:id/requests/:handle/accept\|decline` | A / host | Ask to come; the host decides |
+| `GET /events/:id/suggestions`, `POST /events/:id/invites`, `POST /events/:id/invite/decline` | host / A | People who might fit; invites |
+| `GET /events/:id/updates` | A | The event's updates (post with `POST /posts { eventId }`) |
+| `GET /interests`, `PUT /me/interests`, `POST /ops/interests` | A / O | Interest tags |
+| `GET/POST /collabs`, `GET/PATCH/DELETE /collabs/:id` | A | Collabs (`?tab=for-you\|all&interest=`) |
+| `POST /collabs/:id/join`, `DELETE /collabs/:id/request`, `POST /collabs/:id/requests/:handle/accept\|decline` | A / managers | Join or ask; decide |
+| `GET /collabs/:id/suggestions`, `POST /collabs/:id/invites`, `POST /collabs/:id/invite/accept\|decline` | managers / A | Invites |
+| `POST /collabs/:id/leave`, `POST /collabs/:id/members/:handle/role`, `DELETE /collabs/:id/members/:handle` | A / host, managers | The team |
+| `GET /collabs/:id/updates`, `GET /members/:handle/collabs` | A | Updates (post with `POST /posts { collabId }`); a member's collabs |
+| `POST /collabs/:id/flag`, `POST /ops/collabs/:id/resolve`, `POST /ops/collabs/:id/remove` | A / O | Report; ops restore or remove |
 | `POST /events/:id/attendance` | A (host) | Confirm attendees |
 | `GET /notifications`, `POST /notifications/read` | U | In-app inbox |
 | `POST/DELETE /push/subscriptions` | U | Web Push |
@@ -767,7 +817,7 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 - **Invite codes**: 60+ bits of entropy, rate-limited checks (10/min/IP) to prevent enumeration. Stored as SHA-256 hash; the plaintext is shown only to the creator.
 - **WebAuthn**: RP ID = production domain; origin checked; signature counter checked; challenge single-use.
 - **Sessions**: hashed tokens; revoke-all on recovery and ban; CSRF mitigated by `SameSite=Lax` + Origin check on mutating requests.
-- **Rate limits** (per user, Postgres- or memory-backed): posts 20/h, likes 300/h, flags 30/day, invites per §3, auth endpoints per IP.
+- **Rate limits** (per user, Postgres- or memory-backed): posts 20/h, likes 300/h, flags 30/day, join requests (collabs and events) 10/day, invites per §3, auth endpoints per IP.
 - **Content**: body length CHECK in DB; images re-encoded server-side (removes EXIF/GPS and polyglot payloads).
 - **Privacy**: no email, phone, or real name collected. IP addresses not persisted beyond rate-limit windows. Event location can be RSVP-only.
 - **Gaming the lurker rule**: likes don't count; deleted posts remove their contribution; a reply to your own post does not count (replies to anyone else do, in any thread); portfolio and project edits never count.
@@ -801,6 +851,7 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 7. **M7 — Portfolio** (2026-11-08, §10.1): the profile as a Behance-style portfolio, in four steps: CV card and in-place editing; projects and project pages; cover, the look, headline in the member list; reports and docs.
 8. **M8 — Admins** (2026-11-08, §10.2): the Admin page (invites, reports, members with ban/unban/admin/handle, community settings), removing any post or project, admin tag and activity-rule exemption.
 9. **M9 — Setup** (2026-11-08, §10.3): the compulsory setup page and the setup gate; faces drawn by gender everywhere; birthdays (tags, side window, admin ages and corrections); the "Finish your profile" checklist.
+10. **M10 — Collabs** (2026-11-08, §10.5), in four steps: interests; collabs with joining, requests and invites; updates, meetups and finishing into portfolio drafts; upgraded events and collab reports.
 
 ## Appendix A — Decision log
 

@@ -34,6 +34,11 @@ export type Collab = CollabSummary & {
   /** managers only */
   requests: (Person & { note: string | null; at: string })[] | null;
   invites: Person[] | null;
+  /** hidden after reports (only the team and admins ever get true) */
+  hidden: boolean;
+  canReport: boolean;
+  /** the viewer is an admin: can remove it */
+  canModerate: boolean;
   /** meetups the viewer can see, soonest upcoming first, then past */
   meetups: Meetup[];
 };
@@ -49,6 +54,7 @@ type Row = {
   description: string; requirements: string; price_note: string | null; payment_url: string | null;
   interests: string[] | null; team_count: number; h_handle: string | null; h_display: string | null; h_gender: string | null;
   match: number; my_role: CollabRole | null; my_request: string | null; my_invited: boolean;
+  hidden: boolean; viewer_ops: boolean;
 };
 
 const select = (me: string) => sql`
@@ -62,11 +68,16 @@ const select = (me: string) => sql`
       where ci.collab_id = c.id and ui.user_id = ${me}::uuid) as match,
     (select m.role from collab_members m where m.collab_id = c.id and m.user_id = ${me}::uuid) as my_role,
     (select r.status from collab_requests r where r.collab_id = c.id and r.user_id = ${me}::uuid) as my_request,
-    exists (select 1 from collab_invites i where i.collab_id = c.id and i.user_id = ${me}::uuid and i.status = 'pending') as my_invited
+    exists (select 1 from collab_invites i where i.collab_id = c.id and i.user_id = ${me}::uuid and i.status = 'pending') as my_invited,
+    (c.hidden_at is not null) as hidden,
+    exists (select 1 from users v where v.id = ${me}::uuid and v.role = 'ops') as viewer_ops
   from collabs c
   left join collab_members hm on hm.collab_id = c.id and hm.role = 'host'
   left join users h on h.id = hm.user_id and h.state not in ${LIVE}
-  where c.deleted_at is null`;
+  where c.deleted_at is null
+    -- hidden after reports: only the team and admins see it until ops decide (RFC §10.5)
+    and (c.hidden_at is null or exists (select 1 from collab_members m where m.collab_id = c.id and m.user_id = ${me}::uuid)
+         or exists (select 1 from users v where v.id = ${me}::uuid and v.role = 'ops'))`;
 
 const json = <T,>(v: unknown, d: T): T => (v == null ? d : typeof v === 'string' ? JSON.parse(v) as T : v as T);
 
@@ -150,6 +161,7 @@ export async function getCollab(db: Db, me: string, id: string): Promise<Collab>
     ...toSummary(r), description: r.description, requirements: r.requirements, priceNote: r.price_note, paymentUrl: r.payment_url,
     team: team.map((t) => ({ handle: t.handle, displayName: t.display_name, gender: t.gender, role: t.role, joinedAt: t.joined })),
     canManage: manage, requests, invites,
+    hidden: !!r.hidden, canReport: !r.my_role && !r.hidden, canModerate: !!r.viewer_ops,
     meetups: meetups.map((m) => ({ id: m.id, title: m.title, startsAt: m.starts, audience: m.audience, goingCount: Number(m.going), past: !!m.past })),
   };
 }
@@ -336,7 +348,8 @@ export async function withdrawRequest(db: Db, me: string, id: string) {
   return { ok: true as const };
 }
 
-async function userByHandle(db: Db, handle: string): Promise<{ id: string; handle: string; state: string }> {
+/** A member who can take part (active or flagged), by handle; 404 otherwise. */
+export async function userByHandle(db: Db, handle: string): Promise<{ id: string; handle: string; state: string }> {
   const [u] = await rows<{ id: string; handle: string; state: string }>(db, sql`
     select id, handle, state from users where lower(handle) = lower(${handle}) and state in ('active', 'flagged_lurker')`);
   if (!u) throw new ApiError(404, 'not_found', `No member @${handle}.`);

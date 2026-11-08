@@ -64,6 +64,8 @@ docs/rfc         Design docs
 
 - **Setup (done):** compulsory after joining, for everyone: About you (50–300 words, it is the portfolio's About), gender (Woman / Man / Non-binary / Prefer not to say; faces are drawn from handle + gender) and birthday (under 13 closes the account). Birthdays show as a "birthday today" tag (month and day only, opt-out). A "Finish your profile" checklist nudges toward a headline, skills, a project, a first post and a pick. RFC §10.3; `/dev/faces` shows sample faces per gender.
 
+- **Collabs (done):** ongoing projects and activities members do together. Interest tags (members pick up to 10); a Collabs page with "For you" (matching interests) and "All"; open or ask-to-join with a note; invites to people who share the interests; co-hosts; a public updates thread with photos (kept out of the feed, counts toward the posting rule); meetups (team only or open to anyone); finishing gives every member a draft portfolio project. Events gained interests, "what to bring", ask-to-come, invites and an updates thread. Collabs can be reported like posts. RFC §10.5; `scripts/screenshots-collabs.ts` walks through it.
+
 A free test copy runs on Vercel + Render (no domain, fake payments); see [docs/deploy-free.md](docs/deploy-free.md). A real launch (domain, Stripe live keys, image storage) follows [docs/deploy.md](docs/deploy.md).
 
 ## Payments (fake Stripe)

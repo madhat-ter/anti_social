@@ -6,6 +6,9 @@ import { api, errorMessage, type EventDetail, type Post } from '@/lib/api';
 import { Composer } from '@/components/Composer';
 import { PostList } from '@/components/PostList';
 import { usePaged } from '@/lib/hooks';
+import { InterestTags } from '@/components/Interests';
+import { COLLAB_NOTE_MAX } from '@anti/shared';
+import type { CollabSuggestion } from '@/lib/api';
 import { fmtDate, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { ErrorNote } from '@/components/ui';
@@ -24,6 +27,8 @@ function EventView() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [askCancel, setAskCancel] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [note, setNote] = useState('');
 
   const load = useCallback(async () => {
     try { setEv(await api.event(id)); } catch (e) { setErr(errorMessage(e)); }
@@ -56,6 +61,7 @@ function EventView() {
             <h1>{ev.title}</h1>
             <MyStatus e={ev} />
             {ev.audience === 'team' && <span className="tag" title="Only the collab's team can see this">team only</span>}
+            <InterestTags slugs={ev.interests} />
           </div>
         </header>
         {ev.description && <p className="body event-desc">{ev.description}</p>}
@@ -68,7 +74,9 @@ function EventView() {
           </dd>
           {ev.collab && <><dt>Meetup for</dt><dd><Link href={`/collabs/${ev.collab.id}`}>{ev.collab.title}</Link></dd></>}
           {ev.host && <><dt>Host</dt><dd><Link href={`/u/${ev.host.handle}`}>@{ev.host.handle}</Link></dd></>}
+          {ev.requirements && <><dt>Bring / know</dt><dd className="body pre">{ev.requirements}</dd></>}
           <dt>Spots</dt><dd>{spotsText(ev)}</dd>
+          {ev.joinMode === 'approve' && <><dt>Joining</dt><dd>Ask with a note; the host decides</dd></>}
           {(ev.priceNote || ev.externalPaymentUrl) && (
             <>
               <dt>Cost</dt>
@@ -81,8 +89,25 @@ function EventView() {
         </dl>
 
         <ErrorNote message={err} />
+        {ev.invited && !going && !waiting && ev.rsvpOpen && (
+          <div className="banner" role="status">
+            @{ev.host?.handle ?? 'The host'} invited you.{' '}
+            <button className="btn primary" disabled={busy} onClick={() => act(() => api.rsvp(id))}>{full ? 'Join the waitlist' : "I'm going"}</button>{' '}
+            <button className="btn" disabled={busy} onClick={() => act(() => api.declineEventInvite(id))}>No thanks</button>
+          </div>
+        )}
         <div className="row">
-          {!ev.isHost && ev.rsvpOpen && !going && !waiting && (
+          {!ev.isHost && ev.rsvpOpen && !going && !waiting && ev.joinMode === 'approve' && !ev.invited && ev.request === null && !asking && (
+            <button className="btn primary" disabled={busy} onClick={() => setAsking(true)}>Ask to come</button>
+          )}
+          {!ev.isHost && !going && !waiting && ev.request === 'pending' && (
+            <>
+              <span className="muted">You asked to come. The host will decide.</span>
+              <button className="btn" disabled={busy} onClick={() => act(() => api.withdrawEventRequest(id))}>Withdraw</button>
+            </>
+          )}
+          {!ev.isHost && !going && !waiting && ev.request === 'declined' && <span className="muted">This one is full of people already. Plenty more in Events.</span>}
+          {!ev.isHost && ev.rsvpOpen && !going && !waiting && !ev.invited && ev.joinMode === 'open' && (
             <button className="btn primary" disabled={busy} onClick={() => act(() => api.rsvp(id))}>
               {full ? 'Join the waitlist' : "I'm going"}
             </button>
@@ -97,6 +122,17 @@ function EventView() {
             <button className="btn danger" disabled={busy} onClick={() => setAskCancel(true)}>Cancel event</button>
           )}
         </div>
+        {asking && (
+          <form className="stack card" onSubmit={(e) => { e.preventDefault(); void act(() => api.askToCome(id, note.trim() || undefined)).then(() => setAsking(false)); }}>
+            <label>A note for the host (optional)
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={COLLAB_NOTE_MAX} rows={3} placeholder="Why you would like to come, or what you would bring." />
+            </label>
+            <div className="row">
+              <button className="btn primary" disabled={busy}>Send</button>
+              <button type="button" className="btn" onClick={() => setAsking(false)}>Cancel</button>
+            </div>
+          </form>
+        )}
         {waiting && <p className="muted small">You are #{ev.my!.waitlistPosition} on the waitlist. If a spot opens you move up automatically and get a notification.</p>}
       </article>
       <AlertDialog
@@ -114,6 +150,7 @@ function EventView() {
         ? <Attendance ev={ev} onSaved={load} />
         : <People title={`Going (${ev.goingCount})`} people={ev.going} showAttended={ev.started} />}
       {ev.waitlist && ev.waitlist.length > 0 && <People title={`Waitlist (${ev.waitlist.length})`} people={ev.waitlist} showAttended={false} />}
+      {ev.isHost && ev.rsvpOpen && <HostPanel ev={ev} busy={busy} act={act} />}
       <EventUpdates ev={ev} />
     </>
   );
@@ -193,5 +230,59 @@ function EventUpdates({ ev }: { ev: EventDetail }) {
       )}
       <PostList p={p} context="none" byDay={false} empty="No updates yet." />
     </section>
+  );
+}
+
+/** The host, before it starts: requests to answer, and people to invite. */
+function HostPanel({ ev, busy, act }: { ev: EventDetail; busy: boolean; act: (fn: () => Promise<unknown>) => Promise<void> }) {
+  const [sugs, setSugs] = useState<CollabSuggestion[] | null>(null);
+  const [handle, setHandle] = useState('');
+  useEffect(() => { api.eventSuggestions(ev.id).then((r) => setSugs(r.items), () => setSugs([])); }, [ev.id, ev.invites?.length, ev.goingCount]);
+  const requests = ev.requests ?? [];
+  const invites = ev.invites ?? [];
+  return (
+    <>
+      {(ev.joinMode === 'approve' || requests.length > 0) && (
+        <section className="card stack">
+          <h2>Asking to come ({requests.length})</h2>
+          {requests.length === 0 ? <p className="muted">No requests waiting.</p> : (
+            <ul className="list collab-requests">
+              {requests.map((r) => (
+                <li key={r.handle} className="stack">
+                  <Link href={`/u/${r.handle}`} className="who"><Avatar seed={r.handle} gender={r.gender} size={32} /> {r.displayName} <span className="muted">@{r.handle}</span></Link>
+                  {r.note && <p className="body">{r.note}</p>}
+                  <div className="row">
+                    <button className="btn primary" disabled={busy} onClick={() => act(() => api.decideEventRequest(ev.id, r.handle, true))}>Accept</button>
+                    <button className="btn" disabled={busy} onClick={() => act(() => api.decideEventRequest(ev.id, r.handle, false))}>Decline</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="muted small">Accepted people go on the list (or the waitlist when it is full). Declining sends a kind note.</p>
+        </section>
+      )}
+      <section className="card stack">
+        <h2>Invite people</h2>
+        <p className="muted small">{ev.audience === 'team' ? 'Your teammates who are not coming yet.' : 'People who share this event\u2019s interests. An invite skips asking.'}</p>
+        {sugs === null ? <Loading /> : sugs.length === 0
+          ? <p className="muted">{ev.interests.length || ev.audience === 'team' ? 'Nobody to suggest right now.' : 'Add interests to the event to see people who might fit.'}</p>
+          : (
+            <ul className="list">
+              {sugs.map((s) => (
+                <li key={s.handle} className="row between">
+                  <span className="who"><Avatar seed={s.handle} gender={s.gender} size={32} /> <Link href={`/u/${s.handle}`}>{s.displayName}</Link> <InterestTags slugs={s.shared} /></span>
+                  <button className="btn" disabled={busy} onClick={() => act(() => api.inviteToEvent(ev.id, s.handle))}>Invite</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        <form className="row" onSubmit={(e) => { e.preventDefault(); const h = handle.trim(); if (h) void act(() => api.inviteToEvent(ev.id, h)).then(() => setHandle('')); }}>
+          <input aria-label="Invite by handle" value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="@handle" maxLength={40} />
+          <button className="btn" disabled={busy || !handle.trim()}>Invite</button>
+        </form>
+        {invites.length > 0 && <p className="muted small">Invited, not answered yet: {invites.map((i) => `@${i.handle}`).join(', ')}</p>}
+      </section>
+    </>
   );
 }

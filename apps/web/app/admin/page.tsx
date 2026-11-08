@@ -89,6 +89,7 @@ function Reports() {
     setAsk(null); setErr(null);
     try {
       if (a.item.kind === 'post') await api.opsResolvePost(a.item.postId!, a.resolution);
+      else if (a.item.kind === 'collab') await api.opsResolveCollab(a.item.collabId!, a.resolution);
       else await api.opsResolveProject(a.item.projectId!, a.resolution);
       await load();
     } catch (e) { setErr(errorMessage(e)); }
@@ -96,13 +97,14 @@ function Reports() {
 
   const link = (f: FlagItem) => f.kind === 'post'
     ? `/p/${f.postId}`
+    : f.kind === 'collab' ? `/collabs/${f.collabId}`
     : f.author ? `/u/${f.author}/work/${f.projectId}` : null;
 
   return (
     <section className="panel-sec" aria-labelledby="adm-rep">
       <h2 id="adm-rep">Reports</h2>
       <div className="row between adm-rep-head">
-        <p className="muted">Posts and projects members reported. Five reports hide one automatically until you decide.</p>
+        <p className="muted">Posts, projects and collabs members reported. Five reports hide one automatically until you decide.</p>
         <button type="button" className="btn" onClick={() => void load()}>Refresh</button>
       </div>
       <ErrorNote message={err} />
@@ -111,10 +113,10 @@ function Reports() {
           {items.map((f) => {
             const href = link(f);
             return (
-              <li key={f.postId ?? f.projectId}>
+              <li key={f.postId ?? f.projectId ?? f.collabId}>
                 <span className="adm-meta">
-                  <strong>{f.kind === 'post' ? 'Post' : 'Project'}</strong>
-                  {' by '}{f.author ? <Link href={`/u/${f.author}`}>@{f.author}</Link> : 'a deleted member'}
+                  <strong>{f.kind === 'post' ? 'Post' : f.kind === 'collab' ? 'Collab' : 'Project'}</strong>
+                  {f.kind === 'collab' ? ' hosted by ' : ' by '}{f.author ? <Link href={`/u/${f.author}`}>@{f.author}</Link> : 'a deleted member'}
                   {' · '}{f.flags} report{f.flags === 1 ? '' : 's'}
                   {' · '}<time dateTime={f.firstFlaggedAt} title={fmtDate(f.firstFlaggedAt)}>{relativeTime(f.firstFlaggedAt)}</time>
                   {f.hidden && <span className="tag">hidden</span>}

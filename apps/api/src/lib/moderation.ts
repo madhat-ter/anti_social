@@ -62,8 +62,67 @@ export async function flagProject(db: Db, userId: string, projectId: string, rea
   });
 }
 
+/**
+ * Reports on a collab (RFC §10.5): the same rule. The team cannot report their own collab. A
+ * hidden collab is seen only by its team and admins until ops decide.
+ */
+export async function flagCollab(db: Db, userId: string, collabId: string, reason: string | undefined) {
+  return db.transaction(async (txx) => {
+    const tx = txx as unknown as Db;
+    const [c] = await rows<{ hidden: boolean; mine: boolean }>(tx, sql`
+      select (hidden_at is not null) as hidden,
+        exists (select 1 from collab_members m where m.collab_id = c.id and m.user_id = ${userId}::uuid) as mine
+        from collabs c where id = ${collabId}::uuid and deleted_at is null for update`);
+    if (!c || c.hidden) throw new ApiError(404, 'not_found');
+    if (c.mine) throw new ApiError(409, 'own_collab', 'You cannot report a collab you are on.');
+    await tx.execute(sql`
+      insert into collab_flags(user_id, collab_id, reason) values (${userId}::uuid, ${collabId}::uuid, ${reason?.trim().slice(0, REASON_MAX) || null})
+      on conflict do nothing`);
+    const open = Number(await scalar<number>(tx, sql`
+      select count(*)::int from collab_flags where collab_id = ${collabId}::uuid and resolved_at is null`));
+    if (open >= FLAG_HIDE_THRESHOLD) {
+      await tx.execute(sql`update collabs set hidden_at = now() where id = ${collabId}::uuid`);
+      await tx.execute(sql`
+        insert into notifications(user_id, kind, payload)
+        select id, 'flag_threshold', ${JSON.stringify({ collabId })}::jsonb from users where role = 'ops' and state <> 'deleted'`);
+    }
+    return { flagged: true as const };
+  });
+}
+
+/** An admin removes a collab (soft delete, its reports closed); the host is told, without who. */
+export async function removeCollab(db: Db, collabId: string, actorId: string | null, resolution = 'removed') {
+  return db.transaction(async (txx) => {
+    const tx = txx as unknown as Db;
+    const [c] = await rows<{ id: string; title: string; host: string | null }>(tx, sql`
+      select c.id, c.title, (select m.user_id from collab_members m where m.collab_id = c.id and m.role = 'host') as host
+        from collabs c where c.id = ${collabId}::uuid and c.deleted_at is null for update`);
+    if (!c) throw new ApiError(404, 'not_found');
+    await tx.execute(sql`update collab_flags set resolved_at = now(), resolution = ${resolution}
+      where collab_id = ${c.id}::uuid and resolved_at is null`);
+    await tx.execute(sql`update collabs set deleted_at = now() where id = ${c.id}::uuid`);
+    if (c.host && c.host !== actorId) {
+      await tx.execute(sql`insert into notifications(user_id, kind, payload)
+        values (${c.host}::uuid, 'collab_removed', ${JSON.stringify({ title: c.title })}::jsonb)`);
+    }
+    return { removed: true as const };
+  });
+}
+
+/** 'restored': unhide, close the reports. 'removed': see removeCollab. */
+export async function resolveCollabFlags(db: Db, collabId: string, resolution: 'restored' | 'removed') {
+  const open = Number(await scalar(db, sql`select count(*)::int from collab_flags where collab_id = ${collabId}::uuid and resolved_at is null`));
+  if (!open) throw new ApiError(409, 'no_open_flags', 'This collab has no open reports.');
+  if (resolution === 'removed') { await removeCollab(db, collabId, null); return { resolution }; }
+  await db.execute(sql`update collab_flags set resolved_at = now(), resolution = 'restored' where collab_id = ${collabId}::uuid and resolved_at is null`);
+  await db.execute(sql`update collabs set hidden_at = null where id = ${collabId}::uuid`);
+  return { resolution };
+}
+
 export type FlagQueueItem = {
-  kind: 'post' | 'project';
+  kind: 'post' | 'project' | 'collab';
+  /** the reported collab, for kind 'collab' */
+  collabId?: string;
   /** the reported post, for kind 'post' */
   postId?: string;
   /** the reported project, for kind 'project' */
@@ -91,12 +150,21 @@ export async function flagQueue(db: Db): Promise<FlagQueueItem[]> {
         from project_flags f join projects pr on pr.id = f.project_id left join users u on u.id = pr.user_id
        where f.resolved_at is null
        group by pr.id, u.handle
+      union all
+      select 'collab' as kind, co.id, co.title || case when co.description <> '' then ' — ' || left(co.description, 200) else '' end as body,
+             (select hu.handle from collab_members hm join users hu on hu.id = hm.user_id where hm.collab_id = co.id and hm.role = 'host') as handle,
+             (co.hidden_at is not null) as hidden, count(*)::int as n,
+             coalesce(array_agg(f.reason) filter (where f.reason is not null), '{}') as reasons,
+             min(f.created_at) as first_at
+        from collab_flags f join collabs co on co.id = f.collab_id
+       where f.resolved_at is null and co.deleted_at is null
+       group by co.id
     ) q
     order by hidden desc, n desc, first_at
     limit 200`);
   const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : new Date(String(v)).toISOString());
   return r.map((x) => ({
-    kind: x.kind, ...(x.kind === 'post' ? { postId: x.id } : { projectId: x.id }),
+    kind: x.kind, ...(x.kind === 'post' ? { postId: x.id } : x.kind === 'collab' ? { collabId: x.id } : { projectId: x.id }),
     body: x.body, author: x.handle, hidden: !!x.hidden, flags: Number(x.n),
     reasons: Array.isArray(x.reasons) ? x.reasons : [], firstFlaggedAt: iso(x.first_at),
   }));

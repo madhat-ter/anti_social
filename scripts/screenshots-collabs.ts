@@ -226,6 +226,60 @@ try {
   await ivyPage.getByText('A short film about the night market').first().waitFor().catch(() => {});
   await shot(ivyPage, 'finished-draft', true);
 
+  // ── M4. events: interests, requirements, ask to come, invite people who fit; reporting a collab
+  await page.goto(`${WEB}/events/new`);
+  const d2 = new Date(Date.now() + 6 * 86_400_000);
+  await page.getByLabel('Title').fill('Darkroom evening');
+  await page.getByLabel('What is it?').fill('Develop a roll of black-and-white film together. Chemicals and tanks provided.');
+  await page.getByLabel('Starts').fill(`${d2.getFullYear()}-${pad(d2.getMonth() + 1)}-${pad(d2.getDate())}T18:30`);
+  await page.getByLabel('Where').fill('Studio B, the old print works');
+  await page.getByLabel(/What to bring/).fill('One exposed roll of 35mm black-and-white film.');
+  const efs = page.locator('fieldset', { hasText: 'Interests' });
+  for (const label of ['Photography', 'Art']) await efs.getByRole('button', { name: label, exact: true }).click();
+  await page.getByLabel('People ask with a note, you accept').check();
+  await page.getByLabel(/Capacity/).fill('6');
+  await shot(page, 'event-new', true);
+  await page.getByRole('button', { name: 'Create event' }).click();
+  await page.waitForURL(/\/events\/[0-9a-f-]{36}$/);
+  const darkroom = page.url();
+
+  await zoe.call('PUT', '/me/interests', { interests: ['photography'] });
+  await zoePage.goto(darkroom);
+  await zoePage.getByRole('button', { name: 'Ask to come' }).click();
+  await zoePage.getByLabel(/A note for the host/).fill('I have two rolls of HP5 waiting to be developed.');
+  await zoePage.getByRole('button', { name: 'Send' }).click();
+  await zoePage.getByText('You asked to come.').waitFor();
+  await shot(zoePage, 'event-asked', true);
+
+  await page.reload();
+  await page.getByText('I have two rolls of HP5').waitFor();
+  await page.locator('.list .who', { hasText: 'Ivy Chen' }).waitFor();
+  await shot(page, 'event-host', true);
+  await page.getByRole('button', { name: 'Accept' }).click();
+  await page.locator('.crowd').getByText('Zoe Hart').waitFor();
+  await page.locator('.list li', { hasText: 'Ivy Chen' }).getByRole('button', { name: 'Invite' }).click();
+  await page.getByText('Invited, not answered yet: @ivy').waitFor();
+  await ivyPage.goto(darkroom);
+  await ivyPage.getByText('invited you.').waitFor();
+  await shot(ivyPage, 'event-invited');
+  await ivyPage.goto(`${WEB}/events`);
+  await ivyPage.getByText('Darkroom evening').waitFor();
+  await shot(ivyPage, 'events-list');
+
+  // reporting: the report button for people outside the team, and the admin queue
+  const boss = await apiMember('boss', 'Sam Okoro', 'man');
+  await q("update users set role = 'ops' where handle = 'boss'");
+  const river = (await ivy.call('GET', '/collabs?tab=all')).items.find((x: any) => x.title === 'Saturday river cleanup');
+  await zoePage.goto(`${WEB}/collabs/${river.id}`);
+  await zoePage.getByRole('button', { name: 'Report' }).click();
+  await zoePage.getByRole('button', { name: 'Report' }).last().click();
+  await zoePage.getByText('Reported. Thanks').waitFor();
+  const bossPage = await browse(await browser.newContext(view), boss.jar);
+  await bossPage.goto(`${WEB}/admin`);
+  await bossPage.locator('.adm-reports').getByText('Collab').waitFor();
+  await bossPage.locator('section[aria-labelledby=adm-rep]').screenshot({ path: file('admin-collab-report') });
+  console.log('saved admin-collab-report');
+
   if (pageErrors.length) throw new Error(`page errors:\n${pageErrors.join('\n')}`);
   console.log('ok');
 } finally {
