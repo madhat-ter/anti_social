@@ -12,7 +12,12 @@ import { Win } from './retro';
 
 const key = (handle: string) => `anti:welcomed:${handle}`;
 
-export function Welcome({ me }: { me: Me }) {
+/** Has this device already closed the welcome window for this member? */
+export function wasWelcomed(handle: string): boolean {
+  try { return !!localStorage.getItem(key(handle)); } catch { return true; }
+}
+
+export function Welcome({ me, onDone }: { me: Me; onDone?: () => void }) {
   const [show, setShow] = useState(false);
   useEffect(() => {
     try { setShow(!localStorage.getItem(key(me.handle))); } catch { setShow(false); }
@@ -22,6 +27,7 @@ export function Welcome({ me }: { me: Me }) {
   function dismiss() {
     try { localStorage.setItem(key(me.handle), new Date().toISOString()); } catch { /* private mode */ }
     setShow(false);
+    onDone?.();
   }
 
   return (

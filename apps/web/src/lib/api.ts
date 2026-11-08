@@ -52,6 +52,10 @@ export interface AdminMember {
 /** The room's settings an admin can change, plus seats in use. */
 export interface AdminSettings { seatCap: number; invitesPerMember: number; inviteExpiryDays: number; seatsUsed: number }
 
+/** "Finish your profile": each item ticks itself from what you have done. */
+export type ChecklistItem = 'headline' | 'skills' | 'project' | 'post' | 'pick' | 'invite';
+export interface ChecklistState { items: Record<ChecklistItem, boolean>; dismissed: boolean }
+
 export interface PasskeyInfo { id: string; deviceLabel: string | null; createdAt: string; lastUsedAt: string | null }
 export interface InviteInfo {
   createdAt: string;
@@ -263,6 +267,8 @@ const post = <T,>(p: string, b: unknown = {}) => call<T>('POST', p, b);
 export const api = {
   me: () => get<Me>('/me'),
   updateMe: (b: { displayName?: string; bio?: string; gender?: Gender; birthdayPublic?: boolean }) => call<Me>('PATCH', '/me', b),
+  checklist: () => get<ChecklistState>('/me/checklist'),
+  dismissChecklist: () => post<{ dismissed: true }>('/me/checklist/dismiss', {}),
   setupState: () => get<{ about: string; gender: Gender | null; birthday: string | null }>('/me/setup'),
   setup: (b: { about: string; gender: Gender; birthday: string; confirmUnderage?: boolean }) =>
     call<Me | { closed: true }>('PUT', '/me/setup', b),

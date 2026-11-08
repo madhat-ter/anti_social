@@ -114,7 +114,7 @@ export function PickWindow({ className }: { className?: string }) {
   );
 }
 
-function SuggestDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (p: Pick) => void }) {
+export function SuggestDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (p: Pick) => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const id = useId();

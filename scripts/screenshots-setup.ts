@@ -142,6 +142,29 @@ try {
   await shot(nova, 'feed-after-setup', false);
   await nova.getByRole('button', { name: 'Got it' }).click();
 
+  // ── 3b. the checklist takes the welcome's place; items tick themselves as they get done
+  await nova.getByRole('heading', { name: 'Finish your profile' }).waitFor();
+  await nova.getByText('0 of 6 done').waitFor();
+  await shot(nova, 'checklist', false);
+  await nova.getByRole('button', { name: 'Write a first post' }).click();
+  await nova.keyboard.type('Hello everyone. Just set up my profile, it asked good questions.');
+  await nova.getByRole('button', { name: 'Post', exact: true }).click();
+  await nova.getByText('1 of 6 done').waitFor();
+  await nova.getByRole('button', { name: 'Suggest a pick' }).click();
+  const sug = nova.locator('dialog[open]');
+  await sug.getByText('Book', { exact: true }).click();
+  await sug.getByLabel('Name it').fill('The Design of Everyday Things');
+  await sug.getByRole('button', { name: 'Suggest', exact: true }).click();
+  await nova.getByText('2 of 6 done').waitFor();
+  await nova.locator('aside.checklist').screenshot({ path: join(OUT, `${String(++n).padStart(2, '0')}-checklist-ticked.png`) });
+  console.log('saved checklist-ticked');
+  await nova.locator('aside.checklist').getByRole('button', { name: 'Hide this' }).click();
+  await nova.reload();
+  await nova.getByPlaceholder('What is on your mind?').waitFor();
+  await nova.waitForTimeout(800);
+  if (await nova.getByRole('heading', { name: 'Finish your profile' }).count()) throw new Error('the checklist came back after hiding it');
+  console.log('checklist ticks and stays hidden ok');
+
   // ── 4. the About editor in the portfolio counts words too
   await nova.goto(`${WEB}/u/nova`);
   await nova.getByRole('button', { name: 'Edit portfolio' }).click();

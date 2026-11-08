@@ -1,8 +1,8 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { api, errorMessage } from '@/lib/api';
-import type { Post } from '@/lib/api';
+import type { Me, Post } from '@/lib/api';
 import { usePaged, useMe, useTitle } from '@/lib/hooks';
 import { ErrorNote } from '@/components/ui';
 import { SeatedShell } from '@/components/Shell';
@@ -11,7 +11,8 @@ import { PostList } from '@/components/PostList';
 import { AccountUpdates, ArchivedCard, usePollMe, WaitlistCard } from '@/components/Lifecycle';
 import { CheckoutNotice } from '@/components/Billing';
 import { Avatar } from '@/components/Avatar';
-import { Welcome } from '@/components/Welcome';
+import { Welcome, wasWelcomed } from '@/components/Welcome';
+import { Checklist } from '@/components/Checklist';
 import { BirthdayLine } from '@/components/Birthday';
 import { PickWindow, useWide } from '@/components/Picks';
 import { AlertIcon, Loading, Win } from '@/components/retro';
@@ -102,6 +103,14 @@ function FeedView({ onPosted }: { onPosted: () => void }) {
   );
 }
 
+/** First the house rules (once per device); after that, the "Finish your profile" checklist (RFC §10.3). */
+function Intro({ me, refreshKey }: { me: Me; refreshKey: number }) {
+  const [welcomed, setWelcomed] = useState<boolean | null>(null);
+  useEffect(() => { setWelcomed(wasWelcomed(me.handle)); }, [me.handle]);
+  if (welcomed === null) return null;
+  return welcomed ? <Checklist me={me} refreshKey={refreshKey} /> : <Welcome me={me} onDone={() => setWelcomed(true)} />;
+}
+
 /** Waitlisted / archived users see only their status (RFC §5.1, §5.3). */
 function StatusView({ refresh, children }: { refresh: () => Promise<void>; children: ReactNode }) {
   usePollMe(refresh);
@@ -110,6 +119,7 @@ function StatusView({ refresh, children }: { refresh: () => Promise<void>; child
 
 export default function Home() {
   const { me, loading, error, refresh } = useMe();
+  const [posted, setPosted] = useState(0);
 
   if (loading) return <Loading />;
   if (error) return <ErrorNote message={errorMessage(error)} />;
@@ -122,9 +132,9 @@ export default function Home() {
         {/* refresh after posting so a flagged member's progress updates */}
         {(m) => (
           <>
-            <Welcome me={m} />
+            <Intro me={m} refreshKey={posted} />
             <CheckoutNotice refresh={refresh} />
-            <FeedView onPosted={() => { if (me.state === 'flagged_lurker') void refresh(); }} />
+            <FeedView onPosted={() => { setPosted((n) => n + 1); if (me.state === 'flagged_lurker') void refresh(); }} />
           </>
         )}
       </SeatedShell>

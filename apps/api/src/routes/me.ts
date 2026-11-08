@@ -120,6 +120,31 @@ export const meRoutes = (deps: Deps) => {
       return { ok: true };
     })
 
+    /**
+     * "Finish your profile" (RFC §10.3, Q9/Q17): six things that tick themselves from what the
+     * member has actually done. It nudges, it never blocks; closing it is saved to the account.
+     */
+    .get('/checklist', async ({ auth }) => {
+      const a = requireSeated(auth);
+      const uid = a.user.id;
+      const [r] = await rows<Record<'headline' | 'skills' | 'project' | 'post' | 'pick' | 'invite', boolean>>(db, sql`
+        select
+          coalesce((select headline <> '' from portfolios where user_id = ${uid}::uuid), false) as headline,
+          coalesce((select jsonb_array_length(skills) > 0 from portfolios where user_id = ${uid}::uuid), false) as skills,
+          exists (select 1 from projects where user_id = ${uid}::uuid and draft = false) as project,
+          exists (select 1 from posts where author_id = ${uid}::uuid and deleted_at is null) as post,
+          exists (select 1 from suggestions where author_id = ${uid}::uuid and deleted_at is null) as pick,
+          exists (select 1 from invites where created_by = ${uid}::uuid) as invite`);
+      const items = { headline: !!r?.headline, skills: !!r?.skills, project: !!r?.project, post: !!r?.post, pick: !!r?.pick, invite: !!r?.invite };
+      return { items, dismissed: !!a.user.checklistDismissedAt };
+    })
+
+    .post('/checklist/dismiss', async ({ auth }) => {
+      const a = requireSeated(auth);
+      await db.update(users).set({ checklistDismissedAt: new Date() }).where(eq(users.id, a.user.id));
+      return { dismissed: true };
+    })
+
     // What the setup page starts from: whatever is already there (an About written earlier).
     .get('/setup', async ({ auth }) => {
       const a = requireUser(auth);

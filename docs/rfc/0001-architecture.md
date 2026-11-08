@@ -674,6 +674,14 @@ settings stay open. People still waiting for a seat see only their status page, 
 - **Closing an account** (self-delete, under 13): `closeAccount()` removes the portfolio and projects
   with their images, then `delete_account(user, reason, actor)` frees the seat and strips the row
   (handle, name, gender, birthday...). Posts stay as "deleted user" so threads still read.
+- **Birthdays today**: on each viewer's own date (29 February on the 28th in other years) a red
+  "birthday today" tag by the name (posts, member lists, seat map, profile), a "birthdays" window in
+  the desktop side panel and one line above the feed on phones; no notifications. Settings has a
+  "Show my birthday" switch (on by default).
+- **Finish your profile**: after the house-rules welcome is closed, a checklist window on the feed
+  (headline, skills, a published project, a first post, a pick, an invite). Items tick themselves from
+  what the member has done (`GET /me/checklist`); it nudges, never blocks; closing it is saved to the
+  account (`checklist_dismissed_at`).
 - Not a contribution for the lurker rule.
 
 ## 11. API surface (Elysia)
@@ -689,9 +697,11 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST /auth/login/verify` | P | Verify, start session |
 | `POST /auth/recover/options` / `verify` | P | Recovery-code flow; rotates code |
 | `POST /auth/logout` | U | End session |
-| `GET /me` | U | Profile, state, waitlist position / offer, lurker countdown |
+| `GET /me` | U | Profile, state, waitlist position / offer, lurker countdown, `setupNeeded`, gender, own birthday |
+| `GET/PUT /me/setup` | U | Setup: About you, gender, birthday (under 13 + `confirmUnderage`: account closed) |
+| `GET /me/checklist`, `POST /me/checklist/dismiss` | A | "Finish your profile" items, and closing it |
 | `GET/POST/DELETE /me/passkeys` | U | Manage passkeys |
-| `PATCH /me` | U | Display name, bio, avatar |
+| `PATCH /me` | U | Display name, bio, gender, "show my birthday" |
 | `DELETE /me` | U | Self-deletion |
 | `GET/POST /me/invites` | A | List / create (≤ 2 open, no penalty) |
 | `POST /me/waitlist/rejoin` | U (archived) | Join priority queue |
@@ -724,6 +734,7 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST /ops/users/:handle/ban`, `/unban` | O | Ban / lift a ban |
 | `POST /ops/users/:handle/role` | O | Make or remove an admin (never the last one) |
 | `POST /ops/users/:handle/handle` | O | Change a handle (signup rules; member told) |
+| `POST /ops/users/:handle/birthday` | O | Correct a birthday (under 13 + `confirmUnderage`: account closed) |
 | `GET/PATCH /ops/settings` | O | Seat cap, open invites per member, invite expiry |
 
 To members, every `/ops/*` path is a 404. Ops also has a CLI (`bun run ops:mint-invites --count 10`, `bun run ops -- grant <handle>`) that calls the same service code; on hosts without a shell, `BOOTSTRAP_INVITES` and `OPS_HANDLES` do the first-boot equivalents (`OPS_HANDLES` only while no admin exists).
@@ -777,6 +788,7 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 6. **M6 — Hardening**: flags + ops queue, rate limits, Web Push, load/race tests on seat functions, launch with 10 founder invites.
 7. **M7 — Portfolio** (2026-11-08, §10.1): the profile as a Behance-style portfolio, in four steps: CV card and in-place editing; projects and project pages; cover, the look, headline in the member list; reports and docs.
 8. **M8 — Admins** (2026-11-08, §10.2): the Admin page (invites, reports, members with ban/unban/admin/handle, community settings), removing any post or project, admin tag and activity-rule exemption.
+9. **M9 — Setup** (2026-11-08, §10.3): the compulsory setup page and the setup gate; faces drawn by gender everywhere; birthdays (tags, side window, admin ages and corrections); the "Finish your profile" checklist.
 
 ## Appendix A — Decision log
 
@@ -799,6 +811,7 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 | Q15 | The profile is a portfolio: one window, Behance layout inside the retro frame; members only; every field optional, no real name. |
 | Q16 | Portfolio look from a fixed set (3 typefaces, 2 backgrounds, 6 accents); background fixed, not following dark mode. |
 | Q17 | Projects: ≤ 12, ≤ 10 images, per-project draft; reportable like posts, owner keeps seeing a hidden one; edits never count toward the lurker rule. |
+| S1–S18 | (2026-11-08, §10.3) Compulsory setup after joining, for everyone: About you 50–300 words (= portfolio About), gender of four (face only, never text, changeable), birthday (13+, members can't change it, admins can; only month/day shown, opt-out tag, each viewer's date); non-blocking "Finish your profile" checklist after the welcome. |
 | Q15 | Lurker: warn + 7-day grace to contribute twice or pay. |
 | Q16 | Stay fee: one-time, 90-day exemption from lurker check only. |
 | Q17 | Reinstatement: free priority queue; pay within 72 h of seat offer. |

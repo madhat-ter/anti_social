@@ -152,6 +152,28 @@ describe('setup', () => {
     expect(detail.going.find((p: any) => p.handle === 'ben').gender).toBe('man');
   });
 
+  test('the checklist ticks itself from what you have done; closing it is remembered', async () => {
+    const w = await world();
+    const c = w.client();
+    await c.register(await w.mint(), 'nova');
+    const none = { headline: false, skills: false, project: false, post: false, pick: false, invite: false };
+    expect((await c.get('/me/checklist')).body).toEqual({ items: none, dismissed: false });
+    await c.patch('/me/portfolio', { headline: 'Designer', skills: ['Ink'] });
+    await c.post('/me/projects', { title: 'Draft', draft: true });
+    await c.post('/posts', { body: 'Hello' });
+    await c.post('/suggestions', { kind: 'book', title: 'Dune' });
+    await c.post('/me/invites');
+    // a draft is not a published project yet
+    expect((await c.get('/me/checklist')).body.items).toEqual({ headline: true, skills: true, project: false, post: true, pick: true, invite: true });
+    await c.post('/me/projects', { title: 'Lamp', draft: false });
+    expect((await c.get('/me/checklist')).body.items.project).toBe(true);
+    expect((await c.post('/me/checklist/dismiss')).body).toEqual({ dismissed: true });
+    expect((await c.get('/me/checklist')).body.dismissed).toBe(true);
+    // before setup it is locked like everything else
+    const late = await w.fresh('late');
+    expect((await late.get('/me/checklist')).body.error).toBe('setup_required');
+  });
+
   test('test members are set up by the helper', async () => {
     const w = await world();
     const c = w.client();

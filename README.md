@@ -1,6 +1,6 @@
 # anti-site
 
-An invite-only, 100-seat, Twitter-like social app. Passkey-only auth (WebAuthn): no email, no password. People join with an invite code, pick a handle (only an admin can change it later), register a passkey, and are shown a one-time recovery code. When all seats are taken, new members are waitlisted.
+An invite-only, 100-seat, Twitter-like social app. Passkey-only auth (WebAuthn): no email, no password. People join with an invite code, pick a handle (only an admin can change it later), register a passkey, and are shown a one-time recovery code. Then everyone fills in a short setup once: a few words about themselves, a gender (it only shapes their drawn face) and a birthday (13 or older). When all seats are taken, new members are waitlisted.
 
 Architecture and product rules: [docs/rfc/0001-architecture.md](docs/rfc/0001-architecture.md).
 
@@ -61,6 +61,8 @@ docs/rfc         Design docs
 
 - **Portfolio (done):** the profile is a Behance-style portfolio: CV card, numbered projects with project pages, cover and look, headline in the member list. RFC §10.1.
 - **Admins (done):** an Admin page for admins only (role `ops`): founder invite codes, the report queue, every member with Ban / Unban / Make admin / Change handle, and the room's settings (seat cap, invites per member, invite expiry). Admins can remove any post or project, carry an "admin" tag, and are exempt from the activity rules. RFC §10.2.
+
+- **Setup (done):** compulsory after joining, for everyone: About you (50–300 words, it is the portfolio's About), gender (Woman / Man / Non-binary / Prefer not to say; faces are drawn from handle + gender) and birthday (under 13 closes the account). Birthdays show as a "birthday today" tag (month and day only, opt-out). A "Finish your profile" checklist nudges toward a headline, skills, a project, a first post, a pick and an invite. RFC §10.3; `/dev/faces` shows sample faces per gender.
 
 A free test copy runs on Vercel + Render (no domain, fake payments); see [docs/deploy-free.md](docs/deploy-free.md). A real launch (domain, Stripe live keys, image storage) follows [docs/deploy.md](docs/deploy.md).
 
