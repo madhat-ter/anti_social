@@ -897,6 +897,31 @@ five commits. The rules it left behind, for anything added later:
 
 `scripts/screenshots-phone.ts` walks the phone shell, the pill and the member filters.
 
+### 10.10 Screen time (added 2026-11-09)
+
+The site would rather you went outside, so it says so and then shows you the door. Grilled Q1–Q9,
+all accepted.
+
+- **The cycle.** A member gets 30 minutes of looking, then is locked out for 60, then a fresh 30.
+  Only time with the tab in front counts: the page ticks while visible and sends a heartbeat with
+  the seconds since the last one every 30 s and when the tab goes to the background. An hour away
+  also opens a fresh half hour, so a quiet member never carries yesterday's minutes.
+- **Kept on the server**, one row per member (`screen_time`: `used_s`, `window_started_at`,
+  `locked_until`), so the half hour follows the person across tabs and devices and survives a
+  refresh. `GET /me/screen-time` reads it (and settles a spent rest); `POST /me/screen-time/beat
+  {seconds}` adds at most a minute per call and locks the member out when the limit is reached.
+- **The wall.** While locked, the auth plugin answers every request with `403 rest_time` (detail:
+  when it ends) except `/me`, `/me/screen-time*`, `/auth/logout` and `/health`. The lock is read
+  with the session (one left join), so it costs no extra query.
+- **In the app.** A timer centred in the header, pixel font in a bordered box, counting up and red
+  in the last five minutes; alert windows at 10, 20 and 25 minutes (once each per half hour,
+  remembered on the device by the window's start), one button each; at 30 the lock window replaces
+  every page with a countdown and *Sign out*, and clears itself when the hour is up.
+- **Who.** Everyone with a seat, admins included. Visitors are excluded: their hour is the pass.
+  Settings and setup are outside the shell; Settings carries the timer too, setup does not.
+- Constants in `RULES` (`screen_time_limit_s`, `screen_time_rest_s`, `screen_time_nudges_s`); the
+  nudge texts live in `ScreenTime.tsx`. `scripts/screenshots-screen-time.ts` walks it.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,

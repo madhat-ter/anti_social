@@ -72,6 +72,8 @@ docs/rfc         Design docs
 
 - **UX pass (done, 2026-11-09):** a phone shell (bottom tabs, bell in the header, a feed that opens on posts), the bitmap face kept to the chrome with a reading face for meta text, one date format, zeros turned into invitations, one primary action per screen with a "⋯" menu for the rest, a "new posts" pill, member search and filters, house rules at the end of setup. RFC §10.9; `scripts/screenshots-phone.ts` walks it.
 
+- **Screen time (done, 2026-11-09):** half an hour of looking, then an hour locked out. A timer in the header counts visible time, nudges at 10, 20 and 25 minutes, and at 30 every page becomes a countdown with Sign out; the API refuses everything but the lock screen and signing out meanwhile. Kept per member on the server, so it follows you across devices. RFC §10.10; `scripts/screenshots-screen-time.ts` walks it.
+
 A free test copy runs on Vercel + Render (no domain, fake payments); see [docs/deploy-free.md](docs/deploy-free.md). A real launch (domain, Stripe live keys, image storage) follows [docs/deploy.md](docs/deploy.md).
 
 ## Payments (fake Stripe)
