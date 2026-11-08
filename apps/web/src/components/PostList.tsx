@@ -1,5 +1,5 @@
 'use client';
-import { Fragment } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import type { Post } from '@/lib/api';
 import type { usePaged } from '@/lib/hooks';
 import { ListStatus, PagedFooter } from './Paged';
@@ -18,14 +18,24 @@ export function dayLabel(iso: string, now = new Date()): string {
   });
 }
 
-/** Posts newest first, with a poster-style header wherever the day changes. */
-export function PostList({ p, empty, byDay = true, context = 'all' }: { p: ReturnType<typeof usePaged<Post>>; empty: string; byDay?: boolean; context?: 'all' | 'event' | 'none' }) {
+/**
+ * Posts newest first, with a poster-style header wherever the day changes.
+ * `interlude` puts something (the pick window on phones) after the `after`-th post, or after the
+ * last one when there are fewer, so the first screen is posts and not furniture.
+ */
+export function PostList({ p, empty, byDay = true, context = 'all', interlude }: {
+  p: ReturnType<typeof usePaged<Post>>; empty: string; byDay?: boolean; context?: 'all' | 'event' | 'none';
+  interlude?: { after: number; node: ReactNode };
+}) {
   let last = '';
+  const n = p.items.length;
+  const at = interlude ? Math.min(interlude.after, n) - 1 : -1;
   return (
     <>
-      <ListStatus p={p} count={p.items.length} empty={empty} />
+      <ListStatus p={p} count={n} empty={empty} />
+      {interlude && n === 0 && !p.loading && !p.error && interlude.node}
       <div className="posts">
-        {p.items.map((post) => {
+        {p.items.map((post, i) => {
           const day = byDay ? dayLabel(post.createdAt) : '';
           const header = byDay && day !== last;
           last = day;
@@ -33,6 +43,7 @@ export function PostList({ p, empty, byDay = true, context = 'all' }: { p: Retur
             <Fragment key={post.id}>
               {header && <h2 className="day-h">{day}</h2>}
               <PostCard post={post} context={context} onChange={(np) => p.setItems((cur) => replaceIn(cur, np))} />
+              {i === at && <div className="interlude">{interlude!.node}</div>}
             </Fragment>
           );
         })}

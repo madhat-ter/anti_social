@@ -21,6 +21,7 @@ export function Composer({
   onCreated,
   placeholder,
   submitLabel,
+  collapsible = false,
 }: {
   parentId?: string;
   /** an update in this collab's thread (RFC §10.5) */
@@ -34,8 +35,11 @@ export function Composer({
   onCreated: (p: Post) => void;
   placeholder?: string;
   submitLabel?: string;
+  /** on phones (CSS), one line until it is tapped or holds a draft; nothing changes on wide screens */
+  collapsible?: boolean;
 }) {
   const id = useId();
+  const [opened, setOpened] = useState(false);
   /** a visitor (RFC §10.8) sees the composer and can't use it: that is the point */
   const readOnly = useReadOnly();
   const [body, setBody] = useState('');
@@ -57,7 +61,7 @@ export function Composer({
   useEffect(() => {
     try {
       const d = localStorage.getItem(draftKey);
-      if (d) { setBody(d); setSavedDraft(true); }
+      if (d) { setBody(d); setSavedDraft(true); setOpened(true); }
     } catch { /* storage blocked */ }
     setRestored(true);
   }, [draftKey]);
@@ -122,7 +126,7 @@ export function Composer({
       atts.forEach((a) => URL.revokeObjectURL(a.preview));
       try { localStorage.removeItem(draftKey); } catch { /* storage blocked */ }
       setSavedDraft(false);
-      setBody(''); setAtts([]);
+      setBody(''); setAtts([]); setOpened(false);
       onCreated(post);
     } catch (e) {
       setErr(errorMessage(e));
@@ -133,7 +137,7 @@ export function Composer({
 
   return (
     <form
-      className="composer win"
+      className={`composer win${collapsible ? ' collapsible' : ''}${opened || atts.length > 0 ? ' open' : ''}`}
       onSubmit={(e) => { e.preventDefault(); void submit(); }}
     >
       <div className="win-bar" aria-hidden="true">
@@ -149,7 +153,8 @@ export function Composer({
         placeholder={readOnly ? VISITOR_NOTE : placeholder ?? (parentId ? 'Write a reply...' : 'What is on your mind?')}
         disabled={readOnly}
         title={readOnly ? VISITOR_NOTE : undefined}
-        onChange={(e) => setBody(e.target.value)}
+        onChange={(e) => { setBody(e.target.value); if (e.target.value) setOpened(true); }}
+        onFocus={() => setOpened(true)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void submit(); }
         }}

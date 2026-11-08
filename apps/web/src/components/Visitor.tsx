@@ -32,7 +32,7 @@ const MEMBERS_ONLY = /^\/(settings|setup|notifications|consultations|admin|event
 export const membersOnlyPath = (path: string) => MEMBERS_ONLY.test(path);
 
 /** Re-renders every `ms` so the countdown keeps up. */
-function useNow(ms: number) {
+export function useNow(ms: number) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), ms);
@@ -74,8 +74,8 @@ export function VisitorPill({ expiresAt }: { expiresAt: string }) {
   );
 }
 
-/** The side-rail window where "you" would be. */
-export function VisitorWindow({ expiresAt }: { expiresAt: string }) {
+/** The side-rail window where "you" would be; on phones, the sheet behind the fifth tab. */
+export function VisitorWindow({ expiresAt, onClose }: { expiresAt: string; onClose?: () => void }) {
   const now = useNow(15_000);
   const [busy, setBusy] = useState(false);
   const soon = new Date(expiresAt).getTime() - now <= SOON_MS;
@@ -85,7 +85,7 @@ export function VisitorWindow({ expiresAt }: { expiresAt: string }) {
     window.location.assign('/');
   }
   return (
-    <Win title="visitor" as="section" bodyClassName="rail-you">
+    <Win title="visitor" as="section" bodyClassName="rail-you" onClose={onClose}>
       <span className="rail-you-link">
         <Avatar seed={null} size={56} label="A visitor, no face yet" />
         <span>
@@ -135,7 +135,11 @@ export function WatchOnly({ children, primary = true }: { children: ReactNode; p
   return <span className={`btn${primary ? ' primary' : ''}`} aria-disabled="true" title={VISITOR_NOTE}>{children}</span>;
 }
 
-/** "Visitors can only watch" as a line, where a form would be. */
-export function WatchOnlyNote() {
-  return <p className="muted small watch-only" role="note">{VISITOR_NOTE} <Link href="/join">Join with an invite</Link> to take part.</p>;
+/** "Visitors can only watch" as a line, where a form would be; `banner` makes it a notice strip (phones, where the composer would be). */
+export function WatchOnlyNote({ banner = false }: { banner?: boolean }) {
+  return (
+    <p className={banner ? 'banner notice watch-strip' : 'muted small watch-only'} role="note">
+      {VISITOR_NOTE} <Link href="/join">Join with an invite</Link> to take part.
+    </p>
+  );
 }

@@ -17,7 +17,7 @@ import { BirthdayLine } from '@/components/Birthday';
 import { PickWindow, useWide } from '@/components/Picks';
 import { AlertIcon, Loading, Win } from '@/components/retro';
 import { NameMarks } from '@/components/Marks';
-import { VisitorCodeForm } from '@/components/Visitor';
+import { VisitorCodeForm, WatchOnlyNote, useReadOnly } from '@/components/Visitor';
 
 /** One face per seat. The whole network fits on one screen. */
 const SEATS = Array.from({ length: 100 }, (_, i) => `seat-${i + 1}`);
@@ -84,6 +84,7 @@ function Landing() {
 function FeedView({ onPosted }: { onPosted: () => void }) {
   useTitle('Feed');
   const wide = useWide();
+  const readOnly = useReadOnly();
   const p = usePaged<Post>('feed', (c) => api.feed(c));
   useEffect(() => {
     if (window.location.hash !== '#compose') return;
@@ -94,16 +95,23 @@ function FeedView({ onPosted }: { onPosted: () => void }) {
     <>
       <h1 className="sr-only">Feed</h1>
       {wide === false && <BirthdayLine />}
-      <div id="compose">
+      {/* a visitor on a phone gets one line where the composer would be: the first screen is posts, not a dead box */}
+      {readOnly && <div className="phone-only"><WatchOnlyNote banner /></div>}
+      <div id="compose" className={readOnly ? 'wide-only' : undefined}>
         <Composer
+          collapsible
           onCreated={(post) => {
             p.setItems((cur) => [post, ...cur.filter((x) => x.id !== post.id)]);
             onPosted();
           }}
         />
       </div>
-      {wide === false && <PickWindow className="feed-pick" />}
-      <PostList p={p} empty="It is quiet in here. Write the first post: the other seats will see it next time they come in." />
+      {/* phones: the pick window sits after the first few posts, not before the first one */}
+      <PostList
+        p={p}
+        empty="It is quiet in here. Write the first post: the other seats will see it next time they come in."
+        interlude={wide === false ? { after: 3, node: <PickWindow className="feed-pick" /> } : undefined}
+      />
     </>
   );
 }

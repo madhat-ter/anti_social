@@ -25,6 +25,7 @@ const ITEMS: Item[] = [
 export function Checklist({ me, refreshKey = 0 }: { me: Me; refreshKey?: number }) {
   const [c, setC] = useState<ChecklistState | null>(null);
   const [asking, setAsking] = useState(false);
+  const [open, setOpen] = useState(false);
   const load = useCallback(() => { api.checklist().then(setC, () => setC(null)); }, []);
   useEffect(() => { load(); }, [load, refreshKey]);
 
@@ -43,10 +44,14 @@ export function Checklist({ me, refreshKey = 0 }: { me: Me; refreshKey?: number 
   };
 
   return (
-    <Win title="checklist.txt" as="aside" className="checklist" onClose={() => void hide()} bodyClassName="stack">
+    <Win title="checklist.txt" as="aside" className={`checklist${open ? ' open' : ''}`} onClose={() => void hide()} bodyClassName="stack">
       <div className="row between">
         <h2>Finish your profile</h2>
-        <span className="ui muted">{done} of {ITEMS.length} done</span>
+        <span className="row ck-head">
+          <span className="ui muted">{done} of {ITEMS.length} done</span>
+          {/* phones: the list is folded away until asked for (CSS shows this button only there) */}
+          <button type="button" className="link-btn ck-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? 'Less' : 'Show'}</button>
+        </span>
       </div>
       <ul className="checklist-items">
         {ITEMS.map((i) => {
@@ -67,7 +72,7 @@ export function Checklist({ me, refreshKey = 0 }: { me: Me; refreshKey?: number 
         })}
       </ul>
       <div className="row dlg-actions">
-        <button type="button" className="btn" onClick={() => void hide()}>Hide this</button>
+        <button type="button" className="btn" onClick={() => void hide()}>Hide for good</button>
       </div>
       <SuggestDialog open={asking} onClose={() => setAsking(false)} onCreated={() => { setAsking(false); load(); }} />
     </Win>

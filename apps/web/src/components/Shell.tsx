@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { api, errorMessage, type Me } from '@/lib/api';
 import { isSeated, setUnreadInTitle, useMe } from '@/lib/hooks';
 import { ErrorNote } from './ui';
@@ -13,6 +14,7 @@ import { Rail } from './Rail';
 import { PickWindow, useWide } from './Picks';
 import { isAdult } from './Consult';
 import { ReadOnlyProvider, VisitorPill, isVisitor, membersOnlyPath, useVisitorEnd } from './Visitor';
+import { PhoneBar, TopBell } from './PhoneBar';
 
 export const UNREAD_EVENT = 'anti:unread';
 /** a consultation changed: the menu badge re-counts what waits on you */
@@ -105,6 +107,16 @@ function NavBar({ me }: { me: Me }) {
     };
   }, [visitor]);
 
+  // phones (PhoneBar.tsx): the bell goes into the sticky header, the tabs along the bottom; CSS decides which shell shows
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setSlot(document.getElementById('top-actions')); }, []);
+  const phone = (
+    <>
+      <PhoneBar me={me} unread={unread} waiting={waiting} adult={adult} />
+      {slot && !visitor && createPortal(<TopBell unread={unread} />, slot)}
+    </>
+  );
+
   const mine = `/u/${me.handle}`;
   // a visitor (RFC §10.8) gets the rooms, not the drawers: no inbox, no settings, no admin
   const items: { href: string; label: string; match: (p: string) => boolean; badge?: number; cls?: string }[] = [
@@ -123,32 +135,38 @@ function NavBar({ me }: { me: Me }) {
 
   if (visitor) {
     return (
-      <nav className="nav" aria-label="Main">
-        {items.map((i) => (
-          <Link key={i.href} href={i.href} className={i.cls} aria-current={i.match(path) ? 'page' : undefined}>{i.label}</Link>
-        ))}
-        <VisitorPill expiresAt={me.visitor.expiresAt} />
-      </nav>
+      <>
+        <nav className="nav" aria-label="Main">
+          {items.map((i) => (
+            <Link key={i.href} href={i.href} className={i.cls} aria-current={i.match(path) ? 'page' : undefined}>{i.label}</Link>
+          ))}
+          <VisitorPill expiresAt={me.visitor.expiresAt} />
+        </nav>
+        {phone}
+      </>
     );
   }
 
   return (
-    <nav className="nav" aria-label="Main">
-      {items.map((i) => (
-        <Link key={i.href} href={i.href} className={i.cls} aria-current={i.match(path) ? 'page' : undefined}>
-          {i.label}
-          {!!i.badge && i.badge > 0 && (
-            <span className="badge" aria-label={i.href === '/consultations' ? `${i.badge} waiting on you` : `${i.badge} unread`}>{i.badge > 99 ? '99+' : i.badge}</span>
-          )}
+    <>
+      <nav className="nav" aria-label="Main">
+        {items.map((i) => (
+          <Link key={i.href} href={i.href} className={i.cls} aria-current={i.match(path) ? 'page' : undefined}>
+            {i.label}
+            {!!i.badge && i.badge > 0 && (
+              <span className="badge" aria-label={i.href === '/consultations' ? `${i.badge} waiting on you` : `${i.badge} unread`}>{i.badge > 99 ? '99+' : i.badge}</span>
+            )}
+          </Link>
+        ))}
+        <Link href={mine} className="nav-me" aria-current={path === mine ? 'page' : undefined}>
+          <Avatar seed={me.handle} gender={me.gender} size={28} />
+          {/* name: "Your profile @maya" — always contains the visible "@maya" (desktop shows it) */}
+          <span className="sr-only">Your profile </span>
+          <span className="nav-me-label">@{me.handle}<NameMarks admin={me.role === 'ops'} verified={!!me.verifiedAt} size=".9em" /></span>
         </Link>
-      ))}
-      <Link href={mine} className="nav-me" aria-current={path === mine ? 'page' : undefined}>
-        <Avatar seed={me.handle} gender={me.gender} size={28} />
-        {/* name: "Your profile @maya" — always contains the visible "@maya" (desktop shows it) */}
-        <span className="sr-only">Your profile </span>
-        <span className="nav-me-label">@{me.handle}<NameMarks admin={me.role === 'ops'} verified={!!me.verifiedAt} size=".9em" /></span>
-      </Link>
-    </nav>
+      </nav>
+      {phone}
+    </>
   );
 }
 

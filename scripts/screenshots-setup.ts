@@ -160,7 +160,7 @@ try {
   await nova.getByText('2 of 5 done').waitFor();
   await nova.locator('aside.checklist').screenshot({ path: join(OUT, `${String(++n).padStart(2, '0')}-checklist-ticked.png`) });
   console.log('saved checklist-ticked');
-  await nova.locator('aside.checklist').getByRole('button', { name: 'Hide this' }).click();
+  await nova.locator('aside.checklist').getByRole('button', { name: 'Hide for good' }).click();
   await nova.reload();
   await nova.getByPlaceholder('What is on your mind?').waitFor();
   await nova.waitForTimeout(800);

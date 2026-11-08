@@ -31,6 +31,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <header className="top">
           <div className="top-inner">
             <Link href="/" className="brand" aria-label="anti, home">anti</Link>
+            {/* phones: the seated shell puts the notifications bell here (PhoneBar.tsx); wide screens show the clock */}
+            <span className="top-actions" id="top-actions" />
             <span className="top-clock"><Clock /></span>
           </div>
         </header>
