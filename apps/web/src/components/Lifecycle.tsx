@@ -59,7 +59,7 @@ export function LurkerBanner({ me }: { me: Me }) {
             <p>
               <strong>You have been reading without posting.</strong> Post or reply {required} times
               {l ? <> before {fmtDate(l.graceEndsAt)}</> : null} to keep your seat, or pay the stay fee
-              for {RULES.stay_fee_exempt_days} days off this rule. Likes do not count.
+              for {RULES.stay_fee_exempt_days} days off this rule. Likes and replies to yourself do not count.
             </p>
           )}
         </div>

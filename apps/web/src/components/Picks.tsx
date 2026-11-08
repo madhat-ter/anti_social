@@ -116,6 +116,7 @@ export function PickWindow({ className }: { className?: string }) {
 
 function SuggestDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (p: Pick) => void }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
   const id = useId();
   const [kind, setKind] = useState<SuggestionKind>('movie');
   const [title, setTitle] = useState('');
@@ -126,7 +127,12 @@ function SuggestDialog({ open, onClose, onCreated }: { open: boolean; onClose: (
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
-    if (open && !d.open) { setTitle(''); setNote(''); setErr(null); d.showModal(); }
+    if (open && !d.open) {
+      setTitle(''); setNote(''); setErr(null); d.showModal();
+      // jump to the name field only with a mouse/trackpad: on touch screens focusing it pops the
+      // on-screen keyboard over the dialog before the member has even picked a kind
+      if (window.matchMedia('(pointer: fine)').matches) titleRef.current?.focus();
+    }
     if (!open && d.open) d.close();
   }, [open]);
 
@@ -158,7 +164,7 @@ function SuggestDialog({ open, onClose, onCreated }: { open: boolean; onClose: (
             ))}
           </fieldset>
           <label>Name it
-            <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={SUGGESTION_TITLE_MAX} placeholder={ph} required autoFocus />
+            <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={SUGGESTION_TITLE_MAX} placeholder={ph} required ref={titleRef} />
           </label>
           <label>Why? (optional)
             <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={SUGGESTION_NOTE_MAX} placeholder="One line, for the rest of the room" />

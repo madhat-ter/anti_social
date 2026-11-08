@@ -38,7 +38,7 @@ Stack: Next.js web client → Elysia (Bun) API → PostgreSQL (Drizzle + a few P
 | Invite expiry | 7 days after creation. |
 | Inactivity archival | 30 days without any authenticated request → `archived`. |
 | "Seen" | Any authenticated request; `last_seen_at` updated at most once per day. |
-| Contribution | Post, reply, hosting an event (with ≥1 confirmed attendee besides host), confirmed attendance. Likes do not count. |
+| Contribution | Post, reply to someone else's post, hosting an event (with ≥1 confirmed attendee besides host), confirmed attendance. Likes do not count. |
 | Lurker | Seen on ≥ 8 distinct days in the rolling 30 days AND < 2 contributions in that window. |
 | New-member exemption | No lurker check during the first 21 days after activation. |
 | Lurker grace | 7 days after being flagged to contribute twice or pay; otherwise archived. |
@@ -655,7 +655,7 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 - **Rate limits** (per user, Postgres- or memory-backed): posts 20/h, likes 300/h, flags 30/day, invites per §3, auth endpoints per IP.
 - **Content**: body length CHECK in DB; images re-encoded server-side (removes EXIF/GPS and polyglot payloads).
 - **Privacy**: no email, phone, or real name collected. IP addresses not persisted beyond rate-limit windows. Event location can be RSVP-only.
-- **Gaming the lurker rule**: likes don't count; deleted posts remove their contribution; replies to yourself within a thread still count (accepted risk at 100 users, revisit if abused).
+- **Gaming the lurker rule**: likes don't count; deleted posts remove their contribution; a reply to your own post does not count (replies to anyone else do, in any thread).
 - **Audit**: `user_state_events` and `payments` are append-only for operational and financial auditing.
 
 ## 14. Mobile path
@@ -671,7 +671,7 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 2. **Paid events via Stripe Connect** — deferred; requires host KYC, which conflicts with pseudonymity.
 3. **Tax**: if selling to EU/UK, revisit Stripe Tax or a merchant of record (Lemon Squeezy/Paddle).
 4. **Exact lurker thresholds** (8 seen days / 2 contributions / 30-day window) are set in `settings` and should be revisited after the first month of real data.
-5. **Self-reply gaming** of the contribution rule (§13).
+5. ~~**Self-reply gaming** of the contribution rule (§13).~~ Resolved: self-replies do not count.
 6. **Domain name** — needed early because it becomes the WebAuthn RP ID and cannot change without re-registering every passkey.
 
 ## 16. Milestones

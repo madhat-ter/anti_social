@@ -123,6 +123,25 @@ describe('lurker flow', () => {
     expect((await me(a)).lurker.contributions).toBe(0);
   });
 
+  test('replies to your own post do not count; replies to someone else do', async () => {
+    const w = await world();
+    const a = await w.member('alice');
+    const b = await w.member('bob');
+    await w.makeLurker('alice');
+    await w.tick();
+    const mine = await a.post('/posts', { body: 'my post' });
+    expect((await me(a)).lurker.contributions).toBe(1);
+    // self-reply, and a reply to that self-reply: neither counts
+    const self = await a.post('/posts', { body: 'replying to myself', parentId: mine.body.id });
+    expect(self.status).toBe(200);
+    await a.post('/posts', { body: 'still me', parentId: self.body.id });
+    expect((await me(a)).lurker.contributions).toBe(1);
+    // bob replies in alice's thread; alice answering bob counts
+    const theirs = await b.post('/posts', { body: 'hi alice', parentId: mine.body.id });
+    expect((await a.post('/posts', { body: 'hi bob', parentId: theirs.body.id })).status).toBe(200);
+    expect((await me(a)).lurker.contributions).toBe(2);
+  });
+
   test('grace expiry archives with reason lurker_grace_expired', async () => {
     const w = await world();
     const a = await w.member('alice');

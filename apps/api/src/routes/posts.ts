@@ -93,7 +93,11 @@ export const postRoutes = (deps: Deps) => {
           if (attached.length !== 1) throw new ApiError(400, 'image_invalid', 'One of the images is not available.');
         }
 
-        await tx.insert(contributions).values({ userId: uid, kind: parent ? 'reply' : 'post', refId: postId });
+        // Replying to your own post does not count toward the lurker rule (RFC §13): otherwise one
+        // post plus a self-reply clears a flag. Replies to anyone else (in any thread) do count.
+        if (!parent || parent.author_id !== uid) {
+          await tx.insert(contributions).values({ userId: uid, kind: parent ? 'reply' : 'post', refId: postId });
+        }
         if (parent?.author_id && parent.author_id !== uid) {
           await tx.insert(notifications).values({
             userId: parent.author_id, kind: 'reply', payload: { postId, rootId, actorId: uid },
