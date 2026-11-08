@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, errorMessage, type Me } from '@/lib/api';
 import { isSeated, setUnreadInTitle, useMe } from '@/lib/hooks';
 import { ErrorNote } from './ui';
@@ -24,6 +24,8 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
   const loading = given ? false : own.loading;
   const seated = isSeated(me);
   const wide = useWide();
+  const shellRef = useRef<HTMLDivElement>(null);
+  useStickyColumns(shellRef);
 
   const needsSetup = !!me?.setupNeeded;
   useEffect(() => {
@@ -38,7 +40,7 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
 
   // phones/tablets: nav on top, one column. Wide screens: menu | content | side windows (CSS).
   return (
-    <div className="shell">
+    <div className="shell" ref={shellRef}>
       <div className="shell-left">
         <NavBar me={me} />
         {wide && <PickWindow />}
@@ -110,4 +112,29 @@ function NavBar({ me }: { me: Me }) {
       </Link>
     </nav>
   );
+}
+
+/**
+ * The side columns stay in view while the page scrolls. One that fits the screen sticks under the
+ * header; a taller one (short or zoomed screens, an admin's longer menu) scrolls with the page and
+ * sticks once its bottom is in view, so it is never cut off and never needs its own scrollbar.
+ */
+function useStickyColumns(ref: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+    const fit = () => {
+      for (const el of root.querySelectorAll<HTMLElement>(':scope > .shell-left, :scope > .rail')) {
+        el.style.top = '';
+        const top = parseFloat(getComputedStyle(el).top) || 0;
+        const room = window.innerHeight - top - 16;
+        if (el.offsetHeight > room) el.style.top = `${window.innerHeight - el.offsetHeight - 16}px`;
+      }
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    root.querySelectorAll(':scope > .shell-left, :scope > .rail').forEach((el) => ro.observe(el));
+    window.addEventListener('resize', fit);
+    return () => { ro.disconnect(); window.removeEventListener('resize', fit); };
+  }, [ref]);
 }
