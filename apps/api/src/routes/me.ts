@@ -127,15 +127,14 @@ export const meRoutes = (deps: Deps) => {
     .get('/checklist', async ({ auth }) => {
       const a = requireSeated(auth);
       const uid = a.user.id;
-      const [r] = await rows<Record<'headline' | 'skills' | 'project' | 'post' | 'pick' | 'invite', boolean>>(db, sql`
+      const [r] = await rows<Record<'headline' | 'skills' | 'project' | 'post' | 'pick', boolean>>(db, sql`
         select
           coalesce((select headline <> '' from portfolios where user_id = ${uid}::uuid), false) as headline,
           coalesce((select jsonb_array_length(skills) > 0 from portfolios where user_id = ${uid}::uuid), false) as skills,
           exists (select 1 from projects where user_id = ${uid}::uuid and draft = false) as project,
           exists (select 1 from posts where author_id = ${uid}::uuid and deleted_at is null) as post,
-          exists (select 1 from suggestions where author_id = ${uid}::uuid and deleted_at is null) as pick,
-          exists (select 1 from invites where created_by = ${uid}::uuid) as invite`);
-      const items = { headline: !!r?.headline, skills: !!r?.skills, project: !!r?.project, post: !!r?.post, pick: !!r?.pick, invite: !!r?.invite };
+          exists (select 1 from suggestions where author_id = ${uid}::uuid and deleted_at is null) as pick`);
+      const items = { headline: !!r?.headline, skills: !!r?.skills, project: !!r?.project, post: !!r?.post, pick: !!r?.pick };
       return { items, dismissed: !!a.user.checklistDismissedAt };
     })
 

@@ -679,7 +679,7 @@ settings stay open. People still waiting for a seat see only their status page, 
   the desktop side panel and one line above the feed on phones; no notifications. Settings has a
   "Show my birthday" switch (on by default).
 - **Finish your profile**: after the house-rules welcome is closed, a checklist window on the feed
-  (headline, skills, a published project, a first post, a pick, an invite). Items tick themselves from
+  (headline, skills, a published project, a first post, a pick; deliberately no "invite someone": the room stays hand-picked). Items tick themselves from
   what the member has done (`GET /me/checklist`); it nudges, never blocks; closing it is saved to the
   account (`checklist_dismissed_at`).
 - Not a contribution for the lurker rule.

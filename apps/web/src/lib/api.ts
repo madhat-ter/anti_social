@@ -53,7 +53,7 @@ export interface AdminMember {
 export interface AdminSettings { seatCap: number; invitesPerMember: number; inviteExpiryDays: number; seatsUsed: number }
 
 /** "Finish your profile": each item ticks itself from what you have done. */
-export type ChecklistItem = 'headline' | 'skills' | 'project' | 'post' | 'pick' | 'invite';
+export type ChecklistItem = 'headline' | 'skills' | 'project' | 'post' | 'pick';
 export interface ChecklistState { items: Record<ChecklistItem, boolean>; dismissed: boolean }
 
 export interface PasskeyInfo { id: string; deviceLabel: string | null; createdAt: string; lastUsedAt: string | null }

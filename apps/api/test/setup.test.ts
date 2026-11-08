@@ -156,15 +156,14 @@ describe('setup', () => {
     const w = await world();
     const c = w.client();
     await c.register(await w.mint(), 'nova');
-    const none = { headline: false, skills: false, project: false, post: false, pick: false, invite: false };
+    const none = { headline: false, skills: false, project: false, post: false, pick: false };
     expect((await c.get('/me/checklist')).body).toEqual({ items: none, dismissed: false });
     await c.patch('/me/portfolio', { headline: 'Designer', skills: ['Ink'] });
     await c.post('/me/projects', { title: 'Draft', draft: true });
     await c.post('/posts', { body: 'Hello' });
     await c.post('/suggestions', { kind: 'book', title: 'Dune' });
-    await c.post('/me/invites');
     // a draft is not a published project yet
-    expect((await c.get('/me/checklist')).body.items).toEqual({ headline: true, skills: true, project: false, post: true, pick: true, invite: true });
+    expect((await c.get('/me/checklist')).body.items).toEqual({ headline: true, skills: true, project: false, post: true, pick: true });
     await c.post('/me/projects', { title: 'Lamp', draft: false });
     expect((await c.get('/me/checklist')).body.items.project).toBe(true);
     expect((await c.post('/me/checklist/dismiss')).body).toEqual({ dismissed: true });
