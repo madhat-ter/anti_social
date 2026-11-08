@@ -209,6 +209,8 @@ export interface Notification {
   pickTitle?: string | null;
   /** checklist_reminder: how far along "Finish your profile" is */
   checklist?: { done: number; total: number } | null;
+  /** collab_*: the collab */
+  collab?: { id: string; title: string } | null;
 }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 export type RsvpStatus = 'going' | 'waitlisted' | 'cancelled';
@@ -227,6 +229,29 @@ export interface EventInput {
   title: string; description: string; startsAt: string; endsAt: string | null; location: string;
   locationRsvpOnly: boolean; capacity: number | null; priceNote: string | null; externalPaymentUrl: string | null;
 }
+export type CollabStatus = 'recruiting' | 'closed' | 'finished';
+export type CollabRole = 'host' | 'cohost' | 'member';
+export interface CollabPerson { handle: string; displayName: string; gender?: Gender | null }
+export interface CollabSummary {
+  id: string; title: string; status: CollabStatus; joinMode: 'open' | 'approve';
+  interests: string[]; roles: string[]; teamCount: number; teamMax: number;
+  host: CollabPerson | null; cover: { url: string; width: number; height: number } | null;
+  match: number; my: { role: CollabRole | null; request: 'pending' | 'declined' | null; invited: boolean };
+  createdAt: string;
+}
+export interface Collab extends CollabSummary {
+  description: string; requirements: string; priceNote: string | null; paymentUrl: string | null;
+  team: (CollabPerson & { role: CollabRole; joinedAt: string })[];
+  canManage: boolean;
+  requests: (CollabPerson & { note: string | null; at: string })[] | null;
+  invites: CollabPerson[] | null;
+}
+export interface CollabInput {
+  title: string; description: string; requirements: string; roles: string[]; teamMax: number;
+  joinMode: 'open' | 'approve'; priceNote: string | null; paymentUrl: string | null; interests: string[];
+  coverId?: string | null; status?: CollabStatus;
+}
+export interface CollabSuggestion extends CollabPerson { shared: string[]; match: number }
 export type ProductKey = 'stay_fee_90d' | 'reinstatement';
 export interface Price { productKey: ProductKey; name: string; amountMinor: number; currency: string }
 export interface PaymentRecord {
@@ -358,6 +383,24 @@ export const api = {
   rsvp: (id: string) => post<AnEvent>(`/events/${encodeURIComponent(id)}/rsvp`, {}),
   leaveEvent: (id: string) => call<AnEvent>('DELETE', `/events/${encodeURIComponent(id)}/rsvp`),
   confirmAttendance: (id: string, handles: string[]) => post<AnEvent>(`/events/${encodeURIComponent(id)}/attendance`, { handles }),
+
+  collabs: (tab: 'for-you' | 'all', interest?: string | null) => get<{ items: CollabSummary[] }>(`/collabs${qs({ tab, interest })}`),
+  collab: (id: string) => get<Collab>(`/collabs/${encodeURIComponent(id)}`),
+  createCollab: (b: CollabInput) => post<Collab>('/collabs', b),
+  updateCollab: (id: string, b: Partial<CollabInput>) => call<Collab>('PATCH', `/collabs/${encodeURIComponent(id)}`, b),
+  deleteCollab: (id: string) => call<{ ok: true }>('DELETE', `/collabs/${encodeURIComponent(id)}`),
+  joinCollab: (id: string, note?: string) => post<{ joined?: true; requested?: true }>(`/collabs/${encodeURIComponent(id)}/join`, note ? { note } : {}),
+  withdrawCollabRequest: (id: string) => call<{ ok: true }>('DELETE', `/collabs/${encodeURIComponent(id)}/request`),
+  decideCollabRequest: (id: string, handle: string, accept: boolean) =>
+    post<Collab>(`/collabs/${encodeURIComponent(id)}/requests/${encodeURIComponent(handle)}/${accept ? 'accept' : 'decline'}`, {}),
+  collabSuggestions: (id: string) => get<{ items: CollabSuggestion[] }>(`/collabs/${encodeURIComponent(id)}/suggestions`),
+  inviteToCollab: (id: string, handle: string) => post<Collab>(`/collabs/${encodeURIComponent(id)}/invites`, { handle }),
+  answerCollabInvite: (id: string, accept: boolean) => post<{ joined?: true; ok?: true }>(`/collabs/${encodeURIComponent(id)}/invite/${accept ? 'accept' : 'decline'}`, {}),
+  leaveCollab: (id: string) => post<{ ok: true }>(`/collabs/${encodeURIComponent(id)}/leave`, {}),
+  setCollabRole: (id: string, handle: string, role: 'cohost' | 'member') =>
+    post<Collab>(`/collabs/${encodeURIComponent(id)}/members/${encodeURIComponent(handle)}/role`, { role }),
+  removeFromCollab: (id: string, handle: string) => call<Collab>('DELETE', `/collabs/${encodeURIComponent(id)}/members/${encodeURIComponent(handle)}`),
+  memberCollabs: (handle: string) => get<{ items: CollabSummary[] }>(`/members/${encodeURIComponent(handle)}/collabs`),
 
   pushConfig: () => get<{ enabled: boolean; publicKey: string | null }>('/push/config'),
   pushSubscribe: (b: { endpoint: string; keys: { p256dh: string; auth: string } }) => post<{ ok: true }>('/push/subscriptions', b),

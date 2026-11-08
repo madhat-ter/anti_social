@@ -48,6 +48,23 @@ export const PICK_NO_REPEAT = 5;
 export const PICK_ROTATE_MS = 60_000;
 /** Interest tags a member can pick (RFC §10.5). */
 export const INTERESTS_MAX = 10;
+// ─── Collabs (RFC §10.5): ongoing projects people do together ───────────────
+export const COLLAB_TITLE_MAX = 80;
+export const COLLAB_DESCRIPTION_MAX = 2000;
+export const COLLAB_REQUIREMENTS_MAX = 500;
+export const COLLAB_INTERESTS_MAX = 5;
+export const COLLAB_ROLES_MAX = 5;
+export const COLLAB_ROLE_MAX = 30;
+export const COLLAB_TEAM_MIN = 2;
+export const COLLAB_TEAM_MAX = 20;
+export const COLLAB_NOTE_MAX = 300;
+export const COLLAB_PRICE_NOTE_MAX = 100;
+/** recruiting collabs one member can host at a time */
+export const COLLAB_HOSTING_MAX = 3;
+/** open invitations per collab */
+export const COLLAB_INVITES_MAX = 20;
+export const COLLAB_STATUSES = ['recruiting', 'closed', 'finished'] as const;
+export type CollabStatus = (typeof COLLAB_STATUSES)[number];
 
 // ─── Setup: what every member fills in once, right after joining ────────────
 /** Gender only shapes the drawn face; it is never shown as text. */

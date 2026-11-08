@@ -68,7 +68,9 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
   const p = typeof r.payload === 'string' ? JSON.parse(r.payload) : (r.payload ?? {});
   const ev = r.event_title ? `"${r.event_title}"` : 'an event';
   const eventUrl = p.eventId ? `/events/${p.eventId}` : '/events';
-  const m = (title: string, body: string, url: string): PushMessage => ({ title, body, url, tag: `${r.kind}:${p.postId ?? p.eventId ?? ''}` });
+  const collab = p.title ? `"${p.title}"` : 'a collab';
+  const collabUrl = p.collabId ? `/collabs/${p.collabId}` : '/collabs';
+  const m = (title: string, body: string, url: string): PushMessage => ({ title, body, url, tag: `${r.kind}:${p.postId ?? p.eventId ?? p.collabId ?? ''}` });
   switch (r.kind) {
     case 'reply': return m(`@${r.actor ?? 'someone'} replied`, r.post_snippet ?? '', p.postId ? `/p/${r.root_id ?? p.postId}#${p.postId}` : '/notifications');
     case 'activated': return m('You have a seat', 'Welcome in.', '/');
@@ -82,6 +84,11 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
     case 'event_cancelled': return m('Event cancelled', `${ev} was cancelled.`, eventUrl);
     case 'checklist_reminder': return m('Finish your profile', `${p.done ?? 0} of ${p.total ?? 5} done. A few minutes makes this place yours.`, '/');
     case 'pick_remark': return m(`@${r.actor ?? 'someone'} tried your pick`, p.title ? `A remark on "${p.title}".` : 'They left a remark.', '/');
+    case 'collab_request': return m(`@${r.actor ?? 'someone'} wants to join`, collab, collabUrl);
+    case 'collab_joined': return m(`@${r.actor ?? 'someone'} joined`, collab, collabUrl);
+    case 'collab_accepted': return m('You are on the team', collab, collabUrl);
+    case 'collab_declined': return m('Not this time', `${collab} has found its people. Plenty more to find.`, '/collabs');
+    case 'collab_invite': return m(`@${r.actor ?? 'someone'} invited you`, `Join ${collab}?`, collabUrl);
     default: return null;
   }
 }

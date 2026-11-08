@@ -95,6 +95,82 @@ try {
   await page.locator('.interest-tags').getByText('Photography').waitFor();
   await shot(page, 'profile-interests');
 
+  // ── M2. collabs: start one, ask to join, accept, invite someone who fits
+  const max = await apiMember('max', 'Max Okafor', 'man');
+  await max.call('PUT', '/me/interests', { interests: ['film', 'writing'] });
+  await ivy.call('POST', '/collabs', {
+    title: 'Saturday river cleanup', description: 'Two hours, bags and gloves provided. Coffee after.',
+    interests: ['volunteering', 'environment'], roles: [], teamMax: 12, joinMode: 'open',
+    priceNote: 'Free. Donations go to the river trust', paymentUrl: 'https://example.org/river-trust',
+  });
+
+  await page.goto(`${WEB}/collabs/new`);
+  await page.getByLabel('Title').fill('A short film about the night market');
+  await page.getByLabel(/What is it/).fill('Ten minutes, shot on phones over four Friday nights.\n\nWe need people who can hold a camera steady, record sound, and cut it together.');
+  const form = page.locator('form.collab-form');
+  for (const label of ['Film', 'Photography']) await form.getByRole('button', { name: label, exact: true }).click();
+  for (const r of ['Camera', 'Sound', 'Editor']) { await page.getByLabel('A role').fill(r); await page.getByRole('button', { name: 'Add', exact: true }).click(); }
+  await page.getByLabel(/Requirements/).fill('A phone with a good camera. Free on Friday evenings.');
+  await page.getByLabel(/Team size/).fill('5');
+  await shot(page, 'collab-new', true);
+  await page.getByRole('button', { name: 'Start it' }).click();
+  await page.waitForURL(/\/collabs\/[0-9a-f-]{36}$/);
+  const collabUrl = page.url();
+  await page.getByRole('heading', { name: 'Invite people' }).waitFor();
+  await page.locator('.list .who', { hasText: 'Ivy Chen' }).waitFor();
+  await shot(page, 'collab-host', true);
+
+  const ivyPage = await browse(await browser.newContext(view), ivy.jar);
+  await ivyPage.goto(`${WEB}/collabs`);
+  await ivyPage.getByText('A short film about the night market').waitFor();
+  await shot(ivyPage, 'collabs-for-you');
+  await ivyPage.getByRole('tab', { name: 'All' }).click();
+  await ivyPage.getByText('Saturday river cleanup').waitFor();
+  await shot(ivyPage, 'collabs-all');
+  await ivyPage.goto(collabUrl);
+  await ivyPage.getByRole('button', { name: 'Ask to join' }).click();
+  await ivyPage.getByLabel(/A note for the host/).fill('I shoot a lot at night, and I have a gimbal.');
+  await ivyPage.getByRole('button', { name: 'Send request' }).click();
+  await ivyPage.getByText('You asked to join.').waitFor();
+  await shot(ivyPage, 'collab-asked');
+
+  await page.reload();
+  await page.getByText('I shoot a lot at night').waitFor();
+  await page.locator('.list .who', { hasText: 'Max Okafor' }).waitFor();
+  await page.locator('section.card', { hasText: 'Asking to join' }).screenshot({ path: file('collab-requests') });
+  console.log('saved collab-requests');
+  await page.getByRole('button', { name: 'Accept' }).click();
+  await page.getByText('@ivy is on the team.').waitFor();
+  await page.locator('.list li', { hasText: 'Max Okafor' }).getByRole('button', { name: 'Invite' }).click();
+  await page.getByText('Invited @max.').waitFor();
+  await page.locator('.crowd', { hasText: 'Ivy Chen' }).getByRole('button', { name: 'Make co-host' }).click();
+  await page.locator('.crowd li', { hasText: 'Ivy Chen' }).getByText('co-host').waitFor();
+  await shot(page, 'collab-team', true);
+
+  const maxPage = await browse(await browser.newContext(view), max.jar);
+  await maxPage.goto(`${WEB}/notifications`);
+  await maxPage.getByText(/invited you to join "A short film/).waitFor();
+  await shot(maxPage, 'notif-invite');
+  await maxPage.getByText(/invited you to join "A short film/).click();
+  await maxPage.getByRole('button', { name: 'Join the team' }).click();
+  await maxPage.getByText('You are on the team.').waitFor();
+  await shot(maxPage, 'collab-joined', true);
+
+  await ivyPage.goto(`${WEB}/notifications`);
+  await ivyPage.getByText(/You are on the team for/).waitFor();
+  await shot(ivyPage, 'notif-accepted');
+  await ivyPage.goto(`${WEB}/u/ivy`);
+  await ivyPage.getByRole('tab', { name: 'Collabs' }).click();
+  await ivyPage.locator('ul.collabs').getByText('Saturday river cleanup').waitFor();
+  await ivyPage.locator('ul.collabs').scrollIntoViewIfNeeded();
+  await shot(ivyPage, 'profile-collabs');
+
+  const mobile = await browse(await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true }), nova.jar);
+  await mobile.goto(`${WEB}/collabs?x=1`);
+  await mobile.getByRole('tab', { name: 'All' }).click();
+  await mobile.getByText('Saturday river cleanup').waitFor();
+  await shot(mobile, 'mobile-collabs');
+
   if (pageErrors.length) throw new Error(`page errors:\n${pageErrors.join('\n')}`);
   console.log('ok');
 } finally {

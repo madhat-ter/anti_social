@@ -16,6 +16,8 @@ export const LIMITS = {
   upload: { limit: 60, windowSec: 3600 },
   checkout: { limit: 20, windowSec: 3600 },
   rsvp: { limit: 60, windowSec: 3600 },
+  /** RFC §10.5: asking to join collabs */
+  collabRequest: { limit: 10, windowSec: 86_400 },
 } as const;
 export type LimitName = keyof typeof LIMITS;
 

@@ -319,6 +319,74 @@ export const userInterests = pgTable('user_interests', {
   index('user_interests_interest').on(t.interest),
 ]);
 
+// ─── Collabs (RFC §10.5): ongoing projects people do together ───────────────
+
+export const collabs = pgTable('collabs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: text('title').notNull(),
+  description: text('description').notNull().default(''),
+  requirements: text('requirements').notNull().default(''),
+  /** "Looking for": short role tags */
+  roles: jsonb('roles').notNull().default(sql`'[]'::jsonb`),
+  teamMax: integer('team_max').notNull(),
+  /** 'open' = anyone joins; 'approve' = requests the host accepts */
+  joinMode: text('join_mode').notNull().default('approve'),
+  /** 'recruiting' | 'closed' | 'finished' */
+  status: text('status').notNull().default('recruiting'),
+  priceNote: text('price_note'),
+  paymentUrl: text('payment_url'),
+  coverKey: text('cover_key'),
+  coverWidth: integer('cover_width'),
+  coverHeight: integer('cover_height'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  updatedAt: tstz('updated_at').notNull().defaultNow(),
+  finishedAt: tstz('finished_at'),
+  hiddenAt: tstz('hidden_at'),
+  deletedAt: tstz('deleted_at'),
+}, (t) => [
+  check('collabs_title_len', sql`char_length(${t.title}) between 1 and 80`),
+  check('collabs_team_max', sql`${t.teamMax} between 2 and 20`),
+  check('collabs_join_mode', sql`${t.joinMode} in ('open', 'approve')`),
+  check('collabs_status', sql`${t.status} in ('recruiting', 'closed', 'finished')`),
+  index('collabs_live').on(t.createdAt).where(sql`deleted_at is null`),
+]);
+
+export const collabInterests = pgTable('collab_interests', {
+  collabId: uuid('collab_id').notNull().references(() => collabs.id, { onDelete: 'cascade' }),
+  interest: text('interest').notNull().references(() => interests.slug, { onDelete: 'cascade' }),
+}, (t) => [primaryKey({ columns: [t.collabId, t.interest] }), index('collab_interests_interest').on(t.interest)]);
+
+/** The team. Exactly one 'host' while the collab has one; 'cohost' can manage; 'member'. */
+export const collabMembers = pgTable('collab_members', {
+  collabId: uuid('collab_id').notNull().references(() => collabs.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  role: text('role').notNull(),
+  joinedAt: tstz('joined_at').notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.collabId, t.userId] }),
+  check('collab_members_role', sql`${t.role} in ('host', 'cohost', 'member')`),
+  index('collab_members_user').on(t.userId),
+]);
+
+/** Asking to join an 'approve' collab: 'pending' | 'accepted' | 'declined' | 'withdrawn'. */
+export const collabRequests = pgTable('collab_requests', {
+  collabId: uuid('collab_id').notNull().references(() => collabs.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  note: text('note'),
+  status: text('status').notNull().default('pending'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  decidedAt: tstz('decided_at'),
+}, (t) => [primaryKey({ columns: [t.collabId, t.userId] })]);
+
+/** A host's invitation: 'pending' | 'accepted' | 'declined'. */
+export const collabInvites = pgTable('collab_invites', {
+  collabId: uuid('collab_id').notNull().references(() => collabs.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  invitedBy: uuid('invited_by').references(() => users.id, { onDelete: 'set null' }),
+  status: text('status').notNull().default('pending'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.collabId, t.userId] })]);
+
 // ─── Portfolio: the profile laid out like a Behance portfolio ───────────────
 // One row per member, created on first edit. Lists are jsonb: skills/tools are string[],
 // experience/education are Entry[] ({ title, place, from, to | null, line }, newest first),

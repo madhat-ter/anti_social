@@ -43,6 +43,12 @@ function describe(n: Notification): string {
   if (n.kind === 'made_admin') return 'You are now an admin. Your tools are under Admin in the menu.';
   if (n.kind === 'admin_removed') return 'You are no longer an admin.';
   if (n.kind === 'flag_threshold') return 'Something was hidden after 5 reports and needs review in Admin.';
+  const co = n.collab ? `"${n.collab.title}"` : 'a collab';
+  if (n.kind === 'collab_request') return `${who} asked to join ${co}`;
+  if (n.kind === 'collab_joined') return `${who} joined ${co}`;
+  if (n.kind === 'collab_accepted') return `You are on the team for ${co}. Say hello.`;
+  if (n.kind === 'collab_declined') return `${co} has found its people this time. There are plenty more in Collabs.`;
+  if (n.kind === 'collab_invite') return `${who} invited you to join ${co}`;
   return n.post ? `${who} interacted with your post` : 'Account update';
 }
 
@@ -92,7 +98,8 @@ function Notifications() {
             const href = n.kind === 'flag_threshold' || n.kind === 'made_admin' ? '/admin'
               : n.kind === 'checklist_reminder' ? '/'
               : n.kind === 'handle_changed' && n.newHandle ? `/u/${n.newHandle}`
-              : n.post ? `/p/${n.post.rootId ?? n.post.id}#${n.post.id}` : n.event ? `/events/${n.event.id}` : null;
+              : n.post ? `/p/${n.post.rootId ?? n.post.id}#${n.post.id}` : n.event ? `/events/${n.event.id}`
+              : n.collab ? `/collabs/${n.collab.id}` : n.kind.startsWith('collab_') ? '/collabs' : null;
             const body = (
               <>
                 {n.actor

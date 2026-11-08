@@ -2,8 +2,9 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { api, errorMessage, type MemberSummary, type Pick, type Portfolio, type Post, type ProjectSummary } from '@/lib/api';
+import { api, errorMessage, type MemberSummary, type CollabSummary, type Pick, type Portfolio, type Post, type ProjectSummary } from '@/lib/api';
 import { PickCard } from '@/components/Picks';
+import { CollabCard } from '@/components/Collabs';
 import { PortfolioWindow } from '@/components/Portfolio';
 import { usePaged, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
@@ -41,6 +42,17 @@ function MemberPicks({ handle, mine }: { handle: string; mine: boolean }) {
   );
 }
 
+/** The collabs they host or are on. */
+function MemberCollabs({ handle, mine }: { handle: string; mine: boolean }) {
+  const [items, setItems] = useState<CollabSummary[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { api.memberCollabs(handle).then((r) => setItems(r.items), (e) => setErr(errorMessage(e))); }, [handle]);
+  if (err) return <ErrorNote message={err} />;
+  if (!items) return <Loading />;
+  if (!items.length) return <p className="empty">{mine ? <>Not on any collab yet. <Link href="/collabs">Find one</Link>, or start your own.</> : 'Not on any collab yet.'}</p>;
+  return <ul className="collabs">{items.map((c) => <CollabCard key={c.id} c={c} />)}</ul>;
+}
+
 /** The portfolio window on top; posts and picks underneath, behind folder tabs. */
 function Profile({ myHandle }: { myHandle: string }) {
   const params = useParams<{ handle: string }>();
@@ -50,7 +62,7 @@ function Profile({ myHandle }: { myHandle: string }) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [orderErr, setOrderErr] = useState<string | null>(null);
-  const [tab, setTab] = useState<'posts' | 'picks'>('posts');
+  const [tab, setTab] = useState<'posts' | 'collabs' | 'picks'>('posts');
   const posts = usePaged<Post>(`u:${handle}`, (c) => api.memberPosts(handle, c));
 
   useEffect(() => {
@@ -79,14 +91,15 @@ function Profile({ myHandle }: { myHandle: string }) {
       <PortfolioWindow member={member} pf={pf} projects={projects} onSaved={setPf} onReorder={reorder} />
       <ErrorNote message={orderErr} />
       <div className="tabs pf-tabs" role="tablist">
-        {(['posts', 'picks'] as const).map((s) => (
+        {(['posts', 'collabs', 'picks'] as const).map((s) => (
           <button key={s} type="button" role="tab" aria-selected={tab === s} className={tab === s ? 'tab on' : 'tab'} onClick={() => setTab(s)}>
-            {s === 'posts' ? 'Posts' : 'Picks'}
+            {s === 'posts' ? 'Posts' : s === 'collabs' ? 'Collabs' : 'Picks'}
           </button>
         ))}
       </div>
       {tab === 'posts'
         ? <PostList p={posts} empty={mine ? 'You have not posted yet.' : 'No posts yet.'} />
+        : tab === 'collabs' ? <MemberCollabs handle={member.handle} mine={mine} />
         : <MemberPicks handle={member.handle} mine={mine} />}
     </>
   );

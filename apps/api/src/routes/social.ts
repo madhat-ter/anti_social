@@ -57,6 +57,7 @@ type NotifRow = {
   e_id: string | null; e_title: string | null;
   /** handle_changed: the new handle; project_removed: the project's title */
   x_to: string | null; x_title: string | null; x_done: string | null; x_total: string | null;
+  c_id: string | null; c_title: string | null;
 };
 
 async function unreadCount(db: Db, userId: string): Promise<number> {
@@ -144,11 +145,13 @@ export const socialRoutes = (deps: Deps) => {
           u.handle as a_handle, u.display_name as a_display, u.gender as a_gender,
           p.id as p_id, coalesce(p.root_id, p.id) as p_root, p.body as p_body, (p.deleted_at is not null) as p_deleted,
           ev.id as e_id, ev.title as e_title,
-          n.payload->>'to' as x_to, n.payload->>'title' as x_title, n.payload->>'done' as x_done, n.payload->>'total' as x_total
+          n.payload->>'to' as x_to, n.payload->>'title' as x_title, n.payload->>'done' as x_done, n.payload->>'total' as x_total,
+          co.id as c_id, coalesce(co.title, n.payload->>'title') as c_title
         from notifications n
         left join users u on u.id = case when n.payload->>'actorId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'actorId')::uuid end
         left join posts p on p.id = case when n.payload->>'postId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'postId')::uuid end
         left join events ev on ev.id = case when n.payload->>'eventId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'eventId')::uuid end
+        left join collabs co on co.id = case when n.payload->>'collabId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'collabId')::uuid end and co.deleted_at is null
         where n.user_id = ${uid}::uuid ${cursorBefore(sql`n.created_at`, sql`n.id`, query.cursor)}
         order by n.created_at desc, n.id desc
         limit ${limit + 1}`);
@@ -161,6 +164,7 @@ export const socialRoutes = (deps: Deps) => {
             ? { id: r.p_id, rootId: r.p_root ?? r.p_id, snippet: r.p_deleted ? '' : (r.p_body ?? '').slice(0, 80) }
             : null,
           event: r.e_id ? { id: r.e_id, title: r.e_title ?? '' } : null,
+          collab: r.c_id ? { id: r.c_id, title: r.c_title ?? '' } : null,
           newHandle: r.kind === 'handle_changed' ? r.x_to : null,
           projectTitle: r.kind === 'project_removed' ? r.x_title : null,
           pickTitle: r.kind === 'pick_remark' || r.kind === 'remark_removed' ? r.x_title : null,
