@@ -50,14 +50,20 @@ function Landing() {
           <AlertIcon />
           <div className="stack dlg-main">
             <p className="dlg-msg">Are you sure you want to delete &ldquo;Social Life&rdquo;?</p>
+            {/* both buttons answer the question, so neither reads as "Cancel" */}
             <div className="row dlg-actions">
-              <Link className="btn" href="/login">Sign in</Link>
-              <Link className="btn default" href="/join">Join with an invite</Link>
+              <Link className="btn" href="/login">Yes, sign me in</Link>
+              <Link className="btn default" href="/join">Yes, I have an invite</Link>
             </div>
           </div>
         </Win>
       </div>
 
+      {/* a stranger with nothing in hand: how the door works */}
+      <p className="hero-how muted">
+        No invite? Ask someone who is already inside: every member can invite two people at a time, and they choose. A member
+        who is an admin can also give you a one-hour visitor pass to look around.
+      </p>
       {/* RFC §10.8: an admin's one-hour pass; the link form of it lands on /visit/<code> */}
       <div className="visit-entry"><VisitorCodeForm compact /></div>
 

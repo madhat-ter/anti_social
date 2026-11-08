@@ -126,13 +126,15 @@ try {
 
   // ── 3. filling it in: the counter, the face redrawing per gender, the birthday
   await nova.locator('#su-about-text').fill(ABOUT.split(' ').slice(0, 30).join(' '));
-  await nova.getByText('30 / 50–300 words · 20 to go').waitFor();
+  await nova.getByText('30 words · about 20 more').waitFor();
   await nova.getByLabel('Man', { exact: true }).check();
   await elShot(nova, 'section[aria-labelledby=su-gender]', 'gender-man');
   await nova.getByLabel('Woman', { exact: true }).check();
   await elShot(nova, 'section[aria-labelledby=su-gender]', 'gender-woman');
   await nova.locator('#su-about-text').fill(ABOUT);
   await nova.getByLabel('Your birthday', { exact: true }).fill('2001-03-17');
+  await nova.getByLabel('Cell phone', { exact: true }).fill('+977 980 000 0000');
+  await nova.getByLabel('Email', { exact: true }).fill('nova@example.com');
   await shot(nova, 'setup-filled');
   await nova.getByRole('button', { name: 'Done' }).click();
   await nova.getByPlaceholder('What is on your mind?').waitFor();
@@ -142,22 +144,22 @@ try {
   if (about.about !== ABOUT) throw new Error('About was not saved to the portfolio');
   console.log('setup saved ok');
   await shot(nova, 'feed-after-setup', false);
-  await nova.getByRole('button', { name: 'Got it' }).click();
+  await nova.getByRole('button', { name: 'Got it' }).click({ timeout: 3000 }).catch(() => {}); // the rules now live at the end of setup; the welcome window only shows for members from before
 
   // ── 3b. the checklist takes the welcome's place; items tick themselves as they get done
   await nova.getByRole('heading', { name: 'Finish your profile' }).waitFor();
-  await nova.getByText('0 of 5 done').waitFor();
+  await nova.getByText('0 of 6 done').waitFor();
   await shot(nova, 'checklist', false);
   await nova.getByRole('button', { name: 'Write a first post' }).click();
   await nova.keyboard.type('Hello everyone. Just set up my profile, it asked good questions.');
   await nova.getByRole('button', { name: 'Post', exact: true }).click();
-  await nova.getByText('1 of 5 done').waitFor();
+  await nova.getByText('1 of 6 done').waitFor();
   await nova.getByRole('button', { name: 'Suggest a pick' }).click();
   const sug = nova.locator('dialog[open]');
   await sug.getByText('Book', { exact: true }).click();
   await sug.getByLabel('Name it').fill('The Design of Everyday Things');
   await sug.getByRole('button', { name: 'Suggest', exact: true }).click();
-  await nova.getByText('2 of 5 done').waitFor();
+  await nova.getByText('2 of 6 done').waitFor();
   await nova.locator('aside.checklist').screenshot({ path: join(OUT, `${String(++n).padStart(2, '0')}-checklist-ticked.png`) });
   console.log('saved checklist-ticked');
   await nova.locator('aside.checklist').getByRole('button', { name: 'Hide for good' }).click();
@@ -170,7 +172,7 @@ try {
   // ── 4. the About editor in the portfolio counts words too
   await nova.goto(`${WEB}/u/nova`);
   await nova.getByRole('button', { name: 'Edit portfolio' }).click();
-  await nova.getByText(/\d+ \/ 50–300 words/).waitFor();
+  await nova.getByText(/\d+ \/ 50–300 words/).waitFor(); // the portfolio's own About counter, not setup's
   await elShot(nova, '.pf-sec:has(textarea)', 'about-editor');
 
   // ── 5. under 13: asked first, then closed
@@ -179,6 +181,8 @@ try {
   await kid.locator('#su-about-text').fill(ABOUT);
   await kid.getByLabel('Prefer not to say').check();
   await kid.getByLabel('Your birthday', { exact: true }).fill(`${new Date().getFullYear() - 11}-06-01`);
+  await kid.getByLabel('Cell phone', { exact: true }).fill('+977 980 000 0001');
+  await kid.getByLabel('Email', { exact: true }).fill('kid@example.com');
   await kid.getByRole('button', { name: 'Done' }).click();
   await kid.locator('dialog[open]').waitFor();
   await shot(kid, 'underage-confirm', false);

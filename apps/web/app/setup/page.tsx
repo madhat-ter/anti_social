@@ -19,6 +19,10 @@ import { useMe, useTitle } from '@/lib/hooks';
 import { ErrorNote } from '@/components/ui';
 import { AlertDialog, Loading, Win } from '@/components/retro';
 import { Avatar } from '@/components/Avatar';
+import { HouseRules, markWelcomed } from '@/components/Welcome';
+
+/** Three questions that get fifty words out of anyone. */
+const ABOUT_PROMPTS = ['What do you make or do?', 'What do you like, outside of that?', 'Why did you come here?'];
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -84,6 +88,7 @@ export default function SetupPage() {
     try {
       const r = await api.setup({ about, gender, birthday, confirmUnderage, ...(askContact ? { phone, email } : {}) });
       if ('closed' in r) { setClosed(true); return; }
+      if (me) markWelcomed(me.handle); // the rules were on this page: no welcome window on top of them
       router.replace('/');
       router.refresh();
     } catch (e) {
@@ -118,15 +123,20 @@ export default function SetupPage() {
           <section className="setup-sec stack" aria-labelledby="su-about">
             <h2 id="su-about"><span className="ui">1.</span> About you</h2>
             <p className="muted small">
-              In your own words: what you do, what you like, what brought you here. It becomes the About on your profile,
-              every member can read it, and you can change it later.
+              A few sentences, in your own words. It becomes the About on your profile, every member can read it, and you can
+              change it later. Three questions that usually do it:
             </p>
+            <ol className="about-prompts">
+              {ABOUT_PROMPTS.map((p) => <li key={p}>{p}</li>)}
+            </ol>
             <label htmlFor="su-about-text" className="sr-only">About you</label>
-            <textarea id="su-about-text" rows={10} value={about} maxLength={PF_ABOUT_MAX}
+            <textarea id="su-about-text" rows={8} value={about} maxLength={PF_ABOUT_MAX} placeholder="I make… I like… I came here because…"
               onChange={(e) => setAbout(e.target.value)} aria-describedby="su-count" />
             <p id="su-count" className={`counter${words > ABOUT_MAX_WORDS ? ' over' : ''}`} aria-live="polite">
-              {words} / {ABOUT_MIN_WORDS}–{ABOUT_MAX_WORDS} words
-              {left > 0 ? ` · ${left} to go` : words > ABOUT_MAX_WORDS ? ` · ${words - ABOUT_MAX_WORDS} too many` : ''}
+              {words === 0 ? `About ${ABOUT_MIN_WORDS} words, three or four sentences`
+                : left > 0 ? `${words} words · about ${left} more`
+                : words > ABOUT_MAX_WORDS ? `${words} words · ${words - ABOUT_MAX_WORDS} over the ${ABOUT_MAX_WORDS} limit`
+                : `${words} words · that will do`}
             </p>
           </section>
 
@@ -184,10 +194,17 @@ export default function SetupPage() {
             </section>
           )}
 
+          {!done && (
+            <section className="setup-sec stack" aria-labelledby="su-rules">
+              <h2 id="su-rules">Three things keep your seat</h2>
+              <HouseRules />
+            </section>
+          )}
+
           <ErrorNote message={err} />
           <div className="row between">
             <button type="button" className="btn" onClick={() => void signOut()}>Sign out</button>
-            <button className="btn primary" disabled={!canSubmit}>{busy ? 'Saving...' : 'Done'}</button>
+            <button className="btn primary" disabled={!canSubmit}>{busy ? 'Saving...' : done ? 'Done' : 'Done, take me in'}</button>
           </div>
         </form>
       </Win>

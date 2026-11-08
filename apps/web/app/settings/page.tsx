@@ -33,6 +33,18 @@ export default function Settings() {
     <div className="stack">
       <div className="row"><Link href="/" className="ui">Back to the feed</Link></div>
       <h1>Settings</h1>
+      {/* nine sections, one long window: a row of links that stays under the header on wide screens */}
+      <nav className="panel-index" aria-label="Sections">
+        <a href="#profile">Profile</a>
+        <a href="#face">Face</a>
+        <a href="#bday">Birthday</a>
+        <a href="#interests">Interests</a>
+        {me.contactEnabled && <a href="#contact">Contact</a>}
+        <a href="#pk">Passkeys</a>
+        {seated && <a href="#inv">Invites</a>}
+        <a href="#pay">Payments</a>
+        <a href="#dz">Account</a>
+      </nav>
       <Win title="Control panel" className="panel" bodyClassName="panel-body">
         <Profile me={me} onSaved={setMe} />
         <Face me={me} onSaved={setMe} />
@@ -55,7 +67,7 @@ function Profile({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   return (
-    <form className="panel-sec" onSubmit={async (e) => {
+    <form className="panel-sec" id="profile" onSubmit={async (e) => {
       e.preventDefault(); setErr(null); setMsg(null);
       try { onSaved(await api.updateMe({ displayName: displayName.trim(), bio })); setMsg('Saved.'); }
       catch (x) { setErr(errorMessage(x)); }

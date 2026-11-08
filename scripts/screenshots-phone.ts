@@ -76,10 +76,13 @@ async function join_(page: Page, handle: string, name: string) {
   await page.getByLabel('Your birthday', { exact: true }).fill(SETUP.birthday);
   await page.getByLabel('Cell phone', { exact: true }).fill(SETUP.phone);
   await page.getByLabel('Email', { exact: true }).fill(SETUP.email);
-  await page.getByRole('button', { name: 'Done' }).click();
+  // the three house rules close the setup page; no welcome window afterwards
+  await page.getByRole('heading', { name: 'Three things keep your seat' }).waitFor();
+  await shot(page, 'setup-with-rules', true);
+  await page.getByRole('button', { name: 'Done, take me in' }).click();
   await page.getByPlaceholder('What is on your mind?').waitFor();
-  await page.getByRole('button', { name: 'Got it' }).waitFor();
-  await page.getByRole('button', { name: 'Got it' }).click();
+  if (await page.getByRole('button', { name: 'Got it' }).count()) throw new Error('the welcome window shows on top of the rules');
+  await page.getByRole('button', { name: 'Got it' }).click({ timeout: 3000 }).catch(() => {}); // the rules now live at the end of setup; the welcome window only shows for members from before
 }
 
 /** A member who only talks to the API: joins with a fake passkey, keeps its session cookie. */
@@ -114,6 +117,10 @@ try {
   // ── the room: maya joins through the UI (so she has a real session); the others through the API
   const deskCtx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
   const desk = await newUser(deskCtx);
+  await desk.goto(WEB);
+  await desk.getByText(/No invite\?/).waitFor();
+  await desk.waitForTimeout(2500); // the boot sequence: type, alert, then the hundred faces
+  await shot(desk, 'landing-desktop', true);
   await join_(desk, 'maya', 'Maya Lind');
   await q(`update users set role = 'ops' where handle = 'maya'`);
   const theo = await apiMember('theo', 'Theo Park', 'man');

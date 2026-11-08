@@ -88,7 +88,7 @@ try {
 
   const page = await browse(await browser.newContext({ viewport: { width: 1280, height: 900 } }), nova.jar);
   await page.goto(WEB);
-  await page.getByRole('button', { name: 'Got it' }).click();
+  await page.getByRole('button', { name: 'Got it' }).click({ timeout: 3000 }).catch(() => {}); // the rules now live at the end of setup; the welcome window only shows for members from before
   const win = page.locator('aside.pick-win');
   await win.locator('.pick-title', { hasText: 'Perfect Days' }).waitFor();
   await win.getByText('Watched it twice').or(win.getByText('too slow for me')).waitFor();

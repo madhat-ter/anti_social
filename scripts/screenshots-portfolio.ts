@@ -67,8 +67,7 @@ async function join_(page: Page, handle: string, name: string) {
   await page.getByRole('button', { name: 'Continue' }).click();
   await finishSetup(page);
   await page.getByPlaceholder('What is on your mind?').waitFor();
-  await page.getByRole('button', { name: 'Got it' }).waitFor();
-  await page.getByRole('button', { name: 'Got it' }).click();
+  await page.getByRole('button', { name: 'Got it' }).click({ timeout: 3000 }).catch(() => {}); // the rules now live at the end of setup; the welcome window only shows for members from before
 }
 
 /** A poster-like image to upload: big type on a flat ground. */

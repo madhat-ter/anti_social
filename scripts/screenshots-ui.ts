@@ -93,9 +93,8 @@ async function join_(page: Page, handle: string, name: string, capture = false, 
   await finishSetup(page);
   await page.getByPlaceholder('What is on your mind?').waitFor();
   // first visit: the welcome window with the house rules
-  await page.getByRole('button', { name: 'Got it' }).waitFor();
   if (capture) await shot(page, 'welcome', false);
-  await page.getByRole('button', { name: 'Got it' }).click();
+  await page.getByRole('button', { name: 'Got it' }).click({ timeout: 3000 }).catch(() => {}); // the rules now live at the end of setup; the welcome window only shows for members from before
 }
 
 async function post(page: Page, text: string, image?: string) {
