@@ -8,6 +8,7 @@ import {
 } from '@anti/shared';
 import { api, errorMessage, IMAGE_MAX_BYTES, type Collab, type CollabInput, type CollabSummary } from '@/lib/api';
 import { InterestPicker, InterestTags } from './Interests';
+import { NameMarks } from './Marks';
 import { ErrorNote } from './ui';
 
 export const STATUS_LABEL = { recruiting: 'recruiting', closed: 'team set', finished: 'finished' } as const;
@@ -37,7 +38,7 @@ export function CollabCard({ c }: { c: CollabSummary }) {
         <span className="collab-main">
           <span className="collab-title">{c.title} <StatusTag c={c} /> <MyTag c={c} /></span>
           <span className="muted small">
-            {c.teamCount} of {c.teamMax} people{c.host && <> · hosted by @{c.host.handle}</>}
+            {c.teamCount} of {c.teamMax} people{c.host && <> · hosted by @{c.host.handle}<NameMarks admin={c.host.admin} verified={c.host.verified} size=".9em" /></>}
             {c.status === 'recruiting' && <> · {c.joinMode === 'open' ? 'anyone can join' : 'ask to join'}</>}
           </span>
           {c.roles.length > 0 && <span className="small">Looking for: {c.roles.join(', ')}</span>}

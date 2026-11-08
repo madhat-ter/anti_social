@@ -16,6 +16,7 @@ import { Checklist } from '@/components/Checklist';
 import { BirthdayLine } from '@/components/Birthday';
 import { PickWindow, useWide } from '@/components/Picks';
 import { AlertIcon, Loading, Win } from '@/components/retro';
+import { NameMarks } from '@/components/Marks';
 
 /** One face per seat. The whole network fits on one screen. */
 const SEATS = Array.from({ length: 100 }, (_, i) => `seat-${i + 1}`);
@@ -147,7 +148,7 @@ export default function Home() {
         <div className="status-head">
           <Avatar seed={me.handle} gender={me.gender} size={64} />
           <div>
-            <h1>{me.displayName}</h1>
+            <h1>{me.displayName}<NameMarks admin={me.role === 'ops'} verified={!!me.verifiedAt} size=".8em" /></h1>
             <p className="ui muted">@{me.handle}</p>
           </div>
         </div>

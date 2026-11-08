@@ -181,18 +181,23 @@ export const eventRoutes = (deps: Deps) => {
          and (r.status = 'going' or (r.status = 'waitlisted' and ${ev.isHost}))
        order by r.status, r.created_at, r.user_id`);
     const person = (p: (typeof people)[number]) => ({ handle: p.handle, displayName: p.display_name, state: p.state, gender: p.gender ?? null, attended: !!p.attended, admin: !!p.admin, verified: !!p.verified });
-    let requests: { handle: string; displayName: string; gender: string | null; note: string | null; at: string }[] | null = null;
-    let invites: { handle: string; displayName: string; gender: string | null }[] | null = null;
+    type P = { handle: string; displayName: string; gender: string | null; admin: boolean; verified: boolean };
+    type PRow = { handle: string; display_name: string; gender: string | null; admin: boolean; verified: boolean };
+    const marks = (x: PRow): P => ({ handle: x.handle, displayName: x.display_name, gender: x.gender, admin: !!x.admin, verified: !!x.verified });
+    let requests: (P & { note: string | null; at: string })[] | null = null;
+    let invites: P[] | null = null;
     if (ev.isHost) {
-      requests = (await rows<{ handle: string; display_name: string; gender: string | null; note: string | null; at: string }>(db, sql`
-        select u.handle, u.display_name, u.gender, q.note, to_char(q.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as at
+      requests = (await rows<PRow & { note: string | null; at: string }>(db, sql`
+        select u.handle, u.display_name, u.gender, (u.role = 'ops') as admin, (u.verified_at is not null) as verified,
+               q.note, to_char(q.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as at
           from event_requests q join users u on u.id = q.user_id and u.state in ('active', 'flagged_lurker')
          where q.event_id = ${ev.id}::uuid and q.status = 'pending' order by q.created_at`))
-        .map((x) => ({ handle: x.handle, displayName: x.display_name, gender: x.gender, note: x.note, at: x.at }));
-      invites = (await rows<{ handle: string; display_name: string; gender: string | null }>(db, sql`
-        select u.handle, u.display_name, u.gender from event_invites i join users u on u.id = i.user_id and u.state in ('active', 'flagged_lurker')
+        .map((x) => ({ ...marks(x), note: x.note, at: x.at }));
+      invites = (await rows<PRow>(db, sql`
+        select u.handle, u.display_name, u.gender, (u.role = 'ops') as admin, (u.verified_at is not null) as verified
+          from event_invites i join users u on u.id = i.user_id and u.state in ('active', 'flagged_lurker')
          where i.event_id = ${ev.id}::uuid and i.status = 'pending' order by i.created_at`))
-        .map((x) => ({ handle: x.handle, displayName: x.display_name, gender: x.gender }));
+        .map(marks);
     }
     return {
       ...ev,
@@ -417,8 +422,8 @@ export const eventRoutes = (deps: Deps) => {
       const uid = requireSeated(auth).user.id;
       const ev = await mustSee(uid, params.id);
       if (!ev.isHost) throw new ApiError(403, 'not_host', 'Only the host can do that.');
-      const found = await rows<{ handle: string; display_name: string; gender: string | null; shared: string[] | null; n: number }>(db, sql`
-        select u.handle, u.display_name, u.gender,
+      const found = await rows<{ handle: string; display_name: string; gender: string | null; admin: boolean; verified: boolean; shared: string[] | null; n: number }>(db, sql`
+        select u.handle, u.display_name, u.gender, (u.role = 'ops') as admin, (u.verified_at is not null) as verified,
           array(select ui.interest from user_interests ui join event_interests ei on ei.interest = ui.interest and ei.event_id = e.id
                  where ui.user_id = u.id order by ui.interest) as shared,
           (select count(*)::int from user_interests ui join event_interests ei on ei.interest = ui.interest and ei.event_id = e.id
@@ -433,7 +438,7 @@ export const eventRoutes = (deps: Deps) => {
                 else exists (select 1 from user_interests ui join event_interests ei on ei.interest = ui.interest and ei.event_id = e.id
                               where ui.user_id = u.id) end
         order by n desc, u.handle limit 20`);
-      return { items: found.map((x) => ({ handle: x.handle, displayName: x.display_name, gender: x.gender, shared: x.shared ?? [], match: Number(x.n) })) };
+      return { items: found.map((x) => ({ handle: x.handle, displayName: x.display_name, gender: x.gender, admin: !!x.admin, verified: !!x.verified, shared: x.shared ?? [], match: Number(x.n) })) };
     })
 
     .post('/events/:id/invites', async ({ auth, params, body }) => {

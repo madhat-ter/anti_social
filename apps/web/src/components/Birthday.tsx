@@ -10,6 +10,7 @@ import { isBirthdayOn, localToday } from '@anti/shared';
 import type { Birthday, MemberSummary } from '@/lib/api';
 import { membersCached } from '@/lib/members';
 import { Avatar } from './Avatar';
+import { NameMarks } from './Marks';
 import { Win } from './retro';
 
 export const isToday = (b: Birthday | null | undefined) => !!b && isBirthdayOn(b, localToday());
@@ -40,7 +41,7 @@ export function BirthdaysWindow() {
           <li key={m.handle}>
             <Link href={`/u/${m.handle}`}>
               <Avatar seed={m.handle} gender={m.gender} size={32} />
-              <span>{m.displayName}</span>
+              <span>{m.displayName}<NameMarks admin={m.role === 'ops'} verified={m.verified} size=".85em" /></span>
             </Link>
           </li>
         ))}
@@ -57,7 +58,7 @@ export function BirthdayLine() {
     <p className="banner bday-line" role="status">
       <strong>Birthday today:</strong>{' '}
       {list.map((m, i) => (
-        <span key={m.handle}>{i > 0 && ', '}<Link href={`/u/${m.handle}`}>{m.displayName}</Link></span>
+        <span key={m.handle}>{i > 0 && ', '}<Link href={`/u/${m.handle}`}>{m.displayName}<NameMarks admin={m.role === 'ops'} verified={m.verified} size=".85em" /></Link></span>
       ))}
     </p>
   );

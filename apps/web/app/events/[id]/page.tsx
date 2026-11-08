@@ -74,7 +74,7 @@ function EventView() {
             {ev.locationRsvpOnly && ev.location && <span className="tag" title="Only the host and people going can see this">private</span>}
           </dd>
           {ev.collab && <><dt>Meetup for</dt><dd><Link href={`/collabs/${ev.collab.id}`}>{ev.collab.title}</Link></dd></>}
-          {ev.host && <><dt>Host</dt><dd><Link href={`/u/${ev.host.handle}`}>@{ev.host.handle}</Link></dd></>}
+          {ev.host && <><dt>Host</dt><dd><Link href={`/u/${ev.host.handle}`}>@{ev.host.handle}<NameMarks admin={ev.host.admin} verified={ev.host.verified} size=".85em" /></Link></dd></>}
           {ev.requirements && <><dt>Bring / know</dt><dd className="body pre">{ev.requirements}</dd></>}
           <dt>Spots</dt><dd>{spotsText(ev)}</dd>
           {ev.joinMode === 'approve' && <><dt>Joining</dt><dd>Ask with a note; the host decides</dd></>}
@@ -199,7 +199,7 @@ function Attendance({ ev, onSaved }: { ev: EventDetail; onSaved: () => Promise<v
             <li key={p.handle}>
               <label className="check">
                 <input type="checkbox" checked={picked.has(p.handle)} onChange={() => { toggle(p.handle); setSaved(false); }} />
-                {p.displayName} <span className="muted">@{p.handle}</span>
+                {p.displayName}<NameMarks admin={p.admin} verified={p.verified} size=".85em" /> <span className="muted">@{p.handle}</span>
               </label>
             </li>
           ))}
@@ -250,7 +250,7 @@ function HostPanel({ ev, busy, act }: { ev: EventDetail; busy: boolean; act: (fn
             <ul className="list collab-requests">
               {requests.map((r) => (
                 <li key={r.handle} className="stack">
-                  <Link href={`/u/${r.handle}`} className="who"><Avatar seed={r.handle} gender={r.gender} size={32} /> {r.displayName} <span className="muted">@{r.handle}</span></Link>
+                  <Link href={`/u/${r.handle}`} className="who"><Avatar seed={r.handle} gender={r.gender} size={32} /> {r.displayName}<NameMarks admin={r.admin} verified={r.verified} size=".85em" /> <span className="muted">@{r.handle}</span></Link>
                   {r.note && <p className="body">{r.note}</p>}
                   <div className="row">
                     <button className="btn primary" disabled={busy} onClick={() => act(() => api.decideEventRequest(ev.id, r.handle, true))}>Accept</button>
@@ -272,7 +272,7 @@ function HostPanel({ ev, busy, act }: { ev: EventDetail; busy: boolean; act: (fn
             <ul className="list">
               {sugs.map((s) => (
                 <li key={s.handle} className="row between">
-                  <span className="who"><Avatar seed={s.handle} gender={s.gender} size={32} /> <Link href={`/u/${s.handle}`}>{s.displayName}</Link> <InterestTags slugs={s.shared} /></span>
+                  <span className="who"><Avatar seed={s.handle} gender={s.gender} size={32} /> <Link href={`/u/${s.handle}`}>{s.displayName}<NameMarks admin={s.admin} verified={s.verified} size=".85em" /></Link> <InterestTags slugs={s.shared} /></span>
                   <button className="btn" disabled={busy} onClick={() => act(() => api.inviteToEvent(ev.id, s.handle))}>Invite</button>
                 </li>
               ))}

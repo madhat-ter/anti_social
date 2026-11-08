@@ -10,6 +10,7 @@ import { ErrorNote } from '@/components/ui';
 import { Avatar } from '@/components/Avatar';
 import { BirthdayTag } from '@/components/Birthday';
 import { Loading } from '@/components/retro';
+import { NameMarks } from '@/components/Marks';
 
 export default function MembersPage() {
   useTitle('Members');
@@ -61,7 +62,7 @@ function SeatMap({ myHandle }: { myHandle: string }) {
           <li key={m.handle} className={m.handle === myHandle ? 'me' : undefined}>
             <Link href={`/u/${m.handle}`} title={m.headline || m.bio || undefined}>
               <Avatar seed={m.handle} gender={m.gender} size={56} />
-              <span className="seat-name">{m.displayName}</span>
+              <span className="seat-name">{m.displayName}<NameMarks admin={m.role === 'ops'} verified={m.verified} size=".85em" /></span>
               <span className="seat-handle">@{m.handle}</span>
               <BirthdayTag b={m.birthday} />
               {m.consults && <span className="tag consults-tag" title="Takes consultations">consults</span>}

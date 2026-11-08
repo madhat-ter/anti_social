@@ -15,6 +15,7 @@ import {
 import { relativeTime } from '@/lib/hooks';
 import { Avatar } from './Avatar';
 import { InterestPicker, InterestTags } from './Interests';
+import { NameMarks } from './Marks';
 import { AlertDialog } from './retro';
 import { ErrorNote } from './ui';
 
@@ -50,7 +51,9 @@ export function ConsultCard({ c }: { c: Consultation }) {
         <Avatar seed={them.handle} gender={them.gender} size={44} />
         <span className="consult-main">
           <span className="consult-title">
-            {c.role === 'consultant' ? <>@{them.handle} asks about <b>{c.topic.label}</b></> : <>You asked @{them.handle} about <b>{c.topic.label}</b></>}
+            {c.role === 'consultant'
+              ? <>@{them.handle}<NameMarks admin={them.admin} verified={them.verified} size=".85em" /> asks about <b>{c.topic.label}</b></>
+              : <>You asked @{them.handle}<NameMarks admin={them.admin} verified={them.verified} size=".85em" /> about <b>{c.topic.label}</b></>}
             {' '}<ConsultStatusTag c={c} />
           </span>
           <span className="muted small consult-need">{c.need}</span>
@@ -190,7 +193,7 @@ export function ConsultingSection({ handle, viewerAdult }: { handle: string; vie
             <li key={`${t.handle}-${t.at}`} className={t.hidden ? 'hidden' : undefined}>
               <blockquote>{t.text}</blockquote>
               <span className="muted small">
-                <Link href={`/u/${t.handle}`}>@{t.handle}</Link> · {relativeTime(t.at)}{t.hidden && <> · <span className="tag">hidden</span></>}
+                <Link href={`/u/${t.handle}`}>@{t.handle}<NameMarks admin={t.admin} verified={t.verified} size=".9em" /></Link> · {relativeTime(t.at)}{t.hidden && <> · <span className="tag">hidden</span></>}
               </span>
             </li>
           ))}

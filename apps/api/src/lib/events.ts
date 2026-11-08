@@ -22,7 +22,7 @@ export type EventView = {
   priceNote: string | null;
   externalPaymentUrl: string | null;
   cancelledAt: string | null;
-  host: { handle: string; displayName: string; state: string; gender: string | null } | null;
+  host: { handle: string; displayName: string; state: string; gender: string | null; admin: boolean; verified: boolean } | null;
   isHost: boolean;
   my: { status: RsvpStatus; waitlistPosition: number | null; attended: boolean } | null;
   started: boolean;
@@ -49,7 +49,7 @@ export type EventRow = {
   id: string; title: string; description: string; cursor_ts: string; starts_iso: string; ends_iso: string | null;
   location: string; location_rsvp_only: boolean; capacity: number | null; price_note: string | null;
   external_payment_url: string | null; cancelled_iso: string | null; host_id: string;
-  h_handle: string; h_display: string; h_state: string; h_gender: string | null;
+  h_handle: string; h_display: string; h_state: string; h_gender: string | null; h_admin: boolean; h_verified: boolean;
   going_count: number; waitlist_count: number; attended_count: number;
   my_status: RsvpStatus | null; my_attended: boolean | null; my_position: number | null;
   started: boolean; attendance_open: boolean;
@@ -65,6 +65,7 @@ export function eventSelect(viewerId: string): SQL {
       e.location, e.location_rsvp_only, e.capacity, e.price_note, e.external_payment_url,
       ${iso(sql`e.cancelled_at`)} as cancelled_iso, e.host_id,
       h.handle as h_handle, h.display_name as h_display, h.state as h_state, h.gender as h_gender,
+      (h.role = 'ops') as h_admin, (h.verified_at is not null) as h_verified,
       (select count(*)::int from event_rsvps r where r.event_id = e.id and r.status = 'going') as going_count,
       (select count(*)::int from event_rsvps r where r.event_id = e.id and r.status = 'waitlisted') as waitlist_count,
       (select count(*)::int from event_rsvps r where r.event_id = e.id and r.attended_confirmed_at is not null) as attended_count,
@@ -108,7 +109,7 @@ export function toEvent(r: EventRow, viewerId: string): EventView {
     priceNote: r.price_note,
     externalPaymentUrl: r.external_payment_url,
     cancelledAt: r.cancelled_iso,
-    host: r.h_state === 'deleted' ? null : { handle: r.h_handle, displayName: r.h_display, state: r.h_state, gender: r.h_gender ?? null },
+    host: r.h_state === 'deleted' ? null : { handle: r.h_handle, displayName: r.h_display, state: r.h_state, gender: r.h_gender ?? null, admin: !!r.h_admin, verified: !!r.h_verified },
     isHost,
     my: r.my_status
       ? { status: r.my_status, waitlistPosition: r.my_position === null ? null : Number(r.my_position), attended: !!r.my_attended }

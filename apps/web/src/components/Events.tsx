@@ -7,6 +7,7 @@ import {
 } from '@anti/shared';
 import { InterestPicker, InterestTags } from './Interests';
 import { errorMessage, type AnEvent, type EventInput } from '@/lib/api';
+import { NameMarks } from './Marks';
 import { ErrorNote } from './ui';
 
 /** "Sat, Nov 14 · 10:00 AM – 12:00 PM" in the viewer's time zone. */
@@ -51,7 +52,7 @@ export function EventCard({ e }: { e: AnEvent }) {
           <span className="muted small">{eventWhen(e.startsAt, e.endsAt)}</span>
           <span className="muted small">{e.location ?? 'Location shared with people going'}</span>
           <span className="muted small">{spotsText(e)}</span>
-          {e.host && <span className="muted small">Hosted by @{e.host.handle}</span>}
+          {e.host && <span className="muted small">Hosted by @{e.host.handle}<NameMarks admin={e.host.admin} verified={e.host.verified} size=".9em" /></span>}
         </span>
       </Link>
     </li>

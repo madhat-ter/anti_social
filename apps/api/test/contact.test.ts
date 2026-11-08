@@ -100,6 +100,50 @@ describe('contact details (only admins see them)', () => {
     expect((await ana.get('/notifications')).body.items.filter((n: any) => n.kind === 'verified')).toHaveLength(1);
   });
 
+  test('the marks ride along everywhere the API names a person: members, picks, events, collabs, consultations', async () => {
+    const w = await world();
+    const boss = await w.member('boss');
+    await setOps(w.t.db, 'boss', true);
+    const ana = await w.member('ana');
+    const ben = await w.member('ben');
+    await boss.post('/ops/users/ana/verify', { on: true });
+    await ana.put('/me/interests', { interests: ['writing'] });
+    await ben.put('/me/interests', { interests: ['writing'] });
+    const og = { admin: true, verified: false };
+    const checked = { admin: false, verified: true };
+
+    const members = (await ben.get('/members')).body.items;
+    expect(members.find((m: any) => m.handle === 'boss')).toMatchObject({ role: 'ops', verified: false });
+    expect(members.find((m: any) => m.handle === 'ana')).toMatchObject({ role: 'member', verified: true });
+
+    const pick = (await ana.post('/suggestions', { kind: 'book', title: 'Stoner' })).body;
+    expect(pick.author).toMatchObject(checked);
+    await boss.put(`/suggestions/${pick.id}/vote`, { vote: 1, remark: 'Quiet and true.' });
+    const remarks = (await ben.get(`/suggestions/${pick.id}/remarks`)).body;
+    expect(remarks.items[0]).toMatchObject(og);
+    expect(remarks.pick.latestRemark).toMatchObject(og);
+
+    const startsAt = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    const ev = (await boss.post('/events', { title: 'Walk', description: '', startsAt, location: 'Gate', joinMode: 'approve', interests: ['writing'] })).body;
+    expect(ev.host).toMatchObject(og);
+    await ana.post(`/events/${ev.id}/request`, { note: 'Please' });
+    const full = (await boss.get(`/events/${ev.id}`)).body;
+    expect(full.requests[0]).toMatchObject({ handle: 'ana', ...checked });
+    const sugs = (await boss.get(`/events/${ev.id}/suggestions`)).body.items;
+    expect(sugs.find((s: any) => s.handle === 'ben')).toMatchObject({ admin: false, verified: false });
+    await boss.post(`/events/${ev.id}/invites`, { handle: 'ben' });
+    expect((await boss.get(`/events/${ev.id}`)).body.invites[0]).toMatchObject({ handle: 'ben', admin: false, verified: false });
+
+    const collab = (await ana.post('/collabs', { title: 'Zine', description: 'A zine.', interests: ['writing'], roles: [], teamMax: 4, joinMode: 'approve' })).body;
+    expect(collab.host).toMatchObject(checked);
+    expect((await ben.get('/collabs?tab=all')).body.items.find((c: any) => c.id === collab.id).host).toMatchObject(checked);
+    await boss.post(`/collabs/${collab.id}/join`, { note: 'In.' });
+    const cfull = (await ana.get(`/collabs/${collab.id}`)).body;
+    expect(cfull.team[0]).toMatchObject({ handle: 'ana', ...checked });
+    expect(cfull.requests[0]).toMatchObject({ handle: 'boss', ...og });
+    expect((await ana.get(`/collabs/${collab.id}/suggestions`)).body.items.find((s: any) => s.handle === 'ben')).toMatchObject({ admin: false, verified: false });
+  });
+
   test('deleting the account erases contact details and the badge', async () => {
     const w = await world();
     const boss = await w.member('boss');

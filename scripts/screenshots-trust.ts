@@ -93,6 +93,10 @@ try {
   await shot(page, 'profile-og');
   await page.goto(`${WEB}/members`);
   await page.getByText('Ben Thapa').waitFor();
+  // the marks ride along on the seat map and in the nav/rail "you" entries too
+  await page.locator('.seatmap .og-mark').first().waitFor();
+  await page.locator('.seatmap .verified-badge').first().waitFor();
+  await page.locator('.nav-me .og-mark').first().waitFor();
   await shot(page, 'members-marks');
 
   // a member who set up before contact details existed: sent back to setup once

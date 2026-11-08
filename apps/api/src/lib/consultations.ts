@@ -25,7 +25,7 @@ import { UUID_RE } from './posts';
 import { hit } from './ratelimit';
 import type { SessionUser } from './sessions';
 
-export type Person = { handle: string; displayName: string; gender: string | null };
+export type Person = { handle: string; displayName: string; gender: string | null; admin: boolean; verified: boolean };
 export type ThanksNote = Person & { text: string; at: string; hidden: boolean };
 
 /** What anyone (18+) sees on a portfolio. */
@@ -183,9 +183,11 @@ export async function saveMyOffer(db: Db, me: SessionUser, body: Record<string, 
   return getMyOffer(db, me);
 }
 
-const PERSON = (alias: string) => sql`${sql.raw(alias)}.handle as ${sql.raw(alias + '_handle')}, ${sql.raw(alias)}.display_name as ${sql.raw(alias + '_display')}, ${sql.raw(alias)}.gender as ${sql.raw(alias + '_gender')}`;
+const PERSON = (alias: string) => sql`${sql.raw(alias)}.handle as ${sql.raw(alias + '_handle')}, ${sql.raw(alias)}.display_name as ${sql.raw(alias + '_display')}, ${sql.raw(alias)}.gender as ${sql.raw(alias + '_gender')},
+  (${sql.raw(alias)}.role = 'ops') as ${sql.raw(alias + '_admin')}, (${sql.raw(alias)}.verified_at is not null) as ${sql.raw(alias + '_verified')}`;
 const person = (r: Record<string, unknown>, alias: string): Person => ({
   handle: String(r[`${alias}_handle`]), displayName: String(r[`${alias}_display`] ?? r[`${alias}_handle`]), gender: (r[`${alias}_gender`] as string | null) ?? null,
+  admin: !!r[`${alias}_admin`], verified: !!r[`${alias}_verified`],
 });
 
 async function thanksFor(db: Db, consultantId: string, includeHidden: boolean, limit: number): Promise<ThanksNote[]> {

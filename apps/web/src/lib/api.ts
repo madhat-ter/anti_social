@@ -137,7 +137,7 @@ export interface Pick {
   title: string;
   note: string | null;
   createdAt: string;
-  author: { handle: string; displayName: string; gender?: Gender | null } | null;
+  author: CollabPerson | null;
   mine: boolean;
   /** "Tried it" votes: good / not for me */
   up: number; down: number; remarkCount: number;
@@ -145,7 +145,7 @@ export interface Pick {
   latestRemark: PickRemark | null;
 }
 /** One person who tried a pick: their vote and, maybe, a remark. */
-export interface PickRemark { handle: string; displayName: string; gender: Gender | null; vote: 1 | -1; remark: string | null; at: string }
+export interface PickRemark extends CollabPerson { vote: 1 | -1; remark: string | null; at: string }
 
 /** One line of experience or education. `to` null = still there. */
 export interface PfEntry { title: string; place: string; from: number; to: number | null; line: string }
@@ -256,7 +256,7 @@ export interface AnEvent {
   location: string | null; locationHidden: boolean; locationRsvpOnly: boolean; capacity: number | null;
   goingCount: number; waitlistCount: number; attendedCount: number;
   priceNote: string | null; externalPaymentUrl: string | null; cancelledAt: string | null;
-  host: { handle: string; displayName: string; state: UserState; gender?: Gender | null } | null; isHost: boolean;
+  host: (CollabPerson & { state: UserState }) | null; isHost: boolean;
   my: { status: RsvpStatus; waitlistPosition: number | null; attended: boolean } | null;
   started: boolean; rsvpOpen: boolean; canEdit: boolean; canConfirmAttendance: boolean;
   collab: { id: string; title: string } | null; audience: 'anyone' | 'team'; canPostUpdate: boolean;
@@ -281,6 +281,7 @@ export interface AdminInterest {
 }
 export type CollabStatus = 'recruiting' | 'closed' | 'finished';
 export type CollabRole = 'host' | 'cohost' | 'member';
+/** Anyone the API names: the OG mark (`admin`) and the verified badge go right after the name (RFC §10.7). */
 export interface CollabPerson { handle: string; displayName: string; gender?: Gender | null; admin?: boolean; verified?: boolean }
 export interface CollabSummary {
   id: string; title: string; status: CollabStatus; joinMode: 'open' | 'approve';

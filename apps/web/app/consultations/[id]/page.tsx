@@ -9,6 +9,7 @@ import { CONSULT_EVENT, SeatedShell } from '@/components/Shell';
 import { ErrorNote } from '@/components/ui';
 import { AlertDialog, Loading } from '@/components/retro';
 import { Avatar } from '@/components/Avatar';
+import { NameMarks } from '@/components/Marks';
 import { ConsultStatusTag, isAdult, minutesLabel, priceLabel } from '@/components/Consult';
 
 export default function ConsultationPage() {
@@ -54,8 +55,8 @@ function View() {
           <div>
             <h1>{c.topic.label} <ConsultStatusTag c={c} /></h1>
             <p className="muted">
-              {iAmConsultant ? <>From <Link href={`/u/${them.handle}`}>{them.displayName} @{them.handle}</Link></>
-                : <>With <Link href={`/u/${them.handle}`}>{them.displayName} @{them.handle}</Link></>} · asked {fmtDate(c.createdAt)}
+              {iAmConsultant ? 'From ' : 'With '}
+              <Link href={`/u/${them.handle}`}>{them.displayName}<NameMarks admin={them.admin} verified={them.verified} size=".85em" /> @{them.handle}</Link> · asked {fmtDate(c.createdAt)}
             </p>
           </div>
         </header>

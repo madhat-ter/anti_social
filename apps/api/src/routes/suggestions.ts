@@ -16,7 +16,7 @@ import { authPlugin, requireSeated } from '../plugins/auth';
  * often, none disappear. Only picks, votes and remarks of members who still exist are shown.
  * None of this counts as a contribution for the lurker rule — real conversation is in posts.
  */
-type Person = { handle: string; displayName: string; gender: string | null };
+type Person = { handle: string; displayName: string; gender: string | null; admin: boolean; verified: boolean };
 export type Remark = Person & { vote: 1 | -1; remark: string | null; at: string };
 export type Pick = {
   id: string; kind: SuggestionKind; title: string; note: string | null; createdAt: string;
@@ -29,7 +29,7 @@ export type Pick = {
 };
 type PickRow = {
   id: string; kind: SuggestionKind; title: string; note: string | null; created_iso: string;
-  handle: string | null; display_name: string | null; gender: string | null; author_id: string;
+  handle: string | null; display_name: string | null; gender: string | null; admin: boolean | null; verified: boolean | null; author_id: string;
   up: number; down: number; remarks: number; my_vote: number | null; my_remark: string | null; latest: unknown;
 };
 
@@ -40,13 +40,14 @@ const LIVE_VOTER = sql`join users vu on vu.id = v.user_id and vu.state not in ('
 const select = (me: string) => sql`
   select s.id, s.kind, s.title, s.note, s.author_id,
     to_char(s.created_at at time zone 'UTC', ${sql.raw(ISO)}) as created_iso,
-    u.handle, u.display_name, u.gender,
+    u.handle, u.display_name, u.gender, (u.role = 'ops') as admin, (u.verified_at is not null) as verified,
     (select count(*)::int from suggestion_votes v ${LIVE_VOTER} where v.suggestion_id = s.id and v.vote = 1) as up,
     (select count(*)::int from suggestion_votes v ${LIVE_VOTER} where v.suggestion_id = s.id and v.vote = -1) as down,
     (select count(*)::int from suggestion_votes v ${LIVE_VOTER} where v.suggestion_id = s.id and v.remark is not null) as remarks,
     (select v.vote from suggestion_votes v where v.suggestion_id = s.id and v.user_id = ${me}::uuid) as my_vote,
     (select v.remark from suggestion_votes v where v.suggestion_id = s.id and v.user_id = ${me}::uuid) as my_remark,
     (select json_build_object('handle', vu.handle, 'displayName', vu.display_name, 'gender', vu.gender,
+        'admin', vu.role = 'ops', 'verified', vu.verified_at is not null,
         'vote', v.vote, 'remark', v.remark, 'at', to_char(v.updated_at at time zone 'UTC', ${sql.raw(ISO)}))
        from suggestion_votes v ${LIVE_VOTER}
       where v.suggestion_id = s.id and v.remark is not null order by v.updated_at desc limit 1) as latest
@@ -58,7 +59,7 @@ const json = <T,>(v: unknown): T | null => (v == null ? null : typeof v === 'str
 
 const toPick = (r: PickRow, me: string): Pick => ({
   id: r.id, kind: r.kind, title: r.title, note: r.note, createdAt: r.created_iso,
-  author: r.handle ? { handle: r.handle, displayName: r.display_name ?? r.handle, gender: r.gender ?? null } : null,
+  author: r.handle ? { handle: r.handle, displayName: r.display_name ?? r.handle, gender: r.gender ?? null, admin: !!r.admin, verified: !!r.verified } : null,
   mine: r.author_id === me,
   up: Number(r.up), down: Number(r.down), remarkCount: Number(r.remarks),
   myVote: r.my_vote === null ? null : (Number(r.my_vote) as 1 | -1), myRemark: r.my_remark,
@@ -192,8 +193,8 @@ export const suggestionRoutes = (deps: Deps) => {
       const a = requireSeated(auth);
       const p = await getPick(params.id, a.user.id);
       if (!p) throw new ApiError(404, 'not_found');
-      const items = await rows<{ handle: string; display_name: string; gender: string | null; vote: number; remark: string | null; at: string }>(db, sql`
-        select vu.handle, vu.display_name, vu.gender, v.vote, v.remark,
+      const items = await rows<{ handle: string; display_name: string; gender: string | null; admin: boolean; verified: boolean; vote: number; remark: string | null; at: string }>(db, sql`
+        select vu.handle, vu.display_name, vu.gender, (vu.role = 'ops') as admin, (vu.verified_at is not null) as verified, v.vote, v.remark,
                to_char(v.updated_at at time zone 'UTC', ${sql.raw(ISO)}) as at
           from suggestion_votes v ${LIVE_VOTER}
          where v.suggestion_id = ${p.id}::uuid
@@ -202,7 +203,7 @@ export const suggestionRoutes = (deps: Deps) => {
       return {
         pick: p,
         items: items.map((r): Remark => ({
-          handle: r.handle, displayName: r.display_name, gender: r.gender, vote: Number(r.vote) as 1 | -1, remark: r.remark, at: r.at,
+          handle: r.handle, displayName: r.display_name, gender: r.gender, admin: !!r.admin, verified: !!r.verified, vote: Number(r.vote) as 1 | -1, remark: r.remark, at: r.at,
         })),
         canModerate: a.user.role === 'ops',
       };

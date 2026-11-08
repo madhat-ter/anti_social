@@ -17,6 +17,10 @@ import { hit } from './ratelimit';
 import type { Storage } from './storage';
 
 export type Person = { handle: string; displayName: string; gender: string | null; admin?: boolean; verified?: boolean };
+/** A person as the API hands them out, with the marks by the name (RFC §10.7): `u` must be the users alias. */
+export type PersonRow = { handle: string; display_name: string; gender: string | null; admin: boolean; verified: boolean };
+export const PERSON_COLS = sql`u.handle, u.display_name, u.gender, (u.role = 'ops') as admin, (u.verified_at is not null) as verified`;
+export const toPerson = (x: PersonRow): Person => ({ handle: x.handle, displayName: x.display_name, gender: x.gender, admin: !!x.admin, verified: !!x.verified });
 export type CollabRole = 'host' | 'cohost' | 'member';
 export type CollabSummary = {
   id: string; title: string; status: CollabStatus; joinMode: 'open' | 'approve';
@@ -53,6 +57,7 @@ type Row = {
   cover_key: string | null; cover_width: number | null; cover_height: number | null; created_iso: string;
   description: string; requirements: string; price_note: string | null; payment_url: string | null;
   interests: string[] | null; team_count: number; h_handle: string | null; h_display: string | null; h_gender: string | null;
+  h_admin: boolean | null; h_verified: boolean | null;
   match: number; my_role: CollabRole | null; my_request: string | null; my_invited: boolean;
   hidden: boolean; viewer_ops: boolean;
 };
@@ -63,7 +68,7 @@ const select = (me: string) => sql`
     array(select ci.interest from collab_interests ci where ci.collab_id = c.id order by ci.interest) as interests,
     (select count(*)::int from collab_members m join users mu on mu.id = m.user_id and mu.state not in ${LIVE}
       where m.collab_id = c.id) as team_count,
-    h.handle as h_handle, h.display_name as h_display, h.gender as h_gender,
+    h.handle as h_handle, h.display_name as h_display, h.gender as h_gender, (h.role = 'ops') as h_admin, (h.verified_at is not null) as h_verified,
     (select count(*)::int from collab_interests ci join user_interests ui on ui.interest = ci.interest
       where ci.collab_id = c.id and ui.user_id = ${me}::uuid) as match,
     (select m.role from collab_members m where m.collab_id = c.id and m.user_id = ${me}::uuid) as my_role,
@@ -85,7 +90,7 @@ function toSummary(r: Row): CollabSummary {
   return {
     id: r.id, title: r.title, status: r.status, joinMode: r.join_mode,
     interests: r.interests ?? [], roles: json<string[]>(r.roles, []), teamCount: Number(r.team_count), teamMax: Number(r.team_max),
-    host: r.h_handle ? { handle: r.h_handle, displayName: r.h_display ?? r.h_handle, gender: r.h_gender } : null,
+    host: r.h_handle ? { handle: r.h_handle, displayName: r.h_display ?? r.h_handle, gender: r.h_gender, admin: !!r.h_admin, verified: !!r.h_verified } : null,
     cover: r.cover_key ? { url: mediaUrl(r.cover_key), width: r.cover_width ?? 0, height: r.cover_height ?? 0 } : null,
     match: Number(r.match),
     my: {
@@ -140,16 +145,16 @@ export async function getCollab(db: Db, me: string, id: string): Promise<Collab>
   let requests: Collab['requests'] = null;
   let invites: Collab['invites'] = null;
   if (manage) {
-    requests = (await rows<{ handle: string; display_name: string; gender: string | null; note: string | null; at: string }>(db, sql`
-      select u.handle, u.display_name, u.gender, q.note, ${iso(sql`q.created_at`)} as at
+    requests = (await rows<PersonRow & { note: string | null; at: string }>(db, sql`
+      select ${PERSON_COLS}, q.note, ${iso(sql`q.created_at`)} as at
         from collab_requests q join users u on u.id = q.user_id and u.state not in ${LIVE}
        where q.collab_id = ${r.id}::uuid and q.status = 'pending' order by q.created_at`))
-      .map((x) => ({ handle: x.handle, displayName: x.display_name, gender: x.gender, note: x.note, at: x.at }));
-    invites = (await rows<{ handle: string; display_name: string; gender: string | null }>(db, sql`
-      select u.handle, u.display_name, u.gender
+      .map((x) => ({ ...toPerson(x), note: x.note, at: x.at }));
+    invites = (await rows<PersonRow>(db, sql`
+      select ${PERSON_COLS}
         from collab_invites i join users u on u.id = i.user_id and u.state not in ${LIVE}
        where i.collab_id = ${r.id}::uuid and i.status = 'pending' order by i.created_at`))
-      .map((x) => ({ handle: x.handle, displayName: x.display_name, gender: x.gender }));
+      .map(toPerson);
   }
   const meetups = await rows<{ id: string; title: string; starts: string; audience: 'anyone' | 'team'; going: number; past: boolean }>(db, sql`
     select e.id, e.title, ${iso(sql`e.starts_at`)} as starts, e.audience, (e.starts_at < now() - interval '3 hours') as past,
@@ -379,8 +384,8 @@ export async function decideRequest(db: Db, me: string, id: string, handle: stri
 export async function suggestPeople(db: Db, me: string, id: string) {
   const r = await load(db, me, id);
   requireManager(r);
-  const found = await rows<{ handle: string; display_name: string; gender: string | null; shared: string[]; n: number }>(db, sql`
-    select u.handle, u.display_name, u.gender, array_agg(ui.interest order by ui.interest) as shared, count(*)::int as n
+  const found = await rows<PersonRow & { shared: string[]; n: number }>(db, sql`
+    select ${PERSON_COLS}, array_agg(ui.interest order by ui.interest) as shared, count(*)::int as n
       from users u
       join user_interests ui on ui.user_id = u.id
       join collab_interests ci on ci.interest = ui.interest and ci.collab_id = ${r.id}::uuid
@@ -389,7 +394,7 @@ export async function suggestPeople(db: Db, me: string, id: string) {
        and not exists (select 1 from collab_invites i where i.collab_id = ${r.id}::uuid and i.user_id = u.id)
        and not exists (select 1 from collab_requests q where q.collab_id = ${r.id}::uuid and q.user_id = u.id and q.status = 'pending')
      group by u.id order by n desc, u.handle limit 20`);
-  return { items: found.map((x) => ({ handle: x.handle, displayName: x.display_name, gender: x.gender, shared: x.shared, match: Number(x.n) })) };
+  return { items: found.map((x) => ({ ...toPerson(x), shared: x.shared, match: Number(x.n) })) };
 }
 
 export async function inviteMember(db: Db, me: string, id: string, handle: string) {

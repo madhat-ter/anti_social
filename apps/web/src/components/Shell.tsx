@@ -7,6 +7,7 @@ import { isSeated, setUnreadInTitle, useMe } from '@/lib/hooks';
 import { ErrorNote } from './ui';
 import { LurkerBanner } from './Lifecycle';
 import { Avatar } from './Avatar';
+import { NameMarks } from './Marks';
 import { Loading } from './retro';
 import { Rail } from './Rail';
 import { PickWindow, useWide } from './Picks';
@@ -122,7 +123,7 @@ function NavBar({ me }: { me: Me }) {
         <Avatar seed={me.handle} gender={me.gender} size={28} />
         {/* name: "Your profile @maya" — always contains the visible "@maya" (desktop shows it) */}
         <span className="sr-only">Your profile </span>
-        <span className="nav-me-label">@{me.handle}</span>
+        <span className="nav-me-label">@{me.handle}<NameMarks admin={me.role === 'ops'} verified={!!me.verifiedAt} size=".9em" /></span>
       </Link>
     </nav>
   );

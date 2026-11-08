@@ -9,6 +9,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { PICK_NO_REPEAT, PICK_ROTATE_MS, SUGGESTION_NOTE_MAX, SUGGESTION_REMARK_MAX, SUGGESTION_TITLE_MAX } from '@anti/shared';
 import { api, errorMessage, type Pick, type PickRemark, type SuggestionKind } from '@/lib/api';
 import { Avatar } from './Avatar';
+import { NameMarks } from './Marks';
 import { Win } from './retro';
 import { ErrorNote } from './ui';
 
@@ -97,7 +98,7 @@ export function PickCard({ p, showAuthor = true, onChange, onEditing }: {
       {p.note && <p className="pick-note">{p.note}</p>}
       {showAuthor && p.author && (
         <Link href={`/u/${p.author.handle}`} className="pick-by">
-          <Avatar seed={p.author.handle} gender={p.author.gender} size={28} /> <span className="ui">@{p.author.handle}</span>
+          <Avatar seed={p.author.handle} gender={p.author.gender} size={28} /> <span className="ui">@{p.author.handle}<NameMarks admin={p.author.admin} verified={p.author.verified} size=".85em" /></span>
         </Link>
       )}
       <div className="pick-votes">
@@ -198,7 +199,7 @@ function RemarksDialog({ open, pickId, title, onClose, onChanged }: {
                 <li key={r.handle}>
                   <Avatar seed={r.handle} gender={r.gender} size={36} />
                   <span className="remarks-main">
-                    <span><Link href={`/u/${r.handle}`} className="name">{r.displayName}</Link> <span className="muted ui">@{r.handle}</span>{' '}
+                    <span><Link href={`/u/${r.handle}`} className="name">{r.displayName}</Link><NameMarks admin={r.admin} verified={r.verified} size=".85em" /> <span className="muted ui">@{r.handle}</span>{' '}
                       <span role="img" aria-label={r.vote === 1 ? 'upvoted' : 'downvoted'}><VoteArrow dir={r.vote === 1 ? 'up' : 'down'} filled size={13} /></span></span>
                     {r.remark ? <span>{r.remark}</span> : <span className="muted small">No remark.</span>}
                   </span>

@@ -1156,7 +1156,9 @@ ul.list.adm-interests li { flex-wrap: wrap; }
 }
 
 /* ─── marks by a name (RFC §10.7): OG = admin, seal = verified ───────────── */
-.name-marks { display: inline-flex; align-items: center; gap: .25em; margin-left: .35em; vertical-align: -.14em; color: var(--ink); }
+/* marks take the text colour around them; --mark-bg is the surface behind them (the gap where the rings cross, the tick) */
+.name-marks { display: inline-flex; align-items: center; gap: .25em; margin-left: .35em; vertical-align: -.14em; color: inherit; --mark-bg: var(--paper); }
+.nav a[aria-current=page] .name-marks, .seatmap .me .name-marks, .pj-index a[aria-current=page] .name-marks { --mark-bg: var(--ink); }
 .mark { display: inline-flex; line-height: 0; }
 .mark svg { display: block; overflow: visible; }
 .crowd-name .name-marks { margin-left: .25em; }

@@ -10,6 +10,7 @@ import { api, type AnEvent, type Me, type MemberSummary } from '@/lib/api';
 import { membersCached, seatCapCached } from '@/lib/members';
 import { Avatar } from './Avatar';
 import { BirthdaysWindow } from './Birthday';
+import { NameMarks } from './Marks';
 import { Win } from './retro';
 
 function You({ me }: { me: Me }) {
@@ -18,7 +19,7 @@ function You({ me }: { me: Me }) {
       <Link href={`/u/${me.handle}`} className="rail-you-link">
         <Avatar seed={me.handle} gender={me.gender} size={56} />
         <span>
-          <span className="rail-name">{me.displayName}</span>
+          <span className="rail-name">{me.displayName}<NameMarks admin={me.role === 'ops'} verified={!!me.verifiedAt} size=".85em" /></span>
           <span className="ui muted">@{me.handle}</span>
         </span>
       </Link>

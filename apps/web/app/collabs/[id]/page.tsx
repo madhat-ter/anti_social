@@ -73,7 +73,7 @@ function CollabView({ myHandle }: { myHandle: string }) {
           {c.requirements && <><dt>Needs</dt><dd className="body">{c.requirements}</dd></>}
           <dt>Team</dt><dd>{c.teamCount} of {c.teamMax} people{full && c.status === 'recruiting' ? ' (full)' : ''}</dd>
           <dt>Joining</dt><dd>{c.status !== 'recruiting' ? 'Not looking for people right now' : c.joinMode === 'open' ? 'Anyone can join' : 'Ask, and the host decides'}</dd>
-          {c.host && <><dt>Host</dt><dd><Link href={`/u/${c.host.handle}`}>@{c.host.handle}</Link></dd></>}
+          {c.host && <><dt>Host</dt><dd><Link href={`/u/${c.host.handle}`}>@{c.host.handle}<NameMarks admin={c.host.admin} verified={c.host.verified} size=".85em" /></Link></dd></>}
           {(c.priceNote || c.paymentUrl) && (
             <>
               <dt>Cost</dt>
@@ -205,7 +205,7 @@ function Manage({ c, busy, act }: { c: Collab; busy: boolean; act: (fn: () => Pr
             {requests.map((r) => (
               <li key={r.handle} className="stack">
                 <div className="row between">
-                  <Link href={`/u/${r.handle}`} className="who"><Avatar seed={r.handle} gender={r.gender} size={32} /> {r.displayName} <span className="muted">@{r.handle}</span></Link>
+                  <Link href={`/u/${r.handle}`} className="who"><Avatar seed={r.handle} gender={r.gender} size={32} /> {r.displayName}<NameMarks admin={r.admin} verified={r.verified} size=".85em" /> <span className="muted">@{r.handle}</span></Link>
                   <span className="muted small">{fmtDate(r.at)}</span>
                 </div>
                 {r.note && <p className="body">{r.note}</p>}
@@ -227,7 +227,7 @@ function Manage({ c, busy, act }: { c: Collab; busy: boolean; act: (fn: () => Pr
           <ul className="list">
             {sugs.map((s) => (
               <li key={s.handle} className="row between">
-                <span className="who"><Avatar seed={s.handle} gender={s.gender} size={32} /> <Link href={`/u/${s.handle}`}>{s.displayName}</Link> <InterestTags slugs={s.shared} /></span>
+                <span className="who"><Avatar seed={s.handle} gender={s.gender} size={32} /> <Link href={`/u/${s.handle}`}>{s.displayName}<NameMarks admin={s.admin} verified={s.verified} size=".85em" /></Link> <InterestTags slugs={s.shared} /></span>
                 <button className="btn" disabled={busy} onClick={() => act(() => api.inviteToCollab(c.id, s.handle), `Invited @${s.handle}.`)}>Invite</button>
               </li>
             ))}
