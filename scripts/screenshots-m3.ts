@@ -9,6 +9,7 @@
  * Output: .screenshots/m3/NN-name.png
  */
 import { chromium, type BrowserContext, type Page } from 'playwright-core';
+import { finishSetup } from './lib/setup';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createTestDb } from '../packages/db/src/testing';
@@ -73,6 +74,7 @@ async function join_(page: Page, handle: string, name: string) {
   await page.getByText('Save your recovery code').waitFor();
   await page.getByLabel('I saved it somewhere safe').check();
   await page.getByRole('button', { name: 'Continue' }).click();
+  await finishSetup(page);
   await page.waitForLoadState('networkidle').catch(() => {});
 }
 

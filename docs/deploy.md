@@ -72,6 +72,6 @@ Ops members (admins) get an in-app (and push) notification when a post is hidden
 ## Known gaps before launch
 
 - **Image storage**: images are on local disk (`UPLOAD_DIR`). On Fly, mount a volume and run a single API machine, or implement the R2 `Storage` (interface in `apps/api/src/lib/storage.ts`) before scaling out.
-- **Content-Security-Policy**: not set yet (Next.js inline scripts need nonces). Other security headers are on.
+- ~~**Content-Security-Policy**~~: done (2026-11-08). `apps/web/proxy.ts` sets a strict policy with a fresh nonce per request (only nonced scripts run; everything else same-origin), so every page renders per request. The screenshot scripts fail on any CSP violation.
 - **Real-Postgres race tests**: `packages/db/test/race.test.ts` runs on PGlite in CI; run it once against a throwaway real Postgres with `TEST_DATABASE_URL=... bun test` (it wipes that database).
 - **Backups**: enable Neon point-in-time restore.

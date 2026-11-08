@@ -5,6 +5,7 @@
  * Output: .screenshots/ui/NN-name.png   (the site has one theme, always light)
  */
 import { chromium, type BrowserContext, type Page } from 'playwright-core';
+import { finishSetup } from './lib/setup';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createTestDb } from '../packages/db/src/testing';
@@ -89,6 +90,7 @@ async function join_(page: Page, handle: string, name: string, capture = false, 
   await page.getByLabel('I saved it somewhere safe').check();
   await page.getByRole('button', { name: 'Continue' }).click();
   if (waitlisted) return;
+  await finishSetup(page);
   await page.getByPlaceholder('What is on your mind?').waitFor();
   // first visit: the welcome window with the house rules
   await page.getByRole('button', { name: 'Got it' }).waitFor();

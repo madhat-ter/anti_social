@@ -7,6 +7,7 @@
  * Output: .screenshots/NN-name.png
  */
 import { chromium, type BrowserContext, type Page } from 'playwright-core';
+import { finishSetup } from './lib/setup';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -56,6 +57,7 @@ async function join_(page: Page, code: string, handle: string, name: string, cap
   if (capture) await shot(page, 'join-recovery-code');
   await page.getByLabel('I saved it somewhere safe').check();
   await page.getByRole('button', { name: 'Continue' }).click();
+  await finishSetup(page);
   await page.getByPlaceholder('What is on your mind?').waitFor();
 }
 

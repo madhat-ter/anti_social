@@ -45,6 +45,7 @@ const pageErrors: string[] = [];
 async function newUser(ctx: BrowserContext) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => pageErrors.push(`${page.url()}: ${e.message}`));
+  page.on('console', (msg) => { if (/Content.Security.Policy/i.test(msg.text())) pageErrors.push(`CSP: ${msg.text()}`); });
   page.setDefaultTimeout(90_000);
   const cdp = await ctx.newCDPSession(page);
   await cdp.send('WebAuthn.enable');
@@ -251,6 +252,7 @@ try {
   await theoCtx.addCookies([...theo.jar].map(([name, value]) => ({ name, value, domain: 'localhost', path: '/' })));
   const tp = await theoCtx.newPage();
   tp.on('pageerror', (e) => pageErrors.push(`${tp.url()}: ${e.message}`));
+  tp.on('console', (msg) => { if (/Content.Security.Policy/i.test(msg.text())) pageErrors.push(`CSP: ${msg.text()}`); });
   await tp.goto(`${WEB}/notifications`);
   await tp.getByText('An admin changed your handle to @theo_park').waitFor();
   await tp.getByText('An admin removed one of your posts.').waitFor();
@@ -267,6 +269,7 @@ try {
   await memberCtx.addCookies([...juno!.jar].map(([name, value]) => ({ name, value, domain: 'localhost', path: '/' })));
   const mp = await memberCtx.newPage();
   mp.on('pageerror', (e) => pageErrors.push(`${mp.url()}: ${e.message}`));
+  mp.on('console', (msg) => { if (/Content.Security.Policy/i.test(msg.text())) pageErrors.push(`CSP: ${msg.text()}`); });
   await mp.goto(`${WEB}/admin`);
   await mp.getByText('Not found.').waitFor();
   if (await mp.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Admin' }).count()) throw new Error('a member sees the Admin link');
@@ -280,6 +283,7 @@ try {
   await phone.addCookies(await seefCtx.cookies());
   const ph = await phone.newPage();
   ph.on('pageerror', (e) => pageErrors.push(`${ph.url()}: ${e.message}`));
+  ph.on('console', (msg) => { if (/Content.Security.Policy/i.test(msg.text())) pageErrors.push(`CSP: ${msg.text()}`); });
   await ph.goto(`${WEB}/admin`);
   await ph.getByRole('heading', { name: 'Reports' }).waitFor();
   await shot(ph, 'phone');

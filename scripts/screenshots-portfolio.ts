@@ -6,6 +6,7 @@
  * The visitor's browser asks for a dark colour scheme: the site has one theme and must stay white.
  */
 import { chromium, type BrowserContext, type Page } from 'playwright-core';
+import { finishSetup } from './lib/setup';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createTestDb } from '../packages/db/src/testing';
@@ -41,6 +42,7 @@ const pageErrors: string[] = [];
 async function newUser(ctx: BrowserContext) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => pageErrors.push(`${page.url()}: ${e.message}`));
+  page.on('console', (msg) => { if (/Content.Security.Policy/i.test(msg.text())) pageErrors.push(`CSP: ${msg.text()}`); });
   page.setDefaultTimeout(90_000);
   const cdp = await ctx.newCDPSession(page);
   await cdp.send('WebAuthn.enable');
@@ -63,6 +65,7 @@ async function join_(page: Page, handle: string, name: string) {
   await page.getByText('Save your recovery code').waitFor();
   await page.getByLabel('I saved it somewhere safe').check();
   await page.getByRole('button', { name: 'Continue' }).click();
+  await finishSetup(page);
   await page.getByPlaceholder('What is on your mind?').waitFor();
   await page.getByRole('button', { name: 'Got it' }).waitFor();
   await page.getByRole('button', { name: 'Got it' }).click();
@@ -99,19 +102,19 @@ try {
   const theo = await newUser(b);
   await join_(theo, 'theo', 'Theo Park');
 
-  // ── 1. an empty portfolio, seen by its owner: the plain profile plus the invitation
+  // ── 1. a fresh portfolio, seen by its owner: only the About from setup (RFC §10.3)
   await maya.goto(`${WEB}/u/maya`);
-  await maya.getByRole('button', { name: 'Start your portfolio' }).waitFor();
-  await shot(maya, 'own-empty', false);
+  await maya.getByRole('button', { name: 'Edit portfolio' }).waitFor();
+  await shot(maya, 'own-fresh', false);
 
   // ── 2. editing in place, through the real editor
-  await maya.getByRole('button', { name: 'Start your portfolio' }).click();
+  await maya.getByRole('button', { name: 'Edit portfolio' }).click();
   await maya.getByLabel('Headline').fill('Industrial designer');
   await maya.getByLabel('Where').fill('Kathmandu');
   await maya.getByLabel('Open to work').check();
   await maya.locator('.pf-sec textarea').fill(
     'I design small objects that get used every day: lamps, tools, the things on a kitchen table. '
-    + 'I start with a pencil and end with a prototype I can hold.\n\nBefore design I studied mechanical engineering, which is why my sketches have tolerances written in the margins.');
+    + 'I start with a pencil and end with a prototype I can hold.\n\nBefore design I studied mechanical engineering, which is why my sketches have tolerances written in the margins. These days I mostly make lighting, with the odd chair when a friend asks nicely.');
   const skills = maya.locator('.pf-sec', { hasText: 'Skills' }).getByLabel('Add a tag');
   await skills.fill('Sketching, Rendering, 3D modelling, Rapid prototyping, Product photography');
   await skills.press('Enter');
@@ -257,6 +260,7 @@ try {
   await phone.addCookies(await b.cookies());
   const ph = await phone.newPage();
   ph.on('pageerror', (e) => pageErrors.push(`${ph.url()}: ${e.message}`));
+  ph.on('console', (msg) => { if (/Content.Security.Policy/i.test(msg.text())) pageErrors.push(`CSP: ${msg.text()}`); });
   await ph.goto(`${WEB}/u/maya`);
   await ph.getByText('Industrial designer', { exact: true }).waitFor();
   await shot(ph, 'phone-visitor');

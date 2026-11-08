@@ -45,6 +45,7 @@ const pageErrors: string[] = [];
 async function newUser(ctx: BrowserContext) {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => pageErrors.push(`${page.url()}: ${e.message}`));
+  page.on('console', (msg) => { if (/Content.Security.Policy/i.test(msg.text())) pageErrors.push(`CSP: ${msg.text()}`); });
   page.setDefaultTimeout(90_000);
   const cdp = await ctx.newCDPSession(page);
   await cdp.send('WebAuthn.enable');
@@ -108,6 +109,7 @@ try {
   // ── 1. the faces, without a gender (the originals) and per gender
   const sheet = await browser.newPage(view);
   sheet.on('pageerror', (e) => pageErrors.push(`faces: ${e.message}`));
+  sheet.on('console', (msg) => { if (/Content.Security.Policy/i.test(msg.text())) pageErrors.push(`CSP: ${msg.text()}`); });
   await sheet.goto(`${WEB}/dev/faces`);
   await sheet.getByRole('heading', { name: 'Faces' }).waitFor();
   await shot(sheet, 'faces');

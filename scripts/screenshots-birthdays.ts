@@ -74,6 +74,7 @@ async function browse(ctx: BrowserContext, jar: Map<string, string>) {
   await ctx.addCookies([...jar].map(([name, value]) => ({ name, value, domain: 'localhost', path: '/' })));
   const page = await ctx.newPage();
   page.on('pageerror', (e) => pageErrors.push(`${page.url()}: ${e.message}`));
+  page.on('console', (msg) => { if (/Content.Security.Policy/i.test(msg.text())) pageErrors.push(`CSP: ${msg.text()}`); });
   page.setDefaultTimeout(60_000);
   return page;
 }

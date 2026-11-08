@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { connection } from 'next/server';
 import { Archivo, Shantell_Sans, Space_Mono, Tiny5 } from 'next/font/google';
 import { Clock } from '@/components/Clock';
 import './globals.css';
@@ -20,7 +21,9 @@ const pixel = Tiny5({ weight: '400', subsets: ['latin'], variable: '--f-pixel', 
 
 export const metadata: Metadata = { title: 'anti', description: 'A small, invite-only network. One hundred seats.' };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // render per request: the CSP nonce (proxy.ts) is new every time, so pages can't be prebuilt
+  await connection();
   return (
     <html lang="en" className={`${archivo.variable} ${pixel.variable} ${mono.variable} ${hand.variable}`}>
       <body>
