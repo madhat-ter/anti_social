@@ -115,7 +115,8 @@ main:focus { outline: none; }
 .nav a[aria-current=page] { background: var(--ink); color: var(--paper); }
 .nav .nav-me { margin-left: auto; border-left: 2px solid var(--ink); border-right: 0; padding: .2rem .55rem; }
 .nav .nav-me .avatar { width: 30px; height: 30px; }
-.nav .nav-me[aria-current=page] .avatar { color: var(--paper); }
+/* on your own profile the row goes black; the face keeps its ink lines on its own paper tile */
+.nav .nav-me[aria-current=page] .avatar { color: var(--ink); }
 .badge { background: var(--signal); color: var(--signal-ink); font: 700 .78rem/1 var(--font-ui); padding: .2rem .35rem; }
 
 /* ─── windows (retro.tsx) ──────────────────────────────────────────────── */
