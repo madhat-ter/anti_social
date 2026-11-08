@@ -13,24 +13,30 @@ const SEATED = sql`('active', 'flagged_lurker')`;
 type MemberSummary = {
   handle: string; displayName: string; bio: string; state: string;
   invitedBy: { handle: string } | null; activatedAt: string | null; postCount: number;
+  /** from the portfolio: shown under the name in lists */
+  headline: string; openToWork: boolean;
 };
 type MemberRow = {
   id: string; cursor_ts: string; handle: string; display_name: string; bio: string; state: string;
   inv_handle: string | null; activated_iso: string | null; post_count: number;
+  headline: string | null; open_to_work: boolean | null;
 };
 
 const memberSelect = sql`
   select u.id, coalesce(u.activated_at, u.created_at)::text as cursor_ts,
     u.handle, u.display_name, u.bio, u.state, inv.handle as inv_handle,
     to_char(u.activated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as activated_iso,
-    (select count(*)::int from posts p where p.author_id = u.id and p.deleted_at is null and p.hidden_at is null) as post_count
+    (select count(*)::int from posts p where p.author_id = u.id and p.deleted_at is null and p.hidden_at is null) as post_count,
+    pf.headline, pf.open_to_work
   from users u
-  left join users inv on inv.id = u.invited_by`;
+  left join users inv on inv.id = u.invited_by
+  left join portfolios pf on pf.user_id = u.id`;
 
 const toMember = (r: MemberRow): MemberSummary => ({
   handle: r.handle, displayName: r.display_name, bio: r.bio, state: r.state,
   invitedBy: r.inv_handle ? { handle: r.inv_handle } : null,
   activatedAt: r.activated_iso, postCount: Number(r.post_count),
+  headline: r.headline ?? '', openToWork: !!r.open_to_work,
 });
 
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => '\\' + c);
@@ -75,7 +81,8 @@ export const socialRoutes = (deps: Deps) => {
         rows<MemberRow>(db, sql`
           ${memberSelect}
           where u.state in ${SEATED}
-            and (u.handle ilike ${contains} escape '\\' or u.display_name ilike ${contains} escape '\\')
+            and (u.handle ilike ${contains} escape '\\' or u.display_name ilike ${contains} escape '\\'
+                 or pf.headline ilike ${contains} escape '\\')
           order by (u.handle ilike ${prefix} escape '\\' or u.display_name ilike ${prefix} escape '\\') desc, u.handle
           limit 10`),
       ]);

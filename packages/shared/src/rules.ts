@@ -60,6 +60,13 @@ export const PF_YEAR_AHEAD = 10;
 export const PF_LINKS_MAX = 6;
 export const PF_LINK_LABEL_MAX = 30;
 export const PF_LINK_URL_MAX = 500;
+/** The look of a portfolio: a fixed set of choices, no custom fonts or CSS. */
+export const PF_FONTS = ['archivo', 'mono', 'hand'] as const;
+export type PfFont = (typeof PF_FONTS)[number];
+export const PF_BACKGROUNDS = ['paper', 'ink'] as const;
+export type PfBackground = (typeof PF_BACKGROUNDS)[number];
+export const PF_ACCENTS = ['red', 'blue', 'green', 'yellow', 'violet', 'orange'] as const;
+export type PfAccent = (typeof PF_ACCENTS)[number];
 
 // ─── Projects: numbered case studies on a portfolio ─────────────────────────
 export const PROJECTS_MAX = 12;

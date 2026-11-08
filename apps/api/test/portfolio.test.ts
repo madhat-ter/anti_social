@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
+import sharp from 'sharp';
 import { scalar } from '@anti/db';
 import { PF_ABOUT_MAX, PF_EXPERIENCE_MAX, PF_HEADLINE_MAX, PF_LINKS_MAX, PF_TAGS_MAX } from '@anti/shared';
 import { cleanup, setup } from './client';
@@ -20,7 +21,10 @@ async function world(seatCap?: number) {
 const EMPTY = {
   headline: '', location: '', openToWork: false, about: '',
   skills: [], tools: [], experience: [], education: [], links: [], empty: true, updatedAt: null,
+  cover: null, font: 'archivo', bg: 'paper', accent: 'red',
 };
+const png = (w = 60, h = 20) =>
+  sharp({ create: { width: w, height: h, channels: 3, background: { r: 30, g: 200, b: 30 } } }).png().toBuffer();
 
 describe('portfolio', () => {
   test('a new member has an empty portfolio; anyone seated can read it', async () => {
@@ -122,6 +126,57 @@ describe('portfolio', () => {
 
     await w.t.db.execute(sql`update users set state = 'banned' where handle = 'theo'`);
     expect((await maya.get('/members/theo/portfolio')).status).toBe(404);
+  });
+
+  test('the look: a fixed set of choices, never counted as content', async () => {
+    const w = await world();
+    const maya = await w.member('maya');
+    const r = await maya.patch('/me/portfolio', { font: 'hand', bg: 'ink', accent: 'green' });
+    expect(r.body).toMatchObject({ font: 'hand', bg: 'ink', accent: 'green', empty: true });
+    expect((await maya.patch('/me/portfolio', { font: 'comic-sans' })).body.error).toBe('portfolio_invalid');
+    expect((await maya.patch('/me/portfolio', { bg: 'plaid' })).body.error).toBe('portfolio_invalid');
+    expect((await maya.patch('/me/portfolio', { accent: '#ff0000' })).body.error).toBe('portfolio_invalid');
+    expect((await maya.get('/members/maya/portfolio')).body).toMatchObject({ font: 'hand', bg: 'ink', accent: 'green' });
+  });
+
+  test('cover: a pending upload moves in; replacing or removing it drops the old blob', async () => {
+    const w = await world();
+    const maya = await w.member('maya');
+    const theo = await w.member('theo');
+    const up = async (c = maya) => { const r = await c.upload('/uploads', await png()); expect(r.status).toBe(200); return { id: r.body.id as string, key: r.body.url.split('/').pop() as string }; };
+    const a = await up();
+    const r = await maya.patch('/me/portfolio', { coverId: a.id });
+    expect(r.body).toMatchObject({ cover: { url: `/api/media/${a.key}`, width: 60, height: 20 }, empty: false });
+    expect((await maya.post('/posts', { body: 'x', imageIds: [a.id] })).body.error).toBe('image_invalid');
+    // a patch without coverId keeps it
+    expect((await maya.patch('/me/portfolio', { headline: 'Hi' })).body.cover.url).toBe(`/api/media/${a.key}`);
+    // replace
+    const b = await up();
+    expect((await maya.patch('/me/portfolio', { coverId: b.id })).body.cover.url).toBe(`/api/media/${b.key}`);
+    expect(w.storage.files.has(a.key)).toBe(false);
+    expect(w.storage.files.has(b.key)).toBe(true);
+    // someone else's upload, or a used one, is refused and nothing changes
+    const theirs = await up(theo);
+    expect((await maya.patch('/me/portfolio', { coverId: theirs.id })).body.error).toBe('portfolio_invalid');
+    expect((await maya.patch('/me/portfolio', { coverId: crypto.randomUUID() })).body.error).toBe('portfolio_invalid');
+    expect((await maya.patch('/me/portfolio', { coverId: 'nope' })).body.error).toBe('portfolio_invalid');
+    expect((await maya.get('/members/maya/portfolio')).body.cover.url).toBe(`/api/media/${b.key}`);
+    // remove
+    expect((await maya.patch('/me/portfolio', { coverId: null, headline: '' })).body).toMatchObject({ cover: null, empty: true });
+    expect(w.storage.files.has(b.key)).toBe(false);
+  });
+
+  test('the headline and "open to work" show in the member list and search', async () => {
+    const w = await world();
+    const maya = await w.member('maya');
+    const theo = await w.member('theo');
+    await theo.patch('/me/portfolio', { headline: 'Printmaker in Wrocław', openToWork: true });
+    const list = (await maya.get('/members')).body.items;
+    expect(list.find((m: { handle: string }) => m.handle === 'theo')).toMatchObject({ headline: 'Printmaker in Wrocław', openToWork: true });
+    expect(list.find((m: { handle: string }) => m.handle === 'maya')).toMatchObject({ headline: '', openToWork: false });
+    expect((await maya.get('/members/theo')).body.headline).toBe('Printmaker in Wrocław');
+    const found = (await maya.get('/search?q=printmaker')).body.members;
+    expect(found.map((m: { handle: string }) => m.handle)).toEqual(['theo']);
   });
 
   test('editing the portfolio is not a contribution for the lurker rule', async () => {

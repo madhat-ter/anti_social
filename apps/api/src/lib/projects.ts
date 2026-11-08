@@ -12,6 +12,7 @@ import {
   PROJECT_TITLE_MAX, PROJECT_TOOLS_MAX, PF_TAG_MAX, PF_YEAR_AHEAD, PF_YEAR_MIN, type ProjectLayout,
 } from '@anti/shared';
 import { ApiError } from './errors';
+import { DEFAULT_STYLE, type PfStyle } from './portfolio';
 import { mediaUrl, UUID_RE } from './posts';
 import type { Storage } from './storage';
 
@@ -75,15 +76,22 @@ const toSummary = (p: Project): ProjectSummary => ({
   cover: p.images[0] ? { url: p.images[0].url, width: p.images[0].width, height: p.images[0].height } : null,
 });
 
-/** The member must be visible (seated or archived). Drafts are returned only to their owner. */
-export async function listProjects(db: Db, viewerId: string, handle: string): Promise<ProjectSummary[] | null> {
-  const [m] = await rows<{ id: string }>(db, sql`
-    select id from users where lower(handle) = lower(${handle}) and state in ('active', 'flagged_lurker', 'archived')`);
+/**
+ * The member must be visible (seated or archived). Drafts are returned only to their owner.
+ * Comes with the portfolio's look, so a project page is drawn the same way as the portfolio.
+ */
+export async function listProjects(db: Db, viewerId: string, handle: string): Promise<{ items: ProjectSummary[]; style: PfStyle } | null> {
+  const [m] = await rows<{ id: string; font: PfStyle['font'] | null; bg: PfStyle['bg'] | null; accent: PfStyle['accent'] | null }>(db, sql`
+    select u.id, pf.font, pf.bg, pf.accent from users u left join portfolios pf on pf.user_id = u.id
+    where lower(u.handle) = lower(${handle}) and u.state in ('active', 'flagged_lurker', 'archived')`);
   if (!m) return null;
   const found = await rows<Row>(db, sql`${select}
     where p.user_id = ${m.id}::uuid ${m.id === viewerId ? sql`` : sql`and p.draft = false`}
     order by p.position, p.created_at`);
-  return found.map((r) => toSummary(toProject(r, viewerId)));
+  return {
+    items: found.map((r) => toSummary(toProject(r, viewerId))),
+    style: { font: m.font ?? DEFAULT_STYLE.font, bg: m.bg ?? DEFAULT_STYLE.bg, accent: m.accent ?? DEFAULT_STYLE.accent },
+  };
 }
 
 export async function getProject(db: Db, viewerId: string, handle: string, id: string): Promise<Project | null> {

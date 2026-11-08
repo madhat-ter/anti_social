@@ -47,10 +47,16 @@ function SeatMap({ myHandle }: { myHandle: string }) {
       <ol className="seatmap">
         {members.map((m) => (
           <li key={m.handle} className={m.handle === myHandle ? 'me' : undefined}>
-            <Link href={`/u/${m.handle}`} title={m.bio || undefined}>
+            <Link href={`/u/${m.handle}`} title={m.headline || m.bio || undefined}>
               <Avatar seed={m.handle} size={56} />
               <span className="seat-name">{m.displayName}</span>
               <span className="seat-handle">@{m.handle}</span>
+              {m.headline && (
+                <span className="seat-headline">
+                  {m.openToWork && <span className="rdot on" role="img" aria-label="open to work" />}
+                  <span className="seat-headline-text">{m.headline}</span>
+                </span>
+              )}
             </Link>
           </li>
         ))}

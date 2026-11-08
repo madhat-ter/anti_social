@@ -66,18 +66,27 @@ export interface Pick {
 /** One line of experience or education. `to` null = still there. */
 export interface PfEntry { title: string; place: string; from: number; to: number | null; line: string }
 export interface PfLink { label: string; url: string }
-/** The CV fields a member edits on their own portfolio. */
-export interface PortfolioFields {
+export type PfFont = 'archivo' | 'mono' | 'hand';
+export type PfBackground = 'paper' | 'ink';
+export type PfAccent = 'red' | 'blue' | 'green' | 'yellow' | 'violet' | 'orange';
+/** The look of a portfolio (and its project pages): a fixed set of choices. */
+export interface PfStyle { font: PfFont; bg: PfBackground; accent: PfAccent }
+/** The CV fields a member edits on their own portfolio, plus the look. */
+export interface PortfolioFields extends PfStyle {
   headline: string; location: string; openToWork: boolean; about: string;
   skills: string[]; tools: string[]; experience: PfEntry[]; education: PfEntry[]; links: PfLink[];
 }
 export interface Portfolio extends PortfolioFields {
   handle: string;
+  /** the strip across the top, if one was uploaded */
+  cover: { url: string; width: number; height: number } | null;
   /** nothing filled in yet: the page shows the plain profile */
   empty: boolean;
   updatedAt: string | null;
   mine: boolean;
 }
+/** `coverId`: a fresh upload's id to use as the cover, null to remove it, omitted to keep it. */
+export type PortfolioInput = Partial<PortfolioFields> & { coverId?: string | null };
 
 /** How an image sits on a project page: full width, or beside a text panel on the left or right. */
 export type ProjectLayout = 'full' | 'left' | 'right';
@@ -108,6 +117,9 @@ export interface MemberSummary {
   invitedBy: { handle: string } | null;
   activatedAt: string | null;
   postCount: number;
+  /** from the portfolio: shown under the name in lists */
+  headline: string;
+  openToWork: boolean;
 }
 export interface Notification {
   id: string;
@@ -230,8 +242,8 @@ export const api = {
   deletePick: (id: string) => call<{ ok: true }>('DELETE', `/suggestions/${encodeURIComponent(id)}`),
   memberPicks: (handle: string) => get<{ items: Pick[] }>(`/members/${encodeURIComponent(handle)}/suggestions`),
   portfolio: (handle: string) => get<Portfolio>(`/members/${encodeURIComponent(handle)}/portfolio`),
-  updatePortfolio: (b: Partial<PortfolioFields>) => call<Portfolio>('PATCH', '/me/portfolio', b),
-  projects: (handle: string) => get<{ items: ProjectSummary[] }>(`/members/${encodeURIComponent(handle)}/projects`),
+  updatePortfolio: (b: PortfolioInput) => call<Portfolio>('PATCH', '/me/portfolio', b),
+  projects: (handle: string) => get<{ items: ProjectSummary[]; style: PfStyle }>(`/members/${encodeURIComponent(handle)}/projects`),
   project: (handle: string, id: string) => get<Project>(`/members/${encodeURIComponent(handle)}/projects/${encodeURIComponent(id)}`),
   createProject: (b: ProjectInput) => post<Project>('/me/projects', b),
   updateProject: (id: string, b: ProjectInput) => call<Project>('PATCH', `/me/projects/${encodeURIComponent(id)}`, b),

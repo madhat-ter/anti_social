@@ -530,6 +530,11 @@ ul.events { list-style: none; margin: 0; padding: 0; display: flex; flex-directi
 .seat-name { font-weight: 700; font-size: .9rem; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .seat-handle { font: 400 .8rem var(--font-ui); color: var(--gray); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .seatmap .me .seat-handle { color: var(--paper); opacity: .75; }
+.seat-headline { font-size: .8rem; line-height: 1.25; color: var(--gray-strong); max-width: 100%; display: flex; align-items: center; justify-content: center; gap: .3rem; }
+.seat-headline .rdot { width: .5rem; height: .5rem; }
+.seat-headline-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seatmap .me .seat-headline { color: var(--paper); opacity: .85; }
+.tag.open-tag { background: var(--signal); color: var(--signal-ink); border-color: var(--signal); }
 .seat-chart-wrap { margin: 0; display: flex; flex-direction: column; gap: .75rem; }
 .seat-chart { display: grid; grid-template-columns: repeat(20, 1fr); gap: 4px; max-width: 34rem; }
 .seat-chart span { aspect-ratio: 1; border: 2px solid var(--ink); }
@@ -770,6 +775,64 @@ input[type=search]::-webkit-search-cancel-button {
 .pf-editbtns { margin-left: auto; }
 .pf-tabs { margin-top: .5rem; }
 
+/* the cover strip and, while editing, its controls and the look picker */
+.pf-coverwrap { position: relative; border-bottom: 2px solid var(--ink); background: var(--panel); }
+/* height: auto, or the img's height attribute beats aspect-ratio and the sides get cropped */
+.pf-coverimg { display: block; width: 100%; height: auto; aspect-ratio: 21 / 9; object-fit: cover; }
+.pf-coverwrap.uploading .pf-coverimg { opacity: .4; }
+.pf-coveredit { display: flex; gap: .7rem 1rem; align-items: center; flex-wrap: wrap; padding: .7rem 1.6rem; border-bottom: 2px dashed var(--ink); }
+.pf-look { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem 1.5rem; padding: 1rem 1.6rem 1.1rem; border-top: 2px dashed var(--ink); }
+.pf-look fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.pf-look legend { font: 700 .95rem var(--font-ui); padding: 0; margin-bottom: .45rem; }
+.pf-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.pf-chip {
+  font: 400 .9rem/1.2 var(--font-ui); border: 2px solid var(--ink); padding: .3rem .6rem; cursor: pointer;
+  display: inline-flex; align-items: center; gap: .45rem; background: var(--paper); color: var(--ink); flex-direction: row;
+}
+.pf-chip:hover { background: var(--hover); }
+.pf-chip.on { background: var(--ink); color: var(--paper); }
+.pf-chip:has(input:focus-visible) { outline: 3px solid var(--signal); outline-offset: 2px; }
+.pf-chip-sample { font-family: var(--pf-font); font-weight: var(--pf-hw); font-size: 1.1rem; line-height: 1; }
+.pf-swatch { width: 1rem; height: 1rem; border-radius: 50%; border: 1.5px solid var(--ink); flex: none; }
+.pf-chip.on .pf-swatch { border-color: var(--paper); }
+
+/* ─── the look: typeface, background and accent, set per portfolio ─────────
+   Classes on the window (look-*, bg-*, accent-*) redefine the theme variables on the window
+   BODY only, so the frame stays the site's and the inside is the member's. A background is a
+   design choice, so it is fixed: the system dark mode does not flip it. */
+.pf, .pj, .pf-chip { --pf-font: var(--font-text); --pf-hw: 900; --pf-stretch: 62%; }
+.look-mono { --pf-font: var(--f-mono), ui-monospace, monospace; --pf-hw: 700; --pf-stretch: 100%; }
+.look-hand { --pf-font: var(--f-hand), 'Segoe Print', 'Bradley Hand', cursive; --pf-hw: 800; --pf-stretch: 100%; }
+.pf > .win-body, .pj > .win-body { background: var(--paper); color: var(--ink); font-family: var(--pf-font); }
+.pf > .win-body :is(h1, h2, .pf-num, .pf-sec-h), .pj > .win-body :is(h1, h2, .pf-num, .pj-index a, .pj-nav > span:last-child) {
+  font-family: var(--pf-font); font-weight: var(--pf-hw); font-stretch: var(--pf-stretch);
+}
+.look-mono > .win-body h1, .look-hand > .win-body h1 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); line-height: 1; }
+.look-mono > .win-body h2, .look-hand > .win-body h2 { font-size: 1.25rem; }
+.look-mono > .win-body .pf-num, .look-hand > .win-body .pf-num { font-size: 1.5rem; }
+.look-hand > .win-body :is(h1, h2, .pj-nav > span:last-child) { text-transform: none; }
+.look-mono > .win-body .pj-head h1, .look-hand > .win-body .pj-head h1 { font-size: clamp(2.2rem, 5vw, 3.8rem); }
+.bg-paper > .win-body {
+  color-scheme: light; --paper: #ffffff; --panel: #ededed; --ink: #000000; --gray: #767676; --gray-strong: #555555;
+  --hair: rgba(0, 0, 0, .14); --shadow-c: #000000; --hover: rgba(0, 0, 0, .05);
+}
+.bg-ink > .win-body {
+  color-scheme: dark; --paper: #000000; --panel: #161616; --ink: #ffffff; --gray: #949494; --gray-strong: #b0b0b0;
+  --hair: rgba(255, 255, 255, .18); --shadow-c: #ffffff; --hover: rgba(255, 255, 255, .07);
+}
+.accent-red > .win-body    { --signal: #e8412c; --signal-text: #c42a16; --signal-ink: #000000; }
+.accent-blue > .win-body   { --signal: #2457e6; --signal-text: #1d49c2; --signal-ink: #ffffff; }
+.accent-green > .win-body  { --signal: #19a35a; --signal-text: #137a43; --signal-ink: #000000; }
+.accent-yellow > .win-body { --signal: #f5c400; --signal-text: #7a6000; --signal-ink: #000000; }
+.accent-violet > .win-body { --signal: #7a4ae0; --signal-text: #6236c0; --signal-ink: #ffffff; }
+.accent-orange > .win-body { --signal: #f07a1a; --signal-text: #a84d00; --signal-ink: #000000; }
+.bg-ink.accent-red > .win-body    { --signal-text: #ff6a4d; }
+.bg-ink.accent-blue > .win-body   { --signal-text: #86a4ff; }
+.bg-ink.accent-green > .win-body  { --signal-text: #5fd88f; }
+.bg-ink.accent-yellow > .win-body { --signal-text: #ffd74a; }
+.bg-ink.accent-violet > .win-body { --signal-text: #b79bff; }
+.bg-ink.accent-orange > .win-body { --signal-text: #ffa057; }
+
 /* selected work: the numbered contents list */
 .pf-work { border-top: 3px solid var(--ink); padding: 1.4rem 1.6rem 1.6rem; display: flex; flex-direction: column; gap: .9rem; }
 .pf-sec-h { font-size: 1.4rem; display: flex; align-items: center; gap: .55rem; }
@@ -916,6 +979,8 @@ input[type=search]::-webkit-search-cancel-button {
   .pf-col, .pf-links, .pf-editbar, .pf-work, .pj-form-body { padding-left: 1rem; padding-right: 1rem; }
   .pf-contents { grid-template-columns: 1fr; }
   .pf-item { grid-template-columns: 2.2rem 3.5rem minmax(0, 1fr); gap: .6rem; }
+  .pf-look { grid-template-columns: 1fr; padding: 1rem; }
+  .pf-coveredit { padding: .7rem 1rem; }
   .pf-cover { width: 3.5rem; height: 2.5rem; }
   .pf-start { margin: 0 1rem 1.2rem; }
   .pf-entry { grid-template-columns: 1fr; gap: 0; }

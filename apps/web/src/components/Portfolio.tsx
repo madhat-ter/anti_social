@@ -8,27 +8,40 @@
  * sits: "Edit portfolio" swaps every section for its inputs; Save sends one PATCH.
  */
 import Link from 'next/link';
-import { useId, useState, type KeyboardEvent } from 'react';
+import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import {
-  PF_ABOUT_MAX, PF_EDUCATION_MAX, PF_ENTRY_LINE_MAX, PF_ENTRY_PLACE_MAX, PF_ENTRY_TITLE_MAX, PF_EXPERIENCE_MAX,
-  PF_HEADLINE_MAX, PF_LINKS_MAX, PF_LINK_LABEL_MAX, PF_LINK_URL_MAX, PF_LOCATION_MAX, PF_TAGS_MAX, PF_TAG_MAX,
-  PROJECTS_MAX, PROJECT_IMAGES_MAX,
+  PF_ABOUT_MAX, PF_ACCENTS, PF_BACKGROUNDS, PF_EDUCATION_MAX, PF_ENTRY_LINE_MAX, PF_ENTRY_PLACE_MAX, PF_ENTRY_TITLE_MAX,
+  PF_EXPERIENCE_MAX, PF_FONTS, PF_HEADLINE_MAX, PF_LINKS_MAX, PF_LINK_LABEL_MAX, PF_LINK_URL_MAX, PF_LOCATION_MAX, PF_TAGS_MAX,
+  PF_TAG_MAX, PROJECTS_MAX, PROJECT_IMAGES_MAX,
 } from '@anti/shared';
 import {
-  api, errorMessage, type MemberSummary, type PfEntry, type PfLink, type Portfolio, type PortfolioFields, type ProjectSummary,
+  api, errorMessage, IMAGE_MAX_BYTES, type MemberSummary, type PfAccent, type PfEntry, type PfLink, type PfStyle, type Portfolio,
+  type PortfolioFields, type ProjectSummary,
 } from '@/lib/api';
 import { Avatar } from './Avatar';
 import { Win } from './retro';
 import { ErrorNote } from './ui';
 
 export const nn = (i: number) => String(i + 1).padStart(2, '0');
+/** Classes that give a window the portfolio's look (see "the look" in globals.css). */
+export const styleClass = (s: PfStyle) => `look-${s.font} bg-${s.bg} accent-${s.accent}`;
+
+const FONT_LABEL: Record<PfStyle['font'], string> = { archivo: 'Archivo', mono: 'Space Mono', hand: 'Shantell Sans' };
+const BG_LABEL: Record<PfStyle['bg'], string> = { paper: 'White', ink: 'Black' };
+export const ACCENT_HEX: Record<PfAccent, string> = {
+  red: '#e8412c', blue: '#2457e6', green: '#19a35a', yellow: '#f5c400', violet: '#7a4ae0', orange: '#f07a1a',
+};
 
 const copyOf = (p: Portfolio): PortfolioFields => ({
   headline: p.headline, location: p.location, openToWork: p.openToWork, about: p.about,
   skills: [...p.skills], tools: [...p.tools],
   experience: p.experience.map((e) => ({ ...e })), education: p.education.map((e) => ({ ...e })),
   links: p.links.map((l) => ({ ...l })),
+  font: p.font, bg: p.bg, accent: p.accent,
 });
+
+/** The cover while editing: unchanged, removed, or a fresh upload (with a local preview). */
+type CoverDraft = { id: string | null | undefined; preview: string | null; uploading: boolean };
 
 export function PortfolioWindow({ member, pf, projects, onSaved, onReorder }: {
   member: MemberSummary; pf: Portfolio; projects: ProjectSummary[];
@@ -38,27 +51,63 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder }: {
 }) {
   const [editing, setEditing] = useState(false);
   const [d, setD] = useState<PortfolioFields>(() => copyOf(pf));
+  const [cover, setCover] = useState<CoverDraft>({ id: undefined, preview: null, uploading: false });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const id = useId();
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const v: PortfolioFields = editing ? d : pf;
   const set = <K extends keyof PortfolioFields>(k: K, val: PortfolioFields[K]) => setD((cur) => ({ ...cur, [k]: val }));
 
-  const start = () => { setD(copyOf(pf)); setErr(null); setEditing(true); };
-  const cancel = () => { setEditing(false); setErr(null); };
+  const dropPreview = () => setCover((c) => { if (c.preview) URL.revokeObjectURL(c.preview); return { id: undefined, preview: null, uploading: false }; });
+  const start = () => { setD(copyOf(pf)); dropPreview(); setErr(null); setEditing(true); };
+  const cancel = () => { setEditing(false); dropPreview(); setErr(null); };
   const save = async () => {
     setBusy(true); setErr(null);
-    try { onSaved(await api.updatePortfolio(d)); setEditing(false); }
-    catch (e) { setErr(errorMessage(e)); }
+    try {
+      onSaved(await api.updatePortfolio(cover.id === undefined ? d : { ...d, coverId: cover.id }));
+      dropPreview(); setEditing(false);
+    } catch (e) { setErr(errorMessage(e)); }
     finally { setBusy(false); }
   };
+  function pickCover(files: FileList | null) {
+    const f = files?.[0];
+    if (fileRef.current) fileRef.current.value = '';
+    if (!f) return;
+    if (!f.type.startsWith('image/')) { setErr(`"${f.name}" is not an image.`); return; }
+    if (f.size > IMAGE_MAX_BYTES) { setErr(`"${f.name}" is larger than 5 MB.`); return; }
+    setErr(null);
+    const preview = URL.createObjectURL(f);
+    setCover((c) => { if (c.preview) URL.revokeObjectURL(c.preview); return { id: undefined, preview, uploading: true }; });
+    api.upload(f).then(
+      (im) => setCover((c) => (c.preview === preview ? { ...c, id: im.id, uploading: false } : c)),
+      (e) => { setErr(errorMessage(e)); setCover((c) => (c.preview === preview ? { id: undefined, preview: null, uploading: false } : c)); },
+    );
+  }
 
+  // what the cover strip shows right now
+  const coverUrl = editing ? (cover.id === null ? null : cover.preview ?? pf.cover?.url ?? null) : pf.cover?.url ?? null;
   const hasCv = editing || !!v.about || v.skills.length > 0 || v.tools.length > 0 || v.experience.length > 0 || v.education.length > 0;
   const hasLinks = editing || v.links.length > 0;
 
   return (
-    <Win title={`${member.handle}.portfolio`} className={`pf${editing ? ' editing' : ''}`} as="article">
+    <Win title={`${member.handle}.portfolio`} className={`pf ${styleClass(v)}${editing ? ' editing' : ''}`} as="article">
+      {coverUrl && (
+        <div className={`pf-coverwrap${cover.uploading ? ' uploading' : ''}`}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="pf-coverimg" src={coverUrl} alt="" width={pf.cover?.width} height={pf.cover?.height} />
+          {cover.uploading && <span className="spinner" role="status" aria-label="Uploading" />}
+        </div>
+      )}
+      {editing && (
+        <div className="pf-coveredit">
+          <input ref={fileRef} id={`${id}-cover`} type="file" accept="image/*" className="sr-only" onChange={(e) => pickCover(e.target.files)} />
+          <label htmlFor={`${id}-cover`} className="btn attach">{coverUrl ? 'Change cover' : '+ Cover image'}</label>
+          {coverUrl && <button type="button" className="link-btn" onClick={() => setCover((c) => { if (c.preview) URL.revokeObjectURL(c.preview); return { id: null, preview: null, uploading: false }; })}>Remove cover</button>}
+          <span className="muted small">A wide strip across the top, about 21:9. Resized, metadata stripped.</span>
+        </div>
+      )}
       <header className="pf-hero">
         <Avatar seed={member.handle} size={112} label={`${member.displayName}'s avatar`} />
         <div className="pf-hero-main">
@@ -101,6 +150,44 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder }: {
           )}
         </div>
       </header>
+
+      {editing && (
+        <div className="pf-look">
+          <fieldset>
+            <legend>Typeface</legend>
+            <div className="pf-chips">
+              {PF_FONTS.map((f) => (
+                <label key={f} className={`pf-chip look-${f}${d.font === f ? ' on' : ''}`}>
+                  <input type="radio" name={`${id}-font`} className="sr-only" checked={d.font === f} onChange={() => set('font', f)} />
+                  <span className="pf-chip-sample">Aa</span>{FONT_LABEL[f]}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Background</legend>
+            <div className="pf-chips">
+              {PF_BACKGROUNDS.map((b) => (
+                <label key={b} className={`pf-chip${d.bg === b ? ' on' : ''}`}>
+                  <input type="radio" name={`${id}-bg`} className="sr-only" checked={d.bg === b} onChange={() => set('bg', b)} />
+                  <span className="pf-swatch" style={{ background: b === 'ink' ? '#000' : '#fff' }} />{BG_LABEL[b]}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Accent</legend>
+            <div className="pf-chips">
+              {PF_ACCENTS.map((a) => (
+                <label key={a} className={`pf-chip${d.accent === a ? ' on' : ''}`} title={a}>
+                  <input type="radio" name={`${id}-accent`} className="sr-only" checked={d.accent === a} onChange={() => set('accent', a)} />
+                  <span className="pf-swatch" style={{ background: ACCENT_HEX[a] }} /><span className="sr-only">{a}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </div>
+      )}
 
       {pf.mine && pf.empty && !editing && (
         <p className="empty pf-start">
@@ -182,7 +269,9 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder }: {
           <ErrorNote message={err} />
           <div className="row pf-editbtns">
             <button type="button" className="btn" onClick={cancel} disabled={busy}>Cancel</button>
-            <button type="button" className="btn primary" onClick={() => void save()} disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
+            <button type="button" className="btn primary" onClick={() => void save()} disabled={busy || cover.uploading}>
+              {busy ? 'Saving…' : cover.uploading ? 'Uploading…' : 'Save'}
+            </button>
           </div>
         </div>
       )}

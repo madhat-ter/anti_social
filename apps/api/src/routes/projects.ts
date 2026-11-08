@@ -40,9 +40,9 @@ export const projectRoutes = (deps: Deps) => {
 
     .get('/members/:handle/projects', async ({ auth, params }) => {
       const a = requireSeated(auth);
-      const items = await listProjects(db, a.user.id, params.handle);
-      if (!items) throw new ApiError(404, 'not_found');
-      return { items };
+      const list = await listProjects(db, a.user.id, params.handle);
+      if (!list) throw new ApiError(404, 'not_found');
+      return list;
     })
 
     .get('/members/:handle/projects/:id', async ({ auth, params }) => {

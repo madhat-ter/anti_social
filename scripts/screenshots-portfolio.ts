@@ -218,7 +218,32 @@ try {
   if (await theo.getByRole('link', { name: 'Edit project' }).count()) throw new Error('visitor sees the edit link');
   await shot(theo, 'project-visitor');
 
-  // ── 9. phone
+  // ── 9. the look: a cover strip, Shantell Sans on black with a green accent
+  const cover = join(OUT, '_cover.png');
+  await makeImage(a, cover, '#0d3b2e', '#f2efe8', 'MAYA LIND', 'OBJECTS FOR KITCHEN TABLES · 2026');
+  await maya.goto(`${WEB}/u/maya`);
+  await maya.getByRole('button', { name: 'Edit portfolio' }).click();
+  await maya.locator('input[type=file]').setInputFiles(cover);
+  await maya.waitForFunction(() => document.querySelector('.pf-coverimg') && !document.querySelector('.pf-coverwrap.uploading'));
+  await maya.getByText('Shantell Sans').click();
+  await maya.getByText('Black', { exact: true }).click();
+  await maya.locator('.pf-chip[title=green]').click();
+  await shot(maya, 'own-look-editing', false);
+  await maya.getByRole('button', { name: 'Save', exact: true }).click();
+  await maya.getByRole('button', { name: 'Edit portfolio' }).waitFor();
+  await shot(maya, 'own-styled');
+  await maya.getByRole('link', { name: /Veloce/ }).click();
+  await maya.getByRole('heading', { name: 'Veloce' }).waitFor();
+  await shot(maya, 'project-styled', false);
+  // the headline reaches the member list and search
+  await theo.goto(`${WEB}/members`);
+  await theo.getByText('Industrial designer').first().waitFor();
+  await shot(theo, 'members-headline', false);
+  await theo.goto(`${WEB}/search?q=industrial`);
+  await theo.getByText('Maya Lind').first().waitFor();
+  await shot(theo, 'search-headline', false);
+
+  // ── 10. phone
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: SCHEME });
   await phone.addCookies(await b.cookies());
   const ph = await phone.newPage();

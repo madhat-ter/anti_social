@@ -14,10 +14,10 @@ import {
 } from '@anti/shared';
 import {
   api, errorMessage, IMAGE_MAX_BYTES, type Image, type Project, type ProjectImage, type ProjectImageInput, type ProjectInput,
-  type ProjectLayout, type ProjectSummary,
+  type ProjectLayout, type ProjectSummary, type PfStyle,
 } from '@/lib/api';
 import { ImageViewer } from './ImageViewer';
-import { nn, TagEditor } from './Portfolio';
+import { nn, styleClass, TagEditor } from './Portfolio';
 import { AlertDialog, Win } from './retro';
 import { ErrorNote } from './ui';
 
@@ -26,7 +26,7 @@ export function detailsLine(p: { year: number | null; role: string; team: string
   return [p.year, p.role, p.team, p.duration, p.tools.join(', ')].filter(Boolean).join(' · ');
 }
 
-export function ProjectView({ project: p, siblings }: { project: Project; siblings: ProjectSummary[] }) {
+export function ProjectView({ project: p, siblings, style }: { project: Project; siblings: ProjectSummary[]; style: PfStyle }) {
   const [viewing, setViewing] = useState<number | null>(null);
   const idx = siblings.findIndex((s) => s.id === p.id);
   const prev = idx > 0 ? siblings[idx - 1] : null;
@@ -36,7 +36,7 @@ export function ProjectView({ project: p, siblings }: { project: Project; siblin
   const details = detailsLine(p);
 
   return (
-    <Win title={`${p.handle}.work/${idx >= 0 ? nn(idx) : 'draft'}`} className="pj" as="article">
+    <Win title={`${p.handle}.work/${idx >= 0 ? nn(idx) : 'draft'}`} className={`pj ${styleClass(style)}`} as="article">
       <div className="pj-grid">
         <nav className="pj-index" aria-label="Projects">
           <ol>

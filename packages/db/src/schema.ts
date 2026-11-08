@@ -286,11 +286,22 @@ export const portfolios = pgTable('portfolios', {
   experience: jsonb('experience').notNull().default(sql`'[]'::jsonb`),
   education: jsonb('education').notNull().default(sql`'[]'::jsonb`),
   links: jsonb('links').notNull().default(sql`'[]'::jsonb`),
+  /** optional cover strip across the top (a moved upload: key + size) */
+  coverKey: text('cover_key'),
+  coverWidth: integer('cover_width'),
+  coverHeight: integer('cover_height'),
+  /** the look: 'archivo' | 'mono' | 'hand'; 'paper' | 'ink'; one of six accents */
+  font: text('font').notNull().default('archivo'),
+  bg: text('bg').notNull().default('paper'),
+  accent: text('accent').notNull().default('red'),
   updatedAt: tstz('updated_at').notNull().defaultNow(),
 }, (t) => [
   check('portfolios_headline_len', sql`char_length(${t.headline}) <= 60`),
   check('portfolios_location_len', sql`char_length(${t.location}) <= 60`),
   check('portfolios_about_len', sql`char_length(${t.about}) <= 1200`),
+  check('portfolios_font', sql`${t.font} in ('archivo', 'mono', 'hand')`),
+  check('portfolios_bg', sql`${t.bg} in ('paper', 'ink')`),
+  check('portfolios_accent', sql`${t.accent} in ('red', 'blue', 'green', 'yellow', 'violet', 'orange')`),
 ]);
 
 // Projects: numbered case studies on a portfolio. `draft` = only the owner sees it.
