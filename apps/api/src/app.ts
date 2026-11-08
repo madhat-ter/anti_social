@@ -14,6 +14,7 @@ import { moderationRoutes } from './routes/moderation';
 import { pushRoutes } from './routes/push';
 import { suggestionRoutes } from './routes/suggestions';
 import { portfolioRoutes } from './routes/portfolio';
+import { projectRoutes } from './routes/projects';
 
 export function createApp(deps: Deps) {
   return new Elysia()
@@ -70,7 +71,8 @@ export function createApp(deps: Deps) {
     .use(moderationRoutes(deps))
     .use(pushRoutes(deps))
     .use(suggestionRoutes(deps))
-    .use(portfolioRoutes(deps));
+    .use(portfolioRoutes(deps))
+    .use(projectRoutes(deps));
 }
 
 export type App = ReturnType<typeof createApp>;

@@ -5,7 +5,7 @@
  * Output: .screenshots/portfolio-<scheme>/NN-name.png
  */
 import { chromium, type BrowserContext, type Page } from 'playwright-core';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createTestDb } from '../packages/db/src/testing';
 import { formatInviteCode } from '../packages/shared/src/index';
@@ -66,6 +66,20 @@ async function join_(page: Page, handle: string, name: string) {
   await page.getByPlaceholder('What is on your mind?').waitFor();
   await page.getByRole('button', { name: 'Got it' }).waitFor();
   await page.getByRole('button', { name: 'Got it' }).click();
+}
+
+/** A poster-like image to upload: big type on a flat ground. */
+async function makeImage(ctx: BrowserContext, file: string, bg: string, fg: string, big: string, small: string) {
+  const p = await ctx.newPage();
+  await p.setViewportSize({ width: 1200, height: 800 });
+  await p.setContent(`<body style="margin:0"><div style="width:1200px;height:800px;background:${bg};position:relative;overflow:hidden;
+    font-family:Impact,sans-serif;color:${fg}">
+    <div style="position:absolute;left:640px;top:120px;width:420px;height:420px;border-radius:50%;background:#e5432a"></div>
+    <div style="position:absolute;left:70px;top:110px;font-size:190px;line-height:.85;text-transform:uppercase;max-width:700px">${big}</div>
+    <div style="position:absolute;left:76px;bottom:70px;font:700 34px monospace;letter-spacing:4px">${small}</div>
+  </div></body>`);
+  writeFileSync(file, await p.screenshot());
+  await p.close();
 }
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -160,19 +174,66 @@ try {
   if (await maya.getByText('Start your portfolio').count()) throw new Error('visitor sees the start box');
   await shot(maya, 'visitor-empty', false);
 
-  // ── 6. phone
+  // ── 6. a project: the editor, with two uploaded images in the two layouts
+  const img1 = join(OUT, '_render.png');
+  const img2 = join(OUT, '_sketch.png');
+  await makeImage(a, img1, '#131313', '#f2efe8', 'VELOCE', 'MASSAGE GUN · DFMA · 2026');
+  await makeImage(a, img2, '#f4f1ea', '#1a1a1a', 'SKETCH 04', 'HANDLE ANGLE STUDIES');
+  await maya.goto(`${WEB}/u/maya`);
+  await maya.getByRole('link', { name: '+ Add project' }).click();
+  await maya.getByLabel('Title').fill('Veloce');
+  await maya.getByLabel('Year').fill('2026');
+  await maya.getByLabel('Role').fill('Industrial designer');
+  await maya.getByLabel('Team').fill('Group of two');
+  await maya.getByLabel('Duration').fill('3 weeks');
+  const toolsIn = maya.getByLabel('Add a tool');
+  await toolsIn.fill('Fusion 360, KeyShot');
+  await toolsIn.press('Enter');
+  await maya.getByLabel(/^Summary/).fill('A massage gun for people who hate massage guns: quiet, small, and shaped like a tool rather than a weapon.');
+  await maya.getByLabel(/^Write-up/).fill('The brief was design for manufacturing and assembly: every part had to come out of a mould and go together in under a minute.\n\nWe started with thirty quick sketches, kept three, and built the handle angle in foam before touching CAD.');
+  await maya.locator('input[type=file]').setInputFiles([img1, img2]);
+  await maya.waitForFunction(() => document.querySelectorAll('.pj-att.done').length === 2);
+  const second = maya.locator('.pj-att').nth(1);
+  await second.getByText('Text on the left').click();
+  await second.getByLabel('Panel heading').fill('Concept');
+  await second.getByLabel('Panel text').fill('Thirty sketches in an afternoon. The handle angle came from holding a hammer, not a drill.');
+  await second.getByLabel('Caption (optional)').fill('Handle angle studies');
+  await shot(maya, 'project-editor');
+  await maya.getByRole('button', { name: 'Add project' }).click();
+  await maya.getByRole('heading', { name: 'Veloce' }).waitFor();
+  // ── 7. the project page, as its owner
+  await shot(maya, 'project-own');
+  // a second, draft project, so the index and the draft tag show
+  await maya.request.post(`${WEB}/api/me/projects`, { data: { title: 'Folding lamp', year: 2025, role: 'Solo', draft: true, summary: 'Still being written.' } });
+  await maya.goto(`${WEB}/u/maya`);
+  await maya.getByText('Folding lamp').waitFor();
+  await shot(maya, 'own-contents');
+
+  // ── 8. the visitor sees the project but not the draft
+  await theo.goto(`${WEB}/u/maya`);
+  await theo.getByText('Veloce').waitFor();
+  if (await theo.getByText('Folding lamp').count()) throw new Error('visitor sees a draft');
+  await theo.getByRole('link', { name: /Veloce/ }).click();
+  await theo.getByRole('heading', { name: 'Veloce' }).waitFor();
+  if (await theo.getByRole('link', { name: 'Edit project' }).count()) throw new Error('visitor sees the edit link');
+  await shot(theo, 'project-visitor');
+
+  // ── 9. phone
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: SCHEME });
   await phone.addCookies(await b.cookies());
   const ph = await phone.newPage();
   ph.on('pageerror', (e) => pageErrors.push(`${ph.url()}: ${e.message}`));
   await ph.goto(`${WEB}/u/maya`);
-  await ph.getByText('Industrial designer').waitFor();
+  await ph.getByText('Industrial designer', { exact: true }).waitFor();
   await shot(ph, 'phone-visitor');
+  await ph.getByRole('link', { name: /Veloce/ }).click();
+  await ph.getByRole('heading', { name: 'Veloce' }).waitFor();
+  await shot(ph, 'phone-project');
   await phone.close();
 
   // reload the owner's page: it comes back from the server as saved
   await maya.goto(`${WEB}/u/maya`);
-  await maya.getByText('Industrial designer').waitFor();
+  await maya.getByText('Industrial designer', { exact: true }).waitFor();
   const yearsShown = await maya.locator('.pf-years').allInnerTexts();
   console.log('entries shown:', yearsShown.join(' | '));
   if (yearsShown[0] !== '2023 – now') throw new Error(`experience not sorted newest first: ${yearsShown.join(' | ')}`);

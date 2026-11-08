@@ -79,6 +79,27 @@ export interface Portfolio extends PortfolioFields {
   mine: boolean;
 }
 
+/** How an image sits on a project page: full width, or beside a text panel on the left or right. */
+export type ProjectLayout = 'full' | 'left' | 'right';
+export interface ProjectImage {
+  id: string; url: string; width: number; height: number;
+  layout: ProjectLayout; heading: string; text: string; caption: string;
+}
+export interface ProjectFields {
+  title: string; summary: string; body: string; year: number | null; role: string;
+  tools: string[]; team: string; duration: string; draft: boolean;
+}
+export interface Project extends ProjectFields {
+  id: string; handle: string; images: ProjectImage[]; mine: boolean; createdAt: string; updatedAt: string;
+}
+/** One line of the contents list. */
+export interface ProjectSummary {
+  id: string; title: string; year: number | null; role: string; draft: boolean;
+  cover: { url: string; width: number; height: number } | null;
+}
+export interface ProjectImageInput { id: string; layout: ProjectLayout; heading: string; text: string; caption: string }
+export type ProjectInput = Partial<ProjectFields> & { images?: ProjectImageInput[] };
+
 export interface MemberSummary {
   handle: string;
   displayName: string;
@@ -210,6 +231,12 @@ export const api = {
   memberPicks: (handle: string) => get<{ items: Pick[] }>(`/members/${encodeURIComponent(handle)}/suggestions`),
   portfolio: (handle: string) => get<Portfolio>(`/members/${encodeURIComponent(handle)}/portfolio`),
   updatePortfolio: (b: Partial<PortfolioFields>) => call<Portfolio>('PATCH', '/me/portfolio', b),
+  projects: (handle: string) => get<{ items: ProjectSummary[] }>(`/members/${encodeURIComponent(handle)}/projects`),
+  project: (handle: string, id: string) => get<Project>(`/members/${encodeURIComponent(handle)}/projects/${encodeURIComponent(id)}`),
+  createProject: (b: ProjectInput) => post<Project>('/me/projects', b),
+  updateProject: (id: string, b: ProjectInput) => call<Project>('PATCH', `/me/projects/${encodeURIComponent(id)}`, b),
+  deleteProject: (id: string) => call<{ ok: true }>('DELETE', `/me/projects/${encodeURIComponent(id)}`),
+  orderProjects: (ids: string[]) => post<{ ok: true }>('/me/projects/order', { ids }),
   memberPosts: (handle: string, cursor?: string | null, limit = 20) =>
     get<Page<Post>>(`/members/${encodeURIComponent(handle)}/posts${qs({ cursor, limit })}`),
   notifications: (cursor?: string | null, limit = 30) => get<NotificationPage>(`/notifications${qs({ cursor, limit })}`),
@@ -275,6 +302,7 @@ const MESSAGES: Record<string, string> = {
   image_unsupported: 'That image type is not supported.',
   query_invalid: 'Enter a longer search.',
   not_found: 'Not found.',
+  project_limit: 'A portfolio holds up to 12 projects. Remove one to add another.',
   product_unavailable: 'That is not available to buy right now.',
   no_open_offer: 'There is no seat being held for you any more.',
   stay_fee_not_applicable: 'The stay fee is only for members with a seat.',

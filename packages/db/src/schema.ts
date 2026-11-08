@@ -293,6 +293,51 @@ export const portfolios = pgTable('portfolios', {
   check('portfolios_about_len', sql`char_length(${t.about}) <= 1200`),
 ]);
 
+// Projects: numbered case studies on a portfolio. `draft` = only the owner sees it.
+export const projects = pgTable('projects', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  summary: text('summary').notNull().default(''),
+  body: text('body').notNull().default(''),
+  year: integer('year'),
+  role: text('role').notNull().default(''),
+  tools: jsonb('tools').notNull().default(sql`'[]'::jsonb`),
+  team: text('team').notNull().default(''),
+  duration: text('duration').notNull().default(''),
+  position: integer('position').notNull().default(0),
+  draft: boolean('draft').notNull().default(false),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  updatedAt: tstz('updated_at').notNull().defaultNow(),
+}, (t) => [
+  check('projects_title_len', sql`char_length(${t.title}) between 1 and 80`),
+  check('projects_summary_len', sql`char_length(${t.summary}) <= 200`),
+  check('projects_body_len', sql`char_length(${t.body}) <= 4000`),
+  index('projects_owner').on(t.userId, t.position),
+]);
+
+/**
+ * An image on a project page, in order. Rows move here from post_images when a pending upload
+ * is attached (same id, same blob), so the orphan sweep never touches them. layout: 'full' |
+ * 'left' | 'right' (where the text panel sits; the panel is heading + text).
+ */
+export const projectImages = pgTable('project_images', {
+  id: uuid('id').primaryKey(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  r2Key: text('r2_key').notNull(),
+  width: integer('width').notNull(),
+  height: integer('height').notNull(),
+  position: integer('position').notNull().default(0),
+  layout: text('layout').notNull().default('full'),
+  heading: text('heading').notNull().default(''),
+  text: text('text').notNull().default(''),
+  caption: text('caption').notNull().default(''),
+}, (t) => [
+  check('project_images_layout', sql`${t.layout} in ('full', 'left', 'right')`),
+  check('project_images_position', sql`${t.position} between 0 and 9`),
+  index('project_images_project').on(t.projectId, t.position),
+]);
+
 export const pushSubscriptions = pgTable('push_subscriptions', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

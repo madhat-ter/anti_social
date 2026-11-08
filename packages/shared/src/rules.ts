@@ -61,6 +61,24 @@ export const PF_LINKS_MAX = 6;
 export const PF_LINK_LABEL_MAX = 30;
 export const PF_LINK_URL_MAX = 500;
 
+// ─── Projects: numbered case studies on a portfolio ─────────────────────────
+export const PROJECTS_MAX = 12;
+export const PROJECT_IMAGES_MAX = 10;
+export const PROJECT_TITLE_MAX = 80;
+export const PROJECT_SUMMARY_MAX = 200;
+export const PROJECT_BODY_MAX = 4000;
+export const PROJECT_ROLE_MAX = 60;
+export const PROJECT_TEAM_MAX = 40;
+export const PROJECT_DURATION_MAX = 40;
+export const PROJECT_TOOLS_MAX = 10;
+export const PROJECT_CAPTION_MAX = 140;
+/** a text panel beside an image: a heading and a paragraph */
+export const PROJECT_PANEL_HEADING_MAX = 60;
+export const PROJECT_PANEL_TEXT_MAX = 600;
+/** how an image sits on the page: full width, or beside a text panel on the left or right */
+export const PROJECT_LAYOUTS = ['full', 'left', 'right'] as const;
+export type ProjectLayout = (typeof PROJECT_LAYOUTS)[number];
+
 // ─── Posts & media (RFC-0001 §10) ───────────────────────────────────────────
 export const POST_MAX_CHARS = 500;
 export const POST_MAX_IMAGES = 4;

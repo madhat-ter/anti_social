@@ -12,11 +12,16 @@ import { useId, useState, type KeyboardEvent } from 'react';
 import {
   PF_ABOUT_MAX, PF_EDUCATION_MAX, PF_ENTRY_LINE_MAX, PF_ENTRY_PLACE_MAX, PF_ENTRY_TITLE_MAX, PF_EXPERIENCE_MAX,
   PF_HEADLINE_MAX, PF_LINKS_MAX, PF_LINK_LABEL_MAX, PF_LINK_URL_MAX, PF_LOCATION_MAX, PF_TAGS_MAX, PF_TAG_MAX,
+  PROJECTS_MAX, PROJECT_IMAGES_MAX,
 } from '@anti/shared';
-import { api, errorMessage, type MemberSummary, type PfEntry, type PfLink, type Portfolio, type PortfolioFields } from '@/lib/api';
+import {
+  api, errorMessage, type MemberSummary, type PfEntry, type PfLink, type Portfolio, type PortfolioFields, type ProjectSummary,
+} from '@/lib/api';
 import { Avatar } from './Avatar';
 import { Win } from './retro';
 import { ErrorNote } from './ui';
+
+export const nn = (i: number) => String(i + 1).padStart(2, '0');
 
 const copyOf = (p: Portfolio): PortfolioFields => ({
   headline: p.headline, location: p.location, openToWork: p.openToWork, about: p.about,
@@ -25,7 +30,12 @@ const copyOf = (p: Portfolio): PortfolioFields => ({
   links: p.links.map((l) => ({ ...l })),
 });
 
-export function PortfolioWindow({ member, pf, onSaved }: { member: MemberSummary; pf: Portfolio; onSaved: (p: Portfolio) => void }) {
+export function PortfolioWindow({ member, pf, projects, onSaved, onReorder }: {
+  member: MemberSummary; pf: Portfolio; projects: ProjectSummary[];
+  onSaved: (p: Portfolio) => void;
+  /** owner only: the contents list in its new order */
+  onReorder: (ids: string[]) => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [d, setD] = useState<PortfolioFields>(() => copyOf(pf));
   const [busy, setBusy] = useState(false);
@@ -147,6 +157,10 @@ export function PortfolioWindow({ member, pf, onSaved }: { member: MemberSummary
         </div>
       )}
 
+      {(projects.length > 0 || pf.mine) && !editing && (
+        <Contents handle={member.handle} items={projects} mine={pf.mine} onReorder={onReorder} />
+      )}
+
       {hasLinks && (
         <section className="pf-links" aria-label="Links">
           {editing ? <LinkEditor value={d.links} onChange={(l) => set('links', l)} /> : (
@@ -173,6 +187,52 @@ export function PortfolioWindow({ member, pf, onSaved }: { member: MemberSummary
         </div>
       )}
     </Win>
+  );
+}
+
+/** Selected work: the numbered contents list. Owners add, and move entries up or down. */
+function Contents({ handle, items, mine, onReorder }: { handle: string; items: ProjectSummary[]; mine: boolean; onReorder: (ids: string[]) => void }) {
+  const move = (i: number, by: -1 | 1) => {
+    const ids = items.map((p) => p.id);
+    const j = i + by;
+    if (j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j]!, ids[i]!];
+    onReorder(ids);
+  };
+  return (
+    <section className="pf-work" aria-labelledby="pf-work-h">
+      <div className="row between">
+        <h2 id="pf-work-h" className="pf-sec-h">Selected work</h2>
+        {mine && items.length < PROJECTS_MAX && <Link className="btn" href={`/u/${handle}/work/new`}>+ Add project</Link>}
+      </div>
+      {items.length === 0 ? (
+        <p className="muted">Projects are numbered case studies: a title, a line of details, a write-up and up to {PROJECT_IMAGES_MAX} images. Add the first one.</p>
+      ) : (
+        <ol className="pf-contents">
+          {items.map((p, i) => (
+            <li key={p.id}>
+              <Link href={`/u/${handle}/work/${p.id}`} className="pf-item">
+                <span className="pf-num">{nn(i)}</span>
+                {p.cover
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img className="pf-cover" src={p.cover.url} alt="" width={p.cover.width} height={p.cover.height} />
+                  : <span className="pf-cover none" aria-hidden="true" />}
+                <span className="pf-item-main">
+                  <span className="pf-item-title">{p.title}{p.draft && <span className="tag">draft</span>}</span>
+                  {(p.year || p.role) && <span className="pf-item-meta">{[p.year, p.role].filter(Boolean).join(' · ')}</span>}
+                </span>
+              </Link>
+              {mine && (
+                <span className="pf-move">
+                  <button type="button" className="icon-btn" aria-label={`Move ${p.title} up`} disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+                  <button type="button" className="icon-btn" aria-label={`Move ${p.title} down`} disabled={i === items.length - 1} onClick={() => move(i, 1)}>↓</button>
+                </span>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   );
 }
 
@@ -204,14 +264,16 @@ function Entries({ items }: { items: PfEntry[] }) {
 // ─── editors ─────────────────────────────────────────────────────────────────
 
 /** Chips plus one input: Enter or a comma adds, Backspace on an empty input takes the last one back. */
-function TagEditor({ value, onChange, placeholder }: { value: string[]; onChange: (v: string[]) => void; placeholder: string }) {
+export function TagEditor({ value, onChange, placeholder, max = PF_TAGS_MAX, label = 'Add a tag' }: {
+  value: string[]; onChange: (v: string[]) => void; placeholder: string; max?: number; label?: string;
+}) {
   const [text, setText] = useState('');
   const add = (raw: string) => {
     const parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
     if (!parts.length) return;
     const next = [...value];
     for (const p of parts) {
-      if (next.length >= PF_TAGS_MAX) break;
+      if (next.length >= max) break;
       if (!next.some((x) => x.toLowerCase() === p.toLowerCase())) next.push(p.slice(0, PF_TAG_MAX));
     }
     onChange(next);
@@ -221,7 +283,7 @@ function TagEditor({ value, onChange, placeholder }: { value: string[]; onChange
     if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(text); }
     else if (e.key === 'Backspace' && !text && value.length) onChange(value.slice(0, -1));
   };
-  const full = value.length >= PF_TAGS_MAX;
+  const full = value.length >= max;
   return (
     <div className="pf-tagedit">
       {value.length > 0 && (
@@ -236,8 +298,8 @@ function TagEditor({ value, onChange, placeholder }: { value: string[]; onChange
       )}
       <input
         value={text} onChange={(e) => setText(e.target.value)} onKeyDown={onKey} onBlur={() => add(text)}
-        maxLength={PF_TAG_MAX * 4} placeholder={full ? `That is ${PF_TAGS_MAX}, the most it holds` : placeholder} disabled={full}
-        aria-label="Add a tag"
+        maxLength={PF_TAG_MAX * 4} placeholder={full ? `That is ${max}, the most it holds` : placeholder} disabled={full}
+        aria-label={label}
       />
     </div>
   );

@@ -43,6 +43,13 @@
       "when": 1794117459385,
       "tag": "0005_portfolio",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794118189314,
+      "tag": "0006_projects",
+      "breakpoints": true
     }
   ]
 }

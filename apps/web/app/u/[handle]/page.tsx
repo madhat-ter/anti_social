@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { api, errorMessage, type MemberSummary, type Pick, type Portfolio, type Post } from '@/lib/api';
+import { api, errorMessage, type MemberSummary, type Pick, type Portfolio, type Post, type ProjectSummary } from '@/lib/api';
 import { PickCard } from '@/components/Picks';
 import { PortfolioWindow } from '@/components/Portfolio';
 import { usePaged, useTitle } from '@/lib/hooks';
@@ -47,15 +47,17 @@ function Profile({ myHandle }: { myHandle: string }) {
   const handle = decodeURIComponent(params.handle);
   const [member, setMember] = useState<MemberSummary | null>(null);
   const [pf, setPf] = useState<Portfolio | null>(null);
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [orderErr, setOrderErr] = useState<string | null>(null);
   const [tab, setTab] = useState<'posts' | 'picks'>('posts');
   const posts = usePaged<Post>(`u:${handle}`, (c) => api.memberPosts(handle, c));
 
   useEffect(() => {
     let alive = true;
     setMember(null); setPf(null); setError(null); setTab('posts');
-    Promise.all([api.member(handle), api.portfolio(handle)]).then(
-      ([m, p]) => { if (alive) { setMember(m); setPf(p); } },
+    Promise.all([api.member(handle), api.portfolio(handle), api.projects(handle)]).then(
+      ([m, p, pr]) => { if (alive) { setMember(m); setPf(p); setProjects(pr.items); } },
       (e) => { if (alive) setError(errorMessage(e)); },
     );
     return () => { alive = false; };
@@ -65,9 +67,17 @@ function Profile({ myHandle }: { myHandle: string }) {
   if (!member || !pf) return <Loading />;
 
   const mine = member.handle.toLowerCase() === myHandle.toLowerCase();
+  const reorder = async (ids: string[]) => {
+    const byId = new Map(projects.map((p) => [p.id, p]));
+    setProjects(ids.map((i) => byId.get(i)!));
+    setOrderErr(null);
+    try { await api.orderProjects(ids); }
+    catch (e) { setOrderErr(errorMessage(e)); api.projects(handle).then((r) => setProjects(r.items), () => {}); }
+  };
   return (
     <>
-      <PortfolioWindow member={member} pf={pf} onSaved={setPf} />
+      <PortfolioWindow member={member} pf={pf} projects={projects} onSaved={setPf} onReorder={reorder} />
+      <ErrorNote message={orderErr} />
       <div className="tabs pf-tabs" role="tablist">
         {(['posts', 'picks'] as const).map((s) => (
           <button key={s} type="button" role="tab" aria-selected={tab === s} className={tab === s ? 'tab on' : 'tab'} onClick={() => setTab(s)}>
