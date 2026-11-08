@@ -247,6 +247,10 @@ export interface EventInput {
   collabId?: string; audience?: 'anyone' | 'team';
   requirements?: string; joinMode?: 'open' | 'approve'; interests?: string[];
 }
+export interface AdminInterest {
+  slug: string; label: string; addedBy: string | null; addedAt: string;
+  uses: { members: number; collabs: number; events: number };
+}
 export type CollabStatus = 'recruiting' | 'closed' | 'finished';
 export type CollabRole = 'host' | 'cohost' | 'member';
 export interface CollabPerson { handle: string; displayName: string; gender?: Gender | null }
@@ -331,7 +335,10 @@ export const api = {
   checklist: () => get<ChecklistState>('/me/checklist'),
   interests: () => get<{ items: Interest[] }>('/interests'),
   setInterests: (interests: string[]) => call<{ interests: string[] }>('PUT', '/me/interests', { interests }),
+  addInterest: (label: string) => post<Interest & { added: boolean }>('/interests', { label }),
   opsAddInterest: (label: string) => post<Interest>('/ops/interests', { label }),
+  opsInterests: () => get<{ items: AdminInterest[] }>('/ops/interests'),
+  opsRemoveInterest: (slug: string) => call<{ removed: true }>('DELETE', `/ops/interests/${encodeURIComponent(slug)}`),
   dismissChecklist: () => post<{ dismissed: true }>('/me/checklist/dismiss', {}),
   setupState: () => get<{ about: string; gender: Gender | null; birthday: string | null }>('/me/setup'),
   setup: (b: { about: string; gender: Gender; birthday: string; confirmUnderage?: boolean }) =>

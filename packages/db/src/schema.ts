@@ -325,6 +325,8 @@ export const suggestionVotes = pgTable('suggestion_votes', {
 export const interests = pgTable('interests', {
   slug: text('slug').primaryKey(),
   label: text('label').notNull(),
+  /** a member who added it (null = seeded or an admin's); admins can remove any */
+  createdBy: uuid('created_by').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
   createdAt: tstz('created_at').notNull().defaultNow(),
 }, (t) => [
   check('interests_slug', sql`${t.slug} ~ '^[a-z0-9-]{2,30}$'`),

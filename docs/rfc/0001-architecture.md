@@ -698,7 +698,10 @@ votes. Admins remove remarks (the vote stays, the writer is told). Never a lurke
 
 ### 10.5 Collabs, interests, upgraded events (added 2026-11-08)
 
-**Interests.** A fixed list of tags (`interests`, 30 seeded; admins add more). Members pick up to 10
+**Interests.** One shared list of tags (`interests`, 30 seeded). So nobody is left out, any member can
+add a missing one (2–30 characters, 5 a day; the same name or tag returns the existing one); it joins
+the list for everyone (`created_by`). Admins add tags and remove any (it comes off every profile,
+collab and event); the Admin page lists the member-added ones, newest first. Members pick up to 10
 (`user_interests`, Settings and the 6th checklist item); collabs carry 1–5, events up to 5. "People
 who might fit" is always the overlap, best first.
 
@@ -776,7 +779,8 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST/DELETE /events/:id/request`, `POST /events/:id/requests/:handle/accept\|decline` | A / host | Ask to come; the host decides |
 | `GET /events/:id/suggestions`, `POST /events/:id/invites`, `POST /events/:id/invite/decline` | host / A | People who might fit; invites |
 | `GET /events/:id/updates` | A | The event's updates (post with `POST /posts { eventId }`) |
-| `GET /interests`, `PUT /me/interests`, `POST /ops/interests` | A / O | Interest tags |
+| `GET/POST /interests`, `PUT /me/interests` | A | The tag list; add a missing one; your picks |
+| `GET/POST /ops/interests`, `DELETE /ops/interests/:slug` | O | Who added what; add; remove everywhere |
 | `GET/POST /collabs`, `GET/PATCH/DELETE /collabs/:id` | A | Collabs (`?tab=for-you\|all&interest=`) |
 | `POST /collabs/:id/join`, `DELETE /collabs/:id/request`, `POST /collabs/:id/requests/:handle/accept\|decline` | A / managers | Join or ask; decide |
 | `GET /collabs/:id/suggestions`, `POST /collabs/:id/invites`, `POST /collabs/:id/invite/accept\|decline` | managers / A | Invites |

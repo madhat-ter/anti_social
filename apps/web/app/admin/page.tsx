@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { api, ApiError, errorMessage, type AdminMember, type AdminSettings, type FlagItem, type Me } from '@/lib/api';
+import { api, ApiError, errorMessage, type AdminInterest, type AdminMember, type AdminSettings, type FlagItem, type Me } from '@/lib/api';
 import { fmtDate, relativeTime, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { CopyButton, ErrorNote } from '@/components/ui';
@@ -352,25 +352,60 @@ function Members({ me }: { me: Me }) {
   );
 }
 
-/** Admins extend the interest list (RFC §10.5). */
+/**
+ * The interest list (RFC §10.5): admins add tags, and see the ones members added (newest first)
+ * to remove anything that should not be there. Removing takes it off every profile, collab, event.
+ */
 function AddInterest() {
   const [label, setLabel] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [items, setItems] = useState<AdminInterest[] | null>(null);
+  const [ask, setAsk] = useState<AdminInterest | null>(null);
+  const load = useCallback(() => api.opsInterests().then((r) => setItems(r.items), (x) => setErr(errorMessage(x))), []);
+  useEffect(() => { void load(); }, [load]);
   async function add(e: FormEvent) {
     e.preventDefault(); setErr(null); setMsg(null);
-    try { const r = await api.opsAddInterest(label); setMsg(`Added "${r.label}".`); setLabel(''); interestsCached(true).catch(() => {}); }
+    try { const r = await api.opsAddInterest(label); setMsg(`Added "${r.label}".`); setLabel(''); interestsCached(true).catch(() => {}); void load(); }
     catch (x) { setErr(errorMessage(x)); }
   }
+  async function remove(i: AdminInterest) {
+    setAsk(null); setErr(null); setMsg(null);
+    try { await api.opsRemoveInterest(i.slug); setMsg(`Removed "${i.label}".`); interestsCached(true).catch(() => {}); void load(); }
+    catch (x) { setErr(errorMessage(x)); }
+  }
+  const added = (items ?? []).filter((i) => i.addedBy);
+  const uses = (i: AdminInterest) => {
+    const parts = [[i.uses.members, 'member'], [i.uses.collabs, 'collab'], [i.uses.events, 'event']] as const;
+    const s = parts.filter(([n]) => n > 0).map(([n, w]) => `${n} ${w}${n === 1 ? '' : 's'}`).join(', ');
+    return s || 'not used yet';
+  };
   return (
-    <form className="stack" onSubmit={add}>
-      <label>Add an interest
-        <input value={label} maxLength={30} placeholder="Pottery" onChange={(e) => setLabel(e.target.value)} />
-        <small className="muted">Members pick from this list for their profile, collabs and events.</small>
-      </label>
-      <div className="row"><button className="btn" disabled={label.trim().length < 2}>Add</button>{msg && <span role="status" className="muted">{msg}</span>}</div>
+    <div className="stack">
+      <form className="stack" onSubmit={add}>
+        <label>Add an interest
+          <input value={label} maxLength={30} placeholder="Pottery" onChange={(e) => setLabel(e.target.value)} />
+          <small className="muted">Members pick from this list for their profile, collabs and events, and can add missing ones themselves (5 a day).</small>
+        </label>
+        <div className="row"><button className="btn" disabled={label.trim().length < 2}>Add</button>{msg && <span role="status" className="muted">{msg}</span>}</div>
+      </form>
       <ErrorNote message={err} />
-    </form>
+      <h3 className="adm-sub">Added by members ({added.length})</h3>
+      {items === null ? <Loading /> : added.length === 0 ? <p className="muted small">None yet.</p> : (
+        <ul className="list adm-interests">
+          {added.map((i) => (
+            <li key={i.slug}>
+              <span><strong>{i.label}</strong> <span className="muted small">by <Link href={`/u/${i.addedBy}`}>@{i.addedBy}</Link> · {relativeTime(i.addedAt)} · {uses(i)}</span></span>
+              <button type="button" className="btn danger" onClick={() => setAsk(i)}>Remove</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <AlertDialog open={ask !== null} title="Remove interest"
+        message={ask ? `Remove "${ask.label}"? It comes off ${uses(ask) === 'not used yet' ? 'the list' : `${uses(ask)} too`}.` : ''}
+        confirmLabel="Remove" cancelLabel="Keep it" danger
+        onConfirm={() => ask && void remove(ask)} onCancel={() => setAsk(null)} />
+    </div>
   );
 }
 

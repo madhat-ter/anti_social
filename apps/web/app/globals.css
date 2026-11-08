@@ -1106,3 +1106,9 @@ ul.list.meetups li.past > a { color: var(--muted, #666); }
 .event-fs legend { font: 700 .95rem var(--font-ui); margin-bottom: .4rem; }
 .event-main .interest-tags { margin-top: .2rem; }
 .facts dd.pre { white-space: pre-wrap; }
+
+/* interests: add your own */
+.chip.add { border-style: dashed; }
+.interest-add input { flex: 1 1 12rem; width: auto; }
+.adm-sub { font: 700 1rem var(--font-ui); margin: .75rem 0 0; }
+ul.list.adm-interests li { flex-wrap: wrap; }

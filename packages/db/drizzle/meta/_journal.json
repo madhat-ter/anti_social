@@ -113,6 +113,13 @@
       "when": 1794144340613,
       "tag": "0015_events_upgrade",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794145553357,
+      "tag": "0016_interest_added_by",
+      "breakpoints": true
     }
   ]
 }

@@ -280,6 +280,22 @@ try {
   await bossPage.locator('section[aria-labelledby=adm-rep]').screenshot({ path: file('admin-collab-report') });
   console.log('saved admin-collab-report');
 
+  // ── Add your own interest: a missing one joins the shared list and is picked; admins see who added it
+  await page.goto(`${WEB}/settings#interests`);
+  const isec = page.locator('section[aria-labelledby=interests]');
+  await isec.getByRole('button', { name: '+ Add your own' }).click();
+  await isec.getByLabel('New interest').fill('street food');
+  await shot(page, 'interest-add-typing');
+  await isec.getByRole('button', { name: 'Add', exact: true }).click();
+  await isec.getByText('Added "Street food" for everyone, and picked it.').waitFor();
+  await isec.getByRole('button', { name: 'Street food', exact: true, pressed: true }).waitFor();
+  await isec.screenshot({ path: file('interest-added') });
+  console.log('saved interest-added');
+  await bossPage.goto(`${WEB}/admin`);
+  await bossPage.getByText('Added by members (1)').waitFor();
+  await bossPage.locator('.adm-interests').screenshot({ path: file('admin-member-interests') });
+  console.log('saved admin-member-interests');
+
   if (pageErrors.length) throw new Error(`page errors:\n${pageErrors.join('\n')}`);
   console.log('ok');
 } finally {
