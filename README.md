@@ -66,6 +66,8 @@ docs/rfc         Design docs
 
 - **Collabs (done):** ongoing projects and activities members do together. Interest tags (members pick up to 10, and add their own when one is missing; admins can remove them); a Collabs page with "For you" (matching interests) and "All"; open or ask-to-join with a note; invites to people who share the interests; co-hosts; a public updates thread with photos (kept out of the feed, counts toward the posting rule); meetups (team only or open to anyone); finishing gives every member a draft portfolio project. Events gained interests, "what to bring", ask-to-come, invites and an updates thread. Collabs can be reported like posts. RFC §10.5; `scripts/screenshots-collabs.ts` walks through it.
 
+- **Trust (done):** admins carry an OG mark instead of an "admin" tag; admins give a verified badge to members they have checked; every member gives a cell phone and an email that only admins see (encrypted with `CONTACT_KEY`, every opening logged). RFC §10.7.
+
 A free test copy runs on Vercel + Render (no domain, fake payments); see [docs/deploy-free.md](docs/deploy-free.md). A real launch (domain, Stripe live keys, image storage) follows [docs/deploy.md](docs/deploy.md).
 
 ## Payments (fake Stripe)

@@ -107,6 +107,7 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
     case 'consult_done': return m('Session marked done', p.topic ? `On ${p.topic}.` : 'Thanks for taking part.', consultUrl);
     case 'consult_thanks': return m(`@${r.actor ?? 'someone'} said thanks`, 'A thank-you is on your portfolio.', consultUrl);
     case 'consult_closed': return m('A consultation was closed', 'The contacts are hidden again.', consultUrl);
+    case 'verified': return m('You are verified', 'The badge now shows by your name.', '/settings');
     default: return null;
   }
 }

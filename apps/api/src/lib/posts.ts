@@ -6,7 +6,8 @@ import { ApiError } from './errors';
 /** `role` 'ops' = an admin: the app shows an "admin" tag by the name. */
 /** `birthday`: month and day only, and only when they show it (RFC §10.3); never the year. */
 export type Birthday = { month: number; day: number };
-export type Author = { handle: string; displayName: string; state: string; role?: string; gender?: string | null; birthday?: Birthday | null };
+/** erified: an admin checked them (RFC §10.7); the badge shows by the name */
+export type Author = { handle: string; displayName: string; state: string; role?: string; gender?: string | null; birthday?: Birthday | null; verified?: boolean };
 
 /** SQL for a person's shown birthday: month/day columns, null unless public. `u` = the users alias. */
 export const birthdayCols = (u: string, prefix: string) => sql.raw(
@@ -82,7 +83,7 @@ export function postSelect(viewerId: string): SQL {
     select p.id, p.body, p.created_at::text as cursor_ts,
       ${iso(sql`p.created_at`)} as created_iso, ${iso(sql`p.edited_at`)} as edited_iso,
       (p.deleted_at is not null) as is_deleted, (p.hidden_at is not null) as is_hidden, p.parent_id, p.root_id, p.author_id,
-      u.handle as a_handle, u.display_name as a_display, u.state as a_state, u.role as a_role, u.gender as a_gender, ${birthdayCols('u', 'a')},
+      u.handle as a_handle, u.display_name as a_display, u.state as a_state, u.role as a_role, u.gender as a_gender, (u.verified_at is not null) as a_verified, ${birthdayCols('u', 'a')},
       exists(select 1 from users v where v.id = ${viewerId}::uuid and v.role = 'ops') as viewer_ops,
       case when p.root_id is null
         then (select count(*)::int from posts r where r.root_id = p.id and r.deleted_at is null and r.hidden_at is null)
@@ -103,7 +104,7 @@ export function postSelect(viewerId: string): SQL {
 export type PostRow = {
   id: string; body: string; cursor_ts: string; created_iso: string; edited_iso: string | null;
   is_deleted: boolean; is_hidden?: boolean | null; parent_id: string | null; root_id: string | null; author_id: string | null;
-  a_handle: string | null; a_display: string | null; a_state: string | null; a_role?: string | null; a_gender?: string | null; a_bm?: number | null; a_bd?: number | null;
+  a_handle: string | null; a_display: string | null; a_state: string | null; a_role?: string | null; a_gender?: string | null; a_bm?: number | null; a_bd?: number | null; a_verified?: boolean | null;
   viewer_ops?: boolean | null;
   reply_count: number; like_count: number; liked_by_me: boolean;
   images: Array<{ id: string; key: string; width: number; height: number }> | string;
@@ -117,7 +118,7 @@ export function toPost(r: PostRow, viewerId: string): Post {
   const withinWindow = Date.now() - new Date(r.created_iso).getTime() <= EDIT_WINDOW_MINUTES * 60_000;
   const author: Author | null =
     r.a_handle && r.a_state && r.a_state !== 'deleted'
-      ? { handle: r.a_handle, displayName: r.a_display ?? r.a_handle, state: r.a_state, role: r.a_role ?? 'member', gender: r.a_gender ?? null, birthday: toBirthday(r.a_bm, r.a_bd) }
+      ? { handle: r.a_handle, displayName: r.a_display ?? r.a_handle, state: r.a_state, role: r.a_role ?? 'member', gender: r.a_gender ?? null, birthday: toBirthday(r.a_bm, r.a_bd), verified: !!r.a_verified }
       : null;
   return {
     id: r.id,

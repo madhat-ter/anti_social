@@ -20,7 +20,7 @@ import { FakeAuthenticator } from '../apps/api/test/fake-authenticator';
 
 const WEB = process.env.WEB_URL ?? 'http://localhost:3100';
 /** what every member fills in once after joining (RFC §10.3) */
-const SETUP = { about: Array.from({ length: 60 }, (_, i) => `word${i}`).join(' '), gender: 'undisclosed', birthday: '1996-04-02' };
+const SETUP = { about: Array.from({ length: 60 }, (_, i) => `word${i}`).join(' '), gender: 'undisclosed', birthday: '1996-04-02', phone: '+977 980 000 0000', email: 'member@example.com' };
 const OUT = join(import.meta.dir, '..', '.screenshots', 'admin');
 mkdirSync(OUT, { recursive: true });
 

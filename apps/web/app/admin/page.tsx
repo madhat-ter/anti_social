@@ -1,7 +1,8 @@
 'use client';
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { api, ApiError, errorMessage, type AdminInterest, type AdminMember, type AdminSettings, type FlagItem, type Me, type OpsConsultation, type OpsConsultationDetail } from '@/lib/api';
+import { NameMarks } from '@/components/Marks';
+import { api, ApiError, errorMessage, type AdminContact, type AdminInterest, type AdminMember, type AdminSettings, type FlagItem, type Me, type OpsConsultation, type OpsConsultationDetail } from '@/lib/api';
 import { fmtDate, relativeTime, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { CopyButton, ErrorNote } from '@/components/ui';
@@ -243,6 +244,9 @@ function Members({ me }: { me: Me }) {
   const [err, setErr] = useState<string | null>(null);
   /** a corrected birthday that makes someone under 13: confirm before their account is closed */
   const [underage, setUnderage] = useState<{ m: AdminMember; birthday: string; detail: string } | null>(null);
+  /** RFC §10.7: work through who is not verified yet; contact details opened on request (logged) */
+  const [unverifiedOnly, setUnverifiedOnly] = useState(false);
+  const [contacts, setContacts] = useState<Record<string, AdminContact>>({});
 
   const load = useCallback(async () => {
     try { setList(await api.opsMembers()); } catch (e) { setErr(errorMessage(e)); }
@@ -296,6 +300,22 @@ function Members({ me }: { me: Me }) {
     } catch (e) { setErr(errorMessage(e)); }
   }
 
+  async function verify(m: AdminMember, on: boolean) {
+    setErr(null); setMsg(null);
+    try {
+      await api.opsVerify(m.handle, on);
+      setMsg(on ? `@${m.handle} is verified. They got a notification.` : `@${m.handle}'s badge is taken back.`);
+      await load();
+    } catch (e) { setErr(errorMessage(e)); }
+  }
+
+  async function showContact(m: AdminMember) {
+    if (contacts[m.handle]) { setContacts((c) => { const n = { ...c }; delete n[m.handle]; return n; }); return; }
+    setErr(null);
+    try { const r = await api.opsContact(m.handle); setContacts((c) => ({ ...c, [m.handle]: r })); }
+    catch (e) { setErr(errorMessage(e)); }
+  }
+
   async function closeUnderage() {
     const u = underage;
     setUnderage(null); setErr(null); setMsg(null);
@@ -308,8 +328,10 @@ function Members({ me }: { me: Me }) {
   }
 
   const term = q.trim().replace(/^@/, '').toLowerCase();
-  const shown = (list ?? []).filter((m) => !term
-    || m.handle.toLowerCase().includes(term) || m.displayName.toLowerCase().includes(term) || m.state.includes(term));
+  const seatedState = (m: AdminMember) => m.state === 'active' || m.state === 'flagged_lurker';
+  const unverified = (list ?? []).filter((m) => seatedState(m) && !m.verified);
+  const shown = (list ?? []).filter((m) => (!unverifiedOnly || (seatedState(m) && !m.verified)) && (!term
+    || m.handle.toLowerCase().includes(term) || m.displayName.toLowerCase().includes(term) || m.state.includes(term)));
   const seated = (m: AdminMember) => m.state === 'active' || m.state === 'flagged_lurker';
   const who = ask ? (ask.m.handle === me.handle ? 'yourself' : `@${ask.m.handle}`) : '';
 
@@ -318,6 +340,7 @@ function Members({ me }: { me: Me }) {
       <h2 id="adm-mem">Members</h2>
       <p className="muted">Everyone, including people waiting for a seat, archived and banned. Admins never lose their seat to the activity rules.</p>
       <input type="search" aria-label="Filter members" placeholder="Filter by handle, name or state" value={q} onChange={(e) => setQ(e.target.value)} />
+      <label className="check"><input type="checkbox" checked={unverifiedOnly} onChange={(e) => setUnverifiedOnly(e.target.checked)} /> Not verified yet ({unverified.length})</label>
       {msg && <p role="status" className="muted">{msg}</p>}
       <ErrorNote message={err} />
       {list === null ? <Loading /> : shown.length === 0 ? <p className="muted">Nobody matches.</p> : (
@@ -332,7 +355,7 @@ function Members({ me }: { me: Me }) {
                     : <Link href={`/u/${m.handle}`} className="name">{m.displayName}</Link>}
                   {' '}<span className="muted handle">@{m.handle}</span>
                   {m.handle === me.handle && <span className="tag">you</span>}
-                  {m.role === 'ops' && <span className="tag">admin</span>}
+                  <NameMarks admin={m.role === 'ops'} verified={!!m.verified} />
                   {STATE_LABEL[m.state] && <span className={`tag${m.state === 'banned' ? ' danger' : ''}`}>{STATE_LABEL[m.state]}</span>}
                 </span>
                 <span className="muted small">
@@ -342,9 +365,23 @@ function Members({ me }: { me: Me }) {
                   {m.age !== null && <> · age {m.age}</>}
                   {m.consulting !== 'none' && <> · consulting {m.consulting === 'off' ? 'switched off' : m.consulting}</>}
                   {m.invitedBy && <> · invited by @{m.invitedBy}</>}
+                  {m.verified && <> · verified {fmtDate(m.verified.at)}{m.verified.by && <> by @{m.verified.by}</>}</>}
+                  {!m.hasContact && seatedState(m) && <> · no contact details yet</>}
+                  {m.contactChangedSinceVerified && <> · <strong>contact changed since verified</strong></>}
                 </span>
+                {contacts[m.handle] && (
+                  <dl className="contact-reveal" aria-label={`Contact details of @${m.handle}`}>
+                    <dt>Phone</dt><dd>{contacts[m.handle]!.phone ? <a href={`tel:${contacts[m.handle]!.phone}`}>{contacts[m.handle]!.phone}</a> : <span className="muted">none</span>}</dd>
+                    <dt>Email</dt><dd>{contacts[m.handle]!.email ? <a href={`mailto:${contacts[m.handle]!.email}`}>{contacts[m.handle]!.email}</a> : <span className="muted">none</span>}</dd>
+                    <dt>Opened</dt><dd className="muted small">{contacts[m.handle]!.openedBy.slice(0, 3).map((v) => `@${v.handle ?? 'a former admin'} ${relativeTime(v.at)}`).join(', ')}</dd>
+                  </dl>
+                )}
               </span>
               <span className="row adm-member-actions">
+                {m.hasContact && <button type="button" className="btn" onClick={() => void showContact(m)}>{contacts[m.handle] ? 'Hide contact' : 'Show contact'}</button>}
+                {seatedState(m) && (m.verified
+                  ? <button type="button" className="btn" onClick={() => void verify(m, false)}>Remove verification</button>
+                  : <button type="button" className="btn primary" onClick={() => void verify(m, true)}>Verify</button>)}
                 <button type="button" className="btn" onClick={() => setAsk({ kind: 'rename', m })}>Change handle</button>
                 <button type="button" className="btn" onClick={() => setAsk({ kind: 'birthday', m })}>Change birthday</button>
                 {m.consulting === 'off'

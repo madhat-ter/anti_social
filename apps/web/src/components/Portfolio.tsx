@@ -20,6 +20,7 @@ import {
 } from '@/lib/api';
 import { Avatar } from './Avatar';
 import { BirthdayTag } from './Birthday';
+import { NameMarks } from './Marks';
 import { InterestTags } from './Interests';
 import { Win } from './retro';
 import { ErrorNote } from './ui';
@@ -117,7 +118,7 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
         <div className="pf-hero-main">
           <h1>
             {member.displayName}
-            {member.role === 'ops' && <span className="tag" title="Runs the room: moderates, invites, keeps it civil">admin</span>}
+            <NameMarks admin={member.role === 'ops'} verified={member.verified} size=".8em" />
             <BirthdayTag b={member.birthday} />
             {member.state === 'archived' && <span className="tag" title="This member's seat was released">archived</span>}
           </h1>
@@ -466,7 +467,7 @@ function LinkEditor({ value, onChange }: { value: PfLink[]; onChange: (v: PfLink
       {value.length < PF_LINKS_MAX
         ? <button type="button" className="btn" onClick={() => onChange([...value, { label: '', url: '' }])}>+ Add link</button>
         : <p className="muted small ui">That is {PF_LINKS_MAX}, the most it holds.</p>}
-      <p className="muted small">Web addresses only, starting with https://. No email or phone: the site never collects them.</p>
+      <p className="muted small">Web addresses only, starting with https://. Contact details stay private: only admins see the phone and email you gave.</p>
     </div>
   );
 }

@@ -43,10 +43,25 @@ export const users = pgTable('users', {
   setupDoneAt: tstz('setup_done_at'),
   /** the "Finish your profile" checklist was closed */
   checklistDismissedAt: tstz('checklist_dismissed_at'),
+  // ── RFC §10.7: contact details only admins see, encrypted (AES-256-GCM, key CONTACT_KEY)
+  contactPhoneEnc: text('contact_phone_enc'),
+  contactEmailEnc: text('contact_email_enc'),
+  contactUpdatedAt: tstz('contact_updated_at'),
+  /** verified by an admin who checked the member; the badge shows by their name */
+  verifiedAt: tstz('verified_at'),
+  verifiedBy: uuid('verified_by').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
 }, (t) => [
   index('users_state_idx').on(t.state),
   uniqueIndex('users_handle_lower').on(sql`lower(${t.handle})`),
 ]);
+
+/** RFC §10.7: every time an admin opens a member's contact details. */
+export const contactViews = pgTable('contact_views', {
+  id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+  adminId: uuid('admin_id').references(() => users.id, { onDelete: 'set null' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  at: tstz('at').notNull().defaultNow(),
+}, (t) => [index('contact_views_user').on(t.userId, t.at)]);
 
 export const userStateEvents = pgTable('user_state_events', {
   id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),

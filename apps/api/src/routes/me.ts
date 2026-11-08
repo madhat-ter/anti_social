@@ -10,6 +10,8 @@ import { saveChallenge, takeChallenge } from '../lib/challenges';
 import { registrationOptions, verifyRegistration } from '../lib/webauthn';
 import { generateInviteCode } from '../lib/crypto';
 import { checkAbout, checkBirthday, closeAccount } from '../lib/account';
+import { checkEmail, checkPhone, contactEnabled, hasContact, openContact, saveContact, setupComplete } from '../lib/contact';
+import type { Db } from '@anti/db';
 import { interestsOf } from './interests';
 
 /** Queue standing. `priority` 'reinstating' = former member (seat is offered, paid); 'new' = invitee (seated free). */
@@ -77,7 +79,11 @@ export const meRoutes = (deps: Deps) => {
       invitedBy, activatedAt: iso(u.activatedAt), lastSeenAt: iso(u.lastSeenAt),
       lurkerExemptUntil: iso(u.lurkerExemptUntil), waitlist: wl, lurker, archived,
       // setup (RFC §10.3): until it is done the app shows only the setup page
-      setupNeeded: !u.setupDoneAt, gender: u.gender, birthday: u.birthday, birthdayPublic: u.birthdayPublic,
+      setupNeeded: !setupComplete(u), gender: u.gender, birthday: u.birthday, birthdayPublic: u.birthdayPublic,
+      // RFC §10.7: your own contact details (only you and admins ever see them) and your badge
+      contactEnabled: contactEnabled(),
+      contact: hasContact(u) ? { phone: openContact(u.contactPhoneEnc), email: openContact(u.contactEmailEnc), updatedAt: iso(u.contactUpdatedAt) } : null,
+      verifiedAt: iso(u.verifiedAt),
       interests: await interestsOf(db, u.id),
     };
   }
@@ -155,7 +161,12 @@ export const meRoutes = (deps: Deps) => {
     .get('/setup', async ({ auth }) => {
       const a = requireUser(auth);
       const [p] = await rows<{ about: string | null }>(db, sql`select about from portfolios where user_id = ${a.user.id}::uuid`);
-      return { about: p?.about ?? '', gender: a.user.gender, birthday: a.user.birthday };
+      return {
+        about: p?.about ?? '', gender: a.user.gender, birthday: a.user.birthday,
+        // a member who finished setup before contact details existed only adds those
+        done: !!a.user.setupDoneAt,
+        phone: openContact(a.user.contactPhoneEnc) ?? '', email: openContact(a.user.contactEmailEnc) ?? '',
+      };
     })
 
     /**
@@ -165,7 +176,8 @@ export const meRoutes = (deps: Deps) => {
      */
     .put('/setup', async ({ auth, body, cookie }) => {
       const a = requireUser(auth);
-      const b = checkBirthday(body.birthday);
+      // once set, the birthday only changes through an admin (setup can be reopened for contact details)
+      const b = checkBirthday(a.user.setupDoneAt && a.user.birthday ? a.user.birthday : body.birthday);
       if (b.age < MIN_AGE) {
         if (!body.confirmUnderage) throw new ApiError(409, 'underage', `That birthday makes you ${b.age}. You have to be ${MIN_AGE} or older.`);
         await closeAccount(db, storage, a.user.id, 'underage', a.user.id);
@@ -173,20 +185,31 @@ export const meRoutes = (deps: Deps) => {
         return { closed: true as const };
       }
       const about = checkAbout(body.about);
+      const contact = contactEnabled() ? { phone: checkPhone(body.phone), email: checkEmail(body.email) } : null;
       await db.transaction(async (tx) => {
         await tx.execute(sql`
           insert into portfolios (user_id, about, updated_at) values (${a.user.id}::uuid, ${about}, now())
           on conflict (user_id) do update set about = excluded.about, updated_at = now()`);
         await tx.execute(sql`update users set gender = ${body.gender}::gender, birthday = ${b.iso}::date,
           setup_done_at = coalesce(setup_done_at, now()) where id = ${a.user.id}::uuid`);
+        if (contact) await saveContact(tx as unknown as Db, a.user.id, contact);
       });
       return profile(a.user.id);
     }, {
       body: t.Object({
         about: t.String({ maxLength: 6000 }), gender: genderSchema, birthday: t.String({ maxLength: 20 }),
         confirmUnderage: t.Optional(t.Boolean()),
+        phone: t.Optional(t.String({ maxLength: 60 })), email: t.Optional(t.String({ maxLength: 300 })),
       }),
     })
+
+    /** RFC §10.7: change your contact details (Settings). Only admins see them. */
+    .put('/contact', async ({ auth, body }) => {
+      const a = requireUser(auth);
+      if (!contactEnabled()) throw new ApiError(503, 'contact_unavailable', 'Contact details are not switched on yet.');
+      await saveContact(db, a.user.id, { phone: checkPhone(body.phone), email: checkEmail(body.email) });
+      return profile(a.user.id);
+    }, { body: t.Object({ phone: t.String({ maxLength: 60 }), email: t.String({ maxLength: 300 }) }) })
     .get('/passkeys', async ({ auth }) => {
       const a = requireUser(auth);
       const rows = await db.select().from(passkeys).where(eq(passkeys.userId, a.user.id)).orderBy(asc(passkeys.createdAt));

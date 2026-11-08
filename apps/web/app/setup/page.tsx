@@ -2,7 +2,8 @@
 /**
  * Setup (RFC §10.3): compulsory, once, right after joining (and on the next visit for everyone
  * who joined before it existed). About you (50–300 words, it becomes the portfolio's About),
- * gender (it only shapes your face; a live preview redraws as you pick) and birthday. Under 13,
+ * gender (it only shapes your face; a live preview redraws as you pick), birthday, and contact
+ * details only admins ever see (RFC §10.7; members set up earlier come back once for those). Under 13,
  * the app asks "is that right?" and then the account is closed. Until this is done, every other
  * page sends you here (and the API answers setup_required).
  */
@@ -33,6 +34,9 @@ export default function SetupPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [closed, setClosed] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [done, setDone] = useState(false);
 
   useEffect(() => {
     if (loading || closed) return;
@@ -43,6 +47,7 @@ export default function SetupPage() {
       setAbout(s.about);
       if (s.gender) setGender(s.gender);
       if (s.birthday) setBirthday(s.birthday);
+      setPhone(s.phone); setEmail(s.email); setDone(s.done);
       setFilled(true);
     }, (e) => setErr(errorMessage(e)));
   }, [loading, me, router, closed, filled]);
@@ -67,13 +72,17 @@ export default function SetupPage() {
   const todayIso = `${today.y}-${pad(today.m)}-${pad(today.d)}`;
   const age = parseIsoDate(birthday) ? ageOn(birthday, today) : null;
   const birthdayOk = age !== null && age >= 0 && age <= MAX_AGE;
-  const canSubmit = aboutOk && !!gender && birthdayOk && !busy;
+  const askContact = me.contactEnabled;
+  const phoneDigits = phone.replace(/\D/g, '').length;
+  const phoneOk = /^\+?[\d\s().-]+$/.test(phone.trim()) && phoneDigits >= 7 && phoneDigits <= 15;
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
+  const canSubmit = aboutOk && !!gender && birthdayOk && (!askContact || (phoneOk && emailOk)) && !busy;
 
   async function submit(confirmUnderage = false) {
     if (!gender) return;
     setAsking(false); setBusy(true); setErr(null);
     try {
-      const r = await api.setup({ about, gender, birthday, confirmUnderage });
+      const r = await api.setup({ about, gender, birthday, confirmUnderage, ...(askContact ? { phone, email } : {}) });
       if ('closed' in r) { setClosed(true); return; }
       router.replace('/');
       router.refresh();
@@ -89,7 +98,7 @@ export default function SetupPage() {
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
-    if (age !== null && age < MIN_AGE) setAsking(true);
+    if (!done && age !== null && age < MIN_AGE) setAsking(true);
     else void submit();
   }
 
@@ -102,7 +111,9 @@ export default function SetupPage() {
     <div className="stack setup">
       <h1>Set up your profile</h1>
       <Win title="setup.app" bodyClassName="stack">
-        <p>Three things before you go in. Everyone does this once.</p>
+        <p>{done
+          ? 'One new thing: contact details for the admins. The rest is already filled in from before.'
+          : askContact ? 'Four things before you go in. Everyone does this once.' : 'Three things before you go in. Everyone does this once.'}</p>
         <form className="stack" onSubmit={onSubmit}>
           <section className="setup-sec stack" aria-labelledby="su-about">
             <h2 id="su-about"><span className="ui">1.</span> About you</h2>
@@ -142,7 +153,7 @@ export default function SetupPage() {
           <section className="setup-sec stack" aria-labelledby="su-bday">
             <h2 id="su-bday"><span className="ui">3.</span> Birthday</h2>
             <label>Your birthday
-              <input type="date" value={birthday} min="1900-01-01" max={todayIso} required onChange={(e) => setBirthday(e.target.value)} />
+              <input type="date" value={birthday} min="1900-01-01" max={todayIso} required disabled={done} onChange={(e) => setBirthday(e.target.value)} />
             </label>
             <p className="muted small">
               On your day, members see a &ldquo;birthday today&rdquo; tag by your name: never your age or the year (you can turn the tag off in
@@ -150,6 +161,28 @@ export default function SetupPage() {
             </p>
             {birthday && !birthdayOk && <p className="error" role="alert">{age !== null && age < 0 ? 'That date is in the future.' : 'Check the year.'}</p>}
           </section>
+
+          {askContact && (
+            <section className="setup-sec stack" aria-labelledby="su-contact">
+              <h2 id="su-contact"><span className="ui">4.</span> Contact details</h2>
+              <p className="muted small">
+                Only the admins ever see these, never members. They use them to check that everyone here is a real person
+                (that is the verified badge) and to reach you about your seat. They are stored encrypted, and every time
+                an admin opens them it is recorded. You can change them in Settings.
+              </p>
+              <div className="row two">
+                <label>Cell phone
+                  <input type="tel" inputMode="tel" autoComplete="tel" value={phone} maxLength={30} placeholder="+977 980 000 0000" required onChange={(e) => setPhone(e.target.value)} />
+                </label>
+                <label>Email
+                  <input type="email" autoComplete="email" value={email} maxLength={254} placeholder="you@example.com" required onChange={(e) => setEmail(e.target.value)} />
+                </label>
+              </div>
+              <p className="muted small">Start the number with your country code if you can (+977 for Nepal).</p>
+              {phone && !phoneOk && <p className="error" role="alert">A phone number has 7 to 15 digits.</p>}
+              {email.trim() && !emailOk && <p className="error" role="alert">That email does not look right.</p>}
+            </section>
+          )}
 
           <ErrorNote message={err} />
           <div className="row between">

@@ -108,7 +108,7 @@ export default function Join() {
               <div className="you-face"><Avatar seed={handle} size={104} /></div>
               <div className="stack grow">
                 <p><strong>{displayName}</strong> <span className="ui muted">@{handle}</span></p>
-                <p>Create a passkey to finish. Your device will ask for your fingerprint, face or PIN. There is no password, and no email.</p>
+                <p>Create a passkey to finish. Your device will ask for your fingerprint, face or PIN. There is no password to remember.</p>
               </div>
             </div>
             <ErrorNote message={err} />

@@ -72,7 +72,7 @@ async function apiMember(handle: string, displayName: string, gender: string) {
   await q('select create_invite(null, $1)', [code]);
   const o = await call('POST', '/auth/register/options', { code: formatInviteCode(code), handle, displayName });
   await call('POST', '/auth/register/verify', { challengeId: o.challengeId, response: await authn.create(o.options, WEB) });
-  await call('PUT', '/me/setup', { about: ABOUT, gender, birthday: '1994-03-02' });
+  await call('PUT', '/me/setup', { about: ABOUT, gender, birthday: '1994-03-02', phone: '+977 980 000 0000', email: 'member@example.com' });
   await call('POST', '/me/checklist/dismiss', {});
   return { call, jar };
 }

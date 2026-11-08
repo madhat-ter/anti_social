@@ -16,7 +16,7 @@ import { listPosts, mediaUrl, UUID_RE } from './posts';
 import { hit } from './ratelimit';
 import type { Storage } from './storage';
 
-export type Person = { handle: string; displayName: string; gender: string | null };
+export type Person = { handle: string; displayName: string; gender: string | null; admin?: boolean; verified?: boolean };
 export type CollabRole = 'host' | 'cohost' | 'member';
 export type CollabSummary = {
   id: string; title: string; status: CollabStatus; joinMode: 'open' | 'approve';
@@ -131,8 +131,8 @@ function requireManager(r: Row) {
 
 export async function getCollab(db: Db, me: string, id: string): Promise<Collab> {
   const r = await load(db, me, id);
-  const team = await rows<{ handle: string; display_name: string; gender: string | null; role: CollabRole; joined: string }>(db, sql`
-    select u.handle, u.display_name, u.gender, m.role, ${iso(sql`m.joined_at`)} as joined
+  const team = await rows<{ handle: string; display_name: string; gender: string | null; role: CollabRole; joined: string; admin: boolean; verified: boolean }>(db, sql`
+    select u.handle, u.display_name, u.gender, m.role, (u.role = 'ops') as admin, (u.verified_at is not null) as verified, ${iso(sql`m.joined_at`)} as joined
       from collab_members m join users u on u.id = m.user_id and u.state not in ${LIVE}
      where m.collab_id = ${r.id}::uuid
      order by case m.role when 'host' then 0 when 'cohost' then 1 else 2 end, m.joined_at`);
@@ -159,7 +159,7 @@ export async function getCollab(db: Db, me: string, id: string): Promise<Collab>
      limit 50`);
   return {
     ...toSummary(r), description: r.description, requirements: r.requirements, priceNote: r.price_note, paymentUrl: r.payment_url,
-    team: team.map((t) => ({ handle: t.handle, displayName: t.display_name, gender: t.gender, role: t.role, joinedAt: t.joined })),
+    team: team.map((t) => ({ handle: t.handle, displayName: t.display_name, gender: t.gender, role: t.role, joinedAt: t.joined, admin: !!t.admin, verified: !!t.verified })),
     canManage: manage, requests, invites,
     hidden: !!r.hidden, canReport: !r.my_role && !r.hidden, canModerate: !!r.viewer_ops,
     meetups: meetups.map((m) => ({ id: m.id, title: m.title, startsAt: m.starts, audience: m.audience, goingCount: Number(m.going), past: !!m.past })),

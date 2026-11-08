@@ -9,6 +9,7 @@ import { MIN_AGE, validateHandle } from '@anti/shared';
 import { ApiError, rethrowDb } from './errors';
 import { checkBirthday, closeAccount } from './account';
 import type { Storage } from './storage';
+import { openContact } from './contact';
 
 const iso = (col: ReturnType<typeof sql>) => sql`to_char(${col} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 
@@ -20,6 +21,10 @@ export type AdminMember = {
   age: number | null;
   /** RFC §10.6: none (never set up), on, paused, or off (an admin switched it off) */
   consulting: 'none' | 'on' | 'paused' | 'off';
+  /** RFC §10.7: the badge (who gave it, when); whether contact details were given, and changed since */
+  verified: { at: string; by: string | null } | null;
+  hasContact: boolean;
+  contactChangedSinceVerified: boolean;
 };
 
 /** Everyone except deleted accounts: seated first (admins on top), then the queue, archived, banned. */
@@ -27,14 +32,19 @@ export async function adminMembers(db: Db): Promise<AdminMember[]> {
   const r = await rows<{
     handle: string; display_name: string; state: string; role: 'member' | 'ops'; gender: string | null; joined: string;
     activated: string | null; seen: string | null; inv: string | null; posts: number; age: number | null; consulting: 'none' | 'on' | 'paused' | 'off';
+    v_at: string | null; v_by: string | null; has_contact: boolean; changed: boolean;
   }>(db, sql`
     select u.handle, u.display_name, u.state, u.role, u.gender,
       ${iso(sql`u.created_at`)} as joined, ${iso(sql`u.activated_at`)} as activated, ${iso(sql`u.last_seen_at`)} as seen,
       inv.handle as inv,
       (select count(*)::int from posts p where p.author_id = u.id and p.deleted_at is null) as posts,
       case when u.birthday is not null then date_part('year', age(current_date, u.birthday))::int end as age,
-      case when o.user_id is null then 'none' when o.blocked_at is not null then 'off' when o.active then 'on' else 'paused' end as consulting
+      case when o.user_id is null then 'none' when o.blocked_at is not null then 'off' when o.active then 'on' else 'paused' end as consulting,
+      ${iso(sql`u.verified_at`)} as v_at, vb.handle as v_by,
+      (u.contact_phone_enc is not null and u.contact_email_enc is not null) as has_contact,
+      coalesce(u.verified_at is not null and u.contact_updated_at > u.verified_at, false) as changed
     from users u left join users inv on inv.id = u.invited_by left join consult_offers o on o.user_id = u.id
+      left join users vb on vb.id = u.verified_by
     where u.state <> 'deleted'
     order by case u.state when 'active' then 0 when 'flagged_lurker' then 0 when 'waitlisted' then 1 when 'archived' then 2 else 3 end,
              (u.role = 'ops') desc, lower(u.handle)
@@ -43,6 +53,7 @@ export async function adminMembers(db: Db): Promise<AdminMember[]> {
     handle: x.handle, displayName: x.display_name, state: x.state, role: x.role, gender: x.gender ?? null,
     joinedAt: x.joined, activatedAt: x.activated, lastSeenAt: x.seen, invitedBy: x.inv, postCount: Number(x.posts),
     age: x.age === null ? null : Number(x.age), consulting: x.consulting,
+    verified: x.v_at ? { at: x.v_at, by: x.v_by } : null, hasContact: !!x.has_contact, contactChangedSinceVerified: !!x.changed,
   }));
 }
 
@@ -199,4 +210,40 @@ export async function updateAdminSettings(db: Db, input: AdminSettingsInput): Pr
     });
   }
   return getAdminSettings(db);
+}
+
+/**
+ * RFC §10.7: an admin verifies a member they checked (the badge shows by their name), or takes it
+ * back. Verifying tells the member; taking it back is silent. Admins are not verified automatically.
+ */
+export async function setVerified(db: Db, handle: string, on: boolean, actorId: string) {
+  const t = await findMember(db, handle);
+  if (on) {
+    const done = await rows(db, sql`update users set verified_at = now(), verified_by = ${actorId}::uuid
+      where id = ${t.id}::uuid and verified_at is null returning 1`);
+    if (done.length) {
+      await db.execute(sql`insert into notifications (user_id, kind, payload) values (${t.id}::uuid, 'verified', '{}'::jsonb)`);
+    }
+  } else {
+    await db.execute(sql`update users set verified_at = null, verified_by = null where id = ${t.id}::uuid`);
+  }
+  return { handle: t.handle, verified: on };
+}
+
+/**
+ * RFC §10.7: an admin opens a member's contact details. Every opening is logged, and the recent
+ * openings come back with them, so looking is never casual.
+ */
+export async function openMemberContact(db: Db, handle: string, actorId: string) {
+  const t = await findMember(db, handle);
+  const [u] = await rows<{ p: string | null; e: string | null; changed: string | null }>(db, sql`
+    select contact_phone_enc as p, contact_email_enc as e, ${iso(sql`contact_updated_at`)} as changed from users where id = ${t.id}::uuid`);
+  await db.execute(sql`insert into contact_views (admin_id, user_id) values (${actorId}::uuid, ${t.id}::uuid)`);
+  const views = await rows<{ handle: string | null; at: string }>(db, sql`
+    select a.handle, ${iso(sql`v.at`)} as at from contact_views v left join users a on a.id = v.admin_id
+     where v.user_id = ${t.id}::uuid order by v.at desc, v.id desc limit 10`);
+  return {
+    handle: t.handle, phone: openContact(u?.p), email: openContact(u?.e), updatedAt: u?.changed ?? null,
+    openedBy: views.map((v) => ({ handle: v.handle, at: v.at })),
+  };
 }

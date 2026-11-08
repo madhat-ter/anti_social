@@ -3,6 +3,7 @@ import type { Cookie } from 'elysia';
 import { SEATED_STATES } from '@anti/shared';
 import type { Deps } from '../deps';
 import { ApiError } from '../lib/errors';
+import { setupComplete } from '../lib/contact';
 import { resolveSession, touchLastSeen, SESSION_MAX_AGE_S, type Auth } from '../lib/sessions';
 
 export const SESSION_COOKIE = 'anti_session';
@@ -33,13 +34,14 @@ export function requireUser(auth: Auth | null): Auth {
 }
 
 /**
- * A member with a seat who has finished setup (RFC §10.3): About you, gender, birthday. Until
+ * A member with a seat who has finished setup (RFC §10.3): About you, gender, birthday, and contact
+ * details for admins (§10.7, while CONTACT_KEY is set). Until
  * then everything a seat gives is locked; /me, /me/setup, settings and sign-out still work.
  */
 export function requireSeated(auth: Auth | null): Auth {
   const a = requireUser(auth);
   if (!SEATED_STATES.includes(a.user.state)) throw new ApiError(403, 'no_seat', 'You do not have a seat.');
-  if (!a.user.setupDoneAt) throw new ApiError(403, 'setup_required', 'Finish setting up your profile first.');
+  if (!setupComplete(a.user)) throw new ApiError(403, 'setup_required', 'Finish setting up your profile first.');
   return a;
 }
 

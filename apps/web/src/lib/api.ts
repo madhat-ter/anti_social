@@ -28,6 +28,12 @@ export interface Me {
   birthdayPublic: boolean;
   /** interest tags (slugs) */
   interests: string[];
+  /** RFC §10.7: contact details are asked for (the server has a key) */
+  contactEnabled: boolean;
+  /** your own contact details: only you and admins ever see them */
+  contact: { phone: string | null; email: string | null; updatedAt: string | null } | null;
+  /** when an admin verified you (the badge shows by your name) */
+  verifiedAt: string | null;
 }
 
 /** One reported post or project in the moderation queue. */
@@ -58,6 +64,15 @@ export interface AdminMember {
   age: number | null;
   /** consultations: never set up, on, paused, or switched off by an admin */
   consulting: 'none' | 'on' | 'paused' | 'off';
+  /** RFC §10.7 */
+  verified: { at: string; by: string | null } | null;
+  hasContact: boolean;
+  contactChangedSinceVerified: boolean;
+}
+/** A member's contact details as an admin opens them (the opening is logged). */
+export interface AdminContact {
+  handle: string; phone: string | null; email: string | null; updatedAt: string | null;
+  openedBy: { handle: string | null; at: string }[];
 }
 /** The room's settings an admin can change, plus seats in use. */
 export interface AdminSettings { seatCap: number; invitesPerMember: number; inviteExpiryDays: number; seatsUsed: number }
@@ -85,10 +100,10 @@ export class ApiError extends Error {
   }
 }
 
-/** `role` 'ops' = an admin (shown with an "admin" tag). */
+/** `role` 'ops' = an admin (shown with the OG mark by the name, RFC §10.7). */
 /** Month and day only, and only when they show it; never the year (RFC §10.3). */
 export interface Birthday { month: number; day: number }
-export type Author = { handle: string; displayName: string; state: UserState; role?: 'member' | 'ops'; gender?: Gender | null; birthday?: Birthday | null } | null;
+export type Author = { handle: string; displayName: string; state: UserState; role?: 'member' | 'ops'; gender?: Gender | null; birthday?: Birthday | null; verified?: boolean } | null;
 export interface Image { id: string; url: string; width: number; height: number }
 export interface Post {
   /** an update in a collab's thread / on an event's page (RFC §10.5) */
@@ -191,6 +206,8 @@ export interface MemberSummary {
   state: UserState;
   /** 'ops' = an admin */
   role: 'member' | 'ops';
+  /** an admin checked them (RFC §10.7) */
+  verified?: boolean;
   /** shapes the drawn face */
   gender: Gender | null;
   /** for the "birthday today" tag; null when hidden */
@@ -233,7 +250,7 @@ export interface Notification {
 }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 export type RsvpStatus = 'going' | 'waitlisted' | 'cancelled';
-export interface EventPerson { handle: string; displayName: string; state: UserState; attended: boolean; gender?: Gender | null }
+export interface EventPerson { handle: string; displayName: string; state: UserState; attended: boolean; gender?: Gender | null; admin?: boolean; verified?: boolean }
 export interface AnEvent {
   id: string; title: string; description: string; startsAt: string; endsAt: string | null;
   location: string | null; locationHidden: boolean; locationRsvpOnly: boolean; capacity: number | null;
@@ -264,7 +281,7 @@ export interface AdminInterest {
 }
 export type CollabStatus = 'recruiting' | 'closed' | 'finished';
 export type CollabRole = 'host' | 'cohost' | 'member';
-export interface CollabPerson { handle: string; displayName: string; gender?: Gender | null }
+export interface CollabPerson { handle: string; displayName: string; gender?: Gender | null; admin?: boolean; verified?: boolean }
 export interface CollabSummary {
   id: string; title: string; status: CollabStatus; joinMode: 'open' | 'approve';
   interests: string[]; roles: string[]; teamCount: number; teamMax: number;
@@ -396,8 +413,11 @@ export const api = {
   opsInterests: () => get<{ items: AdminInterest[] }>('/ops/interests'),
   opsRemoveInterest: (slug: string) => call<{ removed: true }>('DELETE', `/ops/interests/${encodeURIComponent(slug)}`),
   dismissChecklist: () => post<{ dismissed: true }>('/me/checklist/dismiss', {}),
-  setupState: () => get<{ about: string; gender: Gender | null; birthday: string | null }>('/me/setup'),
-  setup: (b: { about: string; gender: Gender; birthday: string; confirmUnderage?: boolean }) =>
+  setupState: () => get<{ about: string; gender: Gender | null; birthday: string | null; done: boolean; phone: string; email: string }>('/me/setup'),
+  setContact: (b: { phone: string; email: string }) => call<Me>('PUT', '/me/contact', b),
+  opsVerify: (handle: string, on: boolean) => post<{ handle: string; verified: boolean }>(`/ops/users/${encodeURIComponent(handle)}/verify`, { on }),
+  opsContact: (handle: string) => get<AdminContact>(`/ops/users/${encodeURIComponent(handle)}/contact`),
+  setup: (b: { about: string; gender: Gender; birthday: string; confirmUnderage?: boolean; phone?: string; email?: string }) =>
     call<Me | { closed: true }>('PUT', '/me/setup', b),
   deleteMe: () => call<{ ok: true }>('DELETE', '/me'),
   checkInvite: (code: string) => post<{ valid: boolean; wouldWaitlist: boolean }>('/invites/check', { code }),

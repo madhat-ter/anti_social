@@ -43,3 +43,5 @@ services:
         value: "true"
       - key: BOOTSTRAP_INVITES # first boot on an empty database prints 3 invite codes in the log
         value: "3"
+      - key: CONTACT_KEY # RFC §10.7: encrypts members' contact details; Render makes a random one
+        generateValue: true

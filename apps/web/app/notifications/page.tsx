@@ -39,6 +39,7 @@ function describe(n: Notification): string {
   if (n.kind === 'pick_remark') return `${who} left a remark on your pick "${n.pickTitle ?? ''}"`;
   if (n.kind === 'remark_removed') return `An admin removed your remark on "${n.pickTitle ?? 'a pick'}"`;
   if (n.kind === 'handle_changed') return n.newHandle ? `An admin changed your handle to @${n.newHandle}. Your profile link changed with it.` : 'An admin changed your handle.';
+  if (n.kind === 'verified') return 'You are verified. The badge now shows by your name.';
   if (n.kind === 'unbanned') return 'An admin lifted your ban. Welcome back.';
   if (n.kind === 'made_admin') return 'You are now an admin. Your tools are under Admin in the menu.';
   if (n.kind === 'admin_removed') return 'You are no longer an admin.';
@@ -126,6 +127,7 @@ function Notifications({ myHandle }: { myHandle: string }) {
               : n.kind === 'consult_switched_off' ? '/consultations?tab=offer'
               : n.kind === 'collab_finished' && n.draftId ? `/u/${myHandle}/work/${n.draftId}/edit`
               : n.kind === 'checklist_reminder' ? '/'
+              : n.kind === 'verified' ? '/settings#contact'
               : n.kind === 'handle_changed' && n.newHandle ? `/u/${n.newHandle}`
               : n.post ? `/p/${n.post.rootId ?? n.post.id}#${n.post.id}` : n.event ? `/events/${n.event.id}`
               : n.collab ? `/collabs/${n.collab.id}` : n.kind.startsWith('collab_') ? '/collabs' : null;

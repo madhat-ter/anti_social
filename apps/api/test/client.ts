@@ -14,7 +14,7 @@ export const cfg = { rpId: 'localhost', rpName: 'Anti', webOrigin: ORIGIN, cooki
 
 /** What every test member writes at setup: 60 words, a neutral face, born 1995. */
 export const TEST_ABOUT = Array.from({ length: 60 }, (_, i) => `word${i}`).join(' ');
-export const TEST_SETUP = { about: TEST_ABOUT, gender: 'undisclosed', birthday: '1995-05-17' };
+export const TEST_SETUP = { about: TEST_ABOUT, gender: 'undisclosed', birthday: '1995-05-17', phone: '+977 980 000 0000', email: 'member@example.com' };
 
 export type Json = any;
 export interface Res { status: number; body: Json }

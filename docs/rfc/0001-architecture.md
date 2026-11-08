@@ -9,7 +9,7 @@
 
 ## 1. Summary
 
-An invite-only, 100-seat, Twitter-like community with no private messaging. Identity is a passkey plus a handle — no email, no password, no OAuth. Members must keep showing up (30-day inactivity rule) and must keep contributing (lurker rule) or pay a stay fee. Members can host and attend real-world events. Every member has identical capabilities, except admins (role `ops`), who run the room from an Admin page (§10.2, added 2026-11-08; originally ops was backend-only).
+An invite-only, 100-seat, Twitter-like community with no private messaging. Identity is a passkey plus a handle — no email login, no password, no OAuth (members give admins a phone and an email, §10.7). Members must keep showing up (30-day inactivity rule) and must keep contributing (lurker rule) or pay a stay fee. Members can host and attend real-world events. Every member has identical capabilities, except admins (role `ops`), who run the room from an Admin page (§10.2, added 2026-11-08; originally ops was backend-only).
 
 Stack: Next.js web client → Elysia (Bun) API → PostgreSQL (Drizzle + a few PL/pgSQL functions). The API is the single source of truth so a mobile app can be added later without backend changes.
 
@@ -26,7 +26,7 @@ Stack: Next.js web client → Elysia (Bun) API → PostgreSQL (Drizzle + a few P
 - Direct/private messaging of any kind. (Consultations, §10.6, let two adults swap contacts after an accepted request; the conversation happens off the site.)
 - Follows, reposts, algorithmic ranking.
 - Platform-processed payments for events (Stripe Connect) — see §15.
-- Email, SMS, or social login.
+- Email, SMS, or social login. (Members give a phone and an email for admins only, §10.7; they are never used to sign in.)
 - ~~User-facing admin/moderator roles.~~ Reversed 2026-11-08: admins are visible and have an Admin page (§10.2).
 
 ## 3. Product rules (the contract)
@@ -49,7 +49,7 @@ Stack: Next.js web client → Elysia (Bun) API → PostgreSQL (Drizzle + a few P
 | Ban penalty | Inviter of a banned user loses invite privileges for 30 days. |
 | Flags | 5 distinct members flagging a post hides it until an admin reviews it. Admins can also remove any post or project directly. |
 | Posts | 500 chars, ≤ 4 images × 5 MB (EXIF stripped), edit within 15 min (marked "edited"), delete anytime, 20 posts/hour. |
-| Equal permissions | Every member has the same capabilities, except admins (role `ops`): they moderate, ban and unban, change handles, mint invites without limit and set the room's size. Admins carry an "admin" tag and are exempt from the inactivity and lurker rules. See §10.2. |
+| Equal permissions | Every member has the same capabilities, except admins (role `ops`): they moderate, ban and unban, change handles, mint invites without limit and set the room's size. Admins carry the OG mark (§10.7; it replaced the "admin" tag) and are exempt from the inactivity and lurker rules. See §10.2. |
 | Handles | Chosen at sign-up; members cannot change them. Admins can change anyone's handle (their own included); the face, drawn from the handle, changes with it. |
 
 ## 4. Account state machine
@@ -788,6 +788,32 @@ Notifications: `consult_request`, `consult_accepted` (with pricing), `consult_de
 `consult_removed`, `consult_switched_off`, and `consult_reported` for admins. Push texts never
 contain a contact.
 
+### 10.7 The OG mark, the verified badge, contact details for admins (added 2026-11-08)
+
+Grilled with the owner (Q1–Q18, all accepted, then narrowed on review: no address, encrypted,
+every opening logged).
+
+- **OG mark**: the "admin" tag is gone. Every admin (role `ops`) carries a small OG monogram (two
+  interlocking rings) after their name, everywhere names show; hover: "Runs the room"; screen
+  readers: "admin".
+- **Verified badge**: a seal with a tick after the name (after the OG mark), on posts, profiles,
+  lists, search, collab teams and event guests. Only an admin gives it (`verified_at`,
+  `verified_by`), after checking the member however they like (usually through the contact details);
+  Admin → Members has Verify / Remove verification and a "Not verified yet (N)" filter. Verifying
+  notifies the member (`verified`); taking it back is silent. Admins are not verified
+  automatically. The badge unlocks nothing; it is a mark of trust. A verified member who later
+  changes their contact details keeps the badge, and admins see "contact changed since verified".
+- **Contact details**: every member gives a **cell phone** (7–15 digits, optional leading +, country
+  code encouraged) and an **email** (basic shape), as setup step 4. Members who finished setup
+  before this are sent back to setup once; the rest is filled in and the birthday cannot change
+  there. Only the member (Settings) and admins see them, never other members, the profile, lists,
+  notifications or push. They are stored **encrypted** (AES-256-GCM, `contact_phone_enc` /
+  `contact_email_enc`) with a key from the server environment (`CONTACT_KEY`), never in the
+  database, so a copy of the database alone shows only ciphertext. Admins open them per member
+  ("Show contact"); every opening is recorded (`contact_views`) and the recent openings show with
+  them. Without `CONTACT_KEY` in production the feature is off (nothing is asked or stored). No
+  address is collected. `delete_account` erases them and the badge.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops.
@@ -851,6 +877,8 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `GET /ops/flags`, `POST /ops/flags/:postId/resolve` | O | Moderation queue |
 | `POST /ops/posts/:id/remove`, `POST /ops/projects/:id/remove` | O | Remove any post / project; author told |
 | `GET /ops/members` | O | Everyone but deleted accounts, with state and role |
+| `PUT /me/contact` | U | Your phone and email (§10.7; only admins see them) |
+| `POST /ops/users/:handle/verify`, `GET /ops/users/:handle/contact` | O | Give or take back the verified badge; open contact details (logged) |
 | `POST /ops/users/:handle/ban`, `/unban` | O | Ban / lift a ban |
 | `POST /ops/users/:handle/role` | O | Make or remove an admin (never the last one) |
 | `POST /ops/users/:handle/handle` | O | Change a handle (signup rules; member told) |
@@ -877,7 +905,7 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 - **Sessions**: hashed tokens; revoke-all on recovery and ban; CSRF mitigated by `SameSite=Lax` + Origin check on mutating requests.
 - **Rate limits** (per user, Postgres- or memory-backed): posts 20/h, likes 300/h, flags 30/day, join requests (collabs and events) 10/day, invites per §3, auth endpoints per IP.
 - **Content**: body length CHECK in DB; images re-encoded server-side (removes EXIF/GPS and polyglot payloads).
-- **Privacy**: no email, phone, or real name collected. IP addresses not persisted beyond rate-limit windows. Event location can be RSVP-only.
+- **Privacy**: no real name collected. A cell phone and an email are required since §10.7, seen only by the member and admins, stored encrypted with a key outside the database, every admin opening logged, erased with the account; nothing else asks for them (sign-in stays passkey-only). IP addresses not persisted beyond rate-limit windows. Event location can be RSVP-only.
 - **Gaming the lurker rule**: likes don't count; deleted posts remove their contribution; a reply to your own post does not count (replies to anyone else do, in any thread); portfolio and project edits never count.
 - **Portfolio**: every field optional, no real-name field; links must be `https://` and may not carry credentials; the look is a fixed set of classes, never member CSS; the cover and project images go through the same re-encoding as post images.
 - **Audit**: `user_state_events` and `payments` are append-only for operational and financial auditing.
@@ -910,6 +938,7 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 8. **M8 — Admins** (2026-11-08, §10.2): the Admin page (invites, reports, members with ban/unban/admin/handle, community settings), removing any post or project, admin tag and activity-rule exemption.
 9. **M9 — Setup** (2026-11-08, §10.3): the compulsory setup page and the setup gate; faces drawn by gender everywhere; birthdays (tags, side window, admin ages and corrections); the "Finish your profile" checklist.
 10. **M10 — Collabs** (2026-11-08, §10.5), in four steps: interests; collabs with joining, requests and invites; updates, meetups and finishing into portfolio drafts; upgraded events and collab reports.
+11. **M11 — Trust** (2026-11-08, §10.7): the OG mark for admins, the verified badge, contact details for admins (encrypted, openings logged).
 
 ## Appendix A — Decision log
 

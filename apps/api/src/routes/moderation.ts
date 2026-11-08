@@ -10,7 +10,7 @@ import {
   resolveProjectFlags, userIdByHandle,
 } from '../lib/moderation';
 import { opsConsultation, opsConsultations, resolveConsultationFlags, resolveOfferFlags, switchOff, switchOn } from '../lib/consultations';
-import { adminMembers, getAdminSettings, renameMember, setMemberBirthday, setMemberRole, unbanMember, updateAdminSettings } from '../lib/admin';
+import { adminMembers, getAdminSettings, renameMember, setMemberBirthday, setMemberRole, unbanMember, updateAdminSettings, openMemberContact, setVerified } from '../lib/admin';
 import { UUID_RE } from '../lib/posts';
 import { hit } from '../lib/ratelimit';
 import { authPlugin, requireSeated, requireUser } from '../plugins/auth';
@@ -131,6 +131,18 @@ export const moderationRoutes = (deps: Deps) => {
       const a = requireOps(auth);
       return setMemberBirthday(db, storage, params.handle, body.birthday, !!body.confirmUnderage, a.user.id);
     }, { body: t.Object({ birthday: t.String({ maxLength: 20 }), confirmUnderage: t.Optional(t.Boolean()) }) })
+
+    /** RFC §10.7: the verified badge, given or taken back by an admin. */
+    .post('/ops/users/:handle/verify', async ({ auth, params, body }) => {
+      const a = requireOps(auth);
+      return setVerified(db, params.handle, body.on, a.user.id);
+    }, { body: t.Object({ on: t.Boolean() }) })
+
+    /** RFC §10.7: a member's contact details; every opening is logged. */
+    .get('/ops/users/:handle/contact', async ({ auth, params }) => {
+      const a = requireOps(auth);
+      return openMemberContact(db, params.handle, a.user.id);
+    })
 
     .get('/ops/members', async ({ auth }) => {
       requireOps(auth);

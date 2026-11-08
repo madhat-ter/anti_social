@@ -1,10 +1,11 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
 import { DISPLAY_NAME_MAX, GENDERS, GENDER_LABEL, INTERESTS_MAX, type Gender } from '@anti/shared';
 import { InterestPicker } from '@/components/Interests';
+import { VerifiedBadge } from '@/components/Marks';
 import { api, errorMessage, formatMoney, type InviteInfo, type Me, type PasskeyInfo, type PaymentRecord } from '@/lib/api';
 import { fmtDate, useMe, useTitle } from '@/lib/hooks';
 import { CopyButton, ErrorNote } from '@/components/ui';
@@ -34,6 +35,7 @@ export default function Settings() {
         <Face me={me} onSaved={setMe} />
         <BirthdaySec me={me} onSaved={setMe} />
         <InterestsSec me={me} onSaved={setMe} />
+        <ContactSec me={me} onSaved={setMe} />
         <Passkeys />
         <PushToggle />
         {seated && <Invites />}
@@ -299,6 +301,44 @@ function Danger({ me, onGone }: { me: Me; onGone: () => void }) {
           try { await api.deleteMe(); onGone(); } catch (e) { setErr(errorMessage(e)); }
         }}>Delete my account</button>
       </div>
+    </section>
+  );
+}
+
+/** RFC §10.7: your contact details (only admins see them) and whether an admin has verified you. */
+function ContactSec({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
+  const [phone, setPhone] = useState(me.contact?.phone ?? '');
+  const [email, setEmail] = useState(me.contact?.email ?? '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  if (!me.contactEnabled) return null;
+  const changed = phone !== (me.contact?.phone ?? '') || email !== (me.contact?.email ?? '');
+  async function save(e: FormEvent) {
+    e.preventDefault(); setBusy(true); setErr(null); setSaved(false);
+    try { const m = await api.setContact({ phone, email }); onSaved(m); setPhone(m.contact?.phone ?? ''); setEmail(m.contact?.email ?? ''); setSaved(true); }
+    catch (x) { setErr(errorMessage(x)); } finally { setBusy(false); }
+  }
+  return (
+    <section className="panel-sec" aria-labelledby="contact">
+      <h2 id="contact">Contact details</h2>
+      <p className="verified-line">
+        {me.verifiedAt
+          ? <><VerifiedBadge /> <span>Verified by an admin. The badge shows by your name.</span></>
+          : <span className="muted">Not verified yet: an admin checks every member.</span>}
+      </p>
+      <p className="muted small">Only admins see these, never members. Stored encrypted; every time an admin opens them it is recorded.</p>
+      <form className="stack" onSubmit={save}>
+        <div className="row two">
+          <label>Cell phone<input type="tel" inputMode="tel" autoComplete="tel" value={phone} maxLength={30} onChange={(e) => { setPhone(e.target.value); setSaved(false); }} /></label>
+          <label>Email<input type="email" autoComplete="email" value={email} maxLength={254} onChange={(e) => { setEmail(e.target.value); setSaved(false); }} /></label>
+        </div>
+        <div className="row">
+          <button className="btn" disabled={busy || !changed}>{busy ? 'Saving…' : 'Save'}</button>
+          {saved && <span className="muted" role="status">Saved.</span>}
+        </div>
+        <ErrorNote message={err} />
+      </form>
     </section>
   );
 }

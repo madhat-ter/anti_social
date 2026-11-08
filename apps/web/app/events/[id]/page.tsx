@@ -15,6 +15,7 @@ import { ErrorNote } from '@/components/ui';
 import { eventWhen, MyStatus, spotsText } from '@/components/Events';
 import { AlertDialog, Loading } from '@/components/retro';
 import { Avatar } from '@/components/Avatar';
+import { NameMarks } from '@/components/Marks';
 
 export default function EventPage() {
   useTitle('Event');
@@ -166,7 +167,7 @@ function People({ title, people, showAttended }: { title: string; people: EventD
             <li key={p.handle}>
               <Link href={`/u/${p.handle}`}>
                 <Avatar seed={p.handle} gender={p.gender} size={64} />
-                <span className="crowd-name">{p.displayName}</span>
+                <span className="crowd-name">{p.displayName}<NameMarks admin={p.admin} verified={p.verified} size=".85em" /></span>
               </Link>
               {showAttended && p.attended && <span className="tag on">came</span>}
             </li>

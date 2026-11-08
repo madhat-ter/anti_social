@@ -20,7 +20,7 @@ async function world() {
   return { ...w, rowsOf, fresh };
 }
 
-const good = { about: words(80), gender: 'woman', birthday: '2001-03-17' };
+const good = { about: words(80), gender: 'woman', birthday: '2001-03-17', phone: '+977 980-111 2222', email: 'Nova@Example.com' };
 
 describe('setup', () => {
   test('until setup is done the site is locked, except your account', async () => {
@@ -35,7 +35,7 @@ describe('setup', () => {
     expect((await c.post('/posts', { body: 'hi' })).body.error).toBe('setup_required');
     expect((await c.get('/me/passkeys')).status).toBe(200);
     expect((await c.get('/notifications')).status).toBe(200);
-    expect((await c.get('/me/setup')).body).toEqual({ about: '', gender: null, birthday: null });
+    expect((await c.get('/me/setup')).body).toEqual({ about: '', gender: null, birthday: null, done: false, phone: '', email: '' });
   });
 
   test('About you, gender and birthday: the rules', async () => {

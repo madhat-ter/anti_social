@@ -9,6 +9,7 @@ import { SeatedShell } from '@/components/Shell';
 import { ErrorNote } from '@/components/ui';
 import { AlertDialog, Loading } from '@/components/retro';
 import { Avatar } from '@/components/Avatar';
+import { NameMarks } from '@/components/Marks';
 import { InterestTags } from '@/components/Interests';
 import { StatusTag } from '@/components/Collabs';
 import { Composer } from '@/components/Composer';
@@ -135,7 +136,7 @@ function CollabView({ myHandle }: { myHandle: string }) {
             <li key={p.handle}>
               <Link href={`/u/${p.handle}`}>
                 <Avatar seed={p.handle} gender={p.gender} size={64} />
-                <span className="crowd-name">{p.displayName}</span>
+                <span className="crowd-name">{p.displayName}<NameMarks admin={p.admin} verified={p.verified} size=".85em" /></span>
               </Link>
               {ROLE_LABEL[p.role] && <span className="tag">{ROLE_LABEL[p.role]}</span>}
               {c.canManage && p.handle.toLowerCase() !== myHandle.toLowerCase() && p.role !== 'host' && (

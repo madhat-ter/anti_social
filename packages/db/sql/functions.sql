@@ -362,7 +362,13 @@ begin
     stripe_customer_id = null,
     gender = null,
     birthday = null,
-    birthday_public = true
+    birthday_public = true,
+    -- RFC §10.7: contact details and the badge go with the account
+    contact_phone_enc = null,
+    contact_email_enc = null,
+    contact_updated_at = null,
+    verified_at = null,
+    verified_by = null
   where id = p_user;
   perform promote_waitlist();
 end $$;

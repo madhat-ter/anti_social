@@ -45,6 +45,10 @@ Order matters: the API needs the web address, and the web app needs the API addr
   then *Save and deploy*. It only acts while the site has no admin, so leaving it set is harmless.
 - **After that, everything is on the site**: the **Admin** page (menu, admins only) creates more invite codes, reviews
   reports, bans and unbans, makes other admins, changes handles and sets the seat cap. See RFC §10.2.
+- **Contact details** (RFC §10.7) are encrypted with `CONTACT_KEY`. `render.yaml` asks Render to generate it; if the
+  existing service does not have it (see below), add it in Render → the service → *Environment*: key `CONTACT_KEY`,
+  then **Generate** for the value, *Save and deploy*. Nobody types or sees the key. Without it the site runs and simply
+  does not ask for contact details. Never change or delete it later: details saved with the old key could not be read.
 
 ## Things that bit us
 
