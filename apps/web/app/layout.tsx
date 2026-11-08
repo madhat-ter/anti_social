@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { connection } from 'next/server';
 import { Archivo, Shantell_Sans, Space_Mono, Tiny5 } from 'next/font/google';
-import { Clock } from '@/components/Clock';
 import './globals.css';
 
 /** One family on its width axis: ultra-condensed black for posters, normal width for reading. */
@@ -31,9 +30,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <header className="top">
           <div className="top-inner">
             <Link href="/" className="brand" aria-label="anti, home">anti</Link>
-            {/* phones: the seated shell puts the notifications bell here (PhoneBar.tsx); wide screens show the clock */}
+            {/* phones: the seated shell puts the notifications bell here (PhoneBar.tsx); wide screens show nothing else */}
             <span className="top-actions" id="top-actions" />
-            <span className="top-clock"><Clock /></span>
           </div>
         </header>
         <main className="wrap" id="main" tabIndex={-1}>{children}</main>

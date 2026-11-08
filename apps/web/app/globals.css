@@ -92,15 +92,15 @@ h3 { font: 700 1rem/1.3 var(--font-ui); margin: 0; }
 main:focus { outline: none; }
 
 /* ─── page frame ───────────────────────────────────────────────────────── */
-.top { position: sticky; top: 0; z-index: 20; background: var(--paper); border-bottom: 2px solid var(--ink); }
+/* the header is the wordmark alone: no rule under it, no clock (owner's call, 2026-11-09) */
+.top { position: sticky; top: 0; z-index: 20; background: var(--paper); }
 .top-inner { max-width: 46rem; margin: 0 auto; padding: .5rem 1rem; display: flex; align-items: center; gap: 1rem; }
 .brand {
   font-family: var(--font-text); font-weight: 900; font-stretch: 62%; font-size: 1.9rem; line-height: 1;
   text-transform: uppercase; text-decoration: none; color: var(--ink); display: inline-flex; align-items: baseline;
 }
 .brand::after { content: ''; width: .3em; height: .3em; border-radius: 50%; background: var(--signal); margin-left: .07em; }
-.top-clock { margin-left: auto; font-family: var(--font-ui); font-size: .9rem; border: 2px solid var(--ink); padding: .05rem .5rem; }
-/* phones: the bell takes the clock's corner (PhoneBar.tsx fills #top-actions); see the phone shell below */
+/* phones: the bell sits in the header's right corner (PhoneBar.tsx fills #top-actions); see the phone shell below */
 .top-actions { display: none; }
 .top-bell { position: relative; display: inline-grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 2px solid var(--ink); color: var(--ink); text-decoration: none; background: var(--paper); }
 .top-bell[aria-current=page] { background: var(--ink); color: var(--paper); }
@@ -985,7 +985,7 @@ input[type=search]::-webkit-search-cancel-button {
    window waits until after the third post: the first screen is posts. */
 .tabbar, .sheet, .sheet-back, .phone-only, .ck-toggle { display: none; }
 @media (max-width: 899.98px) {
-  .nav, .top-clock, .wide-only { display: none; }
+  .nav, .wide-only { display: none; }
   .phone-only { display: block; }
   .top-actions { display: flex; margin-left: auto; }
   .wrap { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)); }

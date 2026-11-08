@@ -157,7 +157,6 @@ try {
   await bell.waitFor();
   await ph.getByRole('link', { name: /^Notifications, \d+ unread/ }).waitFor();
   console.log('bell:', await bell.getAttribute('aria-label'));
-  if (await ph.locator('.top-clock').isVisible()) throw new Error('the clock shows on a phone');
   const composer = ph.locator('#compose .composer');
   if (await composer.locator('.composer-bar').isVisible()) throw new Error('the composer is not collapsed');
   const box = await composer.boundingBox();
@@ -282,7 +281,7 @@ try {
   await dnav.getByRole('link', { name: 'Settings' }).waitFor();
   if (await desk.locator('.tabbar').isVisible()) throw new Error('the tab bar shows on the desktop');
   if (!(await desk.locator('#compose .composer-bar').isVisible())) throw new Error('the desktop composer is collapsed');
-  if (!(await desk.locator('.top-clock').isVisible())) throw new Error('the clock is gone from the desktop');
+  if (await desk.locator('.top-bell').isVisible()) throw new Error('the bell shows on the desktop');
   await shot(desk, 'desktop-feed');
 
   if (pageErrors.length) throw new Error(`page errors:\n${pageErrors.join('\n')}`);
