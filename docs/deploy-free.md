@@ -59,6 +59,14 @@ Order matters: the API needs the web address, and the web app needs the API addr
   service's *Environment* tab instead (*Save and deploy* is enough when only env vars change).
 - Vercel first reused a cached build that still pointed `/api` at `localhost:3001` (error `DNS_HOSTNAME_RESOLVED_PRIVATE`):
   fixed by declaring `API_URL` in `turbo.json`.
+- **"The site is down" (web loads, nothing else does).** Twice on 2026-11-08/09 the API stopped answering while the
+  web app was fine. Direct requests to the Render address hung; through the web app, `/api/health` got a 502 with the
+  header `X-Render-Routing: no-deploy`. That header means the service has **no live deploy**: the last automatic deploy
+  failed, and on the free plan the old instance is already stopped, so nothing serves until a deploy succeeds. Check
+  with `curl -sI https://<web>/api/health` (look at `X-Render-Routing`). Fix: Render → the service → *Manual Deploy →
+  Deploy latest commit*, or push any commit; the site was back about 2½ minutes after the push both times. Render →
+  the service → *Events* shows the failed deploy and its reason; nothing in the code had changed between the good and
+  the failed deploys, so the failure was on Render's side (free builds and boots can fail for lack of memory or time).
 
 ## Optional: push notifications
 
