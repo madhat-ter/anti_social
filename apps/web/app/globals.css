@@ -325,6 +325,14 @@ details > summary { cursor: pointer; font: 700 .95rem var(--font-ui); }
 }
 .menu-pop button:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
 .menu-pop button:disabled { color: var(--gray); cursor: default; }
+/* the "⋯" menu in a row of actions (ActionMenu.tsx): a bordered button that sits in the flow */
+.menu.action-menu { position: relative; top: auto; right: auto; }
+.action-menu .icon-btn { border-color: var(--ink); border-radius: 8px; width: 2.4rem; height: 2.4rem; background: var(--paper); }
+.action-menu .icon-btn:hover, .action-menu .icon-btn[aria-expanded=true] { background: var(--ink); color: var(--paper); }
+.action-menu .menu-pop { top: 2.7rem; right: 0; min-width: 13rem; }
+.host-strip { margin: 0; }
+.host-strip a { color: var(--ink); }
+.adm-filters { margin: .25rem 0 .5rem; }
 .danger-text { color: var(--signal-text) !important; }
 .menu-pop button.danger-text:hover { background: var(--signal) !important; color: var(--signal-ink) !important; }
 

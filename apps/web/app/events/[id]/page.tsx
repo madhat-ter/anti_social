@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { api, errorMessage, type EventDetail, type Post } from '@/lib/api';
 import { Composer } from '@/components/Composer';
+import { ActionMenu } from '@/components/ActionMenu';
 import { PostList } from '@/components/PostList';
 import { usePaged } from '@/lib/hooks';
 import { InterestTags } from '@/components/Interests';
@@ -123,9 +124,10 @@ function EventView() {
             </button>
           )}
           {ev.canEdit && <Link className="btn" href={`/events/${id}/edit`}>Edit</Link>}
-          {ev.canEdit && (
-            <button className="btn danger" disabled={busy} onClick={() => setAskCancel(true)}>Cancel event</button>
-          )}
+          {/* the rare, destructive one lives in the menu */}
+          <ActionMenu label="More actions for this event" items={[
+            ev.canEdit && !ev.cancelledAt && { label: 'Cancel this event', danger: true, disabled: busy, onSelect: () => setAskCancel(true) },
+          ]} />
         </div>
         {asking && (
           <form className="stack card" onSubmit={(e) => { e.preventDefault(); void act(() => api.askToCome(id, note.trim() || undefined)).then(() => setAsking(false)); }}>

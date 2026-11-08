@@ -122,7 +122,7 @@ try {
   await mem.locator('li', { hasText: 'Ben Thapa' }).getByRole('button', { name: 'Show contact' }).click();
   await mem.getByText('ben@example.com').waitFor();
   await mem.screenshot({ path: file('admin-members') }); console.log('saved admin-members');
-  await mem.getByLabel(/Not verified yet/).check();
+  await mem.getByRole('button', { name: /^Not verified/ }).click();
   await mem.locator('li', { hasText: 'Ben Thapa' }).getByRole('button', { name: 'Verify' }).click();
   await page.getByText('@ben is verified.').waitFor();
   await mem.screenshot({ path: file('admin-verified') }); console.log('saved admin-verified');

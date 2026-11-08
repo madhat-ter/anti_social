@@ -18,6 +18,7 @@ import { eventWhen } from '@/components/Events';
 import { usePaged } from '@/lib/hooks';
 import type { Post } from '@/lib/api';
 import { VISITOR_NOTE, useReadOnly } from '@/components/Visitor';
+import { ActionMenu } from '@/components/ActionMenu';
 
 export default function CollabPage() {
   useTitle('Collab');
@@ -71,6 +72,7 @@ function CollabView({ myHandle }: { myHandle: string }) {
           <h1>{c.title} <StatusTag c={c} /></h1>
           <InterestTags slugs={c.interests} />
         </header>
+        {c.canManage && <HostStrip c={c} />}
         {c.description && <p className="body collab-desc">{c.description}</p>}
         <dl className="facts">
           {c.roles.length > 0 && <><dt>Looking for</dt><dd>{c.roles.join(', ')}</dd></>}
@@ -112,13 +114,16 @@ function CollabView({ myHandle }: { myHandle: string }) {
           )}
           {c.my.request === 'declined' && !onTeam && <span className="muted">This one has found its people. Plenty more in Collabs.</span>}
           {c.canManage && <Link className="btn" href={`/collabs/${id}/edit`}>Edit</Link>}
-          {c.canManage && c.status === 'recruiting' && <button className="btn" disabled={busy} onClick={() => act(() => api.updateCollab(id, { status: 'closed' }), 'Not recruiting any more.')}>Stop recruiting</button>}
-          {c.canManage && c.status === 'closed' && <button className="btn" disabled={busy} onClick={() => act(() => api.updateCollab(id, { status: 'recruiting' }), 'Recruiting again.')}>Recruit again</button>}
-          {c.canManage && c.status !== 'finished' && <button className="btn" disabled={busy} onClick={() => act(() => api.updateCollab(id, { status: 'finished' }), 'Marked finished. Well done.')}>Mark finished</button>}
-          {onTeam && <button className="btn" disabled={busy} onClick={() => setConfirm('leave')}>Leave</button>}
-          {iAmHost && <button className="btn danger" disabled={busy} onClick={() => setConfirm('delete')}>Delete</button>}
-          {c.canReport && !readOnly && <button className="btn" disabled={busy || reported} onClick={() => setConfirm('report')}>{reported ? 'Reported' : 'Report'}</button>}
-          {c.canModerate && !iAmHost && <button className="btn danger" disabled={busy} onClick={() => setConfirm('remove')}>Remove (admin)</button>}
+          {/* one visible action each; everything rarer lives in the menu */}
+          <ActionMenu label="More actions for this collab" items={[
+            c.canManage && c.status === 'recruiting' && { label: 'Stop recruiting', disabled: busy, onSelect: () => void act(() => api.updateCollab(id, { status: 'closed' }), 'Not recruiting any more.') },
+            c.canManage && c.status === 'closed' && { label: 'Recruit again', disabled: busy, onSelect: () => void act(() => api.updateCollab(id, { status: 'recruiting' }), 'Recruiting again.') },
+            c.canManage && c.status !== 'finished' && { label: 'Mark finished', disabled: busy, onSelect: () => void act(() => api.updateCollab(id, { status: 'finished' }), 'Marked finished. Well done.') },
+            onTeam && { label: 'Leave the team', disabled: busy, onSelect: () => setConfirm('leave') },
+            c.canReport && !readOnly && { label: reported ? 'Reported' : 'Report', disabled: busy || reported, onSelect: () => setConfirm('report') },
+            iAmHost && { label: 'Delete this collab', danger: true, disabled: busy, onSelect: () => setConfirm('delete') },
+            c.canModerate && !iAmHost && { label: 'Remove (admin)', danger: true, disabled: busy, onSelect: () => setConfirm('remove') },
+          ]} />
         </div>
         {asking && (
           <form className="stack card" onSubmit={(e) => { e.preventDefault(); void act(() => api.joinCollab(id, note.trim() || undefined), 'Asked. You will get a notification when the host decides.').then(() => setAsking(false)); }}>
@@ -193,6 +198,24 @@ function CollabView({ myHandle }: { myHandle: string }) {
   );
 }
 
+/**
+ * The host's one line at the top: what waits on them (requests) and the door to inviting, so the
+ * things only a host can do are not two screens down below the updates thread.
+ */
+function HostStrip({ c }: { c: Collab }) {
+  const asking = c.requests?.length ?? 0;
+  const invited = c.invites?.length ?? 0;
+  const room = c.teamCount < c.teamMax && c.status === 'recruiting';
+  return (
+    <p className={asking > 0 ? 'banner host-strip' : 'meta host-strip'} role={asking > 0 ? 'status' : undefined}>
+      {asking > 0
+        ? <><strong>{asking} {asking === 1 ? 'person is' : 'people are'} asking to join.</strong> <a href="#requests">Review</a></>
+        : <>Nobody is asking to join right now.</>}
+      {room && <>{' · '}<a href="#invite">Invite people</a>{invited > 0 && <> ({invited} invited, no answer yet)</>}</>}
+    </p>
+  );
+}
+
 /** Hosts and co-hosts: requests to answer, and people to invite. */
 function Manage({ c, busy, act }: { c: Collab; busy: boolean; act: (fn: () => Promise<unknown>, said?: string) => Promise<void> }) {
   const [sugs, setSugs] = useState<CollabSuggestion[] | null>(null);
@@ -202,7 +225,7 @@ function Manage({ c, busy, act }: { c: Collab; busy: boolean; act: (fn: () => Pr
   const invites = c.invites ?? [];
   return (
     <>
-      <section className="card stack">
+      <section className="card stack" id="requests">
         <h2>Asking to join ({requests.length})</h2>
         {requests.length === 0 ? <p className="muted">No requests waiting.</p> : (
           <ul className="list collab-requests">
@@ -224,7 +247,7 @@ function Manage({ c, busy, act }: { c: Collab; busy: boolean; act: (fn: () => Pr
         <p className="muted small">Declining sends a kind note; it never says who decided.</p>
       </section>
 
-      <section className="card stack">
+      <section className="card stack" id="invite">
         <h2>Invite people</h2>
         <p className="muted small">People who might fit share this collab&apos;s interests. An invite skips asking: they join with one tap.</p>
         {sugs === null ? <Loading /> : sugs.length === 0 ? <p className="muted">Nobody else shares these interests yet.</p> : (

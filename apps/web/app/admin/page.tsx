@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { NameMarks } from '@/components/Marks';
+import { ActionMenu } from '@/components/ActionMenu';
 import { api, ApiError, errorMessage, type AdminContact, type AdminInterest, type AdminMember, type AdminSettings, type FlagItem, type Me, type OpsConsultation, type OpsConsultationDetail, type VisitorPassInfo } from '@/lib/api';
 import { minutesLeft } from '@/components/Visitor';
 import { fmtDate, relativeTime, useTitle } from '@/lib/hooks';
@@ -339,6 +340,8 @@ const STATE_LABEL: Record<string, string> = {
 };
 
 type MemberAsk = { kind: 'ban' | 'unban' | 'admin' | 'unadmin' | 'rename' | 'birthday'; m: AdminMember } | null;
+type MemberFilter = 'all' | 'seated' | 'waiting' | 'archived' | 'banned' | 'unverified';
+const FILTERS: [MemberFilter, string][] = [['all', 'Everyone'], ['seated', 'Seated'], ['unverified', 'Not verified'], ['waiting', 'Waiting'], ['archived', 'Archived'], ['banned', 'Banned']];
 
 /** Everyone in the room (and the queue, archived and banned), with what an admin can do to each. */
 function Members({ me }: { me: Me }) {
@@ -350,7 +353,7 @@ function Members({ me }: { me: Me }) {
   /** a corrected birthday that makes someone under 13: confirm before their account is closed */
   const [underage, setUnderage] = useState<{ m: AdminMember; birthday: string; detail: string } | null>(null);
   /** RFC §10.7: work through who is not verified yet; contact details opened on request (logged) */
-  const [unverifiedOnly, setUnverifiedOnly] = useState(false);
+  const [filter, setFilter] = useState<MemberFilter>('all');
   const [contacts, setContacts] = useState<Record<string, AdminContact>>({});
 
   const load = useCallback(async () => {
@@ -435,7 +438,18 @@ function Members({ me }: { me: Me }) {
   const term = q.trim().replace(/^@/, '').toLowerCase();
   const seatedState = (m: AdminMember) => m.state === 'active' || m.state === 'flagged_lurker';
   const unverified = (list ?? []).filter((m) => seatedState(m) && !m.verified);
-  const shown = (list ?? []).filter((m) => (!unverifiedOnly || (seatedState(m) && !m.verified)) && (!term
+  const inFilter = (m: AdminMember, f: MemberFilter) => {
+    switch (f) {
+      case 'seated': return seatedState(m);
+      case 'waiting': return m.state === 'waitlisted';
+      case 'archived': return m.state === 'archived';
+      case 'banned': return m.state === 'banned';
+      case 'unverified': return seatedState(m) && !m.verified;
+      default: return true;
+    }
+  };
+  const count = (f: MemberFilter) => (list ?? []).filter((m) => inFilter(m, f)).length;
+  const shown = (list ?? []).filter((m) => inFilter(m, filter) && (!term
     || m.handle.toLowerCase().includes(term) || m.displayName.toLowerCase().includes(term) || m.state.includes(term)));
   const seated = (m: AdminMember) => m.state === 'active' || m.state === 'flagged_lurker';
   const who = ask ? (ask.m.handle === me.handle ? 'yourself' : `@${ask.m.handle}`) : '';
@@ -444,8 +458,14 @@ function Members({ me }: { me: Me }) {
     <section className="panel-sec" aria-labelledby="adm-mem" id="members">
       <h2 id="adm-mem">Members</h2>
       <p className="muted">Everyone, including people waiting for a seat, archived and banned. Admins never lose their seat to the activity rules.</p>
-      <input type="search" aria-label="Filter members" placeholder="Filter by handle, name or state" value={q} onChange={(e) => setQ(e.target.value)} />
-      <label className="check"><input type="checkbox" checked={unverifiedOnly} onChange={(e) => setUnverifiedOnly(e.target.checked)} /> Not verified yet ({unverified.length})</label>
+      <input type="search" aria-label="Filter members" placeholder="Filter by handle or name" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="chips adm-filters" role="group" aria-label="Show">
+        {FILTERS.map(([f, label]) => (
+          <button key={f} type="button" className={`chip${filter === f ? ' on' : ''}`} aria-pressed={filter === f} onClick={() => setFilter(f)}>
+            {label}{f === 'unverified' ? ` (${unverified.length})` : f === 'all' ? '' : ` (${count(f)})`}
+          </button>
+        ))}
+      </div>
       {msg && <p role="status" className="muted">{msg}</p>}
       <ErrorNote message={err} />
       {list === null ? <Loading /> : shown.length === 0 ? <p className="muted">Nobody matches.</p> : (
@@ -482,26 +502,21 @@ function Members({ me }: { me: Me }) {
                   </dl>
                 )}
               </span>
+              {/* one button for the thing most likely needed now; everything else in the row's menu */}
               <span className="row adm-member-actions">
+                {seatedState(m) && !m.verified && <button type="button" className="btn primary" onClick={() => void verify(m, true)}>Verify</button>}
+                {m.state === 'banned' && <button type="button" className="btn" onClick={() => setAsk({ kind: 'unban', m })}>Unban</button>}
                 {m.hasContact && <button type="button" className="btn" onClick={() => void showContact(m)}>{contacts[m.handle] ? 'Hide contact' : 'Show contact'}</button>}
-                {seatedState(m) && (m.verified
-                  ? <button type="button" className="btn" onClick={() => void verify(m, false)}>Remove verification</button>
-                  : <button type="button" className="btn primary" onClick={() => void verify(m, true)}>Verify</button>)}
-                <button type="button" className="btn" onClick={() => setAsk({ kind: 'rename', m })}>Change handle</button>
-                <button type="button" className="btn" onClick={() => setAsk({ kind: 'birthday', m })}>Change birthday</button>
-                {m.consulting === 'off'
-                  ? <button type="button" className="btn" onClick={() => void consulting(m, true)}>Allow consulting</button>
-                  : m.consulting !== 'none' && <button type="button" className="btn" onClick={() => void consulting(m, false)}>Switch consulting off</button>}
-                {m.state === 'banned' ? (
-                  <button type="button" className="btn" onClick={() => setAsk({ kind: 'unban', m })}>Unban</button>
-                ) : m.role === 'ops' ? (
-                  <button type="button" className="btn" onClick={() => setAsk({ kind: 'unadmin', m })}>Remove admin</button>
-                ) : (
-                  <>
-                    {seated(m) && <button type="button" className="btn" onClick={() => setAsk({ kind: 'admin', m })}>Make admin</button>}
-                    <button type="button" className="btn danger" onClick={() => setAsk({ kind: 'ban', m })}>Ban</button>
-                  </>
-                )}
+                <ActionMenu label={`More actions for @${m.handle}`} items={[
+                  seatedState(m) && m.verified && { label: 'Remove verification', onSelect: () => void verify(m, false) },
+                  { label: 'Change handle', onSelect: () => setAsk({ kind: 'rename', m }) },
+                  { label: 'Change birthday', onSelect: () => setAsk({ kind: 'birthday', m }) },
+                  m.consulting === 'off' && { label: 'Allow consulting', onSelect: () => void consulting(m, true) },
+                  m.consulting !== 'none' && m.consulting !== 'off' && { label: 'Switch consulting off', onSelect: () => void consulting(m, false) },
+                  m.state !== 'banned' && m.role === 'ops' && { label: 'Remove admin', onSelect: () => setAsk({ kind: 'unadmin', m }) },
+                  m.state !== 'banned' && m.role !== 'ops' && seated(m) && { label: 'Make admin', onSelect: () => setAsk({ kind: 'admin', m }) },
+                  m.state !== 'banned' && m.role !== 'ops' && { label: 'Ban', danger: true, onSelect: () => setAsk({ kind: 'ban', m }) },
+                ]} />
               </span>
             </li>
           ))}

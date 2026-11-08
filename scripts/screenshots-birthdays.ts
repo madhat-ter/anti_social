@@ -122,7 +122,8 @@ try {
   await page.goto(`${WEB}/admin`);
   const row = page.locator('.adm-members > li', { has: page.getByText('@ben', { exact: true }) });
   await row.getByText('age 31').waitFor();
-  await row.getByRole('button', { name: 'Change birthday' }).click();
+  await row.getByRole('button', { name: /More actions/ }).click();
+  await row.getByRole('menuitem', { name: 'Change birthday' }).click();
   await page.locator('dialog[open]').waitFor();
   await shot(page, 'admin-change-birthday', false);
   await page.locator('dialog[open]').getByRole('button', { name: 'Cancel' }).click();

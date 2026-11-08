@@ -216,7 +216,8 @@ try {
   await shot(zoePage, 'update-thread', true);
 
   await page.goto(collabUrl);
-  await page.getByRole('button', { name: 'Mark finished' }).click();
+  await page.getByRole('button', { name: /More actions for this collab/ }).click();
+  await page.getByRole('menuitem', { name: 'Mark finished' }).click();
   await page.getByText('Marked finished. Well done.').waitFor();
   await ivyPage.goto(`${WEB}/notifications`);
   await ivyPage.getByText(/is finished\. Well done/).waitFor();
@@ -271,8 +272,9 @@ try {
   await q("update users set role = 'ops' where handle = 'boss'");
   const river = (await ivy.call('GET', '/collabs?tab=all')).items.find((x: any) => x.title === 'Saturday river cleanup');
   await zoePage.goto(`${WEB}/collabs/${river.id}`);
-  await zoePage.getByRole('button', { name: 'Report' }).click();
-  await zoePage.getByRole('button', { name: 'Report' }).last().click();
+  await zoePage.getByRole('button', { name: /More actions for this collab/ }).click();
+  await zoePage.getByRole('menuitem', { name: 'Report' }).click();
+  await zoePage.locator('dialog[open]').getByRole('button', { name: 'Report' }).click();
   await zoePage.getByText('Reported. Thanks').waitFor();
   const bossPage = await browse(await browser.newContext(view), boss.jar);
   await bossPage.goto(`${WEB}/admin`);
