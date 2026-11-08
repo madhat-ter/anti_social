@@ -35,6 +35,9 @@ function describe(n: Notification): string {
   if (n.kind === 'payment_refunded') return 'Your payment was refunded.';
   if (n.kind === 'post_removed') return 'An admin removed one of your posts.';
   if (n.kind === 'project_removed') return n.projectTitle ? `An admin removed your project "${n.projectTitle}".` : 'An admin removed one of your projects.';
+  if (n.kind === 'checklist_reminder') return `Finish your profile: ${n.checklist?.done ?? 0} of ${n.checklist?.total ?? 5} done. The checklist is on the feed.`;
+  if (n.kind === 'pick_remark') return `${who} left a remark on your pick "${n.pickTitle ?? ''}"`;
+  if (n.kind === 'remark_removed') return `An admin removed your remark on "${n.pickTitle ?? 'a pick'}"`;
   if (n.kind === 'handle_changed') return n.newHandle ? `An admin changed your handle to @${n.newHandle}. Your profile link changed with it.` : 'An admin changed your handle.';
   if (n.kind === 'unbanned') return 'An admin lifted your ban. Welcome back.';
   if (n.kind === 'made_admin') return 'You are now an admin. Your tools are under Admin in the menu.';
@@ -87,6 +90,7 @@ function Notifications() {
         <ul className="notifs card">
           {p.items.map((n) => {
             const href = n.kind === 'flag_threshold' || n.kind === 'made_admin' ? '/admin'
+              : n.kind === 'checklist_reminder' ? '/'
               : n.kind === 'handle_changed' && n.newHandle ? `/u/${n.newHandle}`
               : n.post ? `/p/${n.post.rootId ?? n.post.id}#${n.post.id}` : n.event ? `/events/${n.event.id}` : null;
             const body = (

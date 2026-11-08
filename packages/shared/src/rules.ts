@@ -40,6 +40,12 @@ export type SuggestionKind = (typeof SUGGESTION_KINDS)[number];
 export const SUGGESTION_TITLE_MAX = 80;
 export const SUGGESTION_NOTE_MAX = 140;
 export const SUGGESTIONS_PER_DAY = 10;
+/** "Tried it" remark on a pick (optional, one per member per pick). */
+export const SUGGESTION_REMARK_MAX = 200;
+/** Picks recently seen that the rotation (and Another) skips. */
+export const PICK_NO_REPEAT = 5;
+/** The pick window changes on its own this often. */
+export const PICK_ROTATE_MS = 60_000;
 
 // ─── Setup: what every member fills in once, right after joining ────────────
 /** Gender only shapes the drawn face; it is never shown as text. */

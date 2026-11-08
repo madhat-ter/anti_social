@@ -282,6 +282,24 @@ export const suggestions = pgTable('suggestions', {
   index('suggestions_live').on(t.createdAt).where(sql`deleted_at is null`),
 ]);
 
+/**
+ * "Tried it": one vote per member per pick (+1 good / -1 not for me) with an optional remark.
+ * Voting means you have watched/read/been/eaten it. Never a lurker contribution.
+ */
+export const suggestionVotes = pgTable('suggestion_votes', {
+  suggestionId: uuid('suggestion_id').notNull().references(() => suggestions.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  vote: integer('vote').notNull(),
+  remark: text('remark'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  updatedAt: tstz('updated_at').notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.suggestionId, t.userId] }),
+  check('suggestion_votes_vote', sql`${t.vote} in (-1, 1)`),
+  check('suggestion_votes_remark_len', sql`${t.remark} is null or char_length(${t.remark}) between 1 and 200`),
+  index('suggestion_votes_user').on(t.userId),
+]);
+
 // ─── Portfolio: the profile laid out like a Behance portfolio ───────────────
 // One row per member, created on first edit. Lists are jsonb: skills/tools are string[],
 // experience/education are Entry[] ({ title, place, from, to | null, line }, newest first),

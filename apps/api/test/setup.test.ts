@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
 import sharp from 'sharp';
 import { cleanup, setup, TEST_ABOUT } from './client';
+import { JOBS, runJob } from '../src/lib/jobs';
 
 afterEach(cleanup);
 
@@ -171,6 +172,37 @@ describe('setup', () => {
     // before setup it is locked like everything else
     const late = await w.fresh('late');
     expect((await late.get('/me/checklist')).body.error).toBe('setup_required');
+  });
+
+  test('a daily reminder until the checklist is done; it brings a hidden window back', async () => {
+    const w = await world();
+    const c = w.client();
+    await c.register(await w.mint(), 'nova');
+    const tick = async () => ((await runJob(w.t.db, JOBS.find((j) => j.name === 'checklist')!, { storage: w.storage, payments: w.payments })) as any).result;
+    const reminders = async () => (await c.get('/notifications')).body.items.filter((n: any) => n.kind === 'checklist_reminder');
+
+    expect((await tick()).sent).toBe(0); // not on the first day: the window is there
+    expect(await reminders()).toHaveLength(0);
+    await c.post('/me/checklist/dismiss');
+    await w.t.db.execute(sql`update users set setup_done_at = now() - interval '2 days'`);
+    await c.post('/posts', { body: 'Hello' });
+    expect((await tick()).sent).toBe(1);
+    let r = await reminders();
+    expect(r).toHaveLength(1);
+    expect(r[0].checklist).toEqual({ done: 1, total: 5 });
+    expect((await c.get('/me/checklist')).body.dismissed).toBe(false); // back with the reminder
+    expect((await tick()).sent).toBe(0); // once a day
+    // a day later the new one replaces the unread old one
+    await w.t.db.execute(sql`update notifications set created_at = now() - interval '25 hours' where kind = 'checklist_reminder'`);
+    expect((await tick()).sent).toBe(1);
+    r = await reminders();
+    expect(r).toHaveLength(1);
+    // finishing removes it, and no more come
+    await c.patch('/me/portfolio', { headline: 'Designer', skills: ['Ink'] });
+    await c.post('/me/projects', { title: 'Lamp', draft: false });
+    await c.post('/suggestions', { kind: 'book', title: 'Dune' });
+    expect(await tick()).toEqual({ sent: 0, cleared: 1 });
+    expect(await reminders()).toHaveLength(0);
   });
 
   test('test members are set up by the helper', async () => {

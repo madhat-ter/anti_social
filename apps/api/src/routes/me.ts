@@ -135,7 +135,11 @@ export const meRoutes = (deps: Deps) => {
           exists (select 1 from posts where author_id = ${uid}::uuid and deleted_at is null) as post,
           exists (select 1 from suggestions where author_id = ${uid}::uuid and deleted_at is null) as pick`);
       const items = { headline: !!r?.headline, skills: !!r?.skills, project: !!r?.project, post: !!r?.post, pick: !!r?.pick };
-      return { items, dismissed: !!a.user.checklistDismissedAt };
+      // hiding lasts until the next daily reminder (jobs.ts "checklist"): then the window is back
+      const dismissed = !!a.user.checklistDismissedAt && !(await scalar<boolean>(db, sql`
+        select exists (select 1 from notifications where user_id = ${uid}::uuid and kind = 'checklist_reminder'
+                         and created_at > ${a.user.checklistDismissedAt}::timestamptz)`));
+      return { items, dismissed };
     })
 
     .post('/checklist/dismiss', async ({ auth }) => {

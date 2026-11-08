@@ -17,6 +17,8 @@ export interface Job {
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 const ORPHAN_UPLOAD_HOURS = 24;
+/** headline, skills, a published project, a first post, a pick (GET /me/checklist) */
+const CHECKLIST_ITEMS = 5;
 
 export const JOBS: Job[] = [
   {
@@ -33,6 +35,47 @@ export const JOBS: Job[] = [
       const expired = await expireStaleCheckouts(tx);
       const r = await processRefunds(tx, payments);
       return { expired, ...r };
+    },
+  },
+  {
+    // "Finish your profile" (RFC §10.3): one reminder a day until all five are done. The newest
+    // replaces the last unread one so they never pile up; finishing removes it. Hiding the
+    // checklist window does not stop it. The first comes a day after setup.
+    name: 'checklist',
+    everyMs: HOUR,
+    run: async (tx) => {
+      const [r] = await rows<{ sent: number; cleared: number }>(tx, sql`
+        with c as (
+          select u.id, u.setup_done_at, (
+              exists (select 1 from portfolios p where p.user_id = u.id and p.headline <> '')::int
+            + exists (select 1 from portfolios p where p.user_id = u.id and jsonb_array_length(p.skills) > 0)::int
+            + exists (select 1 from projects pr where pr.user_id = u.id and pr.draft = false)::int
+            + exists (select 1 from posts po where po.author_id = u.id and po.deleted_at is null)::int
+            + exists (select 1 from suggestions s where s.author_id = u.id and s.deleted_at is null)::int
+          ) as done
+          from users u
+          where u.state in ('active', 'flagged_lurker') and u.setup_done_at is not null
+        ),
+        due as (
+          select c.id, c.done from c
+           where c.done < ${CHECKLIST_ITEMS}::int and c.setup_done_at <= now() - interval '1 day'
+             and not exists (select 1 from notifications n where n.user_id = c.id and n.kind = 'checklist_reminder'
+                              and n.created_at > now() - interval '23 hours')
+        ),
+        cleared as (
+          delete from notifications n using c
+           where n.user_id = c.id and n.kind = 'checklist_reminder'
+             and (c.done = ${CHECKLIST_ITEMS}::int or (n.read_at is null and c.id in (select id from due)))
+          returning c.done
+        ),
+        sent as (
+          insert into notifications (user_id, kind, payload)
+          select id, 'checklist_reminder', jsonb_build_object('done', done, 'total', ${CHECKLIST_ITEMS}::int) from due
+          returning 1
+        )
+        select (select count(*)::int from sent) as sent,
+               (select count(*)::int from cleared where done = ${CHECKLIST_ITEMS}::int) as cleared`);
+      return { sent: r?.sent ?? 0, cleared: r?.cleared ?? 0 };
     },
   },
   {

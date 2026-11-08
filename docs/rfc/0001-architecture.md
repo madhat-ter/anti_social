@@ -682,7 +682,19 @@ settings stay open. People still waiting for a seat see only their status page, 
   (headline, skills, a published project, a first post, a pick; deliberately no "invite someone": the room stays hand-picked). Items tick themselves from
   what the member has done (`GET /me/checklist`); it nudges, never blocks; closing it is saved to the
   account (`checklist_dismissed_at`).
+- **Reminder**: while the checklist isn't finished, one `checklist_reminder` notification a day (push too), starting a day after setup; the new one replaces the unread old one, finishing removes it, and it brings a hidden checklist window back.
 - Not a contribution for the lurker rule.
+
+### 10.4 Picks: tried it (added 2026-11-08)
+
+The pick window changes on its own every 60 s (and on Another, which restarts the minute); it holds
+still while the pointer is over it, a remark is being written, a dialog is open or the tab is hidden,
+and skips the last 5 seen. Members who tried a pick vote **good** (+1) or **not for me** (-1) in
+`suggestion_votes` (one per member per pick, changeable, not on your own) with an optional remark of up
+to 200 characters. Rotation is weighted: score = 1 + (up - down)/4 clamped to [1/4, 4], drawn with
+`-ln(random)/score`, so nothing disappears. The window shows the tally and the newest remark; **All
+remarks** lists everyone's vote and remark (profiles too). The suggester is notified of remarks, not
+votes. Admins remove remarks (the vote stays, the writer is told). Never a lurker contribution.
 
 ## 11. API surface (Elysia)
 

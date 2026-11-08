@@ -53,7 +53,7 @@ type NotifRow = {
   p_id: string | null; p_root: string | null; p_body: string | null; p_deleted: boolean | null;
   e_id: string | null; e_title: string | null;
   /** handle_changed: the new handle; project_removed: the project's title */
-  x_to: string | null; x_title: string | null;
+  x_to: string | null; x_title: string | null; x_done: string | null; x_total: string | null;
 };
 
 async function unreadCount(db: Db, userId: string): Promise<number> {
@@ -141,7 +141,7 @@ export const socialRoutes = (deps: Deps) => {
           u.handle as a_handle, u.display_name as a_display, u.gender as a_gender,
           p.id as p_id, coalesce(p.root_id, p.id) as p_root, p.body as p_body, (p.deleted_at is not null) as p_deleted,
           ev.id as e_id, ev.title as e_title,
-          n.payload->>'to' as x_to, n.payload->>'title' as x_title
+          n.payload->>'to' as x_to, n.payload->>'title' as x_title, n.payload->>'done' as x_done, n.payload->>'total' as x_total
         from notifications n
         left join users u on u.id = case when n.payload->>'actorId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'actorId')::uuid end
         left join posts p on p.id = case when n.payload->>'postId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'postId')::uuid end
@@ -160,6 +160,8 @@ export const socialRoutes = (deps: Deps) => {
           event: r.e_id ? { id: r.e_id, title: r.e_title ?? '' } : null,
           newHandle: r.kind === 'handle_changed' ? r.x_to : null,
           projectTitle: r.kind === 'project_removed' ? r.x_title : null,
+          pickTitle: r.kind === 'pick_remark' || r.kind === 'remark_removed' ? r.x_title : null,
+          checklist: r.kind === 'checklist_reminder' ? { done: Number(r.x_done ?? 0), total: Number(r.x_total ?? 5) } : null,
         })),
         nextCursor,
         unreadCount: await unreadCount(db, uid),

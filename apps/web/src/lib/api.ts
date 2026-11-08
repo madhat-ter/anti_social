@@ -109,7 +109,13 @@ export interface Pick {
   createdAt: string;
   author: { handle: string; displayName: string; gender?: Gender | null } | null;
   mine: boolean;
+  /** "Tried it" votes: good / not for me */
+  up: number; down: number; remarkCount: number;
+  myVote: 1 | -1 | null; myRemark: string | null;
+  latestRemark: PickRemark | null;
 }
+/** One person who tried a pick: their vote and, maybe, a remark. */
+export interface PickRemark { handle: string; displayName: string; gender: Gender | null; vote: 1 | -1; remark: string | null; at: string }
 
 /** One line of experience or education. `to` null = still there. */
 export interface PfEntry { title: string; place: string; from: number; to: number | null; line: string }
@@ -193,6 +199,10 @@ export interface Notification {
   newHandle?: string | null;
   /** project_removed: the project's title */
   projectTitle?: string | null;
+  /** pick_remark / remark_removed: the pick's title */
+  pickTitle?: string | null;
+  /** checklist_reminder: how far along "Finish your profile" is */
+  checklist?: { done: number; total: number } | null;
 }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 export type RsvpStatus = 'going' | 'waitlisted' | 'cancelled';
@@ -306,7 +316,13 @@ export const api = {
   search: (q: string) => get<{ members: MemberSummary[]; posts: Post[] }>(`/search${qs({ q })}`),
   members: (cursor?: string | null, limit = 30) => get<Page<MemberSummary>>(`/members${qs({ cursor, limit })}`),
   member: (handle: string) => get<MemberSummary>(`/members/${encodeURIComponent(handle)}`),
-  randomPick: (exclude?: string | null) => get<{ item: Pick | null }>(`/suggestions/random${qs({ exclude })}`),
+  randomPick: (exclude: string[] = []) => get<{ item: Pick | null }>(`/suggestions/random${qs({ exclude: exclude.join(',') })}`),
+  votePick: (id: string, vote: 1 | -1, remark?: string | null) =>
+    call<Pick>('PUT', `/suggestions/${encodeURIComponent(id)}/vote`, remark === undefined ? { vote } : { vote, remark }),
+  unvotePick: (id: string) => call<Pick>('DELETE', `/suggestions/${encodeURIComponent(id)}/vote`),
+  pickRemarks: (id: string) => get<{ pick: Pick; items: PickRemark[]; canModerate: boolean }>(`/suggestions/${encodeURIComponent(id)}/remarks`),
+  opsRemoveRemark: (id: string, handle: string) =>
+    call<{ removed: true }>('DELETE', `/ops/suggestions/${encodeURIComponent(id)}/remarks/${encodeURIComponent(handle)}`),
   suggest: (b: { kind: SuggestionKind; title: string; note?: string | null }) => post<Pick>('/suggestions', b),
   deletePick: (id: string) => call<{ ok: true }>('DELETE', `/suggestions/${encodeURIComponent(id)}`),
   memberPicks: (handle: string) => get<{ items: Pick[] }>(`/members/${encodeURIComponent(handle)}/suggestions`),
@@ -418,6 +434,7 @@ const MESSAGES: Record<string, string> = {
   not_host: 'Only the host can do that.',
   own_post: 'You cannot report your own post.',
   own_project: 'You cannot report your own project.',
+  own_pick: 'You cannot vote on your own pick.',
   no_open_flags: 'Those reports were already handled. Refresh the list.',
   cannot_ban_ops: 'That member is an admin. Remove their admin role first.',
   already_gone: 'That member is already banned or deleted.',

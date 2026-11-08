@@ -80,6 +80,8 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
     case 'event_promoted': return m('A spot opened up', `You are now going to ${ev}.`, eventUrl);
     case 'event_updated': return m('Event changed', `The time or place of ${ev} changed.`, eventUrl);
     case 'event_cancelled': return m('Event cancelled', `${ev} was cancelled.`, eventUrl);
+    case 'checklist_reminder': return m('Finish your profile', `${p.done ?? 0} of ${p.total ?? 5} done. A few minutes makes this place yours.`, '/');
+    case 'pick_remark': return m(`@${r.actor ?? 'someone'} tried your pick`, p.title ? `A remark on "${p.title}".` : 'They left a remark.', '/');
     default: return null;
   }
 }

@@ -1019,3 +1019,20 @@ input[type=search]::-webkit-search-cancel-button {
 .ck.on { background: var(--ink); }
 .ck.on::after { content: ''; width: .35rem; height: .65rem; border: solid var(--paper); border-width: 0 2.5px 2.5px 0; transform: translateY(-1px) rotate(45deg); }
 .checklist-text .link-btn { font: inherit; text-align: left; align-self: flex-start; padding: 0; text-decoration: underline; text-underline-offset: .2em; }
+/* Picks: "tried it" votes and remarks */
+.pick-votes { display: flex; flex-direction: column; gap: .3rem; margin-top: .5rem; }
+.pick-tally { font-size: .85rem; }
+.pick-remark { margin: 0; font-size: .9rem; overflow-wrap: anywhere; }
+.pick-all { align-self: flex-start; font-size: .85rem; }
+.pick-tried { display: flex; flex-direction: column; gap: .4rem; margin-top: .6rem; padding-top: .55rem; border-top: 1.5px dashed var(--ink); }
+.pick-tried .row { gap: .4rem; }
+.pick-vote { padding: .3rem .55rem; font-size: .82rem; }
+.pick-vote.on { background: var(--ink); color: var(--paper); }
+.pick-tried > .link-btn { align-self: flex-start; font-size: .85rem; }
+.pick-remark-form textarea { min-height: 3.2rem; }
+.remarks-dlg .win { max-width: 34rem; width: 100%; }
+.remarks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 60vh; overflow-y: auto; }
+.remarks > li { display: flex; gap: .7rem; align-items: flex-start; padding: .6rem 0; border-top: 1.5px solid var(--hair); }
+.remarks > li:first-child { border-top: 0; }
+.remarks-main { display: flex; flex-direction: column; gap: .15rem; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.remarks-main .name { font-weight: 700; }

@@ -28,7 +28,7 @@ function MemberPicks({ handle, mine }: { handle: string; mine: boolean }) {
     <ul className="pick-grid">
       {items.map((p) => (
         <li key={p.id}>
-          <PickCard p={p} showAuthor={false} />
+          <PickCard p={p} showAuthor={false} onChange={(np) => setItems((cur) => cur?.map((x) => (x.id === np.id ? np : x)) ?? null)} />
           {mine && (
             <button type="button" className="link-btn" onClick={async () => {
               try { await api.deletePick(p.id); setItems((cur) => cur?.filter((x) => x.id !== p.id) ?? null); }
