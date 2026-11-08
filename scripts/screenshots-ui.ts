@@ -299,6 +299,16 @@ try {
   await maya.goto(WEB);
   await maya.locator('.posts').getByText('dinner table').waitFor();
   await shot(maya, 'phone-feed', false);
+  // phone: the pick window lives in the feed under the composer; Suggest opens the dialog over it
+  await maya.locator('.feed-pick .pick-title').waitFor();
+  await maya.locator('.feed-pick').scrollIntoViewIfNeeded();
+  await shot(maya, 'phone-pick', false);
+  await maya.locator('.feed-pick').getByRole('button', { name: '+ Suggest' }).click();
+  await maya.locator('dialog[open]').getByText('Movie', { exact: true }).click();
+  await maya.getByLabel('Name it').fill('Paterson');
+  await maya.getByLabel('Why? (optional)').fill('A bus driver writes poems. Nothing happens, beautifully.');
+  await shot(maya, 'phone-suggest-dialog', false);
+  await maya.locator('dialog[open]').getByRole('button', { name: 'Cancel' }).click();
   await maya.setViewportSize({ width: 820, height: 1180 });
   await maya.goto(WEB);
   await maya.locator('.posts').getByText('dinner table').waitFor();
