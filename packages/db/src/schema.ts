@@ -125,6 +125,32 @@ export const invites = pgTable('invites', {
   revokedAt: tstz('revoked_at'),
 }, (t) => [index('invites_created_by').on(t.createdBy)]);
 
+/**
+ * Visitor passes (RFC §10.8): an admin makes one; whoever enters its code gets one hour of looking
+ * around with no account, no seat and no way to write. The code is stored hashed like an invite;
+ * entering it starts the hour, locks the pass to that browser (token_hash, also hashed) and sets
+ * expires_at. An unopened code stops working at code_expires_at. Rows are purged after 30 days.
+ */
+export const visitorPasses = pgTable('visitor_passes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  codeHash: text('code_hash').notNull(),
+  /** the admin's private note of who the pass was for */
+  label: text('label').notNull().default(''),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  codeExpiresAt: tstz('code_expires_at').notNull(),
+  openedAt: tstz('opened_at'),
+  tokenHash: text('token_hash'),
+  expiresAt: tstz('expires_at'),
+  revokedAt: tstz('revoked_at'),
+  revokedBy: uuid('revoked_by').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => [
+  uniqueIndex('visitor_passes_code').on(t.codeHash),
+  uniqueIndex('visitor_passes_token').on(t.tokenHash),
+  index('visitor_passes_created').on(t.createdAt),
+  check('visitor_passes_label_len', sql`char_length(${t.label}) <= 80`),
+]);
+
 export const waitlist = pgTable('waitlist', {
   userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
   priority: integer('priority').notNull(), // 0 = reinstating member, 1 = new invitee

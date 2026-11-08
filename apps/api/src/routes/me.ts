@@ -13,6 +13,7 @@ import { checkAbout, checkBirthday, closeAccount } from '../lib/account';
 import { checkEmail, checkPhone, contactEnabled, hasContact, openContact, saveContact, setupComplete } from '../lib/contact';
 import type { Db } from '@anti/db';
 import { interestsOf } from './interests';
+import { visitorProfile } from '../lib/visitors';
 
 /** Queue standing. `priority` 'reinstating' = former member (seat is offered, paid); 'new' = invitee (seated free). */
 type Waitlist = { position: number; total: number; priority: 'reinstating' | 'new'; offeredUntil: string | null };
@@ -90,7 +91,8 @@ export const meRoutes = (deps: Deps) => {
 
   return new Elysia({ prefix: '/me' })
     .use(authPlugin(deps))
-    .get('/', ({ auth }) => profile(requireUser(auth).user.id))
+    // a visitor (RFC §10.8) gets a stand-in profile with `visitor.expiresAt`; the app reads that flag
+    .get('/', ({ auth }) => (auth?.visitor ? visitorProfile(auth.visitor) : profile(requireUser(auth).user.id)))
     .patch(
       '/',
       async ({ auth, body }) => {

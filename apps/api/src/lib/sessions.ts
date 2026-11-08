@@ -4,7 +4,14 @@ import { RULES } from '@anti/shared';
 import { randomToken, sha256Hex } from './crypto';
 
 export type SessionUser = typeof users.$inferSelect;
-export type Auth = { user: SessionUser; tokenHash: string };
+/** RFC §10.8: the pass behind a visitor's hour. */
+export type VisitorPass = { id: string; expiresAt: Date };
+/**
+ * Who is asking. A member: their row and session. A visitor (RFC §10.8): a stand-in `user` that
+ * looks seated so every read works unchanged, plus `visitor`; `requireUser` turns them away and
+ * nothing that writes ever reaches a handler (app.ts).
+ */
+export type Auth = { user: SessionUser; tokenHash: string; visitor?: VisitorPass };
 
 const DAY = 86_400_000;
 const sessionMs = RULES.session_days * DAY;

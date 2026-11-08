@@ -185,6 +185,38 @@ begin
   return v_state;
 end $$;
 
+-- ─── Visitor passes (RFC §10.8) ─────────────────────────────────────────────
+-- An admin's one-hour, read-only look around for someone without an account. p_code is normalised.
+create or replace function create_visitor_pass(p_admin uuid, p_code text, p_label text) returns visitor_passes
+language plpgsql as $$
+declare v visitor_passes%rowtype;
+begin
+  insert into visitor_passes(code_hash, label, created_by, code_expires_at)
+  values (invite_hash(p_code), coalesce(p_label, ''), p_admin, now() + interval '7 days')
+  returning * into v;
+  return v;
+end $$;
+
+-- Entering the code: the hour starts now and the pass is locked to the browser holding p_token.
+-- A second entry of the same code fails as 'used', a wrong, expired or revoked one as 'invalid'.
+create or replace function open_visitor_pass(p_code text, p_token text) returns visitor_passes
+language plpgsql as $$
+declare v visitor_passes%rowtype;
+begin
+  select * into v from visitor_passes where code_hash = invite_hash(p_code) for update;
+  if not found or v.revoked_at is not null or v.code_expires_at <= now() then
+    raise exception 'visitor_pass_invalid' using errcode = 'P0040';
+  end if;
+  if v.opened_at is not null then
+    raise exception 'visitor_pass_used' using errcode = 'P0041';
+  end if;
+  update visitor_passes
+     set opened_at = now(), expires_at = now() + interval '1 hour', token_hash = invite_hash(p_token)
+   where id = v.id
+  returning * into v;
+  return v;
+end $$;
+
 -- ─── Activity ───────────────────────────────────────────────────────────────
 create or replace function touch_last_seen(p_user uuid) returns void
 language plpgsql as $$

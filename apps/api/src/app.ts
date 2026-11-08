@@ -18,6 +18,8 @@ import { projectRoutes } from './routes/projects';
 import { interestRoutes } from './routes/interests';
 import { collabRoutes } from './routes/collabs';
 import { consultationRoutes } from './routes/consultations';
+import { visitRoutes } from './routes/visit';
+import { VISITOR_COOKIE, openPath } from './lib/visitors';
 
 export function createApp(deps: Deps) {
   return new Elysia()
@@ -26,12 +28,19 @@ export function createApp(deps: Deps) {
       if (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS') return;
       const origin = request.headers.get('origin');
       const cookies = request.headers.get('cookie') ?? '';
-      if (origin && cookies.includes(`${SESSION_COOKIE}=`) && origin !== deps.cfg.webOrigin) {
+      const hasSession = cookies.includes(`${SESSION_COOKIE}=`);
+      const hasVisitor = cookies.includes(`${VISITOR_COOKIE}=`);
+      if (origin && (hasSession || hasVisitor) && origin !== deps.cfg.webOrigin) {
         return new ApiError(403, 'bad_origin', 'Origin not allowed.').toResponse();
       }
-      // Per-IP limits on unauthenticated endpoints (RFC §13).
       const path = new URL(request.url).pathname;
-      const limit = path === '/invites/check' ? 'inviteCheck' : path.startsWith('/auth/') && path !== '/auth/logout' ? 'auth' : null;
+      // Visitors (RFC §10.8) only watch: nothing that writes reaches a handler. Entering a code,
+      // leaving, signing in and joining still work (a member session in the same browser wins).
+      if (hasVisitor && !hasSession && !openPath(path)) {
+        return new ApiError(403, 'visitor_readonly', 'Visitors can only watch.').toResponse();
+      }
+      // Per-IP limits on unauthenticated endpoints (RFC §13).
+      const limit = path === '/invites/check' || path === '/visit' ? 'inviteCheck' : path.startsWith('/auth/') && path !== '/auth/logout' ? 'auth' : null;
       if (limit) {
         try {
           await hit(deps.db, limit, clientIp(request, server, deps.cfg.trustProxy ?? false));
@@ -65,6 +74,7 @@ export function createApp(deps: Deps) {
     })
     .get('/health', () => ({ ok: true }))
     .use(inviteRoutes(deps))
+    .use(visitRoutes(deps))
     .use(authRoutes(deps))
     .use(meRoutes(deps))
     .use(postRoutes(deps))

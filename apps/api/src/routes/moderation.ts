@@ -12,6 +12,7 @@ import {
 import { opsConsultation, opsConsultations, resolveConsultationFlags, resolveOfferFlags, switchOff, switchOn } from '../lib/consultations';
 import { adminMembers, getAdminSettings, renameMember, setMemberBirthday, setMemberRole, unbanMember, updateAdminSettings, openMemberContact, setVerified } from '../lib/admin';
 import { UUID_RE } from '../lib/posts';
+import { activePassCount, createPass, listPasses, revokePass } from '../lib/visitors';
 import { hit } from '../lib/ratelimit';
 import { authPlugin, requireSeated, requireUser } from '../plugins/auth';
 import type { Auth } from '../lib/sessions';
@@ -21,9 +22,9 @@ import type { Auth } from '../lib/sessions';
  * ops CLI). To members the endpoints do not exist: 404.
  */
 function requireOps(auth: Auth | null): Auth {
-  const a = requireUser(auth);
-  if (a.user.role !== 'ops') throw new ApiError(404, 'not_found');
-  return a;
+  if (!auth) throw new ApiError(401, 'unauthenticated');
+  if (auth.visitor || auth.user.role !== 'ops') throw new ApiError(404, 'not_found');
+  return auth;
 }
 
 export const moderationRoutes = (deps: Deps) => {
@@ -175,6 +176,21 @@ export const moderationRoutes = (deps: Deps) => {
         invitesPerMember: t.Optional(t.Number()),
         inviteExpiryDays: t.Optional(t.Number()),
       }),
+    })
+
+    // ─── Visitor passes (RFC §10.8): an hour of looking around for someone without an account ───
+    .get('/ops/visitor-passes', async ({ auth }) => {
+      requireOps(auth);
+      return { items: await listPasses(db), active: await activePassCount(db) };
+    })
+    .post('/ops/visitor-passes', async ({ auth, body }) => {
+      const a = requireOps(auth);
+      return createPass(db, a.user.id, body.label ?? '');
+    }, { body: t.Object({ label: t.Optional(t.String({ maxLength: 80 })) }) })
+    .post('/ops/visitor-passes/:id/revoke', async ({ auth, params }) => {
+      const a = requireOps(auth);
+      if (!UUID_RE.test(params.id)) throw new ApiError(404, 'not_found');
+      return revokePass(db, params.id, a.user.id);
     })
 
     .post('/ops/invites', async ({ auth, body }) => {

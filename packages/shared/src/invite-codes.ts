@@ -16,3 +16,19 @@ export function isWellFormedInviteCode(input: string): boolean {
   const n = normalizeInviteCode(input);
   return n.length === 16 && [...n].every((c) => INVITE_ALPHABET.includes(c));
 }
+
+/**
+ * Visitor codes (RFC §10.8) look like `K7QF-M2XP`: 8 symbols from the same alphabet (40 bits).
+ * Shorter than an invite because one is single-use, lasts a week unopened, and entering one is
+ * rate-limited per IP; it opens an hour of looking around, never an account.
+ */
+export const VISITOR_CODE_LENGTH = 8;
+/** how long an unopened visitor code keeps working */
+export const VISITOR_CODE_DAYS = 7;
+/** how long a visit lasts once the code is entered */
+export const VISITOR_MINUTES = 60;
+
+export function isWellFormedVisitorCode(input: string): boolean {
+  const n = normalizeInviteCode(input);
+  return n.length === VISITOR_CODE_LENGTH && [...n].every((c) => INVITE_ALPHABET.includes(c));
+}

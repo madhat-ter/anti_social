@@ -21,6 +21,8 @@ const DB_ERRORS: Record<string, [number, string]> = {
   stay_fee_not_applicable: [409, 'Stay fee does not apply to this account.'],
   payment_not_found: [404, 'Unknown checkout session.'],
   not_banned: [409, 'That member is not banned.'],
+  visitor_pass_invalid: [400, 'That visitor code is not valid, or has expired.'],
+  visitor_pass_used: [409, 'This pass has already been used.'],
 };
 
 /** Re-throw a DB error as an ApiError when it is one of ours; otherwise re-throw as-is. */

@@ -1,4 +1,4 @@
-import { INVITE_ALPHABET, formatInviteCode, normalizeInviteCode } from '@anti/shared';
+import { INVITE_ALPHABET, VISITOR_CODE_LENGTH, formatInviteCode, normalizeInviteCode } from '@anti/shared';
 
 export function base64url(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString('base64url');
@@ -20,6 +20,11 @@ function randomSymbols(n: number): string {
 /** 16 symbols = 80 bits. Returned normalised (no dashes); format for display. */
 export function generateInviteCode(): string {
   return randomSymbols(16);
+}
+
+/** RFC §10.8: 8 symbols = 40 bits; single-use, a week unopened, entry rate-limited per IP. */
+export function generateVisitorCode(): string {
+  return randomSymbols(VISITOR_CODE_LENGTH);
 }
 
 /** 28 symbols = 140 bits, shown once as XXXX-XXXX-… */

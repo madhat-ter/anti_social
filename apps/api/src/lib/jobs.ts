@@ -108,7 +108,10 @@ export const JOBS: Job[] = [
       for (const o of orphans) await storage.delete(o.r2_key).catch((e) => console.error('orphan delete failed', o.r2_key, e));
       const limits = await rows<{ n: number }>(tx, sql`
         with d as (delete from rate_limits where window_start < now() - interval '2 days' returning 1) select count(*)::int as n from d`);
-      return { sessions: sessions[0]?.n ?? 0, challenges: challenges[0]?.n ?? 0, uploads: orphans.length, rateLimits: limits[0]?.n ?? 0 };
+      // visitor passes (RFC §10.8) stay listed for admins for 30 days; every pass is long over by then
+      const passes = await rows<{ n: number }>(tx, sql`
+        with d as (delete from visitor_passes where created_at < now() - interval '30 days' returning 1) select count(*)::int as n from d`);
+      return { sessions: sessions[0]?.n ?? 0, challenges: challenges[0]?.n ?? 0, uploads: orphans.length, rateLimits: limits[0]?.n ?? 0, visitorPasses: passes[0]?.n ?? 0 };
     },
   },
 ];
