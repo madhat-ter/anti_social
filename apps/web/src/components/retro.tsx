@@ -63,6 +63,7 @@ export function AlertDialog({
   cancelLabel = 'Cancel',
   danger,
   input,
+  focusCancel,
   onConfirm,
   onCancel,
 }: {
@@ -73,6 +74,8 @@ export function AlertDialog({
   cancelLabel?: string | null;
   danger?: boolean;
   input?: { label: string; placeholder?: string; maxLength?: number };
+  /** start on the cancel button: for confirmations where pressing Enter twice must not destroy anything */
+  focusCancel?: boolean;
   onConfirm: (value: string) => void;
   onCancel: () => void;
 }) {
@@ -118,8 +121,8 @@ export function AlertDialog({
               </label>
             )}
             <div className="row dlg-actions">
-              {cancelLabel && <button type="button" className="btn" onClick={onCancel}>{cancelLabel}</button>}
-              <button type="submit" className={`btn default${danger ? ' danger' : ''}`} autoFocus={!input}>{confirmLabel}</button>
+              {cancelLabel && <button type="button" className="btn" onClick={onCancel} autoFocus={!!focusCancel && !input}>{cancelLabel}</button>}
+              <button type="submit" className={`btn default${danger ? ' danger' : ''}`} autoFocus={!input && !focusCancel}>{confirmLabel}</button>
             </div>
           </div>
         </div>

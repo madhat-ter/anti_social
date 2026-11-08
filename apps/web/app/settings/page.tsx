@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
-import { DISPLAY_NAME_MAX } from '@anti/shared';
+import { DISPLAY_NAME_MAX, GENDERS, GENDER_LABEL, type Gender } from '@anti/shared';
 import { api, errorMessage, formatMoney, type InviteInfo, type Me, type PasskeyInfo, type PaymentRecord } from '@/lib/api';
 import { fmtDate, useMe, useTitle } from '@/lib/hooks';
 import { CopyButton, ErrorNote } from '@/components/ui';
@@ -16,10 +16,12 @@ export default function Settings() {
   useTitle('Settings');
   const router = useRouter();
   const { me, loading, error, setMe } = useMe();
+  useEffect(() => { if (me?.setupNeeded) router.replace('/setup'); }, [me, router]);
 
   if (loading) return <Loading />;
   if (error) return <ErrorNote message={errorMessage(error)} />;
   if (!me) return <p>Please <Link href="/login">sign in</Link>.</p>;
+  if (me.setupNeeded) return <Loading what="Redirecting" />;
   const seated = me.state === 'active' || me.state === 'flagged_lurker';
 
   return (
@@ -28,6 +30,7 @@ export default function Settings() {
       <h1>Settings</h1>
       <Win title="Control panel" className="panel" bodyClassName="panel-body">
         <Profile me={me} onSaved={setMe} />
+        <Face me={me} onSaved={setMe} />
         <Passkeys />
         <PushToggle />
         {seated && <Invites />}
@@ -51,7 +54,7 @@ function Profile({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
     }}>
       <h2>Profile</h2>
       <div className="row">
-        <Avatar seed={me.handle} size={56} />
+        <Avatar seed={me.handle} gender={me.gender} size={56} />
         {me.role === 'ops' ? (
           <p className="muted">
             Your handle is <strong className="ui">@{me.handle}</strong>. As an admin you can change it (anyone&apos;s, in fact)
@@ -71,6 +74,41 @@ function Profile({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
       {msg && <p role="status" className="muted">{msg}</p>}
       <div className="row"><button className="btn primary">Save</button></div>
     </form>
+  );
+}
+
+/** Gender only shapes your face (RFC §10.3); it can change any time and the face redraws at once. */
+function Face({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
+  // the choice shows at once; the face and everything else follow when the save lands
+  const [chosen, setChosen] = useState<Gender | null>(me.gender);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  async function pick(g: Gender) {
+    if (g === chosen) return;
+    const before = chosen;
+    setChosen(g); setErr(null); setMsg(null);
+    try { onSaved(await api.updateMe({ gender: g })); setMsg('Saved. Your face is redrawn everywhere.'); }
+    catch (e) { setChosen(before); setErr(errorMessage(e)); }
+  }
+  return (
+    <section className="panel-sec" aria-labelledby="face">
+      <h2 id="face">Your face</h2>
+      <div className="you">
+        <div className="you-face"><Avatar seed={me.handle} gender={chosen} size={88} label="Your face" /></div>
+        <fieldset className="setup-choices grow">
+          <legend className="ui">Gender</legend>
+          {GENDERS.map((g) => (
+            <label key={g} className="check setup-choice">
+              <input type="radio" name="settings-gender" value={g} checked={chosen === g} onChange={() => void pick(g)} />
+              <span>{GENDER_LABEL[g]}</span>
+            </label>
+          ))}
+          <p className="muted small">It only shapes your face; it is never shown as text.</p>
+        </fieldset>
+      </div>
+      {msg && <p role="status" className="muted">{msg}</p>}
+      <ErrorNote message={err} />
+    </section>
   );
 }
 

@@ -307,11 +307,16 @@ begin
 end $$;
 
 -- The row is kept (state log, thread integrity) but stripped of identity.
-create or replace function delete_account(p_user uuid) returns void
+-- p_reason: 'self_delete' | 'underage' (setup or an admin found the member is under 13).
+-- The one-argument version is dropped first: a second overload with defaults would make
+-- delete_account(uuid) ambiguous.
+drop function if exists delete_account(uuid);
+create or replace function delete_account(p_user uuid, p_reason text default 'self_delete', p_actor uuid default null)
+returns void
 language plpgsql as $$
 begin
   perform seat_lock();
-  perform set_state(p_user, 'deleted', 'self_delete', p_user);
+  perform set_state(p_user, 'deleted', p_reason, coalesce(p_actor, p_user));
   delete from passkeys where user_id = p_user;
   delete from sessions where user_id = p_user;
   delete from waitlist where user_id = p_user;
@@ -324,7 +329,10 @@ begin
     bio = '',
     avatar_key = null,
     recovery_code_hash = '',
-    stripe_customer_id = null
+    stripe_customer_id = null,
+    gender = null,
+    birthday = null,
+    birthday_public = true
   where id = p_user;
   perform promote_waitlist();
 end $$;

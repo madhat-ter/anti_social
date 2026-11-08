@@ -25,13 +25,16 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
   const seated = isSeated(me);
   const wide = useWide();
 
+  const needsSetup = !!me?.setupNeeded;
   useEffect(() => {
-    if (!loading && !own.error && !seated) router.replace('/');
-  }, [loading, own.error, seated, router]);
+    if (loading || own.error) return;
+    if (!seated) router.replace('/');
+    else if (needsSetup) router.replace('/setup'); // RFC §10.3: nothing else until setup is done
+  }, [loading, own.error, seated, needsSetup, router]);
 
   if (loading) return <Loading />;
   if (own.error && !given) return <ErrorNote message={errorMessage(own.error)} />;
-  if (!me || !seated) return <Loading what="Redirecting" />;
+  if (!me || !seated || needsSetup) return <Loading what="Redirecting" />;
 
   // phones/tablets: nav on top, one column. Wide screens: menu | content | side windows (CSS).
   return (
@@ -99,7 +102,7 @@ function NavBar({ me }: { me: Me }) {
         </Link>
       ))}
       <Link href={mine} className="nav-me" aria-current={path === mine ? 'page' : undefined}>
-        <Avatar seed={me.handle} size={28} />
+        <Avatar seed={me.handle} gender={me.gender} size={28} />
         {/* name: "Your profile @maya" — always contains the visible "@maya" (desktop shows it) */}
         <span className="sr-only">Your profile </span>
         <span className="nav-me-label">@{me.handle}</span>

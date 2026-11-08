@@ -27,7 +27,7 @@ export function Welcome({ me }: { me: Me }) {
   return (
     <Win title="welcome.txt" className="welcome" onClose={dismiss} bodyClassName="stack" as="aside">
       <div className="welcome-head">
-        <Avatar seed={me.handle} size={72} />
+        <Avatar seed={me.handle} gender={me.gender} size={72} />
         <div>
           <h2>You are in, {me.displayName.split(' ')[0]}.</h2>
           <p>One of a hundred seats is yours. Three things keep it that way:</p>

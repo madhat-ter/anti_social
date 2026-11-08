@@ -222,7 +222,7 @@ function Members({ me }: { me: Me }) {
         <ul className="adm-members">
           {shown.map((m) => (
             <li key={m.handle}>
-              <Avatar seed={m.handle} size={40} />
+              <Avatar seed={m.handle} gender={m.gender} size={40} />
               <span className="adm-member-main">
                 <span>
                   {m.state === 'banned' || m.state === 'waitlisted'

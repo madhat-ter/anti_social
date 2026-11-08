@@ -41,11 +41,61 @@ export const SUGGESTION_TITLE_MAX = 80;
 export const SUGGESTION_NOTE_MAX = 140;
 export const SUGGESTIONS_PER_DAY = 10;
 
+// ─── Setup: what every member fills in once, right after joining ────────────
+/** Gender only shapes the drawn face; it is never shown as text. */
+export const GENDERS = ['woman', 'man', 'nonbinary', 'undisclosed'] as const;
+export type Gender = (typeof GENDERS)[number];
+export const GENDER_LABEL: Record<Gender, string> = {
+  woman: 'Woman', man: 'Man', nonbinary: 'Non-binary', undisclosed: 'Prefer not to say',
+};
+/** "About you": the portfolio's About, required, counted in words (runs of non-space). */
+export const ABOUT_MIN_WORDS = 50;
+export const ABOUT_MAX_WORDS = 300;
+/** Below this age the account is closed (the usual legal minimum for online services). */
+export const MIN_AGE = 13;
+export const MAX_AGE = 120;
+
+export function countWords(text: string): number {
+  const t = text.trim();
+  return t ? t.split(/\s+/).length : 0;
+}
+
+/** A valid calendar date written YYYY-MM-DD, or null. */
+export function parseIsoDate(iso: string): { y: number; m: number; d: number } | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return null;
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  const t = new Date(Date.UTC(y, mo - 1, d));
+  if (t.getUTCFullYear() !== y || t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== d) return null;
+  return { y, m: mo, d };
+}
+
+/** Whole years from `iso` (YYYY-MM-DD) to `today` ({y, m, d}). Negative for a date in the future. */
+export function ageOn(iso: string, today: { y: number; m: number; d: number }): number | null {
+  const b = parseIsoDate(iso);
+  if (!b) return null;
+  const beforeBirthday = today.m < b.m || (today.m === b.m && today.d < b.d);
+  return today.y - b.y - (beforeBirthday ? 1 : 0);
+}
+
+/** Today's date in UTC, the way the server sees it. */
+export const utcToday = (now = new Date()) => ({ y: now.getUTCFullYear(), m: now.getUTCMonth() + 1, d: now.getUTCDate() });
+/** Today's date where the viewer is. */
+export const localToday = (now = new Date()) => ({ y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate() });
+
+const isLeap = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+/** Is it this birthday today? 29 February is celebrated on 28 February in other years. */
+export function isBirthdayOn(b: { month: number; day: number }, today: { y: number; m: number; d: number }): boolean {
+  if (b.month === 2 && b.day === 29 && !isLeap(today.y)) return today.m === 2 && today.d === 28;
+  return b.month === today.m && b.day === today.d;
+}
+
 // ─── Portfolio: the profile laid out like a Behance portfolio ───────────────
-// Every field is optional; none asks for a real name, email or phone number.
+// Every field is optional except About (filled in at setup); none asks for a real name, email or phone.
 export const PF_HEADLINE_MAX = 60;
 export const PF_LOCATION_MAX = 60;
-export const PF_ABOUT_MAX = 1200;
+/** characters; the real limit is ABOUT_MAX_WORDS, this only stops a few giant "words" */
+export const PF_ABOUT_MAX = 2400;
 /** skills and tools: up to this many tags, each up to PF_TAG_MAX characters */
 export const PF_TAGS_MAX = 30;
 export const PF_TAG_MAX = 30;

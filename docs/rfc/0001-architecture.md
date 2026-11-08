@@ -651,6 +651,31 @@ admin; the web app shows an **Admin** menu item and page to admins only (members
 - **Bootstrap**: `OPS_HANDLES` grants admin on boot only while no admin exists; otherwise a handle
   freed by a rename could be claimed by someone else and promoted at the next restart.
 
+### 10.3 Setup: About you, gender, birthday (added 2026-11-08)
+
+Grilled with the owner (Q1–Q18, all accepted). Every member fills in three things once, right after
+the recovery-code screen; everyone who joined before gets the same page on their next visit, admins
+included. Until it is done the app shows only `/setup` (sign-out still works) and the API answers
+`setup_required` (403) from every seated endpoint; `/me`, `/me/setup`, passkeys, notifications and
+settings stay open. People still waiting for a seat see only their status page, as before.
+
+- **About you**: 50–300 words (runs of non-space; at most 2,400 characters), with a live counter. It
+  *is* the portfolio's About (same rule in the portfolio editor), so a portfolio is never empty. The
+  short 160-character bio is unchanged and optional.
+- **Gender**: Woman / Man / Non-binary / Prefer not to say. It only shapes the drawn face and is never
+  shown as text; it can change any time in Settings. Faces are generated from handle + gender: women
+  never get facial hair and draw from bob, curly, side, long and bun (some get lashes or earrings);
+  men keep the short styles and may have a beard or moustache; non-binary and prefer-not-to-say get
+  any hairstyle and no facial hair. Without a gender (not set up yet) the original face is drawn.
+- **Birthday**: a date; under 13 the app asks "is that right?" and then the account is closed (the
+  birthday is never stored); future dates and ages over 120 are refused. Members can't change it;
+  admins can correct it (same under-13 rule, with a confirmation). Only month and day are ever shared,
+  and only for the "birthday today" tag; ages are visible to admins only.
+- **Closing an account** (self-delete, under 13): `closeAccount()` removes the portfolio and projects
+  with their images, then `delete_account(user, reason, actor)` frees the seat and strips the row
+  (handle, name, gender, birthday...). Posts stay as "deleted user" so threads still read.
+- Not a contribution for the lurker rule.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops.

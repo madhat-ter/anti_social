@@ -54,7 +54,7 @@ export function PickCard({ p, showAuthor = true }: { p: Pick; showAuthor?: boole
       {p.note && <p className="pick-note">{p.note}</p>}
       {showAuthor && p.author && (
         <Link href={`/u/${p.author.handle}`} className="pick-by">
-          <Avatar seed={p.author.handle} size={28} /> <span className="ui">@{p.author.handle}</span>
+          <Avatar seed={p.author.handle} gender={p.author.gender} size={28} /> <span className="ui">@{p.author.handle}</span>
         </Link>
       )}
     </figure>

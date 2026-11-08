@@ -50,7 +50,7 @@ function SeatMap({ myHandle }: { myHandle: string }) {
         {members.map((m) => (
           <li key={m.handle} className={m.handle === myHandle ? 'me' : undefined}>
             <Link href={`/u/${m.handle}`} title={m.headline || m.bio || undefined}>
-              <Avatar seed={m.handle} size={56} />
+              <Avatar seed={m.handle} gender={m.gender} size={56} />
               <span className="seat-name">{m.displayName}</span>
               <span className="seat-handle">@{m.handle}</span>
               {m.headline && (

@@ -15,7 +15,7 @@ function You({ me }: { me: Me }) {
   return (
     <Win title="you" as="section" bodyClassName="rail-you">
       <Link href={`/u/${me.handle}`} className="rail-you-link">
-        <Avatar seed={me.handle} size={56} />
+        <Avatar seed={me.handle} gender={me.gender} size={56} />
         <span>
           <span className="rail-name">{me.displayName}</span>
           <span className="ui muted">@{me.handle}</span>

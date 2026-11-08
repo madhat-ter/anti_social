@@ -122,7 +122,7 @@ function People({ title, people, showAttended }: { title: string; people: EventD
           {people.map((p) => (
             <li key={p.handle}>
               <Link href={`/u/${p.handle}`}>
-                <Avatar seed={p.handle} size={64} />
+                <Avatar seed={p.handle} gender={p.gender} size={64} />
                 <span className="crowd-name">{p.displayName}</span>
               </Link>
               {showAttended && p.attended && <span className="tag on">came</span>}

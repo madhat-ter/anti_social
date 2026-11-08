@@ -92,7 +92,7 @@ function Notifications() {
             const body = (
               <>
                 {n.actor
-                  ? <Avatar seed={n.actor.handle} size={40} />
+                  ? <Avatar seed={n.actor.handle} gender={n.actor.gender} size={40} />
                   : <span className="notif-sys">{WARNINGS.has(n.kind) ? <AlertIcon size={28} /> : <Dot size="1.1rem" />}</span>}
                 <span className="notif-text">
                   <span className="notif-title">{!n.readAt && <><span className="dot-unread" aria-hidden="true" /><span className="sr-only">Unread: </span></>}{describe(n)}</span>

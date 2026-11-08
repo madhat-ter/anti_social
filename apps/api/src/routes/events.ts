@@ -171,13 +171,13 @@ export const eventRoutes = (deps: Deps) => {
       const ev = await getEvent(db, a.user.id, params.id);
       if (!ev) throw new ApiError(404, 'not_found');
       // Everyone sees who is going; only the host sees the waitlist.
-      const people = await rows<{ handle: string; display_name: string; state: string; status: string; attended: boolean }>(db, sql`
-        select u.handle, u.display_name, u.state, r.status, (r.attended_confirmed_at is not null) as attended
+      const people = await rows<{ handle: string; display_name: string; state: string; gender: string | null; status: string; attended: boolean }>(db, sql`
+        select u.handle, u.display_name, u.state, u.gender, r.status, (r.attended_confirmed_at is not null) as attended
           from event_rsvps r join users u on u.id = r.user_id
          where r.event_id = ${params.id}::uuid and u.state <> 'deleted'
            and (r.status = 'going' or (r.status = 'waitlisted' and ${ev.isHost}))
          order by r.status, r.created_at, r.user_id`);
-      const person = (p: (typeof people)[number]) => ({ handle: p.handle, displayName: p.display_name, state: p.state, attended: !!p.attended });
+      const person = (p: (typeof people)[number]) => ({ handle: p.handle, displayName: p.display_name, state: p.state, gender: p.gender ?? null, attended: !!p.attended });
       return {
         ...ev,
         going: people.filter((p) => p.status === 'going').map(person),

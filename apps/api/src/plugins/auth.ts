@@ -32,9 +32,14 @@ export function requireUser(auth: Auth | null): Auth {
   return auth;
 }
 
+/**
+ * A member with a seat who has finished setup (RFC §10.3): About you, gender, birthday. Until
+ * then everything a seat gives is locked; /me, /me/setup, settings and sign-out still work.
+ */
 export function requireSeated(auth: Auth | null): Auth {
   const a = requireUser(auth);
   if (!SEATED_STATES.includes(a.user.state)) throw new ApiError(403, 'no_seat', 'You do not have a seat.');
+  if (!a.user.setupDoneAt) throw new ApiError(403, 'setup_required', 'Finish setting up your profile first.');
   return a;
 }
 

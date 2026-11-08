@@ -1,9 +1,13 @@
 /**
  * Doodle avatars: a hand-drawn-looking 1-bit face generated deterministically from a seed
- * (the member's handle). Same handle → same face, everywhere, forever. No uploads needed.
+ * (the member's handle) and their gender (RFC §10.3). Same handle + gender → same face, everywhere.
+ * No uploads needed. Gender only picks from the features: woman → no beard or moustache, long
+ * hair, bob, bun, curls...; man → short styles, facial hair possible; non-binary / prefer not to
+ * say → any hair, no facial hair. Without a gender (not set up yet) the face is the original one.
  * Ink = currentColor, fill = var(--paper), so it follows the light/dark theme.
  */
 import type { ReactNode } from 'react';
+import type { Gender } from '@anti/shared';
 
 function hash(s: string): number {
   let h = 2166136261;
@@ -28,8 +32,15 @@ const INK = 'currentColor';
 const PAPER = 'var(--paper)';
 const S = { stroke: INK, strokeWidth: 2.2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
 
-function face(seed: string): ReactNode {
-  const r = rng(hash(seed.toLowerCase()));
+const HAIR_ORIGINAL = ['none', 'flat', 'spiky', 'side', 'bob', 'curly', 'cap', 'crown', 'beanie', 'quiff'] as const;
+type Hair = (typeof HAIR_ORIGINAL)[number] | 'long' | 'bun';
+const HAIR_WOMAN: readonly Hair[] = ['bob', 'curly', 'side', 'long', 'long', 'bun'];
+const HAIR_MAN: readonly Hair[] = ['none', 'flat', 'spiky', 'side', 'cap', 'beanie', 'quiff', 'curly'];
+const HAIR_ANY: readonly Hair[] = [...HAIR_ORIGINAL, 'long', 'bun'];
+
+function face(seed: string, gender: Gender | null): ReactNode {
+  // no gender: the original seed and picks, so faces stay exactly as they were before setup
+  const r = rng(hash(gender ? `${seed.toLowerCase()}|${gender}` : seed.toLowerCase()));
   const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(r() * xs.length)]!;
   const chance = (p: number) => r() < p;
   const jit = (n: number) => (r() - 0.5) * 2 * n;
@@ -61,7 +72,7 @@ function face(seed: string): ReactNode {
   ) : null;
 
   // ── hair (some styles draw behind the head, some on top)
-  const hairStyle = pick(['none', 'flat', 'spiky', 'side', 'bob', 'curly', 'cap', 'crown', 'beanie', 'quiff'] as const);
+  const hairStyle: Hair = pick<Hair>(!gender ? HAIR_ORIGINAL : gender === 'woman' ? HAIR_WOMAN : gender === 'man' ? HAIR_MAN : HAIR_ANY);
   let behind: ReactNode = null;
   let top: ReactNode = null;
   const { l, t } = head;
@@ -117,6 +128,19 @@ function face(seed: string): ReactNode {
           <path d={`M${l - 1} ${t + 8} Q${cx} ${t - 14} ${R + 1} ${t + 8} Z`} fill={INK} {...S} />
           <rect x={l - 2} y={t + 5} width={R - l + 4} height={5} rx={1.5} fill={PAPER} {...S} />
           <circle cx={cx} cy={t - 6} r={2.6} fill={PAPER} {...S} />
+        </g>
+      );
+      break;
+    case 'long':
+      // falls past the chin on both sides, with a side-swept fringe on top
+      behind = <path d={`M${l - 5} ${cy + 19} L${l - 5} ${t + 6} Q${cx} ${t - 11} ${R + 5} ${t + 6} L${R + 5} ${cy + 19} Q${R + 2} ${cy + 22} ${R - 1} ${cy + 18} L${l + 1} ${cy + 18} Q${l - 2} ${cy + 22} ${l - 5} ${cy + 19} Z`} fill={INK} {...S} />;
+      top = <path d={`M${l - 1} ${t + 11} Q${l} ${t - 3} ${cx + 1} ${t - 3} Q${R + 2} ${t - 2} ${R + 1} ${t + 11} Q${cx + 5} ${t + 3} ${cx - 2} ${t + 8} Q${l + 3} ${t + 12} ${l - 1} ${t + 11} Z`} fill={INK} {...S} />;
+      break;
+    case 'bun':
+      top = (
+        <g>
+          <circle cx={cx} cy={t - 4} r={5.5} fill={INK} {...S} />
+          <path d={`M${l} ${t + 9} Q${l + 1} ${t - 3} ${cx} ${t - 3} Q${R - 1} ${t - 3} ${R} ${t + 9} Q${cx} ${t + 2} ${l} ${t + 9} Z`} fill={INK} {...S} />
         </g>
       );
       break;
@@ -209,8 +233,9 @@ function face(seed: string): ReactNode {
     <path key="frown" d={`M${cx - mw} ${my + 2} Q${cx} ${my - 2} ${cx + mw} ${my + 2}`} {...S} fill="none" />,
   ]);
 
-  // ── facial hair
-  const fh = pick(['none', 'none', 'none', 'mustache', 'beard'] as const);
+  // ── facial hair (the roll is always made, so faces without a gender keep their old picks)
+  const fhRoll = pick(['none', 'none', 'none', 'mustache', 'beard'] as const);
+  const fh = !gender || gender === 'man' ? fhRoll : 'none';
   let facial: ReactNode = null;
   if (fh === 'mustache') {
     facial = <path d={`M${cx - 7} ${my - 1} Q${cx - 3} ${my - 5} ${cx} ${my - 2.5} Q${cx + 3} ${my - 5} ${cx + 7} ${my - 1} Q${cx + 3} ${my - 2} ${cx} ${my - 1} Q${cx - 3} ${my - 2} ${cx - 7} ${my - 1} Z`} fill={INK} {...S} strokeWidth={1.4} />;
@@ -228,24 +253,43 @@ function face(seed: string): ReactNode {
     );
   }
 
+  // ── a few touches some women's faces get: lashes, earrings
+  const lashes = gender === 'woman' && (eyesStyle === 'dots' || eyesStyle === 'ring' || eyesStyle === 'sleepy') && chance(0.6) ? (
+    <g>
+      <path d={`M${cx - dx - 2.5} ${ey - 2.5} L${cx - dx - 4.5} ${ey - 4.5} M${cx - dx - 0.5} ${ey - 3} L${cx - dx - 1} ${ey - 5.5}`} {...S} strokeWidth={1.5} />
+      <path d={`M${cx + dx + 2.5} ${ey - 2.5} L${cx + dx + 4.5} ${ey - 4.5} M${cx + dx + 0.5} ${ey - 3} L${cx + dx + 1} ${ey - 5.5}`} {...S} strokeWidth={1.5} />
+    </g>
+  ) : null;
+  const showEars = ears && hairStyle !== 'long';
+  const earrings = gender === 'woman' && showEars && chance(0.4) ? (
+    <g fill={INK}>
+      <circle cx={head.l - 1} cy={cy + 6.5} r={1.7} />
+      <circle cx={head.r + 1} cy={cy + 6.5} r={1.7} />
+    </g>
+  ) : null;
+
   return (
     <>
       {frame}
       {behind}
-      {ears}
+      {showEars ? ears : null}
+      {earrings}
       {headEl}
       {top}
       {brows}
       {eyes}
+      {lashes}
       {nose}
       {fh === 'beard' ? <>{facial}</> : <>{mouth}{facial}</>}
     </>
   );
 }
 
-export function Avatar({ seed, size = 40, label, className }: {
+export function Avatar({ seed, gender = null, size = 40, label, className }: {
   /** usually the handle; null = deleted user */
   seed: string | null;
+  /** the member's gender (shapes the face); null/undefined = not set up yet */
+  gender?: Gender | null;
   size?: number;
   /** accessible name; omit when the name is printed next to it */
   label?: string;
@@ -261,7 +305,7 @@ export function Avatar({ seed, size = 40, label, className }: {
       overflow="visible"
       {...a11y}
     >
-      {seed ? face(seed) : (
+      {seed ? face(seed, gender) : (
         <g>
           <rect x="9" y="9" width="50" height="50" fill={INK} />
           <rect x="5" y="5" width="50" height="50" fill={PAPER} {...S} strokeDasharray="4 4" />

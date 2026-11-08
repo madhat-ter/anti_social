@@ -14,6 +14,8 @@ export const userState = pgEnum('user_state', [
   'waitlisted', 'active', 'flagged_lurker', 'archived', 'banned', 'deleted',
 ]);
 export const userRole = pgEnum('user_role', ['member', 'ops']);
+/** Shapes the drawn face only; never shown as text (RFC §10.3). Mirrors GENDERS in @anti/shared. */
+export const gender = pgEnum('gender', ['woman', 'man', 'nonbinary', 'undisclosed']);
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -33,6 +35,14 @@ export const users = pgTable('users', {
   invitePenaltyUntil: tstz('invite_penalty_until'),
   stripeCustomerId: text('stripe_customer_id'),
   createdAt: tstz('created_at').notNull().defaultNow(),
+  // ── setup (RFC §10.3): filled in once after joining; until then the site is locked
+  gender: gender('gender'),
+  /** YYYY-MM-DD; members can't change it, admins can. Only month/day are ever shown, and only if public. */
+  birthday: date('birthday'),
+  birthdayPublic: boolean('birthday_public').notNull().default(true),
+  setupDoneAt: tstz('setup_done_at'),
+  /** the "Finish your profile" checklist was closed */
+  checklistDismissedAt: tstz('checklist_dismissed_at'),
 }, (t) => [
   index('users_state_idx').on(t.state),
   uniqueIndex('users_handle_lower').on(sql`lower(${t.handle})`),

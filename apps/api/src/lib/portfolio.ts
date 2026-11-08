@@ -1,17 +1,18 @@
 /**
  * Portfolio: a member's profile laid out like a Behance portfolio.
- * One row per member, every field optional. Members only, like everything else.
+ * One row per member, every field optional except About (written at setup). Members only, like everything else.
  * Editing it is about yourself, not a conversation with the room, so it never counts
  * as a contribution for the lurker rule (RFC §3: posts, replies, events).
  */
 import { sql, type SQL } from 'drizzle-orm';
 import { rows, type Db } from '@anti/db';
 import {
-  PF_ABOUT_MAX, PF_ACCENTS, PF_BACKGROUNDS, PF_EDUCATION_MAX, PF_ENTRY_LINE_MAX, PF_ENTRY_PLACE_MAX, PF_ENTRY_TITLE_MAX,
+  PF_ACCENTS, PF_BACKGROUNDS, PF_EDUCATION_MAX, PF_ENTRY_LINE_MAX, PF_ENTRY_PLACE_MAX, PF_ENTRY_TITLE_MAX,
   PF_EXPERIENCE_MAX, PF_FONTS, PF_HEADLINE_MAX, PF_LINKS_MAX, PF_LINK_LABEL_MAX, PF_LINK_URL_MAX, PF_LOCATION_MAX,
   PF_TAGS_MAX, PF_TAG_MAX, PF_YEAR_AHEAD, PF_YEAR_MIN, type PfAccent, type PfBackground, type PfFont,
 } from '@anti/shared';
 import { ApiError } from './errors';
+import { checkAbout } from './account';
 import { mediaUrl, UUID_RE } from './posts';
 import type { Storage } from './storage';
 
@@ -240,7 +241,8 @@ export function mergePortfolio(current: PortfolioFields, body: Record<string, un
     headline: has('headline') ? str(body.headline, 'Headline', PF_HEADLINE_MAX) : current.headline,
     location: has('location') ? str(body.location, 'Location', PF_LOCATION_MAX) : current.location,
     openToWork,
-    about: has('about') ? str(body.about, 'About', PF_ABOUT_MAX, { multiline: true }) : current.about,
+    // About is "About you" from setup: required, 50–300 words (RFC §10.3)
+    about: has('about') ? checkAbout(body.about, 'portfolio_invalid') : current.about,
     skills: has('skills') ? tags(body.skills, 'Skills') : current.skills,
     tools: has('tools') ? tags(body.tools, 'Tools') : current.tools,
     experience: has('experience') ? entries(body.experience, 'Experience', PF_EXPERIENCE_MAX) : current.experience,

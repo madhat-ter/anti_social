@@ -19,6 +19,8 @@ import { MemoryPushSender } from '../apps/api/src/lib/push';
 import { FakeAuthenticator } from '../apps/api/test/fake-authenticator';
 
 const WEB = process.env.WEB_URL ?? 'http://localhost:3100';
+/** what every member fills in once after joining (RFC §10.3) */
+const SETUP = { about: Array.from({ length: 60 }, (_, i) => `word${i}`).join(' '), gender: 'undisclosed', birthday: '1996-04-02' };
 const OUT = join(import.meta.dir, '..', '.screenshots', 'admin');
 mkdirSync(OUT, { recursive: true });
 
@@ -65,6 +67,12 @@ async function join_(page: Page, handle: string, name: string) {
   await page.getByText('Save your recovery code').waitFor();
   await page.getByLabel('I saved it somewhere safe').check();
   await page.getByRole('button', { name: 'Continue' }).click();
+  // every new member sets up first (RFC §10.3)
+  await page.getByRole('heading', { name: 'Set up your profile' }).waitFor();
+  await page.locator('#su-about-text').fill(SETUP.about);
+  await page.getByLabel('Prefer not to say').check();
+  await page.getByLabel('Your birthday', { exact: true }).fill(SETUP.birthday);
+  await page.getByRole('button', { name: 'Done' }).click();
   await page.getByPlaceholder('What is on your mind?').waitFor();
   await page.getByRole('button', { name: 'Got it' }).waitFor();
   await page.getByRole('button', { name: 'Got it' }).click();
@@ -91,6 +99,7 @@ async function apiMember(handle: string, displayName: string) {
   await q('select create_invite(null, $1)', [code]);
   const o = await call('POST', '/auth/register/options', { code: formatInviteCode(code), handle, displayName });
   await call('POST', '/auth/register/verify', { challengeId: o.challengeId, response: await authn.create(o.options, WEB) });
+  await call('PUT', '/me/setup', SETUP);
   return { call, jar };
 }
 

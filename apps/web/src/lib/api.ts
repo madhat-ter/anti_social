@@ -1,3 +1,6 @@
+import type { Gender } from '@anti/shared';
+export type { Gender };
+
 export type UserState = 'waitlisted' | 'active' | 'flagged_lurker' | 'archived' | 'banned' | 'deleted';
 
 export interface Me {
@@ -15,6 +18,14 @@ export interface Me {
   waitlist: { position: number; total: number; priority: 'reinstating' | 'new'; offeredUntil: string | null } | null;
   lurker: { flaggedAt: string; graceEndsAt: string; contributions: number; required: number } | null;
   archived: { reason: 'inactive' | 'lurker_grace_expired' | 'waitlist_decay' | string; wasMember: boolean } | null;
+  /** setup (About you, gender, birthday) not done yet: the app shows only /setup */
+  setupNeeded: boolean;
+  /** shapes the drawn face only; null until setup */
+  gender: Gender | null;
+  /** YYYY-MM-DD, your own; members can't change it */
+  birthday: string | null;
+  /** show the "birthday today" tag on your day */
+  birthdayPublic: boolean;
 }
 
 /** One reported post or project in the moderation queue. */
@@ -32,7 +43,7 @@ export interface FlagItem {
 
 /** One person in the admin's member list (everyone except deleted accounts). */
 export interface AdminMember {
-  handle: string; displayName: string; state: UserState; role: 'member' | 'ops';
+  handle: string; displayName: string; state: UserState; role: 'member' | 'ops'; gender: Gender | null;
   joinedAt: string; activatedAt: string | null; lastSeenAt: string | null;
   invitedBy: string | null; postCount: number;
 }
@@ -57,7 +68,7 @@ export class ApiError extends Error {
 }
 
 /** `role` 'ops' = an admin (shown with an "admin" tag). */
-export type Author = { handle: string; displayName: string; state: UserState; role?: 'member' | 'ops' } | null;
+export type Author = { handle: string; displayName: string; state: UserState; role?: 'member' | 'ops'; gender?: Gender | null } | null;
 export interface Image { id: string; url: string; width: number; height: number }
 export interface Post {
   id: string;
@@ -88,7 +99,7 @@ export interface Pick {
   title: string;
   note: string | null;
   createdAt: string;
-  author: { handle: string; displayName: string } | null;
+  author: { handle: string; displayName: string; gender?: Gender | null } | null;
   mine: boolean;
 }
 
@@ -151,6 +162,8 @@ export interface MemberSummary {
   state: UserState;
   /** 'ops' = an admin */
   role: 'member' | 'ops';
+  /** shapes the drawn face */
+  gender: Gender | null;
   invitedBy: { handle: string } | null;
   activatedAt: string | null;
   postCount: number;
@@ -163,7 +176,7 @@ export interface Notification {
   kind: 'reply' | 'like' | string;
   createdAt: string;
   readAt: string | null;
-  actor: { handle: string; displayName: string } | null;
+  actor: { handle: string; displayName: string; gender?: Gender | null } | null;
   post: { id: string; rootId: string | null; snippet: string } | null;
   event: { id: string; title: string } | null;
   /** handle_changed: your new handle */
@@ -173,13 +186,13 @@ export interface Notification {
 }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 export type RsvpStatus = 'going' | 'waitlisted' | 'cancelled';
-export interface EventPerson { handle: string; displayName: string; state: UserState; attended: boolean }
+export interface EventPerson { handle: string; displayName: string; state: UserState; attended: boolean; gender?: Gender | null }
 export interface AnEvent {
   id: string; title: string; description: string; startsAt: string; endsAt: string | null;
   location: string | null; locationHidden: boolean; locationRsvpOnly: boolean; capacity: number | null;
   goingCount: number; waitlistCount: number; attendedCount: number;
   priceNote: string | null; externalPaymentUrl: string | null; cancelledAt: string | null;
-  host: { handle: string; displayName: string; state: UserState } | null; isHost: boolean;
+  host: { handle: string; displayName: string; state: UserState; gender?: Gender | null } | null; isHost: boolean;
   my: { status: RsvpStatus; waitlistPosition: number | null; attended: boolean } | null;
   started: boolean; rsvpOpen: boolean; canEdit: boolean; canConfirmAttendance: boolean;
 }
@@ -243,7 +256,10 @@ const post = <T,>(p: string, b: unknown = {}) => call<T>('POST', p, b);
 
 export const api = {
   me: () => get<Me>('/me'),
-  updateMe: (b: { displayName?: string; bio?: string }) => call<Me>('PATCH', '/me', b),
+  updateMe: (b: { displayName?: string; bio?: string; gender?: Gender; birthdayPublic?: boolean }) => call<Me>('PATCH', '/me', b),
+  setupState: () => get<{ about: string; gender: Gender | null; birthday: string | null }>('/me/setup'),
+  setup: (b: { about: string; gender: Gender; birthday: string; confirmUnderage?: boolean }) =>
+    call<Me | { closed: true }>('PUT', '/me/setup', b),
   deleteMe: () => call<{ ok: true }>('DELETE', '/me'),
   checkInvite: (code: string) => post<{ valid: boolean; wouldWaitlist: boolean }>('/invites/check', { code }),
   registerOptions: (b: { code: string; handle: string; displayName: string }) => post<Challenge>('/auth/register/options', b),
@@ -348,6 +364,7 @@ const MESSAGES: Record<string, string> = {
   network: 'Could not reach the server. Check your connection and try again.',
   unauthenticated: 'You are signed out. Please sign in again.',
   no_seat: 'You need a seat to do that.',
+  setup_required: 'Finish setting up your profile first.',
   bad_origin: 'Request blocked. Reload the page and try again.',
   invite_invalid: 'That invite code is not valid, or has already been used.',
   handle_invalid: 'Handles are 3–20 letters, digits or underscores, start with a letter, and a few words (like admin) are reserved.',

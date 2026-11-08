@@ -133,7 +133,7 @@ export default function Home() {
     <StatusView refresh={refresh}>
       <div className="stack">
         <div className="status-head">
-          <Avatar seed={me.handle} size={64} />
+          <Avatar seed={me.handle} gender={me.gender} size={64} />
           <div>
             <h1>{me.displayName}</h1>
             <p className="ui muted">@{me.handle}</p>

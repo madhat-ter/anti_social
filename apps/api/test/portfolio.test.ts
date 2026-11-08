@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import sharp from 'sharp';
 import { scalar } from '@anti/db';
 import { PF_ABOUT_MAX, PF_EXPERIENCE_MAX, PF_HEADLINE_MAX, PF_LINKS_MAX, PF_TAGS_MAX } from '@anti/shared';
-import { cleanup, setup } from './client';
+import { cleanup, setup, TEST_ABOUT } from './client';
 
 afterEach(cleanup);
 
@@ -18,21 +18,25 @@ async function world(seatCap?: number) {
   return { ...w, member };
 }
 
-const EMPTY = {
-  headline: '', location: '', openToWork: false, about: '',
-  skills: [], tools: [], experience: [], education: [], links: [], empty: true, updatedAt: null,
+/** A new member's portfolio: only the About they wrote at setup (RFC §10.3), so never empty. */
+const FRESH = {
+  headline: '', location: '', openToWork: false, about: TEST_ABOUT,
+  skills: [], tools: [], experience: [], education: [], links: [], empty: false,
   cover: null, font: 'archivo', bg: 'paper', accent: 'red',
 };
+const words = (n: number) => Array.from({ length: n }, (_, i) => `w${i}`).join(' ');
 const png = (w = 60, h = 20) =>
   sharp({ create: { width: w, height: h, channels: 3, background: { r: 30, g: 200, b: 30 } } }).png().toBuffer();
 
 describe('portfolio', () => {
-  test('a new member has an empty portfolio; anyone seated can read it', async () => {
+  test('a new portfolio starts with the About from setup; anyone seated can read it', async () => {
     const w = await world();
     const maya = await w.member('maya');
     const theo = await w.member('theo');
-    expect((await maya.get('/members/maya/portfolio')).body).toEqual({ handle: 'maya', mine: true, ...EMPTY });
-    expect((await theo.get('/members/MAYA/portfolio')).body).toMatchObject({ handle: 'maya', mine: false, empty: true });
+    const own = (await maya.get('/members/maya/portfolio')).body;
+    expect(own).toMatchObject({ handle: 'maya', mine: true, ...FRESH });
+    expect(typeof own.updatedAt).toBe('string');
+    expect((await theo.get('/members/MAYA/portfolio')).body).toMatchObject({ handle: 'maya', mine: false, about: TEST_ABOUT });
     expect((await theo.get('/members/nobody/portfolio')).status).toBe(404);
   });
 
@@ -41,7 +45,7 @@ describe('portfolio', () => {
     const maya = await w.member('maya');
     const r = await maya.patch('/me/portfolio', {
       headline: '  Industrial  designer ', location: 'Kathmandu', openToWork: true,
-      about: 'Line one.\r\n\r\n\r\n\r\nLine two.  ',
+      about: `  ${words(50)}\r\n\r\n\r\n\r\nLine two.  `,
       skills: ['Sketching', ' sketching', 'Rendering', '', 'CAD'],
       tools: ['Fusion 360'],
       experience: [
@@ -56,7 +60,7 @@ describe('portfolio', () => {
     expect(r.body).toMatchObject({
       handle: 'maya', mine: true, empty: false,
       headline: 'Industrial designer', location: 'Kathmandu', openToWork: true,
-      about: 'Line one.\n\nLine two.',
+      about: `${words(50)}\n\nLine two.`,
       skills: ['Sketching', 'Rendering', 'CAD'], tools: ['Fusion 360'],
       experience: [
         { title: 'Freelance', place: '', from: 2023, to: null, line: '' },
@@ -79,9 +83,9 @@ describe('portfolio', () => {
     await maya.patch('/me/portfolio', { headline: 'Illustrator', skills: ['Ink'] });
     const r = await maya.patch('/me/portfolio', { location: 'Wrocław' });
     expect(r.body).toMatchObject({ headline: 'Illustrator', skills: ['Ink'], location: 'Wrocław' });
-    // clearing everything makes it empty again
+    // clearing everything else leaves the About: a portfolio is never empty any more
     const cleared = await maya.patch('/me/portfolio', { headline: '', skills: [], location: '' });
-    expect(cleared.body.empty).toBe(true);
+    expect(cleared.body).toMatchObject({ headline: '', skills: [], location: '', about: TEST_ABOUT, empty: false });
   });
 
   test('validation', async () => {
@@ -94,6 +98,9 @@ describe('portfolio', () => {
     };
     expect(await bad({ headline: 'x'.repeat(PF_HEADLINE_MAX + 1) })).toBe('portfolio_invalid');
     expect(await bad({ about: 'x'.repeat(PF_ABOUT_MAX + 1) })).toBe('portfolio_invalid');
+    expect(await bad({ about: words(49) })).toBe('portfolio_invalid');
+    expect(await bad({ about: words(301) })).toBe('portfolio_invalid');
+    expect(await bad({ about: '' })).toBe('portfolio_invalid');
     expect(await bad({ skills: Array.from({ length: PF_TAGS_MAX + 1 }, (_, i) => `s${i}`) })).toBe('portfolio_invalid');
     expect(await bad({ experience: Array.from({ length: PF_EXPERIENCE_MAX + 1 }, () => ({ title: 'x', from: 2020 })) })).toBe('portfolio_invalid');
     expect(await bad({ experience: [{ title: 'x', from: 1800 }] })).toBe('portfolio_invalid');
@@ -106,7 +113,7 @@ describe('portfolio', () => {
     expect(await bad({ links: [{ label: 'Nope', url: 'not a url' }] })).toBe('portfolio_invalid');
     expect(await bad({ openToWork: 'yes' })).toBe('bad_request');
     // the portfolio is untouched after all of that
-    expect((await maya.get('/members/maya/portfolio')).body.empty).toBe(true);
+    expect((await maya.get('/members/maya/portfolio')).body).toMatchObject({ ...FRESH });
   });
 
   test('seated members only; archived portfolios stay readable; banned ones vanish', async () => {
@@ -132,7 +139,7 @@ describe('portfolio', () => {
     const w = await world();
     const maya = await w.member('maya');
     const r = await maya.patch('/me/portfolio', { font: 'hand', bg: 'ink', accent: 'green' });
-    expect(r.body).toMatchObject({ font: 'hand', bg: 'ink', accent: 'green', empty: true });
+    expect(r.body).toMatchObject({ font: 'hand', bg: 'ink', accent: 'green' });
     expect((await maya.patch('/me/portfolio', { font: 'comic-sans' })).body.error).toBe('portfolio_invalid');
     expect((await maya.patch('/me/portfolio', { bg: 'plaid' })).body.error).toBe('portfolio_invalid');
     expect((await maya.patch('/me/portfolio', { accent: '#ff0000' })).body.error).toBe('portfolio_invalid');
@@ -162,7 +169,7 @@ describe('portfolio', () => {
     expect((await maya.patch('/me/portfolio', { coverId: 'nope' })).body.error).toBe('portfolio_invalid');
     expect((await maya.get('/members/maya/portfolio')).body.cover.url).toBe(`/api/media/${b.key}`);
     // remove
-    expect((await maya.patch('/me/portfolio', { coverId: null, headline: '' })).body).toMatchObject({ cover: null, empty: true });
+    expect((await maya.patch('/me/portfolio', { coverId: null, headline: '' })).body).toMatchObject({ cover: null });
     expect(w.storage.files.has(b.key)).toBe(false);
   });
 
@@ -182,7 +189,7 @@ describe('portfolio', () => {
   test('editing the portfolio is not a contribution for the lurker rule', async () => {
     const w = await world();
     const maya = await w.member('maya');
-    await maya.patch('/me/portfolio', { headline: 'Designer', about: 'Hello.' });
+    await maya.patch('/me/portfolio', { headline: 'Designer', about: words(60) });
     expect(Number(await scalar<number>(w.t.db, sql`select count(*)::int from contributions`))).toBe(0);
   });
 });

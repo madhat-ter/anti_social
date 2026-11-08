@@ -181,7 +181,7 @@ export function PostCard({
     <article className={cls} id={id} aria-labelledby={`${uid}-h`}>
       {post.author ? (
         <Link href={`/u/${post.author.handle}`} className="post-av" tabIndex={-1} aria-hidden="true">
-          <Avatar seed={post.author.handle} size={52} />
+          <Avatar seed={post.author.handle} gender={post.author.gender} size={52} />
         </Link>
       ) : (
         <span className="post-av"><Avatar seed={null} size={52} /></span>

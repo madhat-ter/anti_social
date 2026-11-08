@@ -12,6 +12,10 @@ import { FakeAuthenticator } from './fake-authenticator';
 export const ORIGIN = 'http://localhost:3000';
 export const cfg = { rpId: 'localhost', rpName: 'Anti', webOrigin: ORIGIN, cookieSecure: false };
 
+/** What every test member writes at setup: 60 words, a neutral face, born 1995. */
+export const TEST_ABOUT = Array.from({ length: 60 }, (_, i) => `word${i}`).join(' ');
+export const TEST_SETUP = { about: TEST_ABOUT, gender: 'undisclosed', birthday: '1995-05-17' };
+
 export type Json = any;
 export interface Res { status: number; body: Json }
 
@@ -55,6 +59,7 @@ export class Client {
   get = (p: string) => this.req('GET', p);
   post = (p: string, b: unknown = {}) => this.req('POST', p, b);
   patch = (p: string, b: unknown = {}) => this.req('PATCH', p, b);
+  put = (p: string, b: unknown = {}) => this.req('PUT', p, b);
   del = (p: string) => this.req('DELETE', p);
 
   /** multipart/form-data upload with a single `file` field. */
@@ -66,11 +71,20 @@ export class Client {
     return { status: r.status, body: text ? JSON.parse(text) : null };
   }
 
-  async register(code: string, handle: string, displayName = handle): Promise<Res> {
+  /**
+   * Joins with an invite. Like a real member, the new account then finishes setup (About you,
+   * gender, birthday: TEST_SETUP) unless `setup: false`, so tests start from a usable member.
+   */
+  async register(code: string, handle: string, displayName = handle, opts: { setup?: boolean } = {}): Promise<Res> {
     const o = await this.post('/auth/register/options', { code, handle, displayName });
     expect(o.status).toBe(200);
     const response = await this.authn.create(o.body.options, ORIGIN);
-    return this.post('/auth/register/verify', { challengeId: o.body.challengeId, response });
+    const r = await this.post('/auth/register/verify', { challengeId: o.body.challengeId, response });
+    if (r.status === 200 && opts.setup !== false) {
+      const s = await this.put('/me/setup', TEST_SETUP);
+      if (s.status !== 200) throw new Error(`test setup failed: ${s.status} ${JSON.stringify(s.body)}`);
+    }
+    return r;
   }
 
   async login(credentialId?: string): Promise<Res> {

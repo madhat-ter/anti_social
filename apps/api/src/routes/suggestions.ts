@@ -16,24 +16,24 @@ import { authPlugin, requireSeated } from '../plugins/auth';
  */
 export type Pick = {
   id: string; kind: SuggestionKind; title: string; note: string | null; createdAt: string;
-  author: { handle: string; displayName: string } | null; mine: boolean;
+  author: { handle: string; displayName: string; gender: string | null } | null; mine: boolean;
 };
 type PickRow = {
   id: string; kind: SuggestionKind; title: string; note: string | null; created_iso: string;
-  handle: string | null; display_name: string | null; author_id: string;
+  handle: string | null; display_name: string | null; gender: string | null; author_id: string;
 };
 
 const select = sql`
   select s.id, s.kind, s.title, s.note, s.author_id,
     to_char(s.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_iso,
-    u.handle, u.display_name
+    u.handle, u.display_name, u.gender
   from suggestions s
   join users u on u.id = s.author_id
   where s.deleted_at is null and u.state not in ('banned', 'deleted')`;
 
 const toPick = (r: PickRow, me: string): Pick => ({
   id: r.id, kind: r.kind, title: r.title, note: r.note, createdAt: r.created_iso,
-  author: r.handle ? { handle: r.handle, displayName: r.display_name ?? r.handle } : null,
+  author: r.handle ? { handle: r.handle, displayName: r.display_name ?? r.handle, gender: r.gender ?? null } : null,
   mine: r.author_id === me,
 });
 

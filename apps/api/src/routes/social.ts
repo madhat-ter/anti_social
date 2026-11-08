@@ -14,19 +14,21 @@ type MemberSummary = {
   handle: string; displayName: string; bio: string; state: string;
   /** 'ops' = an admin: lists and the profile show an "admin" tag */
   role: string;
+  /** shapes the drawn face (RFC §10.3) */
+  gender: string | null;
   invitedBy: { handle: string } | null; activatedAt: string | null; postCount: number;
   /** from the portfolio: shown under the name in lists */
   headline: string; openToWork: boolean;
 };
 type MemberRow = {
-  id: string; cursor_ts: string; handle: string; display_name: string; bio: string; state: string; role: string;
+  id: string; cursor_ts: string; handle: string; display_name: string; bio: string; state: string; role: string; gender: string | null;
   inv_handle: string | null; activated_iso: string | null; post_count: number;
   headline: string | null; open_to_work: boolean | null;
 };
 
 const memberSelect = sql`
   select u.id, coalesce(u.activated_at, u.created_at)::text as cursor_ts,
-    u.handle, u.display_name, u.bio, u.state, u.role, inv.handle as inv_handle,
+    u.handle, u.display_name, u.bio, u.state, u.role, u.gender, inv.handle as inv_handle,
     to_char(u.activated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as activated_iso,
     (select count(*)::int from posts p where p.author_id = u.id and p.deleted_at is null and p.hidden_at is null) as post_count,
     pf.headline, pf.open_to_work
@@ -35,7 +37,7 @@ const memberSelect = sql`
   left join portfolios pf on pf.user_id = u.id`;
 
 const toMember = (r: MemberRow): MemberSummary => ({
-  handle: r.handle, displayName: r.display_name, bio: r.bio, state: r.state, role: r.role,
+  handle: r.handle, displayName: r.display_name, bio: r.bio, state: r.state, role: r.role, gender: r.gender ?? null,
   invitedBy: r.inv_handle ? { handle: r.inv_handle } : null,
   activatedAt: r.activated_iso, postCount: Number(r.post_count),
   headline: r.headline ?? '', openToWork: !!r.open_to_work,
@@ -45,7 +47,7 @@ const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => '\\' + c);
 
 type NotifRow = {
   id: string; kind: string; cursor_ts: string; created_iso: string; read_iso: string | null;
-  a_handle: string | null; a_display: string | null;
+  a_handle: string | null; a_display: string | null; a_gender: string | null;
   p_id: string | null; p_root: string | null; p_body: string | null; p_deleted: boolean | null;
   e_id: string | null; e_title: string | null;
   /** handle_changed: the new handle; project_removed: the project's title */
@@ -134,7 +136,7 @@ export const socialRoutes = (deps: Deps) => {
         select n.id, n.kind, n.created_at::text as cursor_ts,
           to_char(n.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_iso,
           to_char(n.read_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as read_iso,
-          u.handle as a_handle, u.display_name as a_display,
+          u.handle as a_handle, u.display_name as a_display, u.gender as a_gender,
           p.id as p_id, coalesce(p.root_id, p.id) as p_root, p.body as p_body, (p.deleted_at is not null) as p_deleted,
           ev.id as e_id, ev.title as e_title,
           n.payload->>'to' as x_to, n.payload->>'title' as x_title
@@ -149,7 +151,7 @@ export const socialRoutes = (deps: Deps) => {
       return {
         items: page.map((r) => ({
           id: r.id, kind: r.kind, createdAt: r.created_iso, readAt: r.read_iso,
-          actor: r.a_handle ? { handle: r.a_handle, displayName: r.a_display ?? r.a_handle } : null,
+          actor: r.a_handle ? { handle: r.a_handle, displayName: r.a_display ?? r.a_handle, gender: r.a_gender ?? null } : null,
           post: r.p_id
             ? { id: r.p_id, rootId: r.p_root ?? r.p_id, snippet: r.p_deleted ? '' : (r.p_body ?? '').slice(0, 80) }
             : null,

@@ -994,3 +994,10 @@ input[type=search]::-webkit-search-cancel-button {
 .adm-member-main .name { font-weight: 700; }
 .adm-member-actions { grid-column: 2; gap: .45rem; }
 .adm-member-actions .btn { padding: .3rem .65rem; font-size: .85rem; }
+/* Setup page (RFC §10.3) */
+.setup-sec { border-top: 2px solid var(--ink); padding-top: 1.1rem; }
+.setup-sec:first-of-type { border-top: 0; padding-top: 0; }
+.setup-sec h2 { margin: 0; font-size: 1.45rem; }
+.setup-sec textarea { min-height: 13rem; }
+.setup-choices { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .55rem; min-width: 0; }
+.setup-choice { cursor: pointer; font-weight: 600; }

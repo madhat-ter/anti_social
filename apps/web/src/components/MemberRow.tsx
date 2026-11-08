@@ -7,7 +7,7 @@ export function MemberRow({ m }: { m: MemberSummary }) {
   const line = m.headline || m.bio;
   return (
     <li className="member">
-      <Avatar seed={m.handle} size={44} />
+      <Avatar seed={m.handle} gender={m.gender} size={44} />
       <Link href={`/u/${m.handle}`} className="member-link">
         <span>
           <span className="name">{m.displayName}</span>{' '}

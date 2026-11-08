@@ -10,7 +10,7 @@
 import Link from 'next/link';
 import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import {
-  PF_ABOUT_MAX, PF_ACCENTS, PF_BACKGROUNDS, PF_EDUCATION_MAX, PF_ENTRY_LINE_MAX, PF_ENTRY_PLACE_MAX, PF_ENTRY_TITLE_MAX,
+  ABOUT_MAX_WORDS, ABOUT_MIN_WORDS, PF_ABOUT_MAX, countWords, PF_ACCENTS, PF_BACKGROUNDS, PF_EDUCATION_MAX, PF_ENTRY_LINE_MAX, PF_ENTRY_PLACE_MAX, PF_ENTRY_TITLE_MAX,
   PF_EXPERIENCE_MAX, PF_FONTS, PF_HEADLINE_MAX, PF_LINKS_MAX, PF_LINK_LABEL_MAX, PF_LINK_URL_MAX, PF_LOCATION_MAX, PF_TAGS_MAX,
   PF_TAG_MAX, PROJECTS_MAX, PROJECT_IMAGES_MAX,
 } from '@anti/shared';
@@ -109,7 +109,7 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder }: {
         </div>
       )}
       <header className="pf-hero">
-        <Avatar seed={member.handle} size={112} label={`${member.displayName}'s avatar`} />
+        <Avatar seed={member.handle} gender={member.gender} size={112} label={`${member.displayName}'s avatar`} />
         <div className="pf-hero-main">
           <h1>
             {member.displayName}
@@ -205,8 +205,11 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder }: {
                 <h2 id={`${id}-about`}>About</h2>
                 {editing ? (
                   <label><span className="sr-only">About</span>
-                    <textarea value={d.about} maxLength={PF_ABOUT_MAX} rows={6} placeholder="A few lines about you and your work." onChange={(e) => set('about', e.target.value)} />
-                    <span className="counter">{d.about.length}/{PF_ABOUT_MAX}</span>
+                    <textarea value={d.about} maxLength={PF_ABOUT_MAX} rows={8} placeholder="About you and your work." onChange={(e) => set('about', e.target.value)} />
+                    {/* About is "About you" from setup: 50–300 words, never empty (RFC §10.3) */}
+                    <span className={`counter${countWords(d.about) > ABOUT_MAX_WORDS || countWords(d.about) < ABOUT_MIN_WORDS ? ' over' : ''}`}>
+                      {countWords(d.about)} / {ABOUT_MIN_WORDS}–{ABOUT_MAX_WORDS} words
+                    </span>
                   </label>
                 ) : <p className="pf-about">{v.about}</p>}
               </section>

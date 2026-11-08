@@ -11,7 +11,7 @@ import { ApiError, rethrowDb } from './errors';
 const iso = (col: ReturnType<typeof sql>) => sql`to_char(${col} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 
 export type AdminMember = {
-  handle: string; displayName: string; state: string; role: 'member' | 'ops';
+  handle: string; displayName: string; state: string; role: 'member' | 'ops'; gender: string | null;
   joinedAt: string; activatedAt: string | null; lastSeenAt: string | null;
   invitedBy: string | null; postCount: number;
 };
@@ -19,10 +19,10 @@ export type AdminMember = {
 /** Everyone except deleted accounts: seated first (admins on top), then the queue, archived, banned. */
 export async function adminMembers(db: Db): Promise<AdminMember[]> {
   const r = await rows<{
-    handle: string; display_name: string; state: string; role: 'member' | 'ops'; joined: string;
+    handle: string; display_name: string; state: string; role: 'member' | 'ops'; gender: string | null; joined: string;
     activated: string | null; seen: string | null; inv: string | null; posts: number;
   }>(db, sql`
-    select u.handle, u.display_name, u.state, u.role,
+    select u.handle, u.display_name, u.state, u.role, u.gender,
       ${iso(sql`u.created_at`)} as joined, ${iso(sql`u.activated_at`)} as activated, ${iso(sql`u.last_seen_at`)} as seen,
       inv.handle as inv,
       (select count(*)::int from posts p where p.author_id = u.id and p.deleted_at is null) as posts
@@ -32,7 +32,7 @@ export async function adminMembers(db: Db): Promise<AdminMember[]> {
              (u.role = 'ops') desc, lower(u.handle)
     limit 2000`);
   return r.map((x) => ({
-    handle: x.handle, displayName: x.display_name, state: x.state, role: x.role,
+    handle: x.handle, displayName: x.display_name, state: x.state, role: x.role, gender: x.gender ?? null,
     joinedAt: x.joined, activatedAt: x.activated, lastSeenAt: x.seen, invitedBy: x.inv, postCount: Number(x.posts),
   }));
 }

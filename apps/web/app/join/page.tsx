@@ -82,13 +82,13 @@ export default function Join() {
             <div className="you">
               <div className="you-face">
                 <Avatar seed={previewSeed} size={104} label={previewSeed ? `Your face, made from @${previewSeed}` : 'No handle yet'} />
-                <p className="ui muted">{previewSeed ? 'This is you.' : 'Type a handle to meet your face.'}</p>
+                <p className="ui muted">{previewSeed ? 'A first sketch of you.' : 'Type a handle to meet your face.'}</p>
               </div>
               <div className="stack grow">
                 <label>Handle
                   <input value={handle} onChange={(e) => setHandle(e.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} required aria-describedby="handle-help" />
                 </label>
-                <p id="handle-help" className="muted small">3 to 20 letters, numbers or underscores. You can never change it, and your face is drawn from it.</p>
+                <p id="handle-help" className="muted small">3 to 20 letters, numbers or underscores. You can&apos;t change it later. Your face is drawn from it, and from the gender you pick in a moment.</p>
                 <label>Display name
                   <input value={displayName} maxLength={DISPLAY_NAME_MAX} onChange={(e) => setDisplayName(e.target.value)} required />
                 </label>

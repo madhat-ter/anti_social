@@ -1,7 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { and, asc, desc, eq, lt, or, sql } from 'drizzle-orm';
 import { invites, passkeys, users, waitlist, isUniqueViolation, rows, scalar } from '@anti/db';
-import { DISPLAY_NAME_MAX, formatInviteCode } from '@anti/shared';
+import { DISPLAY_NAME_MAX, GENDERS, MIN_AGE, formatInviteCode } from '@anti/shared';
 import type { Deps } from '../deps';
 import { ApiError, rethrowDb } from '../lib/errors';
 import { authPlugin, clearSessionCookie, requireSeated, requireUser, type CookieJar } from '../plugins/auth';
@@ -9,6 +9,7 @@ import type { Auth } from '../lib/sessions';
 import { saveChallenge, takeChallenge } from '../lib/challenges';
 import { registrationOptions, verifyRegistration } from '../lib/webauthn';
 import { generateInviteCode } from '../lib/crypto';
+import { checkAbout, checkBirthday, closeAccount } from '../lib/account';
 
 /** Queue standing. `priority` 'reinstating' = former member (seat is offered, paid); 'new' = invitee (seated free). */
 type Waitlist = { position: number; total: number; priority: 'reinstating' | 'new'; offeredUntil: string | null };
@@ -18,7 +19,8 @@ type Lurker = { flaggedAt: string; graceEndsAt: string; contributions: number; r
 type Archived = { reason: string; wasMember: boolean };
 
 export const meRoutes = (deps: Deps) => {
-  const { db, cfg } = deps;
+  const { db, cfg, storage } = deps;
+  const genderSchema = t.Union(GENDERS.map((g) => t.Literal(g)));
 
   async function profile(userId: string) {
     const [u] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
@@ -73,6 +75,8 @@ export const meRoutes = (deps: Deps) => {
       id: u.id, handle: u.handle, displayName: u.displayName, bio: u.bio, state: u.state, role: u.role,
       invitedBy, activatedAt: iso(u.activatedAt), lastSeenAt: iso(u.lastSeenAt),
       lurkerExemptUntil: iso(u.lurkerExemptUntil), waitlist: wl, lurker, archived,
+      // setup (RFC §10.3): until it is done the app shows only the setup page
+      setupNeeded: !u.setupDoneAt, gender: u.gender, birthday: u.birthday, birthdayPublic: u.birthdayPublic,
     };
   }
 
@@ -83,7 +87,7 @@ export const meRoutes = (deps: Deps) => {
       '/',
       async ({ auth, body }) => {
         const a = requireUser(auth);
-        const patch: { displayName?: string; bio?: string } = {};
+        const patch: { displayName?: string; bio?: string; gender?: (typeof GENDERS)[number]; birthdayPublic?: boolean } = {};
         if (body.displayName !== undefined) {
           const d = body.displayName.trim();
           if (d.length < 1 || d.length > DISPLAY_NAME_MAX) {
@@ -92,20 +96,65 @@ export const meRoutes = (deps: Deps) => {
           patch.displayName = d;
         }
         if (body.bio !== undefined) patch.bio = body.bio.trim();
+        // gender can change any time (the face redraws); the birthday cannot (admins can correct it)
+        if (body.gender !== undefined) patch.gender = body.gender;
+        if (body.birthdayPublic !== undefined) patch.birthdayPublic = body.birthdayPublic;
         if (Object.keys(patch).length) await db.update(users).set(patch).where(eq(users.id, a.user.id));
         return profile(a.user.id);
       },
-      { body: t.Object({ displayName: t.Optional(t.String({ maxLength: 200 })), bio: t.Optional(t.String({ maxLength: 160 })) }) },
+      {
+        body: t.Object({
+          displayName: t.Optional(t.String({ maxLength: 200 })), bio: t.Optional(t.String({ maxLength: 160 })),
+          gender: t.Optional(genderSchema), birthdayPublic: t.Optional(t.Boolean()),
+        }),
+      },
     )
     .delete('/', async ({ auth, cookie }) => {
       const a = requireUser(auth);
       try {
-        await db.execute(sql`select delete_account(${a.user.id}::uuid)`);
+        await closeAccount(db, storage, a.user.id, 'self_delete', a.user.id);
       } catch (e) {
         rethrowDb(e);
       }
       clearSessionCookie(cookie as CookieJar);
       return { ok: true };
+    })
+
+    // What the setup page starts from: whatever is already there (an About written earlier).
+    .get('/setup', async ({ auth }) => {
+      const a = requireUser(auth);
+      const [p] = await rows<{ about: string | null }>(db, sql`select about from portfolios where user_id = ${a.user.id}::uuid`);
+      return { about: p?.about ?? '', gender: a.user.gender, birthday: a.user.birthday };
+    })
+
+    /**
+     * Finish setup: About you (the portfolio's About), gender, birthday. Under MIN_AGE the account
+     * is closed instead, but only with confirmUnderage (the app asks "is that right?" first);
+     * the birthday is never saved then. Not a contribution for the lurker rule.
+     */
+    .put('/setup', async ({ auth, body, cookie }) => {
+      const a = requireUser(auth);
+      const b = checkBirthday(body.birthday);
+      if (b.age < MIN_AGE) {
+        if (!body.confirmUnderage) throw new ApiError(409, 'underage', `That birthday makes you ${b.age}. You have to be ${MIN_AGE} or older.`);
+        await closeAccount(db, storage, a.user.id, 'underage', a.user.id);
+        clearSessionCookie(cookie as CookieJar);
+        return { closed: true as const };
+      }
+      const about = checkAbout(body.about);
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`
+          insert into portfolios (user_id, about, updated_at) values (${a.user.id}::uuid, ${about}, now())
+          on conflict (user_id) do update set about = excluded.about, updated_at = now()`);
+        await tx.execute(sql`update users set gender = ${body.gender}::gender, birthday = ${b.iso}::date,
+          setup_done_at = coalesce(setup_done_at, now()) where id = ${a.user.id}::uuid`);
+      });
+      return profile(a.user.id);
+    }, {
+      body: t.Object({
+        about: t.String({ maxLength: 6000 }), gender: genderSchema, birthday: t.String({ maxLength: 20 }),
+        confirmUnderage: t.Optional(t.Boolean()),
+      }),
     })
     .get('/passkeys', async ({ auth }) => {
       const a = requireUser(auth);
