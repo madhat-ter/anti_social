@@ -33,26 +33,101 @@ export async function flagPost(db: Db, userId: string, postId: string, reason: s
   });
 }
 
+/**
+ * Reports on a portfolio project: the same rule as posts. Drafts cannot be reported (nobody but
+ * the owner can see them), and neither can your own project.
+ */
+export async function flagProject(db: Db, userId: string, projectId: string, reason: string | undefined) {
+  return db.transaction(async (txx) => {
+    const tx = txx as unknown as Db;
+    const [p] = await rows<{ user_id: string; hidden: boolean }>(tx, sql`
+      select user_id, (hidden_at is not null) as hidden from projects
+       where id = ${projectId}::uuid and draft = false for update`);
+    if (!p) throw new ApiError(404, 'not_found');
+    if (p.user_id === userId) throw new ApiError(409, 'own_project', 'You cannot report your own project.');
+    await tx.execute(sql`
+      insert into project_flags(user_id, project_id, reason) values (${userId}::uuid, ${projectId}::uuid, ${reason?.trim().slice(0, REASON_MAX) || null})
+      on conflict do nothing`);
+    const open = Number(await scalar<number>(tx, sql`
+      select count(*)::int from project_flags where project_id = ${projectId}::uuid and resolved_at is null`));
+    let hidden = !!p.hidden;
+    if (!hidden && open >= FLAG_HIDE_THRESHOLD) {
+      await tx.execute(sql`update projects set hidden_at = now() where id = ${projectId}::uuid`);
+      await tx.execute(sql`
+        insert into notifications(user_id, kind, payload)
+        select id, 'flag_threshold', ${JSON.stringify({ projectId })}::jsonb from users where role = 'ops' and state <> 'deleted'`);
+      hidden = true;
+    }
+    return { flagged: true as const, hidden };
+  });
+}
+
 export type FlagQueueItem = {
-  postId: string; body: string; author: string | null; hidden: boolean; flags: number;
+  kind: 'post' | 'project';
+  /** the reported post, for kind 'post' */
+  postId?: string;
+  /** the reported project, for kind 'project' */
+  projectId?: string;
+  /** the post body, or the project's title and summary */
+  body: string; author: string | null; hidden: boolean; flags: number;
   reasons: string[]; firstFlaggedAt: string;
 };
 
-/** Posts with unresolved flags, hidden ones first. */
+/** Posts and projects with unresolved flags, hidden ones first. */
 export async function flagQueue(db: Db): Promise<FlagQueueItem[]> {
   const r = await rows<any>(db, sql`
-    select p.id, p.body, u.handle, (p.hidden_at is not null) as hidden, count(*)::int as n,
-           coalesce(array_agg(f.reason) filter (where f.reason is not null), '{}') as reasons,
-           to_char(min(f.created_at) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as first_at
-      from flags f join posts p on p.id = f.post_id left join users u on u.id = p.author_id
-     where f.resolved_at is null and p.deleted_at is null
-     group by p.id, u.handle
-     order by (p.hidden_at is not null) desc, count(*) desc, min(f.created_at)
-     limit 200`);
+    select * from (
+      select 'post' as kind, p.id, p.body, u.handle, (p.hidden_at is not null) as hidden, count(*)::int as n,
+             coalesce(array_agg(f.reason) filter (where f.reason is not null), '{}') as reasons,
+             min(f.created_at) as first_at
+        from flags f join posts p on p.id = f.post_id left join users u on u.id = p.author_id
+       where f.resolved_at is null and p.deleted_at is null
+       group by p.id, u.handle
+      union all
+      select 'project' as kind, pr.id, pr.title || case when pr.summary <> '' then ' — ' || pr.summary else '' end as body,
+             u.handle, (pr.hidden_at is not null) as hidden, count(*)::int as n,
+             coalesce(array_agg(f.reason) filter (where f.reason is not null), '{}') as reasons,
+             min(f.created_at) as first_at
+        from project_flags f join projects pr on pr.id = f.project_id left join users u on u.id = pr.user_id
+       where f.resolved_at is null
+       group by pr.id, u.handle
+    ) q
+    order by hidden desc, n desc, first_at
+    limit 200`);
+  const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : new Date(String(v)).toISOString());
   return r.map((x) => ({
-    postId: x.id, body: x.body, author: x.handle, hidden: !!x.hidden, flags: Number(x.n),
-    reasons: Array.isArray(x.reasons) ? x.reasons : [], firstFlaggedAt: x.first_at,
+    kind: x.kind, ...(x.kind === 'post' ? { postId: x.id } : { projectId: x.id }),
+    body: x.body, author: x.handle, hidden: !!x.hidden, flags: Number(x.n),
+    reasons: Array.isArray(x.reasons) ? x.reasons : [], firstFlaggedAt: iso(x.first_at),
   }));
+}
+
+/**
+ * 'restored': unhide, close the reports. 'removed': the project and its images are deleted for
+ * good (there is no tombstone to keep a place in a numbered list) and the owner is told.
+ */
+export async function resolveProjectFlags(db: Db, storage: Storage, projectId: string, resolution: 'restored' | 'removed') {
+  const keys = await db.transaction(async (txx) => {
+    const tx = txx as unknown as Db;
+    const [p] = await rows<{ id: string; user_id: string; title: string }>(tx, sql`
+      select id, user_id, title from projects where id = ${projectId}::uuid for update`);
+    if (!p) throw new ApiError(404, 'not_found');
+    const closed = await rows(tx, sql`
+      update project_flags set resolved_at = now(), resolution = ${resolution}
+       where project_id = ${projectId}::uuid and resolved_at is null returning 1`);
+    if (!closed.length) throw new ApiError(409, 'no_open_flags', 'This project has no open reports.');
+    if (resolution === 'restored') {
+      await tx.execute(sql`update projects set hidden_at = null where id = ${projectId}::uuid`);
+      return [] as string[];
+    }
+    const gone = await rows<{ r2_key: string }>(tx, sql`delete from project_images where project_id = ${projectId}::uuid returning r2_key`);
+    await tx.execute(sql`insert into notifications(user_id, kind, payload)
+      values (${p.user_id}::uuid, 'project_removed', ${JSON.stringify({ projectId, title: p.title })}::jsonb)`);
+    await tx.execute(sql`delete from projects where id = ${projectId}::uuid`);
+    return gone.map((g) => g.r2_key);
+  });
+  await Promise.all(keys.map((k) => storage.delete(k).catch((e) => console.error('storage delete failed', k, e))));
+  return { resolution };
 }
 
 /**

@@ -594,6 +594,33 @@ Drizzle calls them via `db.execute(sql\`select redeem_invite(${code}, ${userId})
 - After `starts_at`, host marks attendance (`attended_confirmed_at`). This writes `event_attended` contributions for attendees and, on the first confirmed non-host attendee, an `event_hosted` contribution for the host.
 - `price_note` and `external_payment_url` are informational only.
 
+### 10.1 Portfolio and projects (added 2026-11-08)
+
+The member page `/u/<handle>` is one large window laid out like a Behance portfolio; posts and
+Picks sit underneath behind folder tabs. Members only, like everything else. Every field is
+optional and nothing asks for a real name, email or phone.
+
+- **Portfolio** (`portfolios`, one row per member): headline, location, "open to work", about,
+  skills and tools (tags), experience and education (title, place, from, to | null, one line;
+  sorted newest first), up to 6 `https://` links (opened with `noopener noreferrer`, no referrer),
+  an optional cover strip, and the look: typeface (Archivo, Space Mono, Shantell Sans — served
+  through `next/font`, never from Google at runtime), white or black background (fixed; does not
+  follow the system dark mode), one of six accents. No custom fonts or CSS. An empty portfolio
+  looks like the plain profile; only the owner sees the invitation to start one. Owners edit in
+  place; Settings keeps only display name and bio.
+- **Projects** (`projects`, `project_images`): up to 12 numbered case studies, each with a details
+  line (year, role, team, duration, tools), a summary, a write-up and up to 10 images, each full
+  width or beside a text panel on the left or right. `draft` projects are visible only to the
+  owner. Images come from the post upload pipeline (5 MB, 2048 px, re-encoded, metadata stripped);
+  attaching one moves its row out of `post_images`, so the orphan sweep never touches it.
+- **Reports**: `POST /projects/:id/flag` behaves like a post flag (same threshold, same ops queue,
+  `project_flags`). A hidden project disappears for others and returns 404; the owner still sees
+  it, marked "hidden after reports". Ops restore (unhide) or remove (delete, owner notified with
+  `project_removed`).
+- **Lurker rule**: editing a portfolio or a project is about yourself, not a conversation with the
+  room, so it never writes a `contributions` row. No feed items or notifications are created.
+- **Member list and search** carry the headline and "open to work"; search also matches the headline.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops.
@@ -623,6 +650,10 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST /uploads` | A | Presigned image upload |
 | `GET /search` | A | Full-text search |
 | `GET /members`, `GET /members/:handle` | A | Directory, profile, member's posts |
+| `GET /members/:handle/portfolio`, `PATCH /me/portfolio` | A | Portfolio (CV fields, look, cover) |
+| `GET /members/:handle/projects[/:id]` | A | Contents list (with the look) and one project |
+| `POST /me/projects`, `PATCH/DELETE /me/projects/:id`, `POST /me/projects/order` | A | Projects |
+| `POST /projects/:id/flag`, `POST /ops/projects/:id/resolve` | A / O | Report a project; ops restore or remove |
 | `GET/POST /events`, `GET/PATCH/DELETE /events/:id` | A | Events |
 | `POST/DELETE /events/:id/rsvp` | A | RSVP |
 | `POST /events/:id/attendance` | A (host) | Confirm attendees |
@@ -655,7 +686,8 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 - **Rate limits** (per user, Postgres- or memory-backed): posts 20/h, likes 300/h, flags 30/day, invites per §3, auth endpoints per IP.
 - **Content**: body length CHECK in DB; images re-encoded server-side (removes EXIF/GPS and polyglot payloads).
 - **Privacy**: no email, phone, or real name collected. IP addresses not persisted beyond rate-limit windows. Event location can be RSVP-only.
-- **Gaming the lurker rule**: likes don't count; deleted posts remove their contribution; a reply to your own post does not count (replies to anyone else do, in any thread).
+- **Gaming the lurker rule**: likes don't count; deleted posts remove their contribution; a reply to your own post does not count (replies to anyone else do, in any thread); portfolio and project edits never count.
+- **Portfolio**: every field optional, no real-name field; links must be `https://` and may not carry credentials; the look is a fixed set of classes, never member CSS; the cover and project images go through the same re-encoding as post images.
 - **Audit**: `user_state_events` and `payments` are append-only for operational and financial auditing.
 
 ## 14. Mobile path
@@ -682,6 +714,7 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 4. **M4 — Payments**: pricing table, Stripe Checkout, webhook, refunds on expired offers.
 5. **M5 — Events**: CRUD, RSVP + capacity, attendance confirmation, contributions.
 6. **M6 — Hardening**: flags + ops queue, rate limits, Web Push, load/race tests on seat functions, launch with 10 founder invites.
+7. **M7 — Portfolio** (2026-11-08, §10.1): the profile as a Behance-style portfolio, in four steps: CV card and in-place editing; projects and project pages; cover, the look, headline in the member list; reports and docs.
 
 ## Appendix A — Decision log
 
@@ -701,6 +734,9 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 | Q12 | Drizzle + PL/pgSQL for seat/state transitions. |
 | Q13 | Immutable handle, editable display name/bio. |
 | Q14 | State machine: waitlisted → active ↔ flagged_lurker → archived; banned; append-only event log. |
+| Q15 | The profile is a portfolio: one window, Behance layout inside the retro frame; members only; every field optional, no real name. |
+| Q16 | Portfolio look from a fixed set (3 typefaces, 2 backgrounds, 6 accents); background fixed, not following dark mode. |
+| Q17 | Projects: ≤ 12, ≤ 10 images, per-project draft; reportable like posts, owner keeps seeing a hidden one; edits never count toward the lurker rule. |
 | Q15 | Lurker: warn + 7-day grace to contribute twice or pay. |
 | Q16 | Stay fee: one-time, 90-day exemption from lurker check only. |
 | Q17 | Reinstatement: free priority queue; pay within 72 h of seat offer. |

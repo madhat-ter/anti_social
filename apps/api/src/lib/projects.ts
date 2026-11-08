@@ -24,13 +24,14 @@ export type ProjectFields = {
   title: string; summary: string; body: string; year: number | null; role: string;
   tools: string[]; team: string; duration: string; draft: boolean;
 };
-/** What the contents list shows. */
+/** What the contents list shows. `hidden` (after reports) is only ever true for the owner. */
 export type ProjectSummary = {
-  id: string; title: string; year: number | null; role: string; draft: boolean;
+  id: string; title: string; year: number | null; role: string; draft: boolean; hidden: boolean;
   cover: { url: string; width: number; height: number } | null;
 };
 export type Project = ProjectFields & {
-  id: string; handle: string; images: ProjectImage[]; mine: boolean; createdAt: string; updatedAt: string;
+  id: string; handle: string; images: ProjectImage[]; mine: boolean; hidden: boolean; canReport: boolean;
+  createdAt: string; updatedAt: string;
 };
 /** One image as sent by the editor: an existing image of this project, or a pending upload. */
 export type ImageInput = { id: string; layout?: ProjectLayout; heading?: string; text?: string; caption?: string };
@@ -44,13 +45,14 @@ const j = <T,>(v: unknown, fallback: T): T => {
 
 type Row = {
   id: string; user_id: string; handle: string; title: string; summary: string; body: string; year: number | null;
-  role: string; tools: unknown; team: string; duration: string; draft: boolean; created_iso: string; updated_iso: string;
-  images: unknown;
+  role: string; tools: unknown; team: string; duration: string; draft: boolean; hidden: boolean;
+  created_iso: string; updated_iso: string; images: unknown;
 };
 type ImgRow = { id: string; key: string; width: number; height: number; layout: ProjectLayout; heading: string; text: string; caption: string };
 
 const select = sql`
   select p.id, p.user_id, u.handle, p.title, p.summary, p.body, p.year, p.role, p.tools, p.team, p.duration, p.draft,
+    (p.hidden_at is not null) as hidden,
     ${iso(sql`p.created_at`)} as created_iso, ${iso(sql`p.updated_at`)} as updated_iso,
     coalesce((select json_agg(json_build_object('id', i.id, 'key', i.r2_key, 'width', i.width, 'height', i.height,
         'layout', i.layout, 'heading', i.heading, 'text', i.text, 'caption', i.caption) order by i.position)
@@ -60,21 +62,26 @@ const select = sql`
 
 function toProject(r: Row, viewerId: string): Project {
   const imgs = j<ImgRow[]>(r.images, []);
+  const mine = r.user_id === viewerId;
   return {
     id: r.id, handle: r.handle, title: r.title, summary: r.summary, body: r.body, year: r.year, role: r.role,
-    tools: j<string[]>(r.tools, []), team: r.team, duration: r.duration, draft: r.draft,
+    tools: j<string[]>(r.tools, []), team: r.team, duration: r.duration, draft: r.draft, hidden: !!r.hidden,
     images: imgs.map((i) => ({
       id: i.id, url: mediaUrl(i.key), width: i.width, height: i.height,
       layout: i.layout, heading: i.heading, text: i.text, caption: i.caption,
     })),
-    mine: r.user_id === viewerId, createdAt: r.created_iso, updatedAt: r.updated_iso,
+    mine, canReport: !mine && !r.draft, createdAt: r.created_iso, updatedAt: r.updated_iso,
   };
 }
 
 const toSummary = (p: Project): ProjectSummary => ({
-  id: p.id, title: p.title, year: p.year, role: p.role, draft: p.draft,
+  id: p.id, title: p.title, year: p.year, role: p.role, draft: p.draft, hidden: p.hidden,
   cover: p.images[0] ? { url: p.images[0].url, width: p.images[0].width, height: p.images[0].height } : null,
 });
+
+/** Visible to this viewer: everything of your own; others' projects only when neither draft nor hidden. */
+const visibleTo = (viewerId: string, ownerId: string) =>
+  (viewerId === ownerId ? sql`` : sql`and p.draft = false and p.hidden_at is null`);
 
 /**
  * The member must be visible (seated or archived). Drafts are returned only to their owner.
@@ -86,7 +93,7 @@ export async function listProjects(db: Db, viewerId: string, handle: string): Pr
     where lower(u.handle) = lower(${handle}) and u.state in ('active', 'flagged_lurker', 'archived')`);
   if (!m) return null;
   const found = await rows<Row>(db, sql`${select}
-    where p.user_id = ${m.id}::uuid ${m.id === viewerId ? sql`` : sql`and p.draft = false`}
+    where p.user_id = ${m.id}::uuid ${visibleTo(viewerId, m.id)}
     order by p.position, p.created_at`);
   return {
     items: found.map((r) => toSummary(toProject(r, viewerId))),
@@ -100,7 +107,7 @@ export async function getProject(db: Db, viewerId: string, handle: string, id: s
     where p.id = ${id}::uuid and lower(u.handle) = lower(${handle}) and u.state in ('active', 'flagged_lurker', 'archived')`);
   if (!r) return null;
   const p = toProject(r, viewerId);
-  return p.draft && !p.mine ? null : p;
+  return (p.draft || p.hidden) && !p.mine ? null : p;
 }
 
 async function getOwn(db: Db, userId: string, id: string): Promise<Project> {

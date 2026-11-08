@@ -99,11 +99,15 @@ export interface ProjectFields {
   tools: string[]; team: string; duration: string; draft: boolean;
 }
 export interface Project extends ProjectFields {
-  id: string; handle: string; images: ProjectImage[]; mine: boolean; createdAt: string; updatedAt: string;
+  id: string; handle: string; images: ProjectImage[]; mine: boolean;
+  /** hidden after reports: only the owner still sees it, until a moderator decides */
+  hidden: boolean;
+  canReport: boolean;
+  createdAt: string; updatedAt: string;
 }
-/** One line of the contents list. */
+/** One line of the contents list. `hidden` is only ever true for the owner. */
 export interface ProjectSummary {
-  id: string; title: string; year: number | null; role: string; draft: boolean;
+  id: string; title: string; year: number | null; role: string; draft: boolean; hidden: boolean;
   cover: { url: string; width: number; height: number } | null;
 }
 export interface ProjectImageInput { id: string; layout: ProjectLayout; heading: string; text: string; caption: string }
@@ -249,6 +253,7 @@ export const api = {
   updateProject: (id: string, b: ProjectInput) => call<Project>('PATCH', `/me/projects/${encodeURIComponent(id)}`, b),
   deleteProject: (id: string) => call<{ ok: true }>('DELETE', `/me/projects/${encodeURIComponent(id)}`),
   orderProjects: (ids: string[]) => post<{ ok: true }>('/me/projects/order', { ids }),
+  flagProject: (id: string, reason?: string) => post<{ flagged: true }>(`/projects/${encodeURIComponent(id)}/flag`, reason ? { reason } : {}),
   memberPosts: (handle: string, cursor?: string | null, limit = 20) =>
     get<Page<Post>>(`/members/${encodeURIComponent(handle)}/posts${qs({ cursor, limit })}`),
   notifications: (cursor?: string | null, limit = 30) => get<NotificationPage>(`/notifications${qs({ cursor, limit })}`),
@@ -325,6 +330,7 @@ const MESSAGES: Record<string, string> = {
   host_rsvp: 'You are hosting this event.',
   not_host: 'Only the host can do that.',
   own_post: 'You cannot report your own post.',
+  own_project: 'You cannot report your own project.',
   capacity_below_going: 'More people are already going than that capacity allows.',
   attendance_closed: 'Attendance can be confirmed from the start time until 14 days after.',
 };

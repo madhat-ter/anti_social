@@ -57,6 +57,13 @@
       "when": 1794118881414,
       "tag": "0007_portfolio_look",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794119879071,
+      "tag": "0008_project_flags",
+      "breakpoints": true
     }
   ]
 }

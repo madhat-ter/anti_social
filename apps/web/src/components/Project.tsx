@@ -28,6 +28,14 @@ export function detailsLine(p: { year: number | null; role: string; team: string
 
 export function ProjectView({ project: p, siblings, style }: { project: Project; siblings: ProjectSummary[]; style: PfStyle }) {
   const [viewing, setViewing] = useState<number | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [reported, setReported] = useState(false);
+  const [reportErr, setReportErr] = useState<string | null>(null);
+  async function report(reason: string) {
+    setAsking(false); setReportErr(null);
+    try { await api.flagProject(p.id, reason || undefined); setReported(true); }
+    catch (e) { setReportErr(errorMessage(e)); }
+  }
   const idx = siblings.findIndex((s) => s.id === p.id);
   const prev = idx > 0 ? siblings[idx - 1] : null;
   const next = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : null;
@@ -51,6 +59,12 @@ export function ProjectView({ project: p, siblings, style }: { project: Project;
           <Link href={home} className="pj-back ui">← @{p.handle}</Link>
         </nav>
         <div className="pj-main">
+          {p.hidden && (
+            <p className="banner pj-hidden" role="status">
+              <strong>Hidden after reports.</strong> Only you can see this project. A moderator will restore it or remove it;
+              you will be told either way.
+            </p>
+          )}
           <header className="pj-head">
             <p className="pj-kicker ui">
               {idx >= 0 ? `Project ${nn(idx)}` : 'Project'} · <Link href={home}>@{p.handle}</Link>
@@ -62,6 +76,14 @@ export function ProjectView({ project: p, siblings, style }: { project: Project;
             {p.mine && (
               <div className="row pj-actions">
                 <Link className="btn" href={`${home}/work/${p.id}/edit`}>Edit project</Link>
+              </div>
+            )}
+            {p.canReport && (
+              <div className="row pj-actions">
+                {reported
+                  ? <p className="muted small" role="status">Reported. Thanks, a moderator will take a look.</p>
+                  : <button type="button" className="link-btn" onClick={() => setAsking(true)}>Report project</button>}
+                <ErrorNote message={reportErr} />
               </div>
             )}
           </header>
@@ -79,6 +101,15 @@ export function ProjectView({ project: p, siblings, style }: { project: Project;
       </div>
       <ImageViewer images={images} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)}
         alt={(i) => p.images[i]?.caption || `${p.title}, image ${i + 1}`} />
+      <AlertDialog
+        open={asking}
+        title="Report project"
+        message="Report this project to the moderators. What is wrong with it? (optional)"
+        confirmLabel="Send report"
+        input={{ label: 'Reason', placeholder: 'Stolen work, spam, ...', maxLength: 500 }}
+        onConfirm={(reason) => void report(reason)}
+        onCancel={() => setAsking(false)}
+      />
     </Win>
   );
 }

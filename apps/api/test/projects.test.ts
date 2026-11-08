@@ -54,7 +54,7 @@ describe('projects', () => {
     expect(r.body.images[0].url).toBe(`/api/media/${a.key}`);
 
     const list = (await theo.get('/members/maya/projects')).body.items;
-    expect(list).toEqual([{ id: r.body.id, title: 'Veloce', year: 2026, role: 'Industrial designer', draft: false, cover: { url: `/api/media/${a.key}`, width: 40, height: 20 } }]);
+    expect(list).toEqual([{ id: r.body.id, title: 'Veloce', year: 2026, role: 'Industrial designer', draft: false, hidden: false, cover: { url: `/api/media/${a.key}`, width: 40, height: 20 } }]);
     const seen = (await theo.get(`/members/maya/projects/${r.body.id}`)).body;
     expect(seen).toMatchObject({ title: 'Veloce', mine: false });
     expect((await theo.get(`/members/theo/projects/${r.body.id}`)).status).toBe(404); // wrong owner in the path

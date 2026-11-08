@@ -217,6 +217,11 @@ try {
   await theo.getByRole('heading', { name: 'Veloce' }).waitFor();
   if (await theo.getByRole('link', { name: 'Edit project' }).count()) throw new Error('visitor sees the edit link');
   await shot(theo, 'project-visitor');
+  // a visitor can report a project, like a post
+  await theo.getByRole('button', { name: 'Report project' }).click();
+  await theo.locator('dialog[open]').waitFor();
+  await shot(theo, 'project-report-dialog', false);
+  await theo.getByRole('button', { name: 'Cancel' }).click();
 
   // ── 9. the look: a cover strip, Shantell Sans on black with a green accent
   const cover = join(OUT, '_cover.png');

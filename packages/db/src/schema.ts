@@ -318,6 +318,8 @@ export const projects = pgTable('projects', {
   duration: text('duration').notNull().default(''),
   position: integer('position').notNull().default(0),
   draft: boolean('draft').notNull().default(false),
+  /** set when enough members reported it (same threshold as posts); only the owner sees it until ops decide */
+  hiddenAt: tstz('hidden_at'),
   createdAt: tstz('created_at').notNull().defaultNow(),
   updatedAt: tstz('updated_at').notNull().defaultNow(),
 }, (t) => [
@@ -347,6 +349,19 @@ export const projectImages = pgTable('project_images', {
   check('project_images_layout', sql`${t.layout} in ('full', 'left', 'right')`),
   check('project_images_position', sql`${t.position} between 0 and 9`),
   index('project_images_project').on(t.projectId, t.position),
+]);
+
+/** Reports on a project: the same shape and lifecycle as `flags` on posts. */
+export const projectFlags = pgTable('project_flags', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  reason: text('reason'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  resolvedAt: tstz('resolved_at'),
+  resolution: text('resolution'), // 'restored' | 'removed'
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.projectId] }),
+  index('project_flags_open').on(t.projectId).where(sql`resolved_at is null`),
 ]);
 
 export const pushSubscriptions = pgTable('push_subscriptions', {

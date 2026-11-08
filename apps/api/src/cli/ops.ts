@@ -2,10 +2,11 @@
 //   bun run ops -- grant <handle>            make a member ops (revoke: ungrant)
 //   bun run ops -- flags                     list the moderation queue
 //   bun run ops -- resolve <postId> restored|removed
+//   bun run ops -- resolve-project <projectId> restored|removed
 //   bun run ops -- ban <handle>
 import { createDb } from '@anti/db';
 import { ApiError } from '../lib/errors';
-import { banUser, flagQueue, resolveFlags, setOps } from '../lib/moderation';
+import { banUser, flagQueue, resolveFlags, resolveProjectFlags, setOps } from '../lib/moderation';
 import { LocalDiskStorage, resolveUploadDir } from '../lib/storage';
 
 const [cmd, a1, a2] = process.argv.slice(2);
@@ -13,7 +14,7 @@ const url = process.env.DATABASE_URL;
 if (!url) { console.error('DATABASE_URL is not set'); process.exit(1); }
 const { db, close } = createDb(url);
 const usage = () => {
-  console.error('usage: ops.ts grant|ungrant <handle> | flags | resolve <postId> restored|removed | ban <handle>');
+  console.error('usage: ops.ts grant|ungrant <handle> | flags | resolve <postId> restored|removed | resolve-project <projectId> restored|removed | ban <handle>');
   process.exit(1);
 };
 try {
@@ -22,12 +23,14 @@ try {
     const q = await flagQueue(db);
     if (!q.length) console.log('No open reports.');
     for (const f of q) {
-      console.log(`${f.hidden ? '[HIDDEN] ' : ''}${f.postId}  @${f.author ?? 'deleted'}  ${f.flags} report(s) since ${f.firstFlaggedAt}`);
+      console.log(`${f.hidden ? '[HIDDEN] ' : ''}${f.kind} ${f.postId ?? f.projectId}  @${f.author ?? 'deleted'}  ${f.flags} report(s) since ${f.firstFlaggedAt}`);
       console.log(`    "${f.body.slice(0, 120).replace(/\s+/g, ' ')}"`);
       for (const r of f.reasons) console.log(`    - ${r}`);
     }
   } else if (cmd === 'resolve' && a1 && (a2 === 'restored' || a2 === 'removed')) {
     console.log(await resolveFlags(db, new LocalDiskStorage(resolveUploadDir()), a1, a2));
+  } else if (cmd === 'resolve-project' && a1 && (a2 === 'restored' || a2 === 'removed')) {
+    console.log(await resolveProjectFlags(db, new LocalDiskStorage(resolveUploadDir()), a1, a2));
   } else if (cmd === 'ban' && a1) console.log(await banUser(db, a1, null));
   else usage();
 } catch (e) {

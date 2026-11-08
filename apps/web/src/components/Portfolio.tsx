@@ -300,14 +300,16 @@ function Contents({ handle, items, mine, onReorder }: { handle: string; items: P
         <ol className="pf-contents">
           {items.map((p, i) => (
             <li key={p.id}>
-              <Link href={`/u/${handle}/work/${p.id}`} className="pf-item">
+              <Link href={`/u/${handle}/work/${p.id}`} className={`pf-item${p.hidden ? ' hidden' : ''}`}>
                 <span className="pf-num">{nn(i)}</span>
                 {p.cover
                   // eslint-disable-next-line @next/next/no-img-element
                   ? <img className="pf-cover" src={p.cover.url} alt="" width={p.cover.width} height={p.cover.height} />
                   : <span className="pf-cover none" aria-hidden="true" />}
                 <span className="pf-item-main">
-                  <span className="pf-item-title">{p.title}{p.draft && <span className="tag">draft</span>}</span>
+                  <span className="pf-item-title">
+                    {p.title}{p.draft && <span className="tag">draft</span>}{p.hidden && <span className="tag danger">hidden after reports</span>}
+                  </span>
                   {(p.year || p.role) && <span className="pf-item-meta">{[p.year, p.role].filter(Boolean).join(' · ')}</span>}
                 </span>
               </Link>
