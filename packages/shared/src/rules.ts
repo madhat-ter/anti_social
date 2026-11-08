@@ -46,6 +46,8 @@ export const SUGGESTION_REMARK_MAX = 200;
 export const PICK_NO_REPEAT = 5;
 /** The pick window changes on its own this often. */
 export const PICK_ROTATE_MS = 60_000;
+/** Interest tags a member can pick (RFC §10.5). */
+export const INTERESTS_MAX = 10;
 
 // ─── Setup: what every member fills in once, right after joining ────────────
 /** Gender only shapes the drawn face; it is never shown as text. */

@@ -26,6 +26,8 @@ export interface Me {
   birthday: string | null;
   /** show the "birthday today" tag on your day */
   birthdayPublic: boolean;
+  /** interest tags (slugs) */
+  interests: string[];
 }
 
 /** One reported post or project in the moderation queue. */
@@ -53,7 +55,9 @@ export interface AdminMember {
 export interface AdminSettings { seatCap: number; invitesPerMember: number; inviteExpiryDays: number; seatsUsed: number }
 
 /** "Finish your profile": each item ticks itself from what you have done. */
-export type ChecklistItem = 'headline' | 'skills' | 'project' | 'post' | 'pick';
+export type ChecklistItem = 'headline' | 'skills' | 'project' | 'post' | 'pick' | 'interests';
+/** One tag from the shared interest list (RFC §10.5). */
+export interface Interest { slug: string; label: string }
 export interface ChecklistState { items: Record<ChecklistItem, boolean>; dismissed: boolean }
 
 export interface PasskeyInfo { id: string; deviceLabel: string | null; createdAt: string; lastUsedAt: string | null }
@@ -180,6 +184,8 @@ export interface MemberSummary {
   gender: Gender | null;
   /** for the "birthday today" tag; null when hidden */
   birthday: Birthday | null;
+  /** interest tags (slugs) */
+  interests: string[];
   invitedBy: { handle: string } | null;
   activatedAt: string | null;
   postCount: number;
@@ -278,6 +284,9 @@ export const api = {
   me: () => get<Me>('/me'),
   updateMe: (b: { displayName?: string; bio?: string; gender?: Gender; birthdayPublic?: boolean }) => call<Me>('PATCH', '/me', b),
   checklist: () => get<ChecklistState>('/me/checklist'),
+  interests: () => get<{ items: Interest[] }>('/interests'),
+  setInterests: (interests: string[]) => call<{ interests: string[] }>('PUT', '/me/interests', { interests }),
+  opsAddInterest: (label: string) => post<Interest>('/ops/interests', { label }),
   dismissChecklist: () => post<{ dismissed: true }>('/me/checklist/dismiss', {}),
   setupState: () => get<{ about: string; gender: Gender | null; birthday: string | null }>('/me/setup'),
   setup: (b: { about: string; gender: Gender; birthday: string; confirmUnderage?: boolean }) =>

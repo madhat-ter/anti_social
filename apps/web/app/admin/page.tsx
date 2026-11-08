@@ -7,6 +7,7 @@ import { SeatedShell } from '@/components/Shell';
 import { CopyButton, ErrorNote } from '@/components/ui';
 import { AlertDialog, Loading, Win } from '@/components/retro';
 import { Avatar } from '@/components/Avatar';
+import { interestsCached } from '@/lib/interests';
 
 /**
  * Admins only (role 'ops'): invite codes, the report queue, everyone in the room (ban, unban,
@@ -349,6 +350,28 @@ function Members({ me }: { me: Me }) {
   );
 }
 
+/** Admins extend the interest list (RFC §10.5). */
+function AddInterest() {
+  const [label, setLabel] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  async function add(e: FormEvent) {
+    e.preventDefault(); setErr(null); setMsg(null);
+    try { const r = await api.opsAddInterest(label); setMsg(`Added "${r.label}".`); setLabel(''); interestsCached(true).catch(() => {}); }
+    catch (x) { setErr(errorMessage(x)); }
+  }
+  return (
+    <form className="stack" onSubmit={add}>
+      <label>Add an interest
+        <input value={label} maxLength={30} placeholder="Pottery" onChange={(e) => setLabel(e.target.value)} />
+        <small className="muted">Members pick from this list for their profile, collabs and events.</small>
+      </label>
+      <div className="row"><button className="btn" disabled={label.trim().length < 2}>Add</button>{msg && <span role="status" className="muted">{msg}</span>}</div>
+      <ErrorNote message={err} />
+    </form>
+  );
+}
+
 /** The room's size and the invite rules. */
 function Community() {
   const [s, setS] = useState<AdminSettings | null>(null);
@@ -391,6 +414,7 @@ function Community() {
           <div className="row"><button className="btn primary">Save</button>{msg && <span role="status" className="muted">{msg}</span>}</div>
         </form>
       )}
+      <AddInterest />
       <ErrorNote message={err} />
     </section>
   );

@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
-import { DISPLAY_NAME_MAX, GENDERS, GENDER_LABEL, type Gender } from '@anti/shared';
+import { DISPLAY_NAME_MAX, GENDERS, GENDER_LABEL, INTERESTS_MAX, type Gender } from '@anti/shared';
+import { InterestPicker } from '@/components/Interests';
 import { api, errorMessage, formatMoney, type InviteInfo, type Me, type PasskeyInfo, type PaymentRecord } from '@/lib/api';
 import { fmtDate, useMe, useTitle } from '@/lib/hooks';
 import { CopyButton, ErrorNote } from '@/components/ui';
@@ -32,6 +33,7 @@ export default function Settings() {
         <Profile me={me} onSaved={setMe} />
         <Face me={me} onSaved={setMe} />
         <BirthdaySec me={me} onSaved={setMe} />
+        <InterestsSec me={me} onSaved={setMe} />
         <Passkeys />
         <PushToggle />
         {seated && <Invites />}
@@ -133,6 +135,26 @@ function BirthdaySec({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
         Show a &ldquo;birthday today&rdquo; tag by my name on my day
       </label>
       <p className="muted small">Members never see your age or the year.</p>
+      <ErrorNote message={err} />
+    </section>
+  );
+}
+
+/** Interests (RFC §10.5): up to 10; collabs and events with the same tags find you. Saved as you tap. */
+function InterestsSec({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
+  const [picked, setPicked] = useState<string[]>(me.interests);
+  const [err, setErr] = useState<string | null>(null);
+  async function change(next: string[]) {
+    const before = picked;
+    setPicked(next); setErr(null);
+    try { const r = await api.setInterests(next); setPicked(r.interests); onSaved({ ...me, interests: r.interests }); }
+    catch (e) { setPicked(before); setErr(errorMessage(e)); }
+  }
+  return (
+    <section className="panel-sec" aria-labelledby="interests">
+      <h2 id="interests">Interests</h2>
+      <p className="muted small">Pick up to {INTERESTS_MAX} ({picked.length} now). Collabs and events with the same interests find you, and you find them.</p>
+      <InterestPicker value={picked} onChange={(n) => void change(n)} max={INTERESTS_MAX} />
       <ErrorNote message={err} />
     </section>
   );

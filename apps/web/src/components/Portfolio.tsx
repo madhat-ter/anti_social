@@ -20,6 +20,7 @@ import {
 } from '@/lib/api';
 import { Avatar } from './Avatar';
 import { BirthdayTag } from './Birthday';
+import { InterestTags } from './Interests';
 import { Win } from './retro';
 import { ErrorNote } from './ui';
 
@@ -142,6 +143,7 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder }: {
             {!editing && v.openToWork && <span className="tag open">Open to work</span>}
             {!editing && v.location && <span>{v.location}</span>}
             {member.invitedBy && <span>Invited by <Link href={`/u/${member.invitedBy.handle}`}>@{member.invitedBy.handle}</Link></span>}
+            {member.interests.length > 0 && <InterestTags slugs={member.interests} />}
             {member.activatedAt && <span>Member since {new Date(member.activatedAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}</span>}
             <span>{member.postCount} {member.postCount === 1 ? 'post' : 'posts'}</span>
           </p>

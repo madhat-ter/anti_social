@@ -157,14 +157,14 @@ describe('setup', () => {
     const w = await world();
     const c = w.client();
     await c.register(await w.mint(), 'nova');
-    const none = { headline: false, skills: false, project: false, post: false, pick: false };
+    const none = { headline: false, skills: false, project: false, post: false, pick: false, interests: false };
     expect((await c.get('/me/checklist')).body).toEqual({ items: none, dismissed: false });
     await c.patch('/me/portfolio', { headline: 'Designer', skills: ['Ink'] });
     await c.post('/me/projects', { title: 'Draft', draft: true });
     await c.post('/posts', { body: 'Hello' });
     await c.post('/suggestions', { kind: 'book', title: 'Dune' });
     // a draft is not a published project yet
-    expect((await c.get('/me/checklist')).body.items).toEqual({ headline: true, skills: true, project: false, post: true, pick: true });
+    expect((await c.get('/me/checklist')).body.items).toEqual({ headline: true, skills: true, project: false, post: true, pick: true, interests: false });
     await c.post('/me/projects', { title: 'Lamp', draft: false });
     expect((await c.get('/me/checklist')).body.items.project).toBe(true);
     expect((await c.post('/me/checklist/dismiss')).body).toEqual({ dismissed: true });
@@ -189,7 +189,7 @@ describe('setup', () => {
     expect((await tick()).sent).toBe(1);
     let r = await reminders();
     expect(r).toHaveLength(1);
-    expect(r[0].checklist).toEqual({ done: 1, total: 5 });
+    expect(r[0].checklist).toEqual({ done: 1, total: 6 });
     expect((await c.get('/me/checklist')).body.dismissed).toBe(false); // back with the reminder
     expect((await tick()).sent).toBe(0); // once a day
     // a day later the new one replaces the unread old one
@@ -201,6 +201,7 @@ describe('setup', () => {
     await c.patch('/me/portfolio', { headline: 'Designer', skills: ['Ink'] });
     await c.post('/me/projects', { title: 'Lamp', draft: false });
     await c.post('/suggestions', { kind: 'book', title: 'Dune' });
+    await c.put('/me/interests', { interests: ['books'] });
     expect(await tick()).toEqual({ sent: 0, cleared: 1 });
     expect(await reminders()).toHaveLength(0);
   });

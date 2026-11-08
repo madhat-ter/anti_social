@@ -1,6 +1,6 @@
 'use client';
 /**
- * "Finish your profile" (RFC §10.3, Q9/Q17): five things that make this place yours. Inviting is
+ * "Finish your profile" (RFC §10.3, Q9/Q17): six things that make this place yours. Inviting is
  * deliberately not one of them: the room stays small and hand-picked. Items tick
  * themselves from what you have actually done; the window nudges, it never blocks. It appears
  * after the house-rules welcome is closed, and closing it is saved to your account.
@@ -18,6 +18,7 @@ const ITEMS: Item[] = [
   { key: 'project', label: 'Publish a first project', hint: 'Something you made, with pictures.', href: (h) => `/u/${h}/work/new` },
   { key: 'post', label: 'Write a first post', hint: 'Say hello. Everyone reads the same feed.', action: 'post' },
   { key: 'pick', label: 'Suggest a pick', hint: 'A movie, a book, a place or something to eat.', action: 'pick' },
+  { key: 'interests', label: 'Pick your interests', hint: 'So people with the same ones can find you for collabs.', href: () => '/settings#interests' },
 ];
 
 /** `refreshKey` changes when the page knows something got done (a post was written). */

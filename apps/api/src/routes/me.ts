@@ -10,6 +10,7 @@ import { saveChallenge, takeChallenge } from '../lib/challenges';
 import { registrationOptions, verifyRegistration } from '../lib/webauthn';
 import { generateInviteCode } from '../lib/crypto';
 import { checkAbout, checkBirthday, closeAccount } from '../lib/account';
+import { interestsOf } from './interests';
 
 /** Queue standing. `priority` 'reinstating' = former member (seat is offered, paid); 'new' = invitee (seated free). */
 type Waitlist = { position: number; total: number; priority: 'reinstating' | 'new'; offeredUntil: string | null };
@@ -77,6 +78,7 @@ export const meRoutes = (deps: Deps) => {
       lurkerExemptUntil: iso(u.lurkerExemptUntil), waitlist: wl, lurker, archived,
       // setup (RFC §10.3): until it is done the app shows only the setup page
       setupNeeded: !u.setupDoneAt, gender: u.gender, birthday: u.birthday, birthdayPublic: u.birthdayPublic,
+      interests: await interestsOf(db, u.id),
     };
   }
 
@@ -127,14 +129,15 @@ export const meRoutes = (deps: Deps) => {
     .get('/checklist', async ({ auth }) => {
       const a = requireSeated(auth);
       const uid = a.user.id;
-      const [r] = await rows<Record<'headline' | 'skills' | 'project' | 'post' | 'pick', boolean>>(db, sql`
+      const [r] = await rows<Record<'headline' | 'skills' | 'project' | 'post' | 'pick' | 'interests', boolean>>(db, sql`
         select
           coalesce((select headline <> '' from portfolios where user_id = ${uid}::uuid), false) as headline,
           coalesce((select jsonb_array_length(skills) > 0 from portfolios where user_id = ${uid}::uuid), false) as skills,
           exists (select 1 from projects where user_id = ${uid}::uuid and draft = false) as project,
           exists (select 1 from posts where author_id = ${uid}::uuid and deleted_at is null) as post,
-          exists (select 1 from suggestions where author_id = ${uid}::uuid and deleted_at is null) as pick`);
-      const items = { headline: !!r?.headline, skills: !!r?.skills, project: !!r?.project, post: !!r?.post, pick: !!r?.pick };
+          exists (select 1 from suggestions where author_id = ${uid}::uuid and deleted_at is null) as pick,
+          exists (select 1 from user_interests where user_id = ${uid}::uuid) as interests`);
+      const items = { headline: !!r?.headline, skills: !!r?.skills, project: !!r?.project, post: !!r?.post, pick: !!r?.pick, interests: !!r?.interests };
       // hiding lasts until the next daily reminder (jobs.ts "checklist"): then the window is back
       const dismissed = !!a.user.checklistDismissedAt && !(await scalar<boolean>(db, sql`
         select exists (select 1 from notifications where user_id = ${uid}::uuid and kind = 'checklist_reminder'

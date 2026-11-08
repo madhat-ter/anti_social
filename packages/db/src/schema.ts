@@ -300,6 +300,25 @@ export const suggestionVotes = pgTable('suggestion_votes', {
   index('suggestion_votes_user').on(t.userId),
 ]);
 
+// ─── Interests (RFC §10.5): a fixed list admins can extend; members pick up to 10 ───
+
+export const interests = pgTable('interests', {
+  slug: text('slug').primaryKey(),
+  label: text('label').notNull(),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+}, (t) => [
+  check('interests_slug', sql`${t.slug} ~ '^[a-z0-9-]{2,30}$'`),
+  check('interests_label_len', sql`char_length(${t.label}) between 2 and 30`),
+]);
+
+export const userInterests = pgTable('user_interests', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  interest: text('interest').notNull().references(() => interests.slug, { onDelete: 'cascade' }),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.interest] }),
+  index('user_interests_interest').on(t.interest),
+]);
+
 // ─── Portfolio: the profile laid out like a Behance portfolio ───────────────
 // One row per member, created on first edit. Lists are jsonb: skills/tools are string[],
 // experience/education are Entry[] ({ title, place, from, to | null, line }, newest first),

@@ -26,6 +26,16 @@ insert into pricing(product_key, amount_minor, currency) values
   ('reinstatement', 1000, 'usd')
 on conflict (product_key) do nothing;
 
+-- Interests (RFC §10.5): the starting list; admins add more from the site. Existing rows are kept.
+insert into interests(slug, label) values
+  ('design', 'Design'), ('art', 'Art'), ('illustration', 'Illustration'), ('photography', 'Photography'),
+  ('film', 'Film'), ('animation', 'Animation'), ('music', 'Music'), ('writing', 'Writing'), ('books', 'Books'),
+  ('theatre', 'Theatre'), ('dance', 'Dance'), ('fashion', 'Fashion'), ('architecture', 'Architecture'),
+  ('crafts', 'Crafts'), ('code', 'Code'), ('tech', 'Tech'), ('startups', 'Startups'), ('science', 'Science'),
+  ('gaming', 'Gaming'), ('sports', 'Sports'), ('fitness', 'Fitness'), ('hiking', 'Hiking'), ('travel', 'Travel'),
+  ('cooking', 'Cooking'), ('food', 'Food'), ('coffee', 'Coffee'), ('languages', 'Languages'),
+  ('teaching', 'Teaching'), ('volunteering', 'Volunteering'), ('environment', 'Environment')
+on conflict (slug) do nothing;
 create or replace function setting_int(p_key text) returns int
 language sql stable as $$
   select (value #>> '{}')::int from settings where key = p_key

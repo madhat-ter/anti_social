@@ -18,12 +18,14 @@ type MemberSummary = {
   gender: string | null;
   /** month/day for the "birthday today" tag; null when hidden. Never the year. */
   birthday: Birthday | null;
+  /** interest tags (slugs), alphabetical by label */
+  interests: string[];
   invitedBy: { handle: string } | null; activatedAt: string | null; postCount: number;
   /** from the portfolio: shown under the name in lists */
   headline: string; openToWork: boolean;
 };
 type MemberRow = {
-  id: string; cursor_ts: string; handle: string; display_name: string; bio: string; state: string; role: string; gender: string | null; m_bm: number | null; m_bd: number | null;
+  id: string; cursor_ts: string; handle: string; display_name: string; bio: string; state: string; role: string; gender: string | null; m_bm: number | null; m_bd: number | null; interests: string[] | null;
   inv_handle: string | null; activated_iso: string | null; post_count: number;
   headline: string | null; open_to_work: boolean | null;
 };
@@ -33,13 +35,14 @@ const memberSelect = sql`
     u.handle, u.display_name, u.bio, u.state, u.role, u.gender, ${birthdayCols('u', 'm')}, inv.handle as inv_handle,
     to_char(u.activated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as activated_iso,
     (select count(*)::int from posts p where p.author_id = u.id and p.deleted_at is null and p.hidden_at is null) as post_count,
-    pf.headline, pf.open_to_work
+    pf.headline, pf.open_to_work,
+    array(select ui.interest from user_interests ui join interests i on i.slug = ui.interest where ui.user_id = u.id order by i.label) as interests
   from users u
   left join users inv on inv.id = u.invited_by
   left join portfolios pf on pf.user_id = u.id`;
 
 const toMember = (r: MemberRow): MemberSummary => ({
-  handle: r.handle, displayName: r.display_name, bio: r.bio, state: r.state, role: r.role, gender: r.gender ?? null, birthday: toBirthday(r.m_bm, r.m_bd),
+  handle: r.handle, displayName: r.display_name, bio: r.bio, state: r.state, role: r.role, gender: r.gender ?? null, birthday: toBirthday(r.m_bm, r.m_bd), interests: r.interests ?? [],
   invitedBy: r.inv_handle ? { handle: r.inv_handle } : null,
   activatedAt: r.activated_iso, postCount: Number(r.post_count),
   headline: r.headline ?? '', openToWork: !!r.open_to_work,

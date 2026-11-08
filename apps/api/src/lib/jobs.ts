@@ -17,8 +17,8 @@ export interface Job {
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 const ORPHAN_UPLOAD_HOURS = 24;
-/** headline, skills, a published project, a first post, a pick (GET /me/checklist) */
-const CHECKLIST_ITEMS = 5;
+/** headline, skills, a published project, a first post, a pick, interests (GET /me/checklist) */
+const CHECKLIST_ITEMS = 6;
 
 export const JOBS: Job[] = [
   {
@@ -52,6 +52,7 @@ export const JOBS: Job[] = [
             + exists (select 1 from projects pr where pr.user_id = u.id and pr.draft = false)::int
             + exists (select 1 from posts po where po.author_id = u.id and po.deleted_at is null)::int
             + exists (select 1 from suggestions s where s.author_id = u.id and s.deleted_at is null)::int
+            + exists (select 1 from user_interests ui where ui.user_id = u.id)::int
           ) as done
           from users u
           where u.state in ('active', 'flagged_lurker') and u.setup_done_at is not null
