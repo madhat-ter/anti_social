@@ -36,6 +36,13 @@
       "when": 1794085829531,
       "tag": "0004_picks",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794117459385,
+      "tag": "0005_portfolio",
+      "breakpoints": true
     }
   ]
 }

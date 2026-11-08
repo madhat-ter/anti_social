@@ -41,6 +41,26 @@ export const SUGGESTION_TITLE_MAX = 80;
 export const SUGGESTION_NOTE_MAX = 140;
 export const SUGGESTIONS_PER_DAY = 10;
 
+// ─── Portfolio: the profile laid out like a Behance portfolio ───────────────
+// Every field is optional; none asks for a real name, email or phone number.
+export const PF_HEADLINE_MAX = 60;
+export const PF_LOCATION_MAX = 60;
+export const PF_ABOUT_MAX = 1200;
+/** skills and tools: up to this many tags, each up to PF_TAG_MAX characters */
+export const PF_TAGS_MAX = 30;
+export const PF_TAG_MAX = 30;
+export const PF_EXPERIENCE_MAX = 10;
+export const PF_EDUCATION_MAX = 6;
+export const PF_ENTRY_TITLE_MAX = 80;
+export const PF_ENTRY_PLACE_MAX = 80;
+export const PF_ENTRY_LINE_MAX = 140;
+export const PF_YEAR_MIN = 1950;
+/** an end year may sit a little in the future ("graduating 2027") */
+export const PF_YEAR_AHEAD = 10;
+export const PF_LINKS_MAX = 6;
+export const PF_LINK_LABEL_MAX = 30;
+export const PF_LINK_URL_MAX = 500;
+
 // ─── Posts & media (RFC-0001 §10) ───────────────────────────────────────────
 export const POST_MAX_CHARS = 500;
 export const POST_MAX_IMAGES = 4;

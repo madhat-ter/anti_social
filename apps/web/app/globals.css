@@ -716,6 +716,72 @@ input[type=search]::-webkit-search-cancel-button {
   .hero > .rules { grid-area: rules; }
 }
 
+/* ─── portfolio: the profile laid out like a Behance page ──────────────────
+   One large window. Inside it the Behance conventions: a hero with the name set big, one
+   dense CV card in two columns, links at the end. Owners edit it in place. */
+.pf > .win-body { padding: 0; }
+.pf-hero { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1.5rem; align-items: start; padding: 1.6rem 1.6rem 1.4rem; }
+.pf-hero-main { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
+.pf-hero h1 { font-size: clamp(2.6rem, 6vw, 4.6rem); margin-bottom: 0; overflow-wrap: anywhere; }
+.pf-headline { font-size: 1.4rem; line-height: 1.3; font-weight: 500; margin-top: .25rem; max-width: 40ch; }
+.pf-bio { font-size: 1rem; max-width: 56ch; }
+.pf-meta { display: flex; flex-wrap: wrap; gap: .25rem .9rem; align-items: center; font-family: var(--font-ui); font-size: .92rem; color: var(--gray); margin-top: .35rem; }
+.pf-meta .tag { margin-left: 0; }
+.pf-meta .tag.open { background: var(--signal); color: var(--signal-ink); border-color: var(--signal); font-weight: 700; }
+.pf-actions { margin-top: .6rem; }
+.pf-start { margin: 0 1.6rem 1.5rem; max-width: none; text-align: left; }
+.pf-hero-edit { display: flex; flex-direction: column; gap: .75rem; margin-top: .5rem; }
+.pf-otw { align-self: end; padding-bottom: .55rem; }
+
+.pf-cv { display: grid; grid-template-columns: 1fr 1fr; border-top: 3px solid var(--ink); }
+.pf-col { padding: 1.4rem 1.6rem 1.6rem; display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
+.pf-col + .pf-col { border-left: 2px solid var(--ink); }
+.pf-sec { display: flex; flex-direction: column; gap: .6rem; }
+.pf-sec > h2, .pf-links-h { font-size: 1.4rem; display: flex; align-items: center; gap: .55rem; }
+.pf-sec > h2::before, .pf-links-h::before { content: ''; width: .6rem; height: .6rem; border-radius: 50%; background: var(--signal); flex: none; }
+.pf-about { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 1.02rem; line-height: 1.55; max-width: 56ch; }
+.pf-tags { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .4rem; }
+.pf-tags li { font: 400 .9rem/1.5 var(--font-ui); border: 1.5px solid var(--ink); padding: 0 .5rem; display: inline-flex; align-items: center; gap: .3rem; }
+.pf-entries { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.pf-entry { display: grid; grid-template-columns: 6.75rem minmax(0, 1fr); gap: .1rem .9rem; padding: .7rem 0; border-top: 1.5px solid var(--ink); }
+.pf-entries > .pf-entry:first-child { border-top: 0; padding-top: .1rem; }
+.pf-years { font: 400 .9rem/1.6 var(--font-ui); color: var(--gray-strong); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pf-entry-main { display: flex; flex-direction: column; gap: .05rem; min-width: 0; }
+.pf-entry-title { font-weight: 700; }
+.pf-entry-place { color: var(--gray-strong); }
+.pf-entry-line { font-size: .95rem; }
+.pf-links { border-top: 3px solid var(--ink); padding: 1.1rem 1.6rem 1.3rem; }
+.pf-link-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .6rem; }
+
+/* editing: inputs sit where the text was */
+.pf.editing .pf-sec label { gap: .3rem; }
+.pf-edit-list { display: flex; flex-direction: column; gap: .8rem; align-items: flex-start; }
+.pf-edit-list > .btn { align-self: flex-start; }
+.pf-edit-entry { margin: 0; width: 100%; border: 2px dashed var(--ink); padding: .8rem; display: grid; grid-template-columns: 1fr 1fr; gap: .6rem .7rem; }
+.pf-edit-entry .wide { grid-column: 1 / -1; }
+.pf-edit-entry .row { margin-top: -.2rem; }
+.pf-edit-link { width: 100%; display: grid; grid-template-columns: 9rem minmax(0, 1fr) auto; gap: .7rem; align-items: end; }
+.pf-edit-link .link-btn { padding-bottom: .7rem; }
+.pf-tagedit { display: flex; flex-direction: column; gap: .5rem; }
+.pf-tag-x { border: 0; background: transparent; color: inherit; font: 700 1rem/1 var(--font-ui); cursor: pointer; padding: 0 0 0 .15rem; }
+.pf-tag-x:hover { color: var(--signal-text); }
+.pf-editbar { position: sticky; bottom: 0; z-index: 5; border-top: 2px solid var(--ink); background: var(--panel); padding: .75rem 1.6rem; display: flex; gap: .75rem 1.25rem; align-items: center; flex-wrap: wrap; }
+.pf-reminder { color: var(--gray-strong); flex: 1 1 18rem; }
+.pf-editbtns { margin-left: auto; }
+.pf-tabs { margin-top: .5rem; }
+
+/* wide screens: the portfolio takes the whole width beside the menu; the side windows step aside */
+@media (min-width: 1180px) {
+  .shell:has(.pf) { grid-template-columns: 12.5rem minmax(0, 1fr); }
+  .shell:has(.pf) > .rail { display: none; }
+}
+@media (max-width: 700px) {
+  .pf-cv { grid-template-columns: 1fr; }
+  .pf-col + .pf-col { border-left: 0; border-top: 2px solid var(--ink); }
+  .pf-edit-link { grid-template-columns: 1fr; align-items: stretch; }
+  .pf-edit-link .link-btn { padding: 0; justify-self: start; }
+}
+
 /* ─── responsive ───────────────────────────────────────────────────────── */
 @media (max-width: 560px) {
   .panel-sec { grid-template-columns: 1fr; padding: 1.25rem 1rem; }
@@ -757,5 +823,11 @@ input[type=search]::-webkit-search-cancel-button {
   .date-chip .d { font-size: 2.9rem; }
   .event-title { font-size: 1.6rem; }
   .profile-head { grid-template-columns: 1fr; }
+  .pf-hero { grid-template-columns: 1fr; gap: 1rem; padding: 1.2rem 1rem 1rem; }
+  .pf-hero .avatar { width: 88px; height: 88px; }
+  .pf-col, .pf-links, .pf-editbar { padding-left: 1rem; padding-right: 1rem; }
+  .pf-start { margin: 0 1rem 1.2rem; }
+  .pf-entry { grid-template-columns: 1fr; gap: 0; }
+  .pf-edit-entry { grid-template-columns: 1fr; }
   .hero-type .outline { -webkit-text-stroke-width: 2px; }
 }

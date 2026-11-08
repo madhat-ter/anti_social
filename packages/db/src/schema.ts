@@ -271,6 +271,28 @@ export const suggestions = pgTable('suggestions', {
   index('suggestions_live').on(t.createdAt).where(sql`deleted_at is null`),
 ]);
 
+// ─── Portfolio: the profile laid out like a Behance portfolio ───────────────
+// One row per member, created on first edit. Lists are jsonb: skills/tools are string[],
+// experience/education are Entry[] ({ title, place, from, to | null, line }, newest first),
+// links are { label, url }[] (https only). Nothing here is required.
+export const portfolios = pgTable('portfolios', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  headline: text('headline').notNull().default(''),
+  location: text('location').notNull().default(''),
+  openToWork: boolean('open_to_work').notNull().default(false),
+  about: text('about').notNull().default(''),
+  skills: jsonb('skills').notNull().default(sql`'[]'::jsonb`),
+  tools: jsonb('tools').notNull().default(sql`'[]'::jsonb`),
+  experience: jsonb('experience').notNull().default(sql`'[]'::jsonb`),
+  education: jsonb('education').notNull().default(sql`'[]'::jsonb`),
+  links: jsonb('links').notNull().default(sql`'[]'::jsonb`),
+  updatedAt: tstz('updated_at').notNull().defaultNow(),
+}, (t) => [
+  check('portfolios_headline_len', sql`char_length(${t.headline}) <= 60`),
+  check('portfolios_location_len', sql`char_length(${t.location}) <= 60`),
+  check('portfolios_about_len', sql`char_length(${t.about}) <= 1200`),
+]);
+
 export const pushSubscriptions = pgTable('push_subscriptions', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

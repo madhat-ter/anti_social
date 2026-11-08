@@ -63,6 +63,22 @@ export interface Pick {
   mine: boolean;
 }
 
+/** One line of experience or education. `to` null = still there. */
+export interface PfEntry { title: string; place: string; from: number; to: number | null; line: string }
+export interface PfLink { label: string; url: string }
+/** The CV fields a member edits on their own portfolio. */
+export interface PortfolioFields {
+  headline: string; location: string; openToWork: boolean; about: string;
+  skills: string[]; tools: string[]; experience: PfEntry[]; education: PfEntry[]; links: PfLink[];
+}
+export interface Portfolio extends PortfolioFields {
+  handle: string;
+  /** nothing filled in yet: the page shows the plain profile */
+  empty: boolean;
+  updatedAt: string | null;
+  mine: boolean;
+}
+
 export interface MemberSummary {
   handle: string;
   displayName: string;
@@ -192,6 +208,8 @@ export const api = {
   suggest: (b: { kind: SuggestionKind; title: string; note?: string | null }) => post<Pick>('/suggestions', b),
   deletePick: (id: string) => call<{ ok: true }>('DELETE', `/suggestions/${encodeURIComponent(id)}`),
   memberPicks: (handle: string) => get<{ items: Pick[] }>(`/members/${encodeURIComponent(handle)}/suggestions`),
+  portfolio: (handle: string) => get<Portfolio>(`/members/${encodeURIComponent(handle)}/portfolio`),
+  updatePortfolio: (b: Partial<PortfolioFields>) => call<Portfolio>('PATCH', '/me/portfolio', b),
   memberPosts: (handle: string, cursor?: string | null, limit = 20) =>
     get<Page<Post>>(`/members/${encodeURIComponent(handle)}/posts${qs({ cursor, limit })}`),
   notifications: (cursor?: string | null, limit = 30) => get<NotificationPage>(`/notifications${qs({ cursor, limit })}`),
