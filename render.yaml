@@ -5,6 +5,7 @@ services:
     name: anti-api
     runtime: docker
     plan: free
+    region: singapore # same region as the Neon database
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     autoDeploy: true
