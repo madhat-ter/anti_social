@@ -68,6 +68,8 @@ docs/rfc         Design docs
 
 - **Trust (done):** admins carry an OG mark instead of an "admin" tag; admins give a verified badge to members they have checked; every member gives a cell phone and an email that only admins see (encrypted with `CONTACT_KEY`, every opening logged). RFC §10.7.
 
+- **Visitor passes (done):** an admin makes a one-hour pass for someone who is not a member: a code (or the `/visit/<code>` link) that works once, in one browser, starting when it is entered. The visitor sees everything a member sees and can do nothing: every control is struck out with "Visitors can only watch", the API refuses every write before routing, and the hour ends on a page that says so. No account, no seat, no passkey; nobody inside can tell a visitor is browsing. RFC §10.8; `scripts/screenshots-visitors.ts` walks through it.
+
 A free test copy runs on Vercel + Render (no domain, fake payments); see [docs/deploy-free.md](docs/deploy-free.md). A real launch (domain, Stripe live keys, image storage) follows [docs/deploy.md](docs/deploy.md).
 
 ## Payments (fake Stripe)

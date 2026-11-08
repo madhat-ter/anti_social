@@ -814,9 +814,52 @@ every opening logged).
   them. Without `CONTACT_KEY` in production the feature is off (nothing is asked or stored). No
   address is collected. `delete_account` erases them and the badge.
 
+### 10.8 Visitor passes (added 2026-11-08)
+
+Grilled with the owner (Q1–Q20, all accepted). An admin gives someone who is not a member **one
+hour of looking around**: everything members see, nothing they can do. For showing the place to a
+friend, a collaborator, an agency, without spending an invite or a seat.
+
+- **A visitor is not a user.** No row in `users`, no seat, no passkey, no setup. A pass is a row in
+  `visitor_passes` (code hash, the admin's private label, who made it, `code_expires_at` a week
+  out, `opened_at`/`expires_at` for the hour, `token_hash` for the browser, `revoked_at`) and an
+  `anti_visitor` cookie. Member lists, seat counts, birthdays, lifecycle jobs and notifications
+  never see them. They are purged 30 days after creation.
+- **Code and link, both.** Admin → Visitor passes: an optional label ("Priya from the agency"), *Make
+  a 1-hour pass*. The 8-symbol code (`K7QF-M2XP`, invite alphabet) and the link `/visit/<code>` are
+  shown once, hashed in the database. The landing page has a "Have a visitor code?" field under the
+  sign-in window; the link lands on `/visit/<code>` with the code filled in and one button, *Visit
+  for an hour*. Entering is rate-limited per IP like `/invites/check`.
+- **The hour starts on entry**, not on creation, and the pass **locks to that browser**: a second
+  entry of the same code anywhere answers "This pass has already been used." An unopened code
+  expires after seven days. No duration setting: an hour, always.
+- **Reading like a member.** The auth plugin resolves the cookie into a stand-in seated user
+  (nil UUID, handle `visitor`, an adult so 18+ consultation offers show), so every read handler
+  works unchanged; `GET /me` returns that shape with `visitor.expiresAt`. Images and portfolios
+  included. Closed even to read: `/me/*` (they have nothing there), notifications, consultations,
+  payments, push; `/ops/*` is a 404 to them as to members.
+- **Two walls against writing.** `app.ts` rejects every non-GET request carrying a visitor cookie
+  and no member session with `403 visitor_readonly` before routing (except entering a code,
+  leaving, signing in and joining); `requireUser` rejects the stand-in too, so a handler reached by
+  mistake still refuses. The UI shows every control a member would see and strikes it out with
+  "Visitors can only watch." (composer, likes, picks, RSVP, join, book, report). Members-only pages
+  (settings, inbox, writing, editing, admin) bounce to the feed.
+- **In the chrome**: where your face and handle go, a grey face and a "Visitor · 42 min left" pill
+  (red under five minutes); the side rail has a *visitor* window with the time left and *Leave*. No
+  Notifications, Settings or Admin in the menu. Members never see that a visitor is browsing.
+- **The end.** When the hour is up or an admin ends the visit, the API answers `401 visitor_expired`
+  and drops the cookie; the app lands on `/visit/ended` ("Your hour is up ... ask the person who sent
+  you the pass"), and a client timer sends them there on the minute even if idle. A member always
+  wins over a visitor cookie in the same browser (signing in drops it); a member entering a code is
+  told no pass is needed and the code stays unused.
+- **Admin list**: label, state (unopened / visiting with minutes left / over / expired / revoked),
+  when and by whom, *Revoke* or *End the visit*. Only opened-at and ended-at are recorded: no IP,
+  no user agent, no page log.
+
 ## 11. API surface (Elysia)
 
-Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops.
+Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,
+**V** a visitor (§10.8) may read it too (every **A** GET unless listed as closed in §10.8).
 
 | Method & path | Guard | Purpose |
 |---|---|---|
@@ -884,6 +927,8 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST /ops/users/:handle/handle` | O | Change a handle (signup rules; member told) |
 | `POST /ops/users/:handle/birthday` | O | Correct a birthday (under 13 + `confirmUnderage`: account closed) |
 | `GET/PATCH /ops/settings` | O | Seat cap, open invites per member, invite expiry |
+| `POST /visit`, `POST /visit/leave` | P (rate-limited) | Enter a visitor code (§10.8): the hour starts, cookie set; leave early |
+| `GET/POST /ops/visitor-passes`, `POST /ops/visitor-passes/:id/revoke` | O | Visitor passes: list with states, make one (code shown once), revoke or end a visit |
 
 To members, every `/ops/*` path is a 404. Ops also has a CLI (`bun run ops:mint-invites --count 10`, `bun run ops -- grant <handle>`) that calls the same service code; on hosts without a shell, `BOOTSTRAP_INVITES` and `OPS_HANDLES` do the first-boot equivalents (`OPS_HANDLES` only while no admin exists).
 
@@ -892,7 +937,7 @@ To members, every `/ops/*` path is a 404. Ops also has a CLI (`bun run ops:mint-
 | Job | Frequency | What |
 |---|---|---|
 | `run_lifecycle()` | Hourly | Archival, lurker detection/resolution/grace, waitlist decay, promotion (§8.2) |
-| Session + challenge cleanup | Daily | Delete expired `sessions`, `auth_challenges` |
+| Session + challenge cleanup | Daily | Delete expired `sessions`, `auth_challenges`; `visitor_passes` older than 30 days (§10.8) |
 | Upload quarantine sweep | Daily | Delete orphaned R2 quarantine objects > 24 h |
 | Notification fan-out | On insert (in-process queue) | Send Web Push for push-worthy kinds |
 
@@ -939,6 +984,7 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 9. **M9 — Setup** (2026-11-08, §10.3): the compulsory setup page and the setup gate; faces drawn by gender everywhere; birthdays (tags, side window, admin ages and corrections); the "Finish your profile" checklist.
 10. **M10 — Collabs** (2026-11-08, §10.5), in four steps: interests; collabs with joining, requests and invites; updates, meetups and finishing into portfolio drafts; upgraded events and collab reports.
 11. **M11 — Trust** (2026-11-08, §10.7): the OG mark for admins, the verified badge, contact details for admins (encrypted, openings logged).
+12. **M12 — Visitor passes** (2026-11-08, §10.8), in four steps: the table, SQL and API with the read-only walls; the visitor's side of the app (code form, pass page, pill, struck-out controls, ended page); the admin panel; docs and screenshots.
 
 ## Appendix A — Decision log
 
