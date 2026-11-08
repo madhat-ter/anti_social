@@ -70,6 +70,8 @@ docs/rfc         Design docs
 
 - **Visitor passes (done):** an admin makes a one-hour pass for someone who is not a member: a code (or the `/visit/<code>` link) that works once, in one browser, starting when it is entered. The visitor sees everything a member sees and can do nothing: every control is struck out with "Visitors can only watch", the API refuses every write before routing, and the hour ends on a page that says so. No account, no seat, no passkey; nobody inside can tell a visitor is browsing. RFC §10.8; `scripts/screenshots-visitors.ts` walks through it.
 
+- **UX pass (done, 2026-11-09):** a phone shell (bottom tabs, bell in the header, a feed that opens on posts), the bitmap face kept to the chrome with a reading face for meta text, one date format, zeros turned into invitations, one primary action per screen with a "⋯" menu for the rest, a "new posts" pill, member search and filters, house rules at the end of setup. RFC §10.9; `scripts/screenshots-phone.ts` walks it.
+
 A free test copy runs on Vercel + Render (no domain, fake payments); see [docs/deploy-free.md](docs/deploy-free.md). A real launch (domain, Stripe live keys, image storage) follows [docs/deploy.md](docs/deploy.md).
 
 ## Payments (fake Stripe)

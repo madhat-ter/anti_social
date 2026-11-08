@@ -856,6 +856,43 @@ friend, a collaborator, an agency, without spending an invite or a seat.
   when and by whom, *Revoke* or *End the visit*. Only opened-at and ended-at are recorded: no IP,
   no user agent, no page log.
 
+### 10.9 The UX pass (2026-11-09)
+
+A critique of every screen (from the walkthrough screenshots) turned into five changes, built as
+five commits. The rules it left behind, for anything added later:
+
+- **Phones (under 900px) have a different shell** (`PhoneBar.tsx`). The menu column becomes a bell
+  with the unread count in the sticky header (the clock is desktop-only) and five tabs along the
+  bottom: Feed, Events, Collabs, Members, *you* (your face, with the unread badge). Drawers (your
+  profile, Search, Consultations, Settings, Admin) open in a sheet from the fifth tab. A visitor
+  gets a grey face with the minutes left instead. Settings and setup are standalone pages with no
+  shell, and stay that way. The first screen is posts: the feed composer is one line until tapped
+  or holding a draft, the checklist folds to a line with a count, the pick window waits until after
+  the third post, and a visitor sees one notice strip where a member sees the composer.
+- **Type.** The bitmap face (`--font-ui`) is for chrome only: window titles, tabs, buttons, menus,
+  form labels, tags. Anything a reader has to parse (handles, times, counts, places, meta lines) is
+  set in the reading face via `.meta` (0.9rem, `--gray-strong`). New meta text uses `.meta`, never
+  `.ui`.
+- **Dates.** `relativeTime` within a week ("5m", "3h", "2d"), then "Thu, Nov 5" (year only when
+  it is not this year). `fmtDate` for exact moments drops the current year. Event cards say the
+  weekday and time, since the date chip already says the day; event detail keeps the full date.
+- **Zeros are invitations.** "Reply", not "0 replies"; "Like" with no count; "Be the first to go";
+  no "0 up · 0 down"; "none yet"; a portfolio with no posts says nothing about posts.
+- **One primary action per screen.** Rarer and destructive actions go in the "⋯" menu
+  (`ActionMenu.tsx`): a collab shows Join/Ask or Edit plus a menu; an event shows Edit plus a menu;
+  an admin member row shows Verify (when due), Unban, Show contact plus a menu, and filter chips.
+  A host sees what waits on them (requests, inviting) in a line under the collab title.
+- **Liveness.** The feed polls for new posts on the unread-count rhythm (30 s while visible, and on
+  focus) and holds them behind a "3 new posts" pill. The members page has a search and chips (new
+  this month, offers consultations, each interest somebody has).
+- **Onboarding.** The three house rules close the setup page, and the welcome window is marked
+  seen when setup is done (it still shows once for members from before). The About box carries
+  three questions and talks in sentences, not word counts, until the minimum is near. The landing
+  tells a stranger how an invite is obtained and makes both alert buttons answer the question.
+  Settings has a row of section links that stays under the header on wide screens.
+
+`scripts/screenshots-phone.ts` walks the phone shell, the pill and the member filters.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,
