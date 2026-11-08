@@ -21,7 +21,7 @@ function You({ me }: { me: Me }) {
         <Avatar seed={me.handle} gender={me.gender} size={56} />
         <span>
           <span className="rail-name">{me.displayName}<NameMarks admin={me.role === 'ops'} verified={!!me.verifiedAt} size=".85em" /></span>
-          <span className="ui muted">@{me.handle}</span>
+          <span className="meta">@{me.handle}</span>
         </span>
       </Link>
       <Link className="btn" href="/settings">Invite someone</Link>

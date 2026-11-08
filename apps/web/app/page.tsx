@@ -161,7 +161,7 @@ export default function Home() {
           <Avatar seed={me.handle} gender={me.gender} size={64} />
           <div>
             <h1>{me.displayName}<NameMarks admin={me.role === 'ops'} verified={!!me.verifiedAt} size=".8em" /></h1>
-            <p className="ui muted">@{me.handle}</p>
+            <p className="meta">@{me.handle}</p>
           </div>
         </div>
         <CheckoutNotice refresh={refresh} />

@@ -21,11 +21,26 @@ export function eventWhen(startsAt: string, endsAt: string | null): string {
   return sameDay ? `${day}, ${t(s)} – ${t(e)}` : `${day}, ${t(s)} – ${e.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${t(e)}`;
 }
 
+/** On a card the date chip already says the day, so this is the weekday and the time: "Friday, 7:00 PM" or "Friday, 7:00 – 9:00 PM". */
+export function eventTime(startsAt: string, endsAt: string | null): string {
+  const s = new Date(startsAt);
+  const wd = s.toLocaleDateString(undefined, { weekday: 'long' });
+  const t = (d: Date) => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  if (!endsAt) return `${wd}, ${t(s)}`;
+  const e = new Date(endsAt);
+  return e.toDateString() === s.toDateString() ? `${wd}, ${t(s)} – ${t(e)}` : `${wd}, ${t(s)} – ${e.toLocaleDateString(undefined, { weekday: 'short' })} ${t(e)}`;
+}
+
+/** Who is coming. A zero is an invitation, not a count. */
 export function spotsText(e: AnEvent): string {
-  if (e.started) return e.attendedCount > 0 ? `${e.attendedCount} attended` : `${e.goingCount} going`;
-  if (e.capacity === null) return `${e.goingCount} going`;
+  if (e.started) {
+    if (e.attendedCount > 0) return `${e.attendedCount} attended`;
+    return e.goingCount > 0 ? `${e.goingCount} going` : 'Nobody signed up';
+  }
+  if (e.capacity === null) return e.goingCount > 0 ? `${e.goingCount} going` : 'Be the first to go';
   const left = Math.max(e.capacity - e.goingCount, 0);
-  return left > 0 ? `${e.goingCount} going, ${left} of ${e.capacity} spots left` : `Full, ${e.waitlistCount} on the waitlist`;
+  if (left === 0) return `Full, ${e.waitlistCount} on the waitlist`;
+  return e.goingCount > 0 ? `${e.goingCount} going, ${left} of ${e.capacity} spots left` : `${e.capacity} spots, be the first`;
 }
 
 export function MyStatus({ e }: { e: AnEvent }) {
@@ -49,7 +64,7 @@ export function EventCard({ e }: { e: AnEvent }) {
           {e.collab && <span className="muted small">Meetup for {e.collab.title}</span>}
           {e.joinMode === 'approve' && <span className="muted small">Ask to come</span>}
           <InterestTags slugs={e.interests ?? []} />
-          <span className="muted small">{eventWhen(e.startsAt, e.endsAt)}</span>
+          <span className="muted small">{eventTime(e.startsAt, e.endsAt)}</span>
           <span className="muted small">{e.location ?? 'Location shared with people going'}</span>
           <span className="muted small">{spotsText(e)}</span>
           {e.host && <span className="muted small">Hosted by @{e.host.handle}<NameMarks admin={e.host.admin} verified={e.host.verified} size=".9em" /></span>}

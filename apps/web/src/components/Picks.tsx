@@ -101,7 +101,7 @@ export function PickCard({ p, showAuthor = true, onChange, onEditing }: {
       {p.note && <p className="pick-note">{p.note}</p>}
       {showAuthor && p.author && (
         <Link href={`/u/${p.author.handle}`} className="pick-by">
-          <Avatar seed={p.author.handle} gender={p.author.gender} size={28} /> <span className="ui">@{p.author.handle}<NameMarks admin={p.author.admin} verified={p.author.verified} size=".85em" /></span>
+          <Avatar seed={p.author.handle} gender={p.author.gender} size={28} /> <span className="meta">@{p.author.handle}<NameMarks admin={p.author.admin} verified={p.author.verified} size=".85em" /></span>
         </Link>
       )}
       <div className="pick-votes">
@@ -117,7 +117,7 @@ export function PickCard({ p, showAuthor = true, onChange, onEditing }: {
               <VoteArrow dir="down" filled={p.myVote === -1} />
             </button>
           </div>
-          <span className="ui muted small pick-counts">{p.up} up · {p.down} down</span>
+          {p.up + p.down > 0 && <span className="meta pick-counts">{p.up} up · {p.down} down</span>}
         </div>
         {lr?.remark && (
           <p className="pick-remark">

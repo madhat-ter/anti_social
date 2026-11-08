@@ -134,7 +134,7 @@ export function PhoneBar({ me, unread, waiting, adult }: { me: Me; unread: numbe
                   <Avatar seed={me.handle} gender={me.gender} size={44} />
                   <span>
                     <span className="sheet-name">{me.displayName}<NameMarks admin={me.role === 'ops'} verified={!!me.verifiedAt} size=".85em" /></span>
-                    <span className="ui muted">@{me.handle} · your profile</span>
+                    <span className="meta">@{me.handle} · your profile</span>
                   </span>
                 </Link>
                 <ul className="sheet-list">

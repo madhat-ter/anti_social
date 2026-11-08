@@ -48,7 +48,7 @@ export function Checklist({ me, refreshKey = 0 }: { me: Me; refreshKey?: number 
       <div className="row between">
         <h2>Finish your profile</h2>
         <span className="row ck-head">
-          <span className="ui muted">{done} of {ITEMS.length} done</span>
+          <span className="meta">{done} of {ITEMS.length} done</span>
           {/* phones: the list is folded away until asked for (CSS shows this button only there) */}
           <button type="button" className="link-btn ck-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? 'Less' : 'Show'}</button>
         </span>

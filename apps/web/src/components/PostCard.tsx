@@ -294,8 +294,9 @@ export function PostCard({
       )}
 
       <footer className="post-foot">
-        <Link href={replyHref} className="foot-btn" aria-label={`${post.replyCount} ${post.replyCount === 1 ? 'reply' : 'replies'}`}>
-          <span aria-hidden="true">↳ {post.replyCount} {post.replyCount === 1 ? 'reply' : 'replies'}</span>
+        {/* a zero is an invitation ("Reply"), not a count */}
+        <Link href={replyHref} className="foot-btn" aria-label={post.replyCount === 0 ? 'Reply' : `${post.replyCount} ${post.replyCount === 1 ? 'reply' : 'replies'}`}>
+          <span aria-hidden="true">↳ {post.replyCount === 0 ? 'Reply' : `${post.replyCount} ${post.replyCount === 1 ? 'reply' : 'replies'}`}</span>
         </Link>
         <button
           type="button"
@@ -306,9 +307,9 @@ export function PostCard({
           title={readOnly ? VISITOR_NOTE : undefined}
         >
           <Dot on={post.likedByMe} size=".85em" />
-          {/* name = "Like 3": includes the visible count, so voice control ("click 3") works */}
-          <span className="sr-only">Like</span>
-          <span>{post.likeCount}</span>
+          {/* name = "Like 3": includes the visible count, so voice control ("click 3") works; with no likes yet the word stands alone */}
+          <span className={post.likeCount === 0 ? undefined : 'sr-only'}>Like</span>
+          {post.likeCount > 0 && <span>{post.likeCount}</span>}
         </button>
         {actions}
       </footer>

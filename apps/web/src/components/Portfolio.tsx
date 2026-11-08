@@ -148,7 +148,7 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
             {member.invitedBy && <span>Invited by <Link href={`/u/${member.invitedBy.handle}`}>@{member.invitedBy.handle}</Link></span>}
             {member.interests.length > 0 && <InterestTags slugs={member.interests} />}
             {member.activatedAt && <span>Member since {new Date(member.activatedAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}</span>}
-            <span>{member.postCount} {member.postCount === 1 ? 'post' : 'posts'}</span>
+            {member.postCount > 0 && <span>{member.postCount} {member.postCount === 1 ? 'post' : 'posts'}</span>}
           </p>
           {pf.mine && !editing && (
             <div className="row pf-actions">

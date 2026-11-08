@@ -39,9 +39,19 @@ export function useTitle(title: string) {
 /** Called by the nav when the unread count changes. */
 export function setUnreadInTitle(n: number) { unreadInTitle = n; applyTitle(); }
 
-export function fmtDate(iso: string | null | undefined): string {
+/**
+ * One way of writing dates everywhere (UX pass, 2026-11-09):
+ * - `relativeTime`: "just now", "5m", "3h", "2d" within a week; after that the day, "Thu, Nov 5",
+ *   with the year only when it is not this year.
+ * - `fmtDate`: an exact moment, "Nov 8, 5:30 PM"; the year only when it is not this year.
+ */
+export function fmtDate(iso: string | null | undefined, now = new Date()): string {
   if (!iso) return '';
-  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, {
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+    ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
+  });
 }
 
 export function relativeTime(iso: string, now: number = Date.now()): string {
@@ -53,7 +63,11 @@ export function relativeTime(iso: string, now: number = Date.now()): string {
   if (h < 24) return `${h}h`;
   const d = Math.round(h / 24);
   if (d < 7) return `${d}d`;
-  return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' });
+  const date = new Date(iso);
+  return date.toLocaleDateString(undefined, {
+    weekday: 'short', month: 'short', day: 'numeric',
+    ...(date.getFullYear() !== new Date(now).getFullYear() ? { year: 'numeric' } : {}),
+  });
 }
 
 export function isSeated(me: Me | null): boolean {

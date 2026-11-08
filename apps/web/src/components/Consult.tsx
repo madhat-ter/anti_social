@@ -187,7 +187,7 @@ export function ConsultingSection({ handle, viewerAdult }: { handle: string; vie
       <dl className="pf-consult-facts">
         <div><dt>Session</dt><dd>{minutesLabel(o.minutes)}</dd></div>
         <div><dt>Usually</dt><dd>{priceLabel(o)}</dd></div>
-        <div><dt>Sessions done</dt><dd>{o.sessionsDone}</dd></div>
+        <div><dt>Sessions done</dt><dd>{o.sessionsDone > 0 ? o.sessionsDone : <span className="muted">none yet</span>}</dd></div>
       </dl>
       {thanks.length > 0 && (
         <ul className="pf-thanks">

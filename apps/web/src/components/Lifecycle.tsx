@@ -102,7 +102,7 @@ export function WaitlistCard({ me }: { me: Me }) {
       {w ? (
         <p>
           <span className="big">#{w.position}</span>{' '}
-          <span className="ui muted">of {total} in line</span>
+          <span className="meta">of {total} in line</span>
         </p>
       ) : (
         <p className="muted">Your place in the line is being updated.</p>
