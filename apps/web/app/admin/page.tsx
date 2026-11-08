@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { api, errorMessage, type AdminMember, type AdminSettings, type FlagItem, type Me } from '@/lib/api';
+import { api, ApiError, errorMessage, type AdminMember, type AdminSettings, type FlagItem, type Me } from '@/lib/api';
 import { fmtDate, relativeTime, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { CopyButton, ErrorNote } from '@/components/ui';
@@ -161,7 +161,7 @@ const STATE_LABEL: Record<string, string> = {
   waitlisted: 'waiting for a seat', flagged_lurker: 'flagged as quiet', archived: 'archived', banned: 'banned',
 };
 
-type MemberAsk = { kind: 'ban' | 'unban' | 'admin' | 'unadmin' | 'rename'; m: AdminMember } | null;
+type MemberAsk = { kind: 'ban' | 'unban' | 'admin' | 'unadmin' | 'rename' | 'birthday'; m: AdminMember } | null;
 
 /** Everyone in the room (and the queue, archived and banned), with what an admin can do to each. */
 function Members({ me }: { me: Me }) {
@@ -170,6 +170,8 @@ function Members({ me }: { me: Me }) {
   const [ask, setAsk] = useState<MemberAsk>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  /** a corrected birthday that makes someone under 13: confirm before their account is closed */
+  const [underage, setUnderage] = useState<{ m: AdminMember; birthday: string; detail: string } | null>(null);
 
   const load = useCallback(async () => {
     try { setList(await api.opsMembers()); } catch (e) { setErr(errorMessage(e)); }
@@ -193,6 +195,15 @@ function Members({ me }: { me: Me }) {
         await api.opsSetRole(a.m.handle, 'member');
         if (self) { window.location.assign('/'); return; } // this page is no longer yours
         setMsg(`@${a.m.handle} is no longer an admin.`);
+      } else if (a.kind === 'birthday') {
+        if (!value) return;
+        try {
+          const r = await api.opsSetBirthday(a.m.handle, value);
+          setMsg(`@${r.handle}'s birthday is corrected (age ${r.age}).`);
+        } catch (e) {
+          if (e instanceof ApiError && e.error === 'underage') { setUnderage({ m: a.m, birthday: value, detail: e.detail ?? '' }); return; }
+          throw e;
+        }
       } else {
         if (!value) return;
         const r = await api.opsRename(a.m.handle, value);
@@ -203,6 +214,17 @@ function Members({ me }: { me: Me }) {
     } catch (e) {
       setErr(errorMessage(e));
     }
+  }
+
+  async function closeUnderage() {
+    const u = underage;
+    setUnderage(null); setErr(null); setMsg(null);
+    if (!u) return;
+    try {
+      await api.opsSetBirthday(u.m.handle, u.birthday, true);
+      setMsg(`@${u.m.handle}'s account is closed: they are under 13.`);
+      await load();
+    } catch (e) { setErr(errorMessage(e)); }
   }
 
   const term = q.trim().replace(/^@/, '').toLowerCase();
@@ -237,11 +259,13 @@ function Members({ me }: { me: Me }) {
                   Joined {fmtDate(m.joinedAt)}
                   {' · '}{m.lastSeenAt ? `seen ${relativeTime(m.lastSeenAt)}` : 'never seen'}
                   {' · '}{m.postCount} {m.postCount === 1 ? 'post' : 'posts'}
+                  {m.age !== null && <> · age {m.age}</>}
                   {m.invitedBy && <> · invited by @{m.invitedBy}</>}
                 </span>
               </span>
               <span className="row adm-member-actions">
                 <button type="button" className="btn" onClick={() => setAsk({ kind: 'rename', m })}>Change handle</button>
+                <button type="button" className="btn" onClick={() => setAsk({ kind: 'birthday', m })}>Change birthday</button>
                 {m.state === 'banned' ? (
                   <button type="button" className="btn" onClick={() => setAsk({ kind: 'unban', m })}>Unban</button>
                 ) : m.role === 'ops' ? (
@@ -292,6 +316,25 @@ function Members({ me }: { me: Me }) {
         danger
         onConfirm={() => ask && void act(ask)}
         onCancel={() => setAsk(null)}
+      />
+      <AlertDialog
+        open={ask?.kind === 'birthday'}
+        title="Change birthday"
+        message={<>The right birthday for <strong>{who}</strong>{ask?.m.age !== null && ask?.m.age !== undefined ? <> (now age {ask.m.age})</> : null}. Members never see it; a birthday under 13 closes the account.</>}
+        confirmLabel="Change"
+        input={{ label: 'New birthday', type: 'date', max: new Date().toISOString().slice(0, 10) }}
+        onConfirm={(v) => ask && void act(ask, v)}
+        onCancel={() => setAsk(null)}
+      />
+      <AlertDialog
+        open={!!underage}
+        title="Under 13"
+        message={<>{underage?.detail} <strong>This cannot be undone.</strong></>}
+        confirmLabel="Close account"
+        danger
+        focusCancel
+        onConfirm={() => void closeUnderage()}
+        onCancel={() => setUnderage(null)}
       />
       <AlertDialog
         open={ask?.kind === 'rename'}

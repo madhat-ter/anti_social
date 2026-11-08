@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { MemberSummary } from '@/lib/api';
 import { Avatar } from './Avatar';
+import { BirthdayTag } from './Birthday';
 
 /** One member in a list: the portfolio headline sits under the name when there is one, else the bio. */
 export function MemberRow({ m }: { m: MemberSummary }) {
@@ -13,6 +14,7 @@ export function MemberRow({ m }: { m: MemberSummary }) {
           <span className="name">{m.displayName}</span>{' '}
           <span className="muted handle">@{m.handle}</span>
           {m.role === 'ops' && <span className="tag" title="Runs the room: moderates, invites, keeps it civil">admin</span>}
+          <BirthdayTag b={m.birthday} />
           {m.state === 'archived' && <span className="tag">archived</span>}
           {m.openToWork && <span className="tag open-tag">open to work</span>}
         </span>

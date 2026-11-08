@@ -19,6 +19,7 @@ import {
   type PortfolioFields, type ProjectSummary,
 } from '@/lib/api';
 import { Avatar } from './Avatar';
+import { BirthdayTag } from './Birthday';
 import { Win } from './retro';
 import { ErrorNote } from './ui';
 
@@ -114,6 +115,7 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder }: {
           <h1>
             {member.displayName}
             {member.role === 'ops' && <span className="tag" title="Runs the room: moderates, invites, keeps it civil">admin</span>}
+            <BirthdayTag b={member.birthday} />
             {member.state === 'archived' && <span className="tag" title="This member's seat was released">archived</span>}
           </h1>
           <p className="mono muted">@{member.handle}</p>

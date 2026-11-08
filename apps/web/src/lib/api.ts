@@ -46,6 +46,8 @@ export interface AdminMember {
   handle: string; displayName: string; state: UserState; role: 'member' | 'ops'; gender: Gender | null;
   joinedAt: string; activatedAt: string | null; lastSeenAt: string | null;
   invitedBy: string | null; postCount: number;
+  /** whole years (admins only) */
+  age: number | null;
 }
 /** The room's settings an admin can change, plus seats in use. */
 export interface AdminSettings { seatCap: number; invitesPerMember: number; inviteExpiryDays: number; seatsUsed: number }
@@ -68,7 +70,9 @@ export class ApiError extends Error {
 }
 
 /** `role` 'ops' = an admin (shown with an "admin" tag). */
-export type Author = { handle: string; displayName: string; state: UserState; role?: 'member' | 'ops'; gender?: Gender | null } | null;
+/** Month and day only, and only when they show it; never the year (RFC §10.3). */
+export interface Birthday { month: number; day: number }
+export type Author = { handle: string; displayName: string; state: UserState; role?: 'member' | 'ops'; gender?: Gender | null; birthday?: Birthday | null } | null;
 export interface Image { id: string; url: string; width: number; height: number }
 export interface Post {
   id: string;
@@ -164,6 +168,8 @@ export interface MemberSummary {
   role: 'member' | 'ops';
   /** shapes the drawn face */
   gender: Gender | null;
+  /** for the "birthday today" tag; null when hidden */
+  birthday: Birthday | null;
   invitedBy: { handle: string } | null;
   activatedAt: string | null;
   postCount: number;
@@ -338,6 +344,8 @@ export const api = {
   opsRename: (handle: string, next: string) =>
     post<{ from: string; handle: string }>(`/ops/users/${encodeURIComponent(handle)}/handle`, { handle: next }),
   opsMembers: () => get<AdminMember[]>('/ops/members'),
+  opsSetBirthday: (handle: string, birthday: string, confirmUnderage = false) =>
+    post<{ handle: string; age: number; closed: boolean }>(`/ops/users/${encodeURIComponent(handle)}/birthday`, { birthday, confirmUnderage }),
   opsRemovePost: (id: string) => post<{ removed: true }>(`/ops/posts/${encodeURIComponent(id)}/remove`, {}),
   opsRemoveProject: (id: string) => post<{ removed: true }>(`/ops/projects/${encodeURIComponent(id)}/remove`, {}),
   opsSettings: () => get<AdminSettings>('/ops/settings'),

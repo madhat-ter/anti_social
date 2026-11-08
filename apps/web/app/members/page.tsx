@@ -8,6 +8,7 @@ import { loadAllMembers, seatCapCached } from '@/lib/members';
 import { SeatedShell } from '@/components/Shell';
 import { ErrorNote } from '@/components/ui';
 import { Avatar } from '@/components/Avatar';
+import { BirthdayTag } from '@/components/Birthday';
 import { Loading } from '@/components/retro';
 
 export default function MembersPage() {
@@ -53,6 +54,7 @@ function SeatMap({ myHandle }: { myHandle: string }) {
               <Avatar seed={m.handle} gender={m.gender} size={56} />
               <span className="seat-name">{m.displayName}</span>
               <span className="seat-handle">@{m.handle}</span>
+              <BirthdayTag b={m.birthday} />
               {m.headline && (
                 <span className="seat-headline">
                   {m.openToWork && <span className="rdot on" role="img" aria-label="open to work" />}

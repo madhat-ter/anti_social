@@ -12,6 +12,7 @@ import { AccountUpdates, ArchivedCard, usePollMe, WaitlistCard } from '@/compone
 import { CheckoutNotice } from '@/components/Billing';
 import { Avatar } from '@/components/Avatar';
 import { Welcome } from '@/components/Welcome';
+import { BirthdayLine } from '@/components/Birthday';
 import { PickWindow, useWide } from '@/components/Picks';
 import { AlertIcon, Loading, Win } from '@/components/retro';
 
@@ -86,6 +87,7 @@ function FeedView({ onPosted }: { onPosted: () => void }) {
   return (
     <>
       <h1 className="sr-only">Feed</h1>
+      {wide === false && <BirthdayLine />}
       <div id="compose">
         <Composer
           onCreated={(post) => {

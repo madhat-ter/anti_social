@@ -9,6 +9,7 @@ import { RULES } from '@anti/shared';
 import { api, type AnEvent, type Me, type MemberSummary } from '@/lib/api';
 import { membersCached, seatCapCached } from '@/lib/members';
 import { Avatar } from './Avatar';
+import { BirthdaysWindow } from './Birthday';
 import { Win } from './retro';
 
 function You({ me }: { me: Me }) {
@@ -80,6 +81,7 @@ export function Rail({ me }: { me: Me }) {
     <aside className="rail" aria-label="At a glance">
       <You me={me} />
       <Seats me={me} />
+      <BirthdaysWindow />
       <NextEvents />
     </aside>
   );

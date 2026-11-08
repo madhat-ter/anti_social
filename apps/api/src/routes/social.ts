@@ -4,7 +4,7 @@ import { rows, scalar, type Db } from '@anti/db';
 import { SEARCH_QUERY_MAX } from '@anti/shared';
 import type { Deps } from '../deps';
 import { ApiError } from '../lib/errors';
-import { cursorBefore, listPosts, paginate, parseLimit, UUID_RE, type Page } from '../lib/posts';
+import { birthdayCols, cursorBefore, listPosts, paginate, parseLimit, toBirthday, UUID_RE, type Birthday, type Page } from '../lib/posts';
 import { authPlugin, requireSeated, requireUser } from '../plugins/auth';
 
 const pageQuery = t.Object({ cursor: t.Optional(t.String()), limit: t.Optional(t.String()) });
@@ -16,19 +16,21 @@ type MemberSummary = {
   role: string;
   /** shapes the drawn face (RFC §10.3) */
   gender: string | null;
+  /** month/day for the "birthday today" tag; null when hidden. Never the year. */
+  birthday: Birthday | null;
   invitedBy: { handle: string } | null; activatedAt: string | null; postCount: number;
   /** from the portfolio: shown under the name in lists */
   headline: string; openToWork: boolean;
 };
 type MemberRow = {
-  id: string; cursor_ts: string; handle: string; display_name: string; bio: string; state: string; role: string; gender: string | null;
+  id: string; cursor_ts: string; handle: string; display_name: string; bio: string; state: string; role: string; gender: string | null; m_bm: number | null; m_bd: number | null;
   inv_handle: string | null; activated_iso: string | null; post_count: number;
   headline: string | null; open_to_work: boolean | null;
 };
 
 const memberSelect = sql`
   select u.id, coalesce(u.activated_at, u.created_at)::text as cursor_ts,
-    u.handle, u.display_name, u.bio, u.state, u.role, u.gender, inv.handle as inv_handle,
+    u.handle, u.display_name, u.bio, u.state, u.role, u.gender, ${birthdayCols('u', 'm')}, inv.handle as inv_handle,
     to_char(u.activated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as activated_iso,
     (select count(*)::int from posts p where p.author_id = u.id and p.deleted_at is null and p.hidden_at is null) as post_count,
     pf.headline, pf.open_to_work
@@ -37,7 +39,7 @@ const memberSelect = sql`
   left join portfolios pf on pf.user_id = u.id`;
 
 const toMember = (r: MemberRow): MemberSummary => ({
-  handle: r.handle, displayName: r.display_name, bio: r.bio, state: r.state, role: r.role, gender: r.gender ?? null,
+  handle: r.handle, displayName: r.display_name, bio: r.bio, state: r.state, role: r.role, gender: r.gender ?? null, birthday: toBirthday(r.m_bm, r.m_bd),
   invitedBy: r.inv_handle ? { handle: r.inv_handle } : null,
   activatedAt: r.activated_iso, postCount: Number(r.post_count),
   headline: r.headline ?? '', openToWork: !!r.open_to_work,

@@ -5,6 +5,7 @@ import { api, errorMessage, EDIT_WINDOW_MS, POST_MAX, type Post } from '@/lib/ap
 import { fmtDate, relativeTime } from '@/lib/hooks';
 import { ErrorNote } from './ui';
 import { Avatar } from './Avatar';
+import { BirthdayTag } from './Birthday';
 import { AlertDialog, Dot } from './retro';
 import { ImageViewer } from './ImageViewer';
 
@@ -41,6 +42,7 @@ export function AuthorLine({ post }: { post: Post }) {
           <Link href={`/u/${a.handle}`} className="name">{a.displayName}</Link>{' '}
           <Link href={`/u/${a.handle}`} className="handle muted">@{a.handle}</Link>
           {a.role === 'ops' && <span className="tag" title="Runs the room: moderates, invites, keeps it civil">admin</span>}
+          <BirthdayTag b={a.birthday} />
           {a.state === 'archived' && <span className="tag" title="This member's seat was released">archived</span>}
           {post.hidden && <span className="tag danger" title="Members can't see it; admins can, to review it">hidden after reports</span>}
         </>

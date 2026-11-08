@@ -31,6 +31,7 @@ export default function Settings() {
       <Win title="Control panel" className="panel" bodyClassName="panel-body">
         <Profile me={me} onSaved={setMe} />
         <Face me={me} onSaved={setMe} />
+        <BirthdaySec me={me} onSaved={setMe} />
         <Passkeys />
         <PushToggle />
         {seated && <Invites />}
@@ -107,6 +108,31 @@ function Face({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
         </fieldset>
       </div>
       {msg && <p role="status" className="muted">{msg}</p>}
+      <ErrorNote message={err} />
+    </section>
+  );
+}
+
+/** Your birthday (members can't change it; admins can) and whether the "birthday today" tag shows. */
+function BirthdaySec({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
+  const [shown, setShown] = useState(me.birthdayPublic);
+  const [err, setErr] = useState<string | null>(null);
+  async function toggle(v: boolean) {
+    setShown(v); setErr(null);
+    try { onSaved(await api.updateMe({ birthdayPublic: v })); } catch (e) { setShown(!v); setErr(errorMessage(e)); }
+  }
+  const pretty = me.birthday
+    ? new Date(`${me.birthday}T00:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+    : 'Not set';
+  return (
+    <section className="panel-sec" aria-labelledby="bday">
+      <h2 id="bday">Birthday</h2>
+      <p><strong>{pretty}</strong> <span className="muted small">Only an admin can change it.</span></p>
+      <label className="check">
+        <input type="checkbox" checked={shown} onChange={(e) => void toggle(e.target.checked)} />
+        Show a &ldquo;birthday today&rdquo; tag by my name on my day
+      </label>
+      <p className="muted small">Members never see your age or the year.</p>
       <ErrorNote message={err} />
     </section>
   );

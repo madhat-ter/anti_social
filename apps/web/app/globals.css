@@ -1001,3 +1001,10 @@ input[type=search]::-webkit-search-cancel-button {
 .setup-sec textarea { min-height: 13rem; }
 .setup-choices { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .55rem; min-width: 0; }
 .setup-choice { cursor: pointer; font-weight: 600; }
+/* Birthdays (RFC §10.3) */
+.tag.bday { background: var(--signal); color: var(--signal-ink); border-color: var(--signal); }
+.rail-bdays { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .45rem; }
+.rail-bdays a { display: flex; align-items: center; gap: .55rem; }
+.bday-line { margin: 0; }
+/* good news gets the red dot, not the warning mark */
+.banner.bday-line::before { content: ''; background: var(--signal); border-radius: 50%; width: 1.05rem; height: 1.05rem; left: 1.05rem; top: 1.1rem; }

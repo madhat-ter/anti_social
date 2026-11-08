@@ -73,7 +73,7 @@ export function AlertDialog({
   confirmLabel?: string;
   cancelLabel?: string | null;
   danger?: boolean;
-  input?: { label: string; placeholder?: string; maxLength?: number };
+  input?: { label: string; placeholder?: string; maxLength?: number; type?: 'text' | 'date'; max?: string };
   /** start on the cancel button: for confirmations where pressing Enter twice must not destroy anything */
   focusCancel?: boolean;
   onConfirm: (value: string) => void;
@@ -112,6 +112,8 @@ export function AlertDialog({
               <label className="dlg-input">
                 <span className="sr-only">{input.label}</span>
                 <input
+                  type={input.type ?? 'text'}
+                  max={input.max}
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
                   placeholder={input.placeholder}

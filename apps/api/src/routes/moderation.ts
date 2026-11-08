@@ -6,7 +6,7 @@ import type { Deps } from '../deps';
 import { ApiError } from '../lib/errors';
 import { generateInviteCode } from '../lib/crypto';
 import { banUser, flagPost, flagProject, flagQueue, removePost, removeProject, resolveFlags, resolveProjectFlags } from '../lib/moderation';
-import { adminMembers, getAdminSettings, renameMember, setMemberRole, unbanMember, updateAdminSettings } from '../lib/admin';
+import { adminMembers, getAdminSettings, renameMember, setMemberBirthday, setMemberRole, unbanMember, updateAdminSettings } from '../lib/admin';
 import { UUID_RE } from '../lib/posts';
 import { hit } from '../lib/ratelimit';
 import { authPlugin, requireSeated, requireUser } from '../plugins/auth';
@@ -79,6 +79,11 @@ export const moderationRoutes = (deps: Deps) => {
       const a = requireOps(auth);
       return renameMember(db, params.handle, body.handle, a.user.id);
     }, { body: t.Object({ handle: t.String({ maxLength: 40 }) }) })
+
+    .post('/ops/users/:handle/birthday', async ({ auth, params, body }) => {
+      const a = requireOps(auth);
+      return setMemberBirthday(db, storage, params.handle, body.birthday, !!body.confirmUnderage, a.user.id);
+    }, { body: t.Object({ birthday: t.String({ maxLength: 20 }), confirmUnderage: t.Optional(t.Boolean()) }) })
 
     .get('/ops/members', async ({ auth }) => {
       requireOps(auth);
