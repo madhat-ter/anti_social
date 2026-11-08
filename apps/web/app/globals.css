@@ -583,6 +583,13 @@ input[type=search]::-webkit-search-cancel-button {
 .posts:has(> .day-h:first-child) { border-top: 0; } /* the day header is the rule */
 .win.risk { margin-bottom: 1rem; }
 
+/* feed: posts that arrived since you opened it wait behind this until you ask */
+.new-posts {
+  align-self: center; font: 700 .95rem/1 var(--font-ui); cursor: pointer;
+  border: 2px solid var(--ink); border-radius: 999px; background: var(--signal); color: var(--signal-ink);
+  padding: .5rem 1rem; box-shadow: var(--shadow-sm); position: sticky; top: 4.2rem; z-index: 10;
+}
+.new-posts:hover { background: var(--ink); color: var(--paper); }
 /* empty lists: an invitation, not a shrug */
 .empty { border: 2px dashed var(--ink); padding: 1.5rem 1.25rem; font-size: 1.05rem; text-align: center; max-width: 34rem; margin: .5rem auto; }
 
@@ -1238,6 +1245,9 @@ ul.list.adm-interests li { flex-wrap: wrap; }
 .consult-thanks, .pf-thanks blockquote { margin: 0; padding-left: .9rem; border-left: 4px solid var(--signal); font-size: 1.05rem; white-space: pre-wrap; }
 .consult-stage { margin: 0; }
 .members-filter { margin: .25rem 0 .75rem; }
+.members-tools { gap: .6rem; margin: .25rem 0 .75rem; }
+.chip-n { margin-left: .4rem; opacity: .7; font-weight: 400; }
+.tag.new-tag { background: var(--ink); color: var(--paper); }
 .block { display: block; }
 .pf-consult { border-top: 3px solid var(--ink); padding: 1.4rem 1.6rem 1.6rem; display: flex; flex-direction: column; gap: .8rem; }
 .pf-consult-desc { margin: 0; max-width: 46rem; }

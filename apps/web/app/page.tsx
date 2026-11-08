@@ -81,11 +81,50 @@ function Landing() {
   );
 }
 
+/**
+ * New posts since the feed loaded, found by the same poll rhythm as the unread count (every 30 s
+ * while the tab is in front, and on focus). They wait behind a "3 new posts" pill rather than
+ * jumping the list, so nothing moves under a reader's thumb.
+ */
+function useNewPosts(p: ReturnType<typeof usePaged<Post>>) {
+  const [pending, setPending] = useState<Post[]>([]);
+  const items = p.items;
+  useEffect(() => {
+    if (p.loading) return;
+    let alive = true;
+    const check = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const page = await api.feed(null);
+        if (!alive) return;
+        const have = new Set(items.map((x) => x.id));
+        setPending((cur) => {
+          const known = new Set([...have, ...cur.map((x) => x.id)]);
+          const fresh = page.items.filter((x) => !x.parentId && !known.has(x.id));
+          return fresh.length ? [...fresh, ...cur] : cur;
+        });
+      } catch { /* next tick */ }
+    };
+    const t = setInterval(() => void check(), 30_000);
+    window.addEventListener('focus', check);
+    return () => { alive = false; clearInterval(t); window.removeEventListener('focus', check); };
+  }, [items, p.loading]);
+  const show = () => {
+    p.setItems((cur) => { const ids = new Set(cur.map((x) => x.id)); return [...pending.filter((x) => !ids.has(x.id)), ...cur]; });
+    setPending([]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  /** a post you just wrote is not "new" to you */
+  const forget = (id: string) => setPending((cur) => cur.filter((x) => x.id !== id));
+  return { pending, show, forget };
+}
+
 function FeedView({ onPosted }: { onPosted: () => void }) {
   useTitle('Feed');
   const wide = useWide();
   const readOnly = useReadOnly();
   const p = usePaged<Post>('feed', (c) => api.feed(c));
+  const fresh = useNewPosts(p);
   useEffect(() => {
     if (window.location.hash !== '#compose') return;
     const ta = document.querySelector<HTMLTextAreaElement>('#compose textarea');
@@ -102,10 +141,16 @@ function FeedView({ onPosted }: { onPosted: () => void }) {
           collapsible
           onCreated={(post) => {
             p.setItems((cur) => [post, ...cur.filter((x) => x.id !== post.id)]);
+            fresh.forget(post.id);
             onPosted();
           }}
         />
       </div>
+      {fresh.pending.length > 0 && (
+        <button type="button" className="new-posts" onClick={fresh.show} aria-live="polite">
+          {fresh.pending.length} new {fresh.pending.length === 1 ? 'post' : 'posts'} <span aria-hidden="true">↑</span>
+        </button>
+      )}
       {/* phones: the pick window sits after the first few posts, not before the first one */}
       <PostList
         p={p}

@@ -132,6 +132,8 @@ try {
   await theo.call('POST', '/events', { title: 'Saturday hike, north gate', description: 'An easy loop, three hours, coffee after.', startsAt: inDays(4), location: 'North gate, 7:00' });
   await ines.call('POST', '/events', { title: 'Long table dinner', description: 'Twelve chairs, one table, bring a dish.', startsAt: inDays(6), location: 'Elm Street café', capacity: 12 });
   await juno.call('POST', '/collabs', { title: 'Zine about the old market', description: 'We print a small zine about the stalls and the people who run them.', interests: ['writing', 'photography'], roles: ['Writer', 'Photographer'], teamMax: 4, joinMode: 'approve' });
+  await theo.call('PUT', '/me/interests', { interests: ['hiking', 'photography'] });
+  await ines.call('PUT', '/me/interests', { interests: ['photography', 'cooking'] });
 
   // ── 1. the phone: maya's session on a 390px screen
   const state = await deskCtx.storageState();
@@ -160,6 +162,17 @@ try {
   if (await ph.locator('.checklist .checklist-items').isVisible()) throw new Error('the checklist is not folded');
   await shot(ph, 'phone-feed');
   await shot(ph, 'phone-feed-full', true);
+
+  // ── 1b. somebody posts while the feed is open: a pill, not a jump
+  await juno.call('POST', '/posts', { body: 'Just finished the zine layout. Printing Thursday.' });
+  await ph.evaluate(() => window.dispatchEvent(new Event('focus')));
+  const pill = ph.getByRole('button', { name: /1 new post/ });
+  await pill.waitFor();
+  if (await ph.getByText('Just finished the zine layout').count()) throw new Error('the new post jumped into the feed');
+  await shot(ph, 'phone-new-posts-pill');
+  await pill.tap();
+  await ph.getByText('Just finished the zine layout').waitFor();
+  await pill.waitFor({ state: 'hidden' });
 
   // ── 2. tap to write: the composer opens
   await ph.getByPlaceholder('What is on your mind?').tap();
@@ -198,6 +211,16 @@ try {
   await bar.getByRole('link', { name: 'Members' }).tap();
   await ph.getByText(/of 20 seats taken/).waitFor();
   await shot(ph, 'phone-members');
+  // the interest chips narrow the room
+  await ph.getByRole('button', { name: /^Hiking/ }).tap();
+  await ph.getByText('Theo Park').waitFor();
+  if (await ph.locator('.seatmap li').count() !== 1) throw new Error('the Hiking chip did not narrow the list to one');
+  await shot(ph, 'phone-members-filtered');
+  await ph.getByRole('button', { name: 'Everyone' }).tap();
+  await ph.getByLabel('Find a member').fill('ines');
+  await ph.getByText('Inês Moreau').waitFor();
+  if (await ph.locator('.seatmap li').count() !== 1) throw new Error('the search did not narrow the list to one');
+  await ph.getByLabel('Find a member').fill('');
   await bar.getByRole('link', { name: 'Collabs' }).tap();
   await ph.getByText('Zine about the old market').first().waitFor();
   await shot(ph, 'phone-collabs');
