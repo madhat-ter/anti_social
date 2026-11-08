@@ -32,15 +32,24 @@ const INK = 'currentColor';
 const PAPER = 'var(--paper)';
 const S = { stroke: INK, strokeWidth: 2.2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
 
-const HAIR_ORIGINAL = ['none', 'flat', 'spiky', 'side', 'bob', 'curly', 'cap', 'crown', 'beanie', 'quiff'] as const;
-type Hair = (typeof HAIR_ORIGINAL)[number] | 'long' | 'bun';
-const HAIR_WOMAN: readonly Hair[] = ['bob', 'curly', 'side', 'long', 'long', 'bun'];
-const HAIR_MAN: readonly Hair[] = ['none', 'flat', 'spiky', 'side', 'cap', 'beanie', 'quiff', 'curly'];
-const HAIR_ANY: readonly Hair[] = [...HAIR_ORIGINAL, 'long', 'bun'];
+/**
+ * Three hair sets that never overlap (2026-11-09): a woman's face must read as a woman, a man's as
+ * a man, and the two neutral choices (non-binary, prefer not to say, and "not set up yet") as
+ * neither. Women also always get lashes (earrings when the ears show); men may get a beard or a
+ * moustache; the neutral set gets none of those markers.
+ */
+type Hair =
+  | 'bob' | 'long' | 'bun' | 'curls' | 'ponytail' | 'braids'      // women
+  | 'flat' | 'spiky' | 'cap' | 'quiff' | 'buzz' | 'curly'         // men
+  | 'side' | 'mop' | 'wavy' | 'beanie' | 'crown';                  // neutral
+const HAIR_WOMAN: readonly Hair[] = ['bob', 'long', 'long', 'bun', 'curls', 'ponytail', 'braids'];
+const HAIR_MAN: readonly Hair[] = ['flat', 'spiky', 'cap', 'quiff', 'buzz', 'curly', 'flat'];
+const HAIR_NEUTRAL: readonly Hair[] = ['side', 'mop', 'wavy', 'beanie', 'crown', 'mop'];
 
 function face(seed: string, gender: Gender | null): ReactNode {
-  // no gender: the original seed and picks, so faces stay exactly as they were before setup
+  // the same handle and gender always draw the same face, everywhere
   const r = rng(hash(gender ? `${seed.toLowerCase()}|${gender}` : seed.toLowerCase()));
+  const set = gender === 'woman' ? 'woman' : gender === 'man' ? 'man' : 'neutral';
   const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(r() * xs.length)]!;
   const chance = (p: number) => r() < p;
   const jit = (n: number) => (r() - 0.5) * 2 * n;
@@ -72,12 +81,77 @@ function face(seed: string, gender: Gender | null): ReactNode {
   ) : null;
 
   // ── hair (some styles draw behind the head, some on top)
-  const hairStyle: Hair = pick<Hair>(!gender ? HAIR_ORIGINAL : gender === 'woman' ? HAIR_WOMAN : gender === 'man' ? HAIR_MAN : HAIR_ANY);
+  const hairStyle: Hair = pick<Hair>(set === 'woman' ? HAIR_WOMAN : set === 'man' ? HAIR_MAN : HAIR_NEUTRAL);
   let behind: ReactNode = null;
   let top: ReactNode = null;
   const { l, t } = head;
   const R = head.r;
   switch (hairStyle) {
+    case 'buzz': {
+      // a close crop: a band of stipple over the top of the head
+      const dots = Array.from({ length: 14 }, (_, i) => {
+        const x = l + 2 + ((R - l - 4) * i) / 13;
+        const dy = Math.sin((i / 13) * Math.PI) * 4;
+        return <circle key={i} cx={x} cy={t + 3 - dy + (i % 2) * 1.5} r={1.1} fill={INK} />;
+      });
+      top = <g>{dots}</g>;
+      break;
+    }
+    case 'curls':
+      // full curls: a crown of big rings that spills down both sides to the jaw
+      behind = (
+        <g>
+          {Array.from({ length: 7 }, (_, i) => (
+            <circle key={`b${i}`} cx={l - 3 + ((R - l + 6) * i) / 6} cy={t + 2 + (i % 2) * 3} r={6} fill={INK} {...S} />
+          ))}
+          {[0, 1, 2].map((i) => (
+            <g key={`s${i}`}>
+              <circle cx={l - 4} cy={t + 12 + i * 8} r={5.2} fill={INK} {...S} />
+              <circle cx={R + 4} cy={t + 12 + i * 8} r={5.2} fill={INK} {...S} />
+            </g>
+          ))}
+        </g>
+      );
+      break;
+    case 'ponytail':
+      // smooth top, a tail falling from one side behind the head
+      behind = <path d={`M${R + 2} ${t + 8} Q${R + 12} ${t + 14} ${R + 9} ${cy + 20} Q${R + 5} ${cy + 24} ${R + 3} ${cy + 16} Q${R + 6} ${cy + 4} ${R + 2} ${t + 8} Z`} fill={INK} {...S} />;
+      top = (
+        <g>
+          <path d={`M${l - 1} ${t + 10} Q${l} ${t - 4} ${cx} ${t - 4} Q${R} ${t - 4} ${R + 1} ${t + 10} Q${cx} ${t + 3} ${l - 1} ${t + 10} Z`} fill={INK} {...S} />
+          <circle cx={R + 3} cy={t + 7} r={2.2} fill={PAPER} {...S} strokeWidth={1.6} />
+        </g>
+      );
+      break;
+    case 'braids':
+      // a parted top and two braids down the sides, drawn as beads
+      behind = (
+        <g>
+          {[0, 1, 2, 3].map((i) => (
+            <g key={i}>
+              <circle cx={l - 3} cy={t + 12 + i * 6} r={3.2} fill={INK} {...S} strokeWidth={1.6} />
+              <circle cx={R + 3} cy={t + 12 + i * 6} r={3.2} fill={INK} {...S} strokeWidth={1.6} />
+            </g>
+          ))}
+        </g>
+      );
+      top = (
+        <g>
+          <path d={`M${l - 2} ${t + 11} Q${l} ${t - 3} ${cx} ${t - 3} Q${R} ${t - 3} ${R + 2} ${t + 11} Q${cx} ${t + 4} ${l - 2} ${t + 11} Z`} fill={INK} {...S} />
+          <path d={`M${cx} ${t - 2} L${cx} ${t + 5}`} stroke={PAPER} strokeWidth={1.4} strokeLinecap="round" />
+        </g>
+      );
+      break;
+    case 'mop':
+      // shaggy and medium: falls to the ears, fringe over the brow
+      behind = <path d={`M${l - 3} ${cy + 3} L${l - 3} ${t + 5} Q${cx} ${t - 8} ${R + 3} ${t + 5} L${R + 3} ${cy + 3} Q${R} ${cy + 6} ${R - 2} ${cy + 2} L${l + 2} ${cy + 2} Q${l} ${cy + 6} ${l - 3} ${cy + 3} Z`} fill={INK} {...S} />;
+      top = <path d={`M${l - 1} ${t + 12} Q${l + 3} ${t - 3} ${cx} ${t - 2} Q${R - 2} ${t - 3} ${R + 1} ${t + 12} L${R - 3} ${t + 7} L${cx + 4} ${t + 11} L${cx - 2} ${t + 6} L${l + 4} ${t + 11} Z`} fill={INK} {...S} />;
+      break;
+    case 'wavy':
+      // medium waves to the jaw, no fringe
+      behind = <path d={`M${l - 4} ${cy + 10} Q${l - 7} ${cy + 2} ${l - 4} ${t + 6} Q${cx} ${t - 9} ${R + 4} ${t + 6} Q${R + 7} ${cy + 2} ${R + 4} ${cy + 10} Q${R + 1} ${cy + 13} ${R - 1} ${cy + 9} L${l + 1} ${cy + 9} Q${l - 1} ${cy + 13} ${l - 4} ${cy + 10} Z`} fill={INK} {...S} />;
+      top = <path d={`M${l} ${t + 8} Q${cx} ${t - 2} ${R} ${t + 8} Q${cx} ${t + 2} ${l} ${t + 8} Z`} fill={INK} {...S} />;
+      break;
     case 'flat':
       top = <path d={`M${l - 1} ${t + 9} L${l - 1} ${t + 2} Q${cx} ${t - 5} ${R + 1} ${t + 2} L${R + 1} ${t + 9} Q${cx} ${t + 4} ${l - 1} ${t + 9} Z`} fill={INK} {...S} />;
       break;
@@ -233,9 +307,9 @@ function face(seed: string, gender: Gender | null): ReactNode {
     <path key="frown" d={`M${cx - mw} ${my + 2} Q${cx} ${my - 2} ${cx + mw} ${my + 2}`} {...S} fill="none" />,
   ]);
 
-  // ── facial hair (the roll is always made, so faces without a gender keep their old picks)
+  // ── facial hair: men only (about two in five); never on the other sets
   const fhRoll = pick(['none', 'none', 'none', 'mustache', 'beard'] as const);
-  const fh = !gender || gender === 'man' ? fhRoll : 'none';
+  const fh = set === 'man' ? fhRoll : 'none';
   let facial: ReactNode = null;
   if (fh === 'mustache') {
     facial = <path d={`M${cx - 7} ${my - 1} Q${cx - 3} ${my - 5} ${cx} ${my - 2.5} Q${cx + 3} ${my - 5} ${cx + 7} ${my - 1} Q${cx + 3} ${my - 2} ${cx} ${my - 1} Q${cx - 3} ${my - 2} ${cx - 7} ${my - 1} Z`} fill={INK} {...S} strokeWidth={1.4} />;
@@ -253,15 +327,18 @@ function face(seed: string, gender: Gender | null): ReactNode {
     );
   }
 
-  // ── a few touches some women's faces get: lashes, earrings
-  const lashes = gender === 'woman' && (eyesStyle === 'dots' || eyesStyle === 'ring' || eyesStyle === 'sleepy') && chance(0.6) ? (
+  // ── women's faces always get lashes (glasses hide them, so those faces get earrings instead)
+  const bareEyes = eyesStyle === 'dots' || eyesStyle === 'ring' || eyesStyle === 'sleepy' || eyesStyle === 'wink';
+  const lashes = set === 'woman' && bareEyes ? (
     <g>
       <path d={`M${cx - dx - 2.5} ${ey - 2.5} L${cx - dx - 4.5} ${ey - 4.5} M${cx - dx - 0.5} ${ey - 3} L${cx - dx - 1} ${ey - 5.5}`} {...S} strokeWidth={1.5} />
       <path d={`M${cx + dx + 2.5} ${ey - 2.5} L${cx + dx + 4.5} ${ey - 4.5} M${cx + dx + 0.5} ${ey - 3} L${cx + dx + 1} ${ey - 5.5}`} {...S} strokeWidth={1.5} />
     </g>
   ) : null;
-  const showEars = ears && hairStyle !== 'long';
-  const earrings = gender === 'woman' && showEars && chance(0.4) ? (
+  const hidesEars = hairStyle === 'long' || hairStyle === 'curls' || hairStyle === 'braids' || hairStyle === 'wavy';
+  const showEars = ears && !hidesEars;
+  const earRoll = chance(0.6);
+  const earrings = set === 'woman' && showEars && (earRoll || !bareEyes) ? (
     <g fill={INK}>
       <circle cx={head.l - 1} cy={cy + 6.5} r={1.7} />
       <circle cx={head.r + 1} cy={cy + 6.5} r={1.7} />

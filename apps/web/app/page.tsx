@@ -71,7 +71,8 @@ function Landing() {
         <div className="seat-grid" aria-hidden="true">
           {SEATS.map((s, i) => (
             <span key={s} className="seat" style={{ '--d': `${seatDelay(i)}ms` } as React.CSSProperties}>
-              <Avatar seed={s} size={44} />
+              {/* half women, half men, scattered the same way the seats fill */}
+              <Avatar seed={s} gender={((i * 37) % 100) % 2 ? 'woman' : 'man'} size={44} />
             </span>
           ))}
         </div>

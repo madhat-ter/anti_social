@@ -663,10 +663,14 @@ settings stay open. People still waiting for a seat see only their status page, 
   *is* the portfolio's About (same rule in the portfolio editor), so a portfolio is never empty. The
   short 160-character bio is unchanged and optional.
 - **Gender**: Woman / Man / Non-binary / Prefer not to say. It only shapes the drawn face and is never
-  shown as text; it can change any time in Settings. Faces are generated from handle + gender: women
-  never get facial hair and draw from bob, curly, side, long and bun (some get lashes or earrings);
-  men keep the short styles and may have a beard or moustache; non-binary and prefer-not-to-say get
-  any hairstyle and no facial hair. Without a gender (not set up yet) the original face is drawn.
+  shown as text; it can change any time in Settings. Faces are generated from handle + gender, from
+  three hair sets that never overlap (redrawn 2026-11-09 after a woman's face came out looking like a
+  man's): women draw from bob, long, bun, full curls, ponytail and braids, always get lashes (or
+  earrings where glasses hide the lashes) and never facial hair; men draw from flat, spiky, cap,
+  quiff, buzz and short curls and may have a beard or moustache; non-binary, prefer-not-to-say and
+  "not set up yet" draw from side, mop, wavy, beanie and crown with none of those markers. The
+  landing page's hundred seats are half women, half men. `/dev/faces` shows 200 + 200 + 100 samples
+  for checking. Every change to the sets redraws every face; it was done once while the room was small.
 - **Birthday**: a date; under 13 the app asks "is that right?" and then the account is closed (the
   birthday is never stored); future dates and ages over 120 are refused. Members can't change it;
   admins can correct it (same under-13 rule, with a confirmation). Only month and day are ever shared,
