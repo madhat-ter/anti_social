@@ -34,7 +34,7 @@ function describe(n: Notification): string {
   if (n.kind === 'reinstated') return 'Payment received. Welcome back, your seat is yours again.';
   if (n.kind === 'payment_refunded') return 'Your payment was refunded.';
   if (n.kind === 'post_removed') return 'A moderator removed one of your posts after it was reported.';
-  if (n.kind === 'flag_threshold') return 'A post was hidden after 5 reports and needs review (bun run ops -- flags).';
+  if (n.kind === 'flag_threshold') return 'Something was hidden after 5 reports and needs review in Admin.';
   return n.post ? `${who} interacted with your post` : 'Account update';
 }
 
@@ -81,7 +81,8 @@ function Notifications() {
       {p.items.length > 0 && (
         <ul className="notifs card">
           {p.items.map((n) => {
-            const href = n.post ? `/p/${n.post.rootId ?? n.post.id}#${n.post.id}` : n.event ? `/events/${n.event.id}` : null;
+            const href = n.kind === 'flag_threshold' ? '/admin'
+              : n.post ? `/p/${n.post.rootId ?? n.post.id}#${n.post.id}` : n.event ? `/events/${n.event.id}` : null;
             const body = (
               <>
                 {n.actor

@@ -85,6 +85,7 @@ function NavBar({ me }: { me: Me }) {
     { href: '/search', label: 'Search', match: (p) => p === '/search' },
     { href: '/notifications', label: 'Notifications', match: (p) => p === '/notifications', badge: unread },
     { href: '/settings', label: 'Settings', match: (p) => p === '/settings' },
+    ...(me.role === 'ops' ? [{ href: '/admin', label: 'Admin', match: (p: string) => p === '/admin' }] : []),
   ];
 
   return (

@@ -27,6 +27,9 @@ describe('flags and ops', () => {
     const author = await w.member('auth0r');
     const ops = await w.member('opsy');
     await setOps(w.t.db, 'opsy', true);
+    // the web app shows the Admin page from this
+    expect((await ops.get('/me')).body.role).toBe('ops');
+    expect((await author.get('/me')).body.role).toBe('member');
     const reporters: Client[] = [];
     for (let i = 1; i <= 5; i++) reporters.push(await w.member(`rep${i}`));
 

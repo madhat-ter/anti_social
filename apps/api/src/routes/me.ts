@@ -70,7 +70,7 @@ export const meRoutes = (deps: Deps) => {
     }
     const iso = (d: Date | null) => (d ? d.toISOString() : null);
     return {
-      id: u.id, handle: u.handle, displayName: u.displayName, bio: u.bio, state: u.state,
+      id: u.id, handle: u.handle, displayName: u.displayName, bio: u.bio, state: u.state, role: u.role,
       invitedBy, activatedAt: iso(u.activatedAt), lastSeenAt: iso(u.lastSeenAt),
       lurkerExemptUntil: iso(u.lurkerExemptUntil), waitlist: wl, lurker, archived,
     };

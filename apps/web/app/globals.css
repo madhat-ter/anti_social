@@ -975,3 +975,7 @@ input[type=search]::-webkit-search-cancel-button {
   .pf-edit-entry { grid-template-columns: 1fr; }
   .hero-type .outline { -webkit-text-stroke-width: 2px; }
 }
+
+/* Admin page */
+.adm-reports > li { align-items: stretch; }
+.adm-body { white-space: pre-wrap; overflow-wrap: anywhere; border-left: 3px solid currentColor; padding-left: .6rem; }

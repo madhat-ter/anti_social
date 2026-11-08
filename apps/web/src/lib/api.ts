@@ -6,6 +6,8 @@ export interface Me {
   displayName: string;
   bio: string;
   state: UserState;
+  /** 'ops' = moderator: sees the Admin page */
+  role: 'member' | 'ops';
   invitedBy: { handle: string } | null;
   activatedAt: string | null;
   lastSeenAt: string | null;
@@ -13,6 +15,19 @@ export interface Me {
   waitlist: { position: number; total: number; priority: 'reinstating' | 'new'; offeredUntil: string | null } | null;
   lurker: { flaggedAt: string; graceEndsAt: string; contributions: number; required: number } | null;
   archived: { reason: 'inactive' | 'lurker_grace_expired' | 'waitlist_decay' | string; wasMember: boolean } | null;
+}
+
+/** One reported post or project in the moderation queue. */
+export interface FlagItem {
+  kind: 'post' | 'project';
+  postId?: string;
+  projectId?: string;
+  body: string;
+  author: string | null;
+  hidden: boolean;
+  flags: number;
+  reasons: string[];
+  firstFlaggedAt: string;
 }
 
 export interface PasskeyInfo { id: string; deviceLabel: string | null; createdAt: string; lastUsedAt: string | null }
@@ -273,6 +288,14 @@ export const api = {
   pushSubscribe: (b: { endpoint: string; keys: { p256dh: string; auth: string } }) => post<{ ok: true }>('/push/subscriptions', b),
   pushUnsubscribe: (endpoint: string) => call<{ ok: true }>('DELETE', '/push/subscriptions', { endpoint }),
 
+  opsFlags: () => get<FlagItem[]>('/ops/flags'),
+  opsResolvePost: (id: string, resolution: 'restored' | 'removed') =>
+    post<{ resolution: string }>(`/ops/flags/${encodeURIComponent(id)}/resolve`, { resolution }),
+  opsResolveProject: (id: string, resolution: 'restored' | 'removed') =>
+    post<{ resolution: string }>(`/ops/projects/${encodeURIComponent(id)}/resolve`, { resolution }),
+  opsBan: (handle: string) => post<{ banned: string }>(`/ops/users/${encodeURIComponent(handle)}/ban`, {}),
+  opsInvites: (count: number) => post<{ code: string; expiresAt: string }[]>('/ops/invites', { count }),
+
   pricing: () => get<Price[]>('/pricing'),
   checkout: (productKey: ProductKey) => post<{ url: string }>('/payments/checkout', { productKey }),
   myPayments: () => get<PaymentRecord[]>('/me/payments'),
@@ -331,6 +354,9 @@ const MESSAGES: Record<string, string> = {
   not_host: 'Only the host can do that.',
   own_post: 'You cannot report your own post.',
   own_project: 'You cannot report your own project.',
+  no_open_flags: 'Those reports were already handled. Refresh the list.',
+  cannot_ban_ops: 'That member is an admin. Remove their admin role first.',
+  already_gone: 'That member is already banned or deleted.',
   capacity_below_going: 'More people are already going than that capacity allows.',
   attendance_closed: 'Attendance can be confirmed from the start time until 14 days after.',
 };
