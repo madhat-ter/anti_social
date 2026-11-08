@@ -41,3 +41,5 @@ services:
         value: "true"
       - key: TRUST_PROXY
         value: "true"
+      - key: BOOTSTRAP_INVITES # first boot on an empty database prints 3 invite codes in the log
+        value: "3"

@@ -4,6 +4,7 @@ import { createApp } from './app';
 import { startScheduler } from './lib/jobs';
 import { loadPushSender } from './lib/push';
 import { loadStorage } from './lib/storage';
+import { bootstrapInvites, bootstrapOps } from './lib/bootstrap';
 
 const cfg = loadConfig();
 const url = process.env.DATABASE_URL;
@@ -14,6 +15,8 @@ if (process.env.MIGRATE_ON_BOOT === 'true') {
   console.log('migrations applied');
 }
 const { db } = createDb(url);
+if (process.env.BOOTSTRAP_INVITES) await bootstrapInvites(db, Number(process.env.BOOTSTRAP_INVITES));
+if (process.env.OPS_HANDLES) await bootstrapOps(db, process.env.OPS_HANDLES);
 // API_PORT locally; PORT is what Render/Fly/Railway hand the process.
 const port = Number(process.env.API_PORT ?? process.env.PORT ?? 3001);
 const storage = loadStorage(db);

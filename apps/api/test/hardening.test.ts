@@ -114,6 +114,22 @@ describe('database image storage (STORAGE=db)', () => {
   });
 });
 
+describe('boot-time founder invites (BOOTSTRAP_INVITES)', () => {
+  test('minted only on an empty site with no open founder invite; codes are valid', async () => {
+    const { bootstrapInvites } = await import('../src/lib/bootstrap');
+    const w = await world();
+    const lines: string[] = [];
+    // world() starts with no members and no invites
+    const codes = await bootstrapInvites(w.t.db, 3, (l) => lines.push(l));
+    expect(codes).toHaveLength(3);
+    expect(lines[0]).toContain(codes[0]);
+    expect((await w.client().post('/invites/check', { code: codes[0] })).body.valid).toBe(true);
+    // a restart while those are still open mints nothing new
+    expect(await bootstrapInvites(w.t.db, 3, () => {})).toEqual([]);
+    expect(await bootstrapInvites(w.t.db, 0, () => {})).toEqual([]);
+  });
+});
+
 describe('production safety', () => {
   test('refuses dev settings in production; API responses carry security headers', async () => {
     const { loadConfig } = await import('../src/config');
