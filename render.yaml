@@ -1,25 +1,36 @@
-# Render Blueprint for a FREE test deploy of the API (see docs/deploy-free.md).
-# Values marked sync: false are asked for when you create the Blueprint.
+# Render Blueprint for a FREE test deploy (see docs/deploy-free.md): the API plus its Postgres.
+# Render wires DATABASE_URL itself, so nothing secret is typed anywhere.
+# Free Postgres on Render expires 30 days after creation; fine for testing, not for launch.
+databases:
+  - name: anti-db
+    plan: free
+    region: singapore
+    databaseName: anti
+    user: anti
+    postgresMajorVersion: "17"
+
 services:
   - type: web
     name: anti-api
     runtime: docker
     plan: free
-    region: singapore # same region as the Neon database
+    region: singapore # same region as the database
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DATABASE_URL # Neon *direct* connection string (not the -pooler one)
-        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: anti-db
+          property: connectionString
       - key: DATABASE_POOL_MAX
         value: "5"
-      - key: RP_ID # e.g. anti-test.vercel.app (the web app's host, no https://)
-        sync: false
-      - key: WEB_ORIGIN # e.g. https://anti-test.vercel.app
-        sync: false
+      - key: RP_ID # the web app's host (Vercel production domain)
+        value: anti-social-opal.vercel.app
+      - key: WEB_ORIGIN
+        value: https://anti-social-opal.vercel.app
       - key: MIGRATE_ON_BOOT
         value: "true"
       - key: STORAGE # images in Postgres: the free plan has no disk
