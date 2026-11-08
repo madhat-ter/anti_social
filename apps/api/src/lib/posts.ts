@@ -3,13 +3,18 @@ import { rows, type Db } from '@anti/db';
 import { EDIT_WINDOW_MINUTES, PAGE_DEFAULT_LIMIT, PAGE_MAX_LIMIT } from '@anti/shared';
 import { ApiError } from './errors';
 
-export type Author = { handle: string; displayName: string; state: string };
+/** `role` 'ops' = an admin: the app shows an "admin" tag by the name. */
+export type Author = { handle: string; displayName: string; state: string; role?: string };
 export type Image = { id: string; url: string; width: number; height: number };
 export type Post = {
   id: string; body: string; createdAt: string; editedAt: string | null; deleted: boolean;
   author: Author | null; parentId: string | null; rootId: string | null;
   replyCount: number; likeCount: number; likedByMe: boolean; images: Image[];
   canEdit: boolean; canDelete: boolean; canReport: boolean;
+  /** the viewer is an admin and can remove this post (someone else's) */
+  canModerate: boolean;
+  /** hidden after reports: only ever true for an admin reviewing it (everyone else never gets it) */
+  hidden: boolean;
 };
 export type Page<T> = { items: T[]; nextCursor: string | null };
 
@@ -63,8 +68,9 @@ export function postSelect(viewerId: string): SQL {
   return sql`
     select p.id, p.body, p.created_at::text as cursor_ts,
       ${iso(sql`p.created_at`)} as created_iso, ${iso(sql`p.edited_at`)} as edited_iso,
-      (p.deleted_at is not null) as is_deleted, p.parent_id, p.root_id, p.author_id,
-      u.handle as a_handle, u.display_name as a_display, u.state as a_state,
+      (p.deleted_at is not null) as is_deleted, (p.hidden_at is not null) as is_hidden, p.parent_id, p.root_id, p.author_id,
+      u.handle as a_handle, u.display_name as a_display, u.state as a_state, u.role as a_role,
+      exists(select 1 from users v where v.id = ${viewerId}::uuid and v.role = 'ops') as viewer_ops,
       case when p.root_id is null
         then (select count(*)::int from posts r where r.root_id = p.id and r.deleted_at is null and r.hidden_at is null)
         else (select count(*)::int from posts r where r.parent_id = p.id and r.deleted_at is null and r.hidden_at is null)
@@ -79,8 +85,9 @@ export function postSelect(viewerId: string): SQL {
 
 export type PostRow = {
   id: string; body: string; cursor_ts: string; created_iso: string; edited_iso: string | null;
-  is_deleted: boolean; parent_id: string | null; root_id: string | null; author_id: string | null;
-  a_handle: string | null; a_display: string | null; a_state: string | null;
+  is_deleted: boolean; is_hidden?: boolean | null; parent_id: string | null; root_id: string | null; author_id: string | null;
+  a_handle: string | null; a_display: string | null; a_state: string | null; a_role?: string | null;
+  viewer_ops?: boolean | null;
   reply_count: number; like_count: number; liked_by_me: boolean;
   images: Array<{ id: string; key: string; width: number; height: number }> | string;
 };
@@ -92,7 +99,7 @@ export function toPost(r: PostRow, viewerId: string): Post {
   const withinWindow = Date.now() - new Date(r.created_iso).getTime() <= EDIT_WINDOW_MINUTES * 60_000;
   const author: Author | null =
     r.a_handle && r.a_state && r.a_state !== 'deleted'
-      ? { handle: r.a_handle, displayName: r.a_display ?? r.a_handle, state: r.a_state }
+      ? { handle: r.a_handle, displayName: r.a_display ?? r.a_handle, state: r.a_state, role: r.a_role ?? 'member' }
       : null;
   return {
     id: r.id,
@@ -110,6 +117,8 @@ export function toPost(r: PostRow, viewerId: string): Post {
     canEdit: mine && !deleted && withinWindow,
     canDelete: mine && !deleted,
     canReport: !mine && !deleted,
+    canModerate: !!r.viewer_ops && !mine && !deleted,
+    hidden: !!r.is_hidden,
   };
 }
 

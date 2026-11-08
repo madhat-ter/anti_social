@@ -5,13 +5,17 @@ import { formatInviteCode } from '@anti/shared';
 import type { Deps } from '../deps';
 import { ApiError } from '../lib/errors';
 import { generateInviteCode } from '../lib/crypto';
-import { banUser, flagPost, flagProject, flagQueue, resolveFlags, resolveProjectFlags } from '../lib/moderation';
+import { banUser, flagPost, flagProject, flagQueue, removePost, removeProject, resolveFlags, resolveProjectFlags } from '../lib/moderation';
+import { adminMembers, getAdminSettings, renameMember, setMemberRole, unbanMember, updateAdminSettings } from '../lib/admin';
 import { UUID_RE } from '../lib/posts';
 import { hit } from '../lib/ratelimit';
 import { authPlugin, requireSeated, requireUser } from '../plugins/auth';
 import type { Auth } from '../lib/sessions';
 
-/** Ops is a backend role (RFC §2): no UI, just these endpoints and the ops CLI. Unknown to members → 404. */
+/**
+ * Ops = the site's admins (moderators). They use these endpoints from the Admin page (and the
+ * ops CLI). To members the endpoints do not exist: 404.
+ */
 function requireOps(auth: Auth | null): Auth {
   const a = requireUser(auth);
   if (a.user.role !== 'ops') throw new ApiError(404, 'not_found');
@@ -58,7 +62,55 @@ export const moderationRoutes = (deps: Deps) => {
 
     .post('/ops/users/:handle/ban', async ({ auth, params }) => {
       const a = requireOps(auth);
-      return banUser(db, params.handle, a.user.id);
+      return banUser(db, params.handle.replace(/^@/, ''), a.user.id);
+    })
+
+    .post('/ops/users/:handle/unban', async ({ auth, params }) => {
+      const a = requireOps(auth);
+      return unbanMember(db, params.handle, a.user.id);
+    })
+
+    .post('/ops/users/:handle/role', async ({ auth, params, body }) => {
+      const a = requireOps(auth);
+      return setMemberRole(db, params.handle, body.role, a.user.id);
+    }, { body: t.Object({ role: t.Union([t.Literal('ops'), t.Literal('member')]) }) })
+
+    .post('/ops/users/:handle/handle', async ({ auth, params, body }) => {
+      const a = requireOps(auth);
+      return renameMember(db, params.handle, body.handle, a.user.id);
+    }, { body: t.Object({ handle: t.String({ maxLength: 40 }) }) })
+
+    .get('/ops/members', async ({ auth }) => {
+      requireOps(auth);
+      return adminMembers(db);
+    })
+
+    .post('/ops/posts/:id/remove', async ({ auth, params }) => {
+      const a = requireOps(auth);
+      if (!UUID_RE.test(params.id)) throw new ApiError(404, 'not_found');
+      return removePost(db, storage, params.id, a.user.id);
+    })
+
+    .post('/ops/projects/:id/remove', async ({ auth, params }) => {
+      const a = requireOps(auth);
+      if (!UUID_RE.test(params.id)) throw new ApiError(404, 'not_found');
+      return removeProject(db, storage, params.id, a.user.id);
+    })
+
+    .get('/ops/settings', async ({ auth }) => {
+      requireOps(auth);
+      return getAdminSettings(db);
+    })
+
+    .patch('/ops/settings', async ({ auth, body }) => {
+      requireOps(auth);
+      return updateAdminSettings(db, body);
+    }, {
+      body: t.Object({
+        seatCap: t.Optional(t.Number()),
+        invitesPerMember: t.Optional(t.Number()),
+        inviteExpiryDays: t.Optional(t.Number()),
+      }),
     })
 
     .post('/ops/invites', async ({ auth, body }) => {

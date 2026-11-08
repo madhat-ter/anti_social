@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { RULES } from '@anti/shared';
 import { api, type AnEvent, type Me, type MemberSummary } from '@/lib/api';
-import { membersCached } from '@/lib/members';
+import { membersCached, seatCapCached } from '@/lib/members';
 import { Avatar } from './Avatar';
 import { Win } from './retro';
 
@@ -28,8 +28,10 @@ function You({ me }: { me: Me }) {
 
 function Seats({ me }: { me: Me }) {
   const [members, setMembers] = useState<MemberSummary[] | null>(null);
+  const [seatCap, setSeatCap] = useState<number>(RULES.seat_cap);
   useEffect(() => { membersCached().then(setMembers, () => setMembers(null)); }, []);
-  const cap = Math.max(RULES.seat_cap, members?.length ?? 0);
+  useEffect(() => { seatCapCached().then(setSeatCap); }, []);
+  const cap = Math.max(seatCap, members?.length ?? 0);
   return (
     <Win title="seats" as="section" bodyClassName="stack rail-seats">
       <div className="seat-chart small" role="img" aria-label={members ? `${members.length} of ${cap} seats taken` : 'Seats'}>

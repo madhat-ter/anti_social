@@ -31,13 +31,14 @@ function cleanBody(raw: string | undefined, allowEmpty: boolean): string {
 export const postRoutes = (deps: Deps) => {
   const { db, storage } = deps;
 
-  async function visiblePost(id: string) {
+  /** A post anyone may act on: not hidden after reports (`withHidden`: admins reviewing a thread). */
+  async function visiblePost(id: string, withHidden = false) {
     if (!UUID_RE.test(id)) return null;
     const [p] = await rows<{ id: string; author_id: string | null; root_id: string | null; created_ms: number; deleted: boolean }>(
       db,
       sql`select id, author_id, root_id, (extract(epoch from created_at) * 1000)::float8 as created_ms,
                  (deleted_at is not null) as deleted
-          from posts where id = ${id}::uuid and hidden_at is null`,
+          from posts where id = ${id}::uuid ${withHidden ? sql`` : sql`and hidden_at is null`}`,
     );
     return p ?? null;
   }
@@ -116,14 +117,17 @@ export const postRoutes = (deps: Deps) => {
     .get('/posts/:id', async ({ auth, params }) => {
       const a = requireSeated(auth);
       const uid = a.user.id;
-      const target = await visiblePost(params.id);
+      // admins see posts hidden after reports (marked hidden) so they can review them; nobody else does
+      const ops = a.user.role === 'ops';
+      const notHidden = ops ? sql`` : sql`and p.hidden_at is null`;
+      const target = await visiblePost(params.id, ops);
       if (!target) throw new ApiError(404, 'not_found');
       const rootId = target.root_id ?? target.id;
-      const [rootRow] = await rows<PostRow>(db, sql`${postSelect(uid)} where p.id = ${rootId}::uuid and p.hidden_at is null`);
+      const [rootRow] = await rows<PostRow>(db, sql`${postSelect(uid)} where p.id = ${rootId}::uuid ${notHidden}`);
       if (!rootRow) throw new ApiError(404, 'not_found');
       const replyRows = await rows<PostRow>(db, sql`
         ${postSelect(uid)}
-        where p.root_id = ${rootId}::uuid and p.hidden_at is null
+        where p.root_id = ${rootId}::uuid ${notHidden}
         order by p.created_at asc, p.id asc
         limit 1000`);
       return { root: toPost(rootRow, uid), replies: replyRows.map((r) => toPost(r, uid)), focusId: params.id };

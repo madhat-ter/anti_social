@@ -30,6 +30,15 @@ export interface FlagItem {
   firstFlaggedAt: string;
 }
 
+/** One person in the admin's member list (everyone except deleted accounts). */
+export interface AdminMember {
+  handle: string; displayName: string; state: UserState; role: 'member' | 'ops';
+  joinedAt: string; activatedAt: string | null; lastSeenAt: string | null;
+  invitedBy: string | null; postCount: number;
+}
+/** The room's settings an admin can change, plus seats in use. */
+export interface AdminSettings { seatCap: number; invitesPerMember: number; inviteExpiryDays: number; seatsUsed: number }
+
 export interface PasskeyInfo { id: string; deviceLabel: string | null; createdAt: string; lastUsedAt: string | null }
 export interface InviteInfo {
   createdAt: string;
@@ -47,7 +56,8 @@ export class ApiError extends Error {
   }
 }
 
-export type Author = { handle: string; displayName: string; state: UserState } | null;
+/** `role` 'ops' = an admin (shown with an "admin" tag). */
+export type Author = { handle: string; displayName: string; state: UserState; role?: 'member' | 'ops' } | null;
 export interface Image { id: string; url: string; width: number; height: number }
 export interface Post {
   id: string;
@@ -65,6 +75,10 @@ export interface Post {
   canEdit: boolean;
   canDelete: boolean;
   canReport: boolean;
+  /** you are an admin and this is someone else's post: you can remove it */
+  canModerate: boolean;
+  /** hidden after reports: only admins reviewing it ever see such a post */
+  hidden?: boolean;
 }
 export type SuggestionKind = 'movie' | 'book' | 'place' | 'food';
 /** A member's pick: a movie, book, place or food they suggest. */
@@ -118,6 +132,8 @@ export interface Project extends ProjectFields {
   /** hidden after reports: only the owner still sees it, until a moderator decides */
   hidden: boolean;
   canReport: boolean;
+  /** you are an admin and this is someone else's project: you can remove it */
+  canModerate: boolean;
   createdAt: string; updatedAt: string;
 }
 /** One line of the contents list. `hidden` is only ever true for the owner. */
@@ -133,6 +149,8 @@ export interface MemberSummary {
   displayName: string;
   bio: string;
   state: UserState;
+  /** 'ops' = an admin */
+  role: 'member' | 'ops';
   invitedBy: { handle: string } | null;
   activatedAt: string | null;
   postCount: number;
@@ -148,6 +166,10 @@ export interface Notification {
   actor: { handle: string; displayName: string } | null;
   post: { id: string; rootId: string | null; snippet: string } | null;
   event: { id: string; title: string } | null;
+  /** handle_changed: your new handle */
+  newHandle?: string | null;
+  /** project_removed: the project's title */
+  projectTitle?: string | null;
 }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 export type RsvpStatus = 'going' | 'waitlisted' | 'cancelled';
@@ -294,7 +316,18 @@ export const api = {
   opsResolveProject: (id: string, resolution: 'restored' | 'removed') =>
     post<{ resolution: string }>(`/ops/projects/${encodeURIComponent(id)}/resolve`, { resolution }),
   opsBan: (handle: string) => post<{ banned: string }>(`/ops/users/${encodeURIComponent(handle)}/ban`, {}),
+  opsUnban: (handle: string) => post<{ handle: string; state: UserState }>(`/ops/users/${encodeURIComponent(handle)}/unban`, {}),
+  opsSetRole: (handle: string, role: 'ops' | 'member') =>
+    post<{ handle: string; role: string }>(`/ops/users/${encodeURIComponent(handle)}/role`, { role }),
+  opsRename: (handle: string, next: string) =>
+    post<{ from: string; handle: string }>(`/ops/users/${encodeURIComponent(handle)}/handle`, { handle: next }),
+  opsMembers: () => get<AdminMember[]>('/ops/members'),
+  opsRemovePost: (id: string) => post<{ removed: true }>(`/ops/posts/${encodeURIComponent(id)}/remove`, {}),
+  opsRemoveProject: (id: string) => post<{ removed: true }>(`/ops/projects/${encodeURIComponent(id)}/remove`, {}),
+  opsSettings: () => get<AdminSettings>('/ops/settings'),
+  opsUpdateSettings: (b: Partial<Omit<AdminSettings, 'seatsUsed'>>) => call<AdminSettings>('PATCH', '/ops/settings', b),
   opsInvites: (count: number) => post<{ code: string; expiresAt: string }[]>('/ops/invites', { count }),
+  seats: () => get<{ cap: number; used: number }>('/seats'),
 
   pricing: () => get<Price[]>('/pricing'),
   checkout: (productKey: ProductKey) => post<{ url: string }>('/payments/checkout', { productKey }),
@@ -317,7 +350,7 @@ const MESSAGES: Record<string, string> = {
   no_seat: 'You need a seat to do that.',
   bad_origin: 'Request blocked. Reload the page and try again.',
   invite_invalid: 'That invite code is not valid, or has already been used.',
-  handle_invalid: 'That handle is not allowed.',
+  handle_invalid: 'Handles are 3–20 letters, digits or underscores, start with a letter, and a few words (like admin) are reserved.',
   handle_taken: 'That handle is taken.',
   passkey_invalid: 'That passkey was not recognised.',
   account_unavailable: 'This account is unavailable.',
@@ -357,6 +390,9 @@ const MESSAGES: Record<string, string> = {
   no_open_flags: 'Those reports were already handled. Refresh the list.',
   cannot_ban_ops: 'That member is an admin. Remove their admin role first.',
   already_gone: 'That member is already banned or deleted.',
+  not_banned: 'That member is not banned.',
+  last_admin: 'The site needs at least one admin. Make someone else admin first.',
+  not_seated: 'Only members with a seat can be admins.',
   capacity_below_going: 'More people are already going than that capacity allows.',
   attendance_closed: 'Attendance can be confirmed from the start time until 14 days after.',
 };

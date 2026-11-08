@@ -31,6 +31,8 @@ export type ProjectSummary = {
 };
 export type Project = ProjectFields & {
   id: string; handle: string; images: ProjectImage[]; mine: boolean; hidden: boolean; canReport: boolean;
+  /** the viewer is an admin and can remove this project (someone else's); set by the route */
+  canModerate: boolean;
   createdAt: string; updatedAt: string;
 };
 /** One image as sent by the editor: an existing image of this project, or a pending upload. */
@@ -70,7 +72,7 @@ function toProject(r: Row, viewerId: string): Project {
       id: i.id, url: mediaUrl(i.key), width: i.width, height: i.height,
       layout: i.layout, heading: i.heading, text: i.text, caption: i.caption,
     })),
-    mine, canReport: !mine && !r.draft, createdAt: r.created_iso, updatedAt: r.updated_iso,
+    mine, canReport: !mine && !r.draft, canModerate: false, createdAt: r.created_iso, updatedAt: r.updated_iso,
   };
 }
 
@@ -101,13 +103,15 @@ export async function listProjects(db: Db, viewerId: string, handle: string): Pr
   };
 }
 
-export async function getProject(db: Db, viewerId: string, handle: string, id: string): Promise<Project | null> {
+/** `ops`: an admin may open a project hidden after reports, to review it (never someone else's draft). */
+export async function getProject(db: Db, viewerId: string, handle: string, id: string, opts: { ops?: boolean } = {}): Promise<Project | null> {
   if (!UUID_RE.test(id)) return null;
   const [r] = await rows<Row>(db, sql`${select}
     where p.id = ${id}::uuid and lower(u.handle) = lower(${handle}) and u.state in ('active', 'flagged_lurker', 'archived')`);
   if (!r) return null;
   const p = toProject(r, viewerId);
-  return (p.draft || p.hidden) && !p.mine ? null : p;
+  if (p.mine) return p;
+  return p.draft || (p.hidden && !opts.ops) ? null : p;
 }
 
 async function getOwn(db: Db, userId: string, id: string): Promise<Project> {

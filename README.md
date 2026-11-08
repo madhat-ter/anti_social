@@ -1,6 +1,6 @@
 # anti-site
 
-An invite-only, 100-seat, Twitter-like social app. Passkey-only auth (WebAuthn): no email, no password. People join with an invite code, pick an immutable handle, register a passkey, and are shown a one-time recovery code. When all seats are taken, new members are waitlisted.
+An invite-only, 100-seat, Twitter-like social app. Passkey-only auth (WebAuthn): no email, no password. People join with an invite code, pick a handle (only an admin can change it later), register a passkey, and are shown a one-time recovery code. When all seats are taken, new members are waitlisted.
 
 Architecture and product rules: [docs/rfc/0001-architecture.md](docs/rfc/0001-architecture.md).
 
@@ -59,11 +59,14 @@ docs/rfc         Design docs
 - **Milestone 5 (done):** events: create/edit/cancel (host only; cancel and time/place changes notify everyone who RSVP'd), RSVP with capacity and a FIFO waitlist that promotes automatically, location visible only to the host and people going when marked private, attendance confirmation by the host from start to 14 days after (counts as a contribution for attendees and, with at least one confirmed attendee, for the host), upcoming/past lists. Cost is informational (price note + external payment link).
 - **Milestone 6 (done):** reporting (5 distinct reports hide a post; ops reviews via `bun run ops -- flags` / `resolve` or `/ops/*`), ops bans and founder invites, Postgres-backed rate limits (invite checks, auth, likes, reports, uploads, checkouts, RSVPs), Web Push for replies/seat/event changes (service worker + Settings toggle; off until VAPID keys are set), concurrent seat race tests, production config guards and security headers, deployment and launch guide in [docs/deploy.md](docs/deploy.md).
 
-All six RFC milestones are implemented. What remains is deploying (domain, Neon, Fly, Vercel, Stripe live keys) and minting the 10 founder invites; see [docs/deploy.md](docs/deploy.md).
+- **Portfolio (done):** the profile is a Behance-style portfolio: CV card, numbered projects with project pages, cover and look, headline in the member list. RFC §10.1.
+- **Admins (done):** an Admin page for admins only (role `ops`): founder invite codes, the report queue, every member with Ban / Unban / Make admin / Change handle, and the room's settings (seat cap, invites per member, invite expiry). Admins can remove any post or project, carry an "admin" tag, and are exempt from the activity rules. RFC §10.2.
+
+A free test copy runs on Vercel + Render (no domain, fake payments); see [docs/deploy-free.md](docs/deploy-free.md). A real launch (domain, Stripe live keys, image storage) follows [docs/deploy.md](docs/deploy.md).
 
 ## Payments (fake Stripe)
 
-With no `STRIPE_SECRET_KEY` set, the API uses a fake Stripe: "Pay" buttons open a local test checkout at `/dev/checkout`. Paying there makes the API send itself a signed `checkout.session.completed` webhook, so the same code runs as with real Stripe; "Let it expire" simulates a timed-out checkout. To switch to real Stripe, set `PAYMENTS=stripe`, `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` (see `.env.example`); the fake refuses to start when `NODE_ENV=production`.
+With no `STRIPE_SECRET_KEY` set, the API uses a fake Stripe: "Pay" buttons open a local test checkout at `/dev/checkout`. Paying there makes the API send itself a signed `checkout.session.completed` webhook, so the same code runs as with real Stripe; "Let it expire" simulates a timed-out checkout. To switch to real Stripe, set `PAYMENTS=stripe`, `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` (see `.env.example`); the fake refuses to start when `NODE_ENV=production` unless `ALLOW_FAKE_PAYMENTS=true` (test deploys only).
 
 ## UI walkthrough screenshots
 

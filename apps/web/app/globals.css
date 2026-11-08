@@ -939,6 +939,8 @@ input[type=search]::-webkit-search-cancel-button {
   .nav a { border: 0; background: var(--paper); justify-content: center; padding: .5rem .35rem; font-size: .92rem; }
   .nav a[aria-current=page] { background: var(--ink); color: var(--paper); box-shadow: inset 0 0 0 2px var(--paper); }
   .nav .nav-me { grid-column: 4; grid-row: 1 / span 2; margin: 0; border: 0; padding: .3rem .5rem; align-items: center; }
+  /* moderators get a 7th link: a full-width third row instead of one cell and a black gap */
+  .nav .nav-admin { grid-column: 1 / -1; }
   .risk-meter { grid-template-columns: 1fr auto; }
   .risk-meter > .ui:first-child { grid-column: 1 / -1; }
 }
@@ -977,5 +979,18 @@ input[type=search]::-webkit-search-cancel-button {
 }
 
 /* Admin page */
-.adm-reports > li { align-items: stretch; }
-.adm-body { white-space: pre-wrap; overflow-wrap: anywhere; border-left: 3px solid currentColor; padding-left: .6rem; }
+.adm-rep-head { align-items: flex-start; }
+.adm-rep-head > p { margin: 0; flex: 1 1 18rem; }
+.adm-reports { list-style: none; padding: 0; margin: 0; border-top: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); }
+.adm-reports > li { display: flex; flex-direction: column; gap: .6rem; padding: 1rem 0; border-top: 1.5px solid var(--ink); }
+.adm-reports > li:first-child { border-top: 0; }
+.adm-body { white-space: pre-wrap; overflow-wrap: anywhere; border-left: 3px solid var(--ink); padding-left: .7rem; }
+.adm-reasons { margin: 0; padding-left: 1.2rem; }
+
+.adm-members { list-style: none; padding: 0; margin: 0; border-top: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); }
+.adm-members > li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .45rem .8rem; align-items: center; padding: .8rem 0; border-top: 1.5px solid var(--ink); }
+.adm-members > li:first-child { border-top: 0; }
+.adm-member-main { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.adm-member-main .name { font-weight: 700; }
+.adm-member-actions { grid-column: 2; gap: .45rem; }
+.adm-member-actions .btn { padding: .3rem .65rem; font-size: .85rem; }

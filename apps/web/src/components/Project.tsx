@@ -31,6 +31,14 @@ export function ProjectView({ project: p, siblings, style }: { project: Project;
   const [asking, setAsking] = useState(false);
   const [reported, setReported] = useState(false);
   const [reportErr, setReportErr] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const router = useRouter();
+  /** an admin removes someone else's project: it is deleted and the owner is told */
+  async function remove() {
+    setRemoving(false); setReportErr(null);
+    try { await api.opsRemoveProject(p.id); router.push(`/u/${p.handle}`); }
+    catch (e) { setReportErr(errorMessage(e)); }
+  }
   async function report(reason: string) {
     setAsking(false); setReportErr(null);
     try { await api.flagProject(p.id, reason || undefined); setReported(true); }
@@ -44,7 +52,7 @@ export function ProjectView({ project: p, siblings, style }: { project: Project;
   const details = detailsLine(p);
 
   return (
-    <Win title={`${p.handle}.work/${idx >= 0 ? nn(idx) : 'draft'}`} className={`pj ${styleClass(style)}`} as="article">
+    <Win title={`${p.handle}.work/${idx >= 0 ? nn(idx) : p.draft ? 'draft' : 'hidden'}`} className={`pj ${styleClass(style)}`} as="article">
       <div className="pj-grid">
         <nav className="pj-index" aria-label="Projects">
           <ol>
@@ -59,12 +67,17 @@ export function ProjectView({ project: p, siblings, style }: { project: Project;
           <Link href={home} className="pj-back ui">← @{p.handle}</Link>
         </nav>
         <div className="pj-main">
-          {p.hidden && (
+          {p.hidden && (p.mine ? (
             <p className="banner pj-hidden" role="status">
               <strong>Hidden after reports.</strong> Only you can see this project. A moderator will restore it or remove it;
               you will be told either way.
             </p>
-          )}
+          ) : (
+            <p className="banner pj-hidden" role="status">
+              <strong>Hidden after reports.</strong> Members can&apos;t see this project; you can because you are an admin.
+              Keep it or remove it from the <Link href="/admin">Admin</Link> page.
+            </p>
+          ))}
           <header className="pj-head">
             <p className="pj-kicker ui">
               {idx >= 0 ? `Project ${nn(idx)}` : 'Project'} · <Link href={home}>@{p.handle}</Link>
@@ -83,6 +96,9 @@ export function ProjectView({ project: p, siblings, style }: { project: Project;
                 {reported
                   ? <p className="muted small" role="status">Reported. Thanks, a moderator will take a look.</p>
                   : <button type="button" className="link-btn" onClick={() => setAsking(true)}>Report project</button>}
+                {p.canModerate && (
+                  <button type="button" className="btn danger" onClick={() => setRemoving(true)}>Remove (admin)</button>
+                )}
                 <ErrorNote message={reportErr} />
               </div>
             )}
@@ -109,6 +125,15 @@ export function ProjectView({ project: p, siblings, style }: { project: Project;
         input={{ label: 'Reason', placeholder: 'Stolen work, spam, ...', maxLength: 500 }}
         onConfirm={(reason) => void report(reason)}
         onCancel={() => setAsking(false)}
+      />
+      <AlertDialog
+        open={removing}
+        title="Remove project"
+        message={<>Remove this project as admin? @{p.handle} is told it was removed. <strong>This cannot be undone.</strong></>}
+        confirmLabel="Remove"
+        danger
+        onConfirm={() => void remove()}
+        onCancel={() => setRemoving(false)}
       />
     </Win>
   );

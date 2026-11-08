@@ -20,6 +20,7 @@ const DB_ERRORS: Record<string, [number, string]> = {
   no_open_offer: [409, 'There is no open seat offer.'],
   stay_fee_not_applicable: [409, 'Stay fee does not apply to this account.'],
   payment_not_found: [404, 'Unknown checkout session.'],
+  not_banned: [409, 'That member is not banned.'],
 };
 
 /** Re-throw a DB error as an ApiError when it is one of ours; otherwise re-throw as-is. */

@@ -52,7 +52,14 @@ function Profile({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
       <h2>Profile</h2>
       <div className="row">
         <Avatar seed={me.handle} size={56} />
-        <p className="muted">Your handle <strong className="ui">@{me.handle}</strong> is permanent, and so is the face that comes with it.</p>
+        {me.role === 'ops' ? (
+          <p className="muted">
+            Your handle is <strong className="ui">@{me.handle}</strong>. As an admin you can change it (anyone&apos;s, in fact)
+            under <Link href="/admin#members">Admin → Members</Link>. The face is drawn from the handle, so it changes with it.
+          </p>
+        ) : (
+          <p className="muted">Your handle <strong className="ui">@{me.handle}</strong> is permanent, and so is the face that comes with it.</p>
+        )}
       </div>
       <label>Display name
         <input value={displayName} maxLength={DISPLAY_NAME_MAX} onChange={(e) => setDisplayName(e.target.value)} required />

@@ -65,7 +65,9 @@ bun run ops -- ban <handle>                 # frees the seat, revokes sessions, 
 bun run ops:run-job -- lifecycle            # run a job now (lifecycle | payments | push | cleanup)
 ```
 
-Ops members get an in-app (and push) notification when a post is hidden. The same actions exist as `/ops/*` HTTP endpoints for an ops account; members get 404 there.
+Ops members (admins) get an in-app (and push) notification when a post is hidden. Everything above, and more
+(unban, make admins, change handles, remove any post or project, seat cap and invite settings), is on the site's
+**Admin** page for admins (RFC §10.2); the same actions exist as `/ops/*` HTTP endpoints, and members get 404 there.
 
 ## Known gaps before launch
 

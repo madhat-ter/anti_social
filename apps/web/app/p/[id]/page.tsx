@@ -65,7 +65,8 @@ function ThreadView() {
       <p><Link href="/">Back to the feed</Link></p>
       <h1 className="sr-only">Thread</h1>
       <PostCard post={root} onChange={update} id={`post-${root.id}`} />
-      <Composer parentId={root.id} onCreated={added} />
+      {/* hidden after reports: an admin is reviewing it, nobody can reply */}
+      {!root.hidden && <Composer parentId={root.id} onCreated={added} />}
       <h2 className="section-h">Replies{replies.length ? ` (${replies.length})` : ''}</h2>
       {replies.length === 0 && <p className="muted">No replies yet.</p>}
       <div className="posts">

@@ -1,79 +1,66 @@
 # Free test deploy (no domain yet)
 
-A live copy for testing with friends, before buying a domain. Everything here is on a free plan:
+A live copy for testing with friends, before buying a domain. Everything is on a free plan and nothing secret is
+typed by hand: Render creates the database and wires its address into the API itself.
 
 | Piece | Host | Free plan limits that matter |
 |---|---|---|
 | Web app | **Vercel** (Hobby) | Address is `https://<project>.vercel.app` |
-| API | **Render** (Free web service) | Sleeps after 15 min without traffic; the first visit after that takes ~1 min. Scheduled jobs only run while it is awake. |
-| Database | **Neon** (Free) | 0.5 GB. Images are stored here too (`STORAGE=db`) because Render's free plan has no disk. |
+| API | **Render** (free web service, Docker) | Sleeps after 15 min without traffic; the first visit after that takes ~1 min. Scheduled jobs only run while it is awake. |
+| Database | **Render Postgres** (free, created by the Blueprint) | 1 GB; **expires 30 days after creation**. Images are stored here too (`STORAGE=db`), because the free web service has no disk. |
+
+The live test copy (2026-11-08): web **https://anti-social-opal.vercel.app**, API https://anti-api-7ouk.onrender.com
+(Render Blueprint `anti`, region Singapore; Vercel project `anti-social`).
 
 What is different from a real launch ([deploy.md](deploy.md)):
 
 - **Payments are fake** (`ALLOW_FAKE_PAYMENTS=true`). The stay fee "checkout" is a page with a Pay button; nobody is charged.
-- **Passkeys are tied to the `*.vercel.app` address.** When you move to your own domain, every tester registers a new passkey (start the real launch on a fresh database).
-- **Push notifications are off** unless you add VAPID keys (optional, step 3).
+- **Passkeys are tied to the `*.vercel.app` address.** When you move to your own domain, start on a fresh database;
+  every tester registers a new passkey.
+- **Push notifications are off** unless VAPID keys are added (optional).
+
+## Setting it up from scratch
 
 Order matters: the API needs the web address, and the web app needs the API address.
 
-## 1. Database: Neon
+1. **Vercel**: sign up with GitHub, *Add New → Project*, import the repo. Root Directory `apps/web` (Next.js is
+   detected). Deploy (the first deploy asks you to confirm your email with a code). Note the production domain under
+   *Settings → Domains*, e.g. `anti-social-opal.vercel.app`. Only that address works for sign-in: passkeys are bound
+   to one host, so the long per-deploy preview URLs will not.
+2. **render.yaml**: set `RP_ID` (the domain) and `WEB_ORIGIN` (`https://` + the domain) to that address, commit, push.
+3. **Render**: sign up with GitHub (give it access to the repo only), *New → Blueprint*, pick the repo. It reads
+   `render.yaml`, shows "Create database anti-db" and "Create web service anti-api"; *Deploy Blueprint*. The build takes
+   a few minutes; the log ends with `migrations applied` and `api listening on :10000 (FAKE payments ...)`.
+   Note the service address (e.g. `https://anti-api-xxxx.onrender.com`); `/health` answers `{"ok":true}`.
+4. **Vercel again**: *Settings → Environment Variables*, add `API_URL` = the Render address (no trailing slash),
+   then *Redeploy*. (`turbo.json` lists `API_URL` as a build input, so the redeploy really rebuilds.)
+   `https://<domain>/api/health` should now answer `{"ok":true}`.
 
-1. Sign up at neon.tech, create a project (Postgres 17, region close to you).
-2. On the project dashboard, **Connect** → turn **Connection pooling OFF** → copy the connection string.
-   It looks like `postgresql://...@ep-xxxx.<region>.aws.neon.tech/neondb?sslmode=require` (no `-pooler` in the host).
-   Use the direct one: the scheduled jobs use session locks that the pooler does not keep.
+## Letting people in
 
-## 2. Web app: Vercel (first, to get the address)
+- **First invite codes**: with `BOOTSTRAP_INVITES=3`, the API prints three founder codes to its log the first time
+  it starts on an empty site (Render → the service → *Logs*, search `founder`). Codes are stored hashed, so the log is
+  the only place they appear.
+- **The first admin**: after you join, add `OPS_HANDLES=<your handle>` in Render → the service → *Environment*,
+  then *Save and deploy*. It only acts while the site has no admin, so leaving it set is harmless.
+- **After that, everything is on the site**: the **Admin** page (menu, admins only) creates more invite codes, reviews
+  reports, bans and unbans, makes other admins, changes handles and sets the seat cap. See RFC §10.2.
 
-1. Sign up at vercel.com with GitHub, **Add New → Project**, import `madhat-ter/anti_social`.
-2. **Project Name**: pick it carefully, it becomes the address, e.g. `anti-test` → `https://anti-test.vercel.app`.
-3. **Root Directory**: `apps/web`. Framework: Next.js (detected).
-4. Environment variable: `API_URL` = `https://anti-api.onrender.com` (a placeholder for now; fixed in step 4).
-5. Deploy. Note the **production** address shown on the project page (`https://<name>.vercel.app`).
-   Only that address works for sign-in; the long per-deploy preview URLs will not (passkeys are bound to one host).
+## Things that bit us
 
-## 3. API: Render
+- Render's Blueprint did **not** copy a newly added `render.yaml` env var onto the existing service; add it in the
+  service's *Environment* tab instead (*Save and deploy* is enough when only env vars change).
+- Vercel first reused a cached build that still pointed `/api` at `localhost:3001` (error `DNS_HOSTNAME_RESOLVED_PRIVATE`):
+  fixed by declaring `API_URL` in `turbo.json`.
 
-1. Sign up at render.com with GitHub, **New → Blueprint**, pick `madhat-ter/anti_social`. It reads `render.yaml`.
-2. It asks for three values:
-   - `DATABASE_URL`: the Neon string from step 1
-   - `RP_ID`: the Vercel host without `https://`, e.g. `anti-test.vercel.app`
-   - `WEB_ORIGIN`: the full address, e.g. `https://anti-test.vercel.app`
-3. Apply. The first build takes a few minutes. The log should end with `migrations applied` and `api listening on :10000 (FAKE payments ...)`.
-4. Note the service address, e.g. `https://anti-api.onrender.com` (open `/health` on it: `{"ok":true}`).
-5. Optional, push notifications: on your machine run `bun run ops:vapid-keys`, then add `VAPID_PUBLIC_KEY`,
-   `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (`mailto:` + any email) in the Render service's **Environment** tab.
+## Optional: push notifications
 
-## 4. Connect them
-
-In Vercel → the project → **Settings → Environment Variables**, set `API_URL` to the Render address from step 3
-(no trailing slash), then **Deployments → ⋯ → Redeploy**.
-
-## 5. Let people in
-
-Invites are minted from your machine against the Neon database (PowerShell, from the repo root):
-
-```powershell
-$env:DATABASE_URL = '<the Neon string>'
-bun apps/api/src/cli/mint-invites.ts --count 5      # prints codes; they expire in 7 days
-```
-
-Join with one code yourself at `https://<name>.vercel.app`, then make yourself ops:
-
-```powershell
-bun apps/api/src/cli/ops.ts grant <your handle>
-Remove-Item env:DATABASE_URL                          # so later local commands use your dev database again
-```
-
-## Smoke test
-
-1. Open the site (if the API was asleep, the first load is slow).
-2. Join with an invite on a phone and on a laptop; add a second passkey from Settings.
-3. Post with an image, reply from the other account, check the notification.
-4. Open your profile → Edit portfolio, add a project with images.
-5. Try the stay-fee checkout: the fake page appears; Pay completes it.
+On your machine run `bun run ops:vapid-keys`, then add `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`
+(`mailto:` + any email) in Render → the service → *Environment*. Keep them stable: changing them breaks existing
+subscriptions.
 
 ## Moving to a real domain later
 
-Buy the domain, then follow [deploy.md](deploy.md) on a **fresh** database: new `RP_ID`/`WEB_ORIGIN`,
-Stripe keys instead of `ALLOW_FAKE_PAYMENTS`, and either a disk volume or R2 for images instead of `STORAGE=db`.
+Buy the domain, then follow [deploy.md](deploy.md) on a **fresh** database: new `RP_ID`/`WEB_ORIGIN`, Stripe keys
+instead of `ALLOW_FAKE_PAYMENTS`, and a disk volume or R2 for images instead of `STORAGE=db`. The free Render
+database expires after 30 days anyway, so plan the move (or a paid database) before then.

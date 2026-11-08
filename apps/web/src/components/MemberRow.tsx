@@ -12,6 +12,7 @@ export function MemberRow({ m }: { m: MemberSummary }) {
         <span>
           <span className="name">{m.displayName}</span>{' '}
           <span className="muted handle">@{m.handle}</span>
+          {m.role === 'ops' && <span className="tag" title="Runs the room: moderates, invites, keeps it civil">admin</span>}
           {m.state === 'archived' && <span className="tag">archived</span>}
           {m.openToWork && <span className="tag open-tag">open to work</span>}
         </span>

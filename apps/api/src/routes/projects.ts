@@ -47,9 +47,9 @@ export const projectRoutes = (deps: Deps) => {
 
     .get('/members/:handle/projects/:id', async ({ auth, params }) => {
       const a = requireSeated(auth);
-      const p = await getProject(db, a.user.id, params.handle, params.id);
+      const p = await getProject(db, a.user.id, params.handle, params.id, { ops: a.user.role === 'ops' });
       if (!p) throw new ApiError(404, 'not_found');
-      return p;
+      return { ...p, canModerate: a.user.role === 'ops' && !p.mine && !p.draft };
     })
 
     .post('/me/projects', async ({ auth, body }) => {

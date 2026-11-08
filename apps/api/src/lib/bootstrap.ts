@@ -27,8 +27,18 @@ export async function bootstrapInvites(db: Db, count: number, log: (line: string
   return codes;
 }
 
-/** OPS_HANDLES=alice,bob makes those members ops on boot; handles that don't exist yet are skipped. */
+/**
+ * OPS_HANDLES=alice,bob makes those members ops on boot, but only while the site has no admin:
+ * it bootstraps the first admin and nothing more. (Otherwise, once an admin renamed themselves,
+ * whoever signed up with the freed handle would become admin at the next restart.)
+ * Handles that don't exist yet are skipped.
+ */
 export async function bootstrapOps(db: Db, handles: string, log: (line: string) => void = console.log) {
+  const admins = Number(await scalar(db, sql`select count(*) from users where role = 'ops' and state not in ('banned', 'deleted')`));
+  if (admins > 0) {
+    log('ops: an admin already exists; OPS_HANDLES ignored (add admins from the Admin page)');
+    return;
+  }
   for (const h of handles.split(',').map((s) => s.trim()).filter(Boolean)) {
     try {
       await setOps(db, h, true);

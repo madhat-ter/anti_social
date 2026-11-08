@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { RULES } from '@anti/shared';
 import { errorMessage, type MemberSummary } from '@/lib/api';
-import { loadAllMembers } from '@/lib/members';
+import { loadAllMembers, seatCapCached } from '@/lib/members';
 import { SeatedShell } from '@/components/Shell';
 import { ErrorNote } from '@/components/ui';
 import { Avatar } from '@/components/Avatar';
@@ -19,13 +19,15 @@ export default function MembersPage() {
 /** The members page is the room: one cell per seat, taken seats show their person. */
 function SeatMap({ myHandle }: { myHandle: string }) {
   const [members, setMembers] = useState<MemberSummary[] | null>(null);
+  const [seatCap, setSeatCap] = useState<number>(RULES.seat_cap);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { loadAllMembers().then(setMembers, (e) => setErr(errorMessage(e))); }, []);
+  useEffect(() => { seatCapCached().then(setSeatCap); }, []);
 
   if (err) return <ErrorNote message={err} />;
   if (!members) return <Loading />;
 
-  const cap = Math.max(RULES.seat_cap, members.length);
+  const cap = Math.max(seatCap, members.length);
   const open = cap - members.length;
   return (
     <>

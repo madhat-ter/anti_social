@@ -64,7 +64,7 @@ begin
   update users set
     state = p_to,
     activated_at = case
-      when p_to = 'active' and v_from in ('waitlisted', 'archived') then now()
+      when p_to = 'active' and v_from in ('waitlisted', 'archived', 'banned') then now()
       else activated_at end,
     lurker_flagged_at = case
       when p_to = 'flagged_lurker' then now()
@@ -283,6 +283,29 @@ begin
   perform promote_waitlist();
 end $$;
 
+-- Lifts a ban. The member gets a seat at once if one is free, otherwise waits in line like a new
+-- invitee (free, first come first served). Their passkeys were kept, so they can sign in again.
+-- activated_at restarts (set_state), so the inactivity rule does not archive them on the next run.
+create or replace function unban_user(p_user uuid, p_actor uuid) returns user_state
+language plpgsql as $$
+declare v_state user_state;
+begin
+  perform seat_lock();
+  select state into v_state from users where id = p_user for update;
+  if v_state is distinct from 'banned' then
+    raise exception 'not_banned' using errcode = 'P0023';
+  end if;
+  if seats_used() < setting_int('seat_cap') then
+    perform set_state(p_user, 'active', 'ops_unban', p_actor);
+  else
+    perform set_state(p_user, 'waitlisted', 'ops_unban', p_actor);
+    insert into waitlist(user_id, priority) values (p_user, 1) on conflict (user_id) do nothing;
+  end if;
+  insert into notifications(user_id, kind, payload) values (p_user, 'unbanned', '{}');
+  select state into v_state from users where id = p_user;
+  return v_state;
+end $$;
+
 -- The row is kept (state log, thread integrity) but stripped of identity.
 create or replace function delete_account(p_user uuid) returns void
 language plpgsql as $$
@@ -307,6 +330,8 @@ begin
 end $$;
 
 -- ─── Hourly lifecycle job ───────────────────────────────────────────────────
+-- Admins (role 'ops') are exempt from the activity rules: the people who run the room never
+-- lose their seat to inactivity or the lurker rule.
 create or replace function run_lifecycle() returns void
 language plpgsql as $$
 declare r record;
@@ -315,28 +340,29 @@ begin
 
   -- 1. inactivity archival
   for r in select id from users
-            where state in ('active', 'flagged_lurker')
+            where state in ('active', 'flagged_lurker') and role <> 'ops'
               and greatest(last_seen_at, activated_at) < now() - days('inactivity_days') loop
     perform set_state(r.id, 'archived', 'inactive');
   end loop;
 
-  -- 2. flagged lurkers who contributed enough since the flag are cleared
-  for r in select u.id from users u
+  -- 2. flagged lurkers who contributed enough since the flag are cleared; so is anyone made admin
+  for r in select u.id, u.role from users u
             where u.state = 'flagged_lurker'
-              and (select count(*) from contributions c
-                    where c.user_id = u.id and c.at >= u.lurker_flagged_at) >= setting_int('lurker_min_contributions') loop
-    perform set_state(r.id, 'active', 'lurker_resolved_contributed');
+              and (u.role = 'ops'
+                   or (select count(*) from contributions c
+                        where c.user_id = u.id and c.at >= u.lurker_flagged_at) >= setting_int('lurker_min_contributions')) loop
+    perform set_state(r.id, 'active', case when r.role = 'ops' then 'ops_exempt' else 'lurker_resolved_contributed' end);
   end loop;
 
   -- 3. grace expired
   for r in select id from users
-            where state = 'flagged_lurker' and lurker_flagged_at < now() - days('lurker_grace_days') loop
+            where state = 'flagged_lurker' and role <> 'ops' and lurker_flagged_at < now() - days('lurker_grace_days') loop
     perform set_state(r.id, 'archived', 'lurker_grace_expired');
   end loop;
 
   -- 4. lurker detection
   for r in select u.id from users u
-            where u.state = 'active'
+            where u.state = 'active' and u.role <> 'ops'
               and u.activated_at < now() - days('new_member_exempt_days')
               and (u.lurker_exempt_until is null or u.lurker_exempt_until < now())
               and (select count(*) from user_seen_days d

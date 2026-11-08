@@ -40,7 +40,9 @@ export function AuthorLine({ post }: { post: Post }) {
         <>
           <Link href={`/u/${a.handle}`} className="name">{a.displayName}</Link>{' '}
           <Link href={`/u/${a.handle}`} className="handle muted">@{a.handle}</Link>
+          {a.role === 'ops' && <span className="tag" title="Runs the room: moderates, invites, keeps it civil">admin</span>}
           {a.state === 'archived' && <span className="tag" title="This member's seat was released">archived</span>}
+          {post.hidden && <span className="tag danger" title="Members can't see it; admins can, to review it">hidden after reports</span>}
         </>
       ) : (
         <span className="muted">deleted user</span>
@@ -76,7 +78,7 @@ export function PostCard({
   const likeBusy = useRef(false);
   // Every hook lives above the early return for deleted posts: deleting a post re-renders it as a
   // tombstone, and a hook below that return would change the hook count and crash React.
-  const [ask, setAsk] = useState<null | 'delete' | 'report'>(null);
+  const [ask, setAsk] = useState<null | 'delete' | 'report' | 'moderate'>(null);
   const [viewing, setViewing] = useState<number | null>(null);
   /** true for a moment after *you* like it: the dot stamps in (never on page load) */
   const [stamp, setStamp] = useState(false);
@@ -150,6 +152,18 @@ export function PostCard({
     }
   }
 
+  /** an admin removes someone else's post: the author is told */
+  async function moderate() {
+    setAsk(null);
+    setErr(null);
+    try {
+      await api.opsRemovePost(post.id);
+      onChange({ ...post, deleted: true, body: '', images: [] });
+    } catch (e) {
+      setErr(errorMessage(e));
+    }
+  }
+
   async function report(reason: string) {
     setAsk(null);
     setErr(null);
@@ -180,7 +194,7 @@ export function PostCard({
           <time dateTime={post.createdAt}>{relativeTime(post.createdAt)}</time>
         </Link>
         {post.editedAt && <span className="muted edited" title={`Edited ${fmtDate(post.editedAt)}`}>(edited)</span>}
-        {(post.canEdit || post.canDelete || post.canReport) && (
+        {(post.canEdit || post.canDelete || post.canReport || post.canModerate) && (
           <div className="menu" ref={menuRef}>
             <button
               type="button"
@@ -202,6 +216,9 @@ export function PostCard({
                 )}
                 {post.canReport && (
                   <button type="button" role="menuitem" onClick={() => { setMenu(false); setAsk('report'); }} disabled={reported}>{reported ? 'Reported' : 'Report'}</button>
+                )}
+                {post.canModerate && (
+                  <button type="button" role="menuitem" className="danger-text" onClick={() => { setMenu(false); setAsk('moderate'); }}>Remove (admin)</button>
                 )}
               </div>
             )}
@@ -271,6 +288,7 @@ export function PostCard({
           className={`foot-btn like${post.likedByMe ? ' on' : ''}${stamp ? ' stamp' : ''}`}
           aria-pressed={post.likedByMe}
           onClick={toggleLike}
+          disabled={post.hidden}
         >
           <Dot on={post.likedByMe} size=".85em" />
           {/* name = "Like 3": includes the visible count, so voice control ("click 3") works */}
@@ -298,6 +316,15 @@ export function PostCard({
         confirmLabel="Delete"
         danger
         onConfirm={() => void remove()}
+        onCancel={() => setAsk(null)}
+      />
+      <AlertDialog
+        open={ask === 'moderate'}
+        title="Remove post"
+        message={<>Remove this post as admin? {post.author ? <>@{post.author.handle} is told it was removed. </> : null}<strong>This cannot be undone.</strong></>}
+        confirmLabel="Remove"
+        danger
+        onConfirm={() => void moderate()}
         onCancel={() => setAsk(null)}
       />
       <AlertDialog

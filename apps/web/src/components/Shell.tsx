@@ -78,20 +78,20 @@ function NavBar({ me }: { me: Me }) {
   }, []);
 
   const mine = `/u/${me.handle}`;
-  const items: { href: string; label: string; match: (p: string) => boolean; badge?: number }[] = [
+  const items: { href: string; label: string; match: (p: string) => boolean; badge?: number; cls?: string }[] = [
     { href: '/', label: 'Feed', match: (p) => p === '/' || p.startsWith('/p/') },
     { href: '/events', label: 'Events', match: (p) => p.startsWith('/events') },
     { href: '/members', label: 'Members', match: (p) => p === '/members' },
     { href: '/search', label: 'Search', match: (p) => p === '/search' },
     { href: '/notifications', label: 'Notifications', match: (p) => p === '/notifications', badge: unread },
     { href: '/settings', label: 'Settings', match: (p) => p === '/settings' },
-    ...(me.role === 'ops' ? [{ href: '/admin', label: 'Admin', match: (p: string) => p === '/admin' }] : []),
+    ...(me.role === 'ops' ? [{ href: '/admin', label: 'Admin', match: (p: string) => p === '/admin', cls: 'nav-admin' }] : []),
   ];
 
   return (
     <nav className="nav" aria-label="Main">
       {items.map((i) => (
-        <Link key={i.href} href={i.href} aria-current={i.match(path) ? 'page' : undefined}>
+        <Link key={i.href} href={i.href} className={i.cls} aria-current={i.match(path) ? 'page' : undefined}>
           {i.label}
           {!!i.badge && i.badge > 0 && (
             <span className="badge" aria-label={`${i.badge} unread`}>{i.badge > 99 ? '99+' : i.badge}</span>

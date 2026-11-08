@@ -113,6 +113,7 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder }: {
         <div className="pf-hero-main">
           <h1>
             {member.displayName}
+            {member.role === 'ops' && <span className="tag" title="Runs the room: moderates, invites, keeps it civil">admin</span>}
             {member.state === 'archived' && <span className="tag" title="This member's seat was released">archived</span>}
           </h1>
           <p className="mono muted">@{member.handle}</p>

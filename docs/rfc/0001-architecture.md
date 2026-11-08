@@ -9,7 +9,7 @@
 
 ## 1. Summary
 
-An invite-only, 100-seat, Twitter-like community with no private messaging. Identity is a passkey plus a handle — no email, no password, no OAuth. Members must keep showing up (30-day inactivity rule) and must keep contributing (lurker rule) or pay a stay fee. Members can host and attend real-world events. Every member has identical capabilities; the only privileged role is a backend-only ops role.
+An invite-only, 100-seat, Twitter-like community with no private messaging. Identity is a passkey plus a handle — no email, no password, no OAuth. Members must keep showing up (30-day inactivity rule) and must keep contributing (lurker rule) or pay a stay fee. Members can host and attend real-world events. Every member has identical capabilities, except admins (role `ops`), who run the room from an Admin page (§10.2, added 2026-11-08; originally ops was backend-only).
 
 Stack: Next.js web client → Elysia (Bun) API → PostgreSQL (Drizzle + a few PL/pgSQL functions). The API is the single source of truth so a mobile app can be added later without backend changes.
 
@@ -27,7 +27,7 @@ Stack: Next.js web client → Elysia (Bun) API → PostgreSQL (Drizzle + a few P
 - Follows, reposts, algorithmic ranking.
 - Platform-processed payments for events (Stripe Connect) — see §15.
 - Email, SMS, or social login.
-- User-facing admin/moderator roles.
+- ~~User-facing admin/moderator roles.~~ Reversed 2026-11-08: admins are visible and have an Admin page (§10.2).
 
 ## 3. Product rules (the contract)
 
@@ -47,9 +47,10 @@ Stack: Next.js web client → Elysia (Bun) API → PostgreSQL (Drizzle + a few P
 | Waitlist | FIFO. Reinstating members are ahead of new invitees. New invitees are auto-promoted. |
 | Waitlist decay | Waitlisted user not seen for 60 days is removed from the queue. |
 | Ban penalty | Inviter of a banned user loses invite privileges for 30 days. |
-| Flags | 5 distinct members flagging a post hides it until ops review. |
+| Flags | 5 distinct members flagging a post hides it until an admin reviews it. Admins can also remove any post or project directly. |
 | Posts | 500 chars, ≤ 4 images × 5 MB (EXIF stripped), edit within 15 min (marked "edited"), delete anytime, 20 posts/hour. |
-| Equal permissions | Every member has the same capabilities. Ops is a backend role, not a user-visible one. |
+| Equal permissions | Every member has the same capabilities, except admins (role `ops`): they moderate, ban and unban, change handles, mint invites without limit and set the room's size. Admins carry an "admin" tag and are exempt from the inactivity and lurker rules. See §10.2. |
+| Handles | Chosen at sign-up; members cannot change them. Admins can change anyone's handle (their own included); the face, drawn from the handle, changes with it. |
 
 ## 4. Account state machine
 
@@ -73,7 +74,8 @@ Stack: Next.js web client → Elysia (Bun) API → PostgreSQL (Drizzle + a few P
                                                  └──────────┘
    seat offered → 72 h to pay → active
 
-   banned: set by ops from any state; terminal unless ops lifts it.
+   banned: set by an admin from any state (never on an admin); an admin can lift it (unban_user):
+           active if a seat is free, otherwise waitlisted as a new invitee.
    deleted: user-initiated from any state; terminal.
 ```
 
@@ -85,7 +87,7 @@ Stack: Next.js web client → Elysia (Bun) API → PostgreSQL (Drizzle + a few P
 ### 5.1 Join
 1. Receive a code (`XXXX-XXXX-XXXX`) from a member out-of-band.
 2. Open `/join`, enter code → `POST /invites/check` returns valid/expired/used.
-3. Choose handle (immutable) and display name.
+3. Choose handle and display name (members can't change the handle later; an admin can, §10.2).
 4. Create passkey (WebAuthn registration ceremony).
 5. Server shows the **recovery code once**; user must confirm they saved it.
 6. `redeem_invite()` runs: if a seat is free → `active`; otherwise → `waitlisted` with queue position.
@@ -192,7 +194,7 @@ export const userRole = pgEnum('user_role', ['member', 'ops']);
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
-  handle: text('handle').notNull().unique(),          // immutable, citext-like via lower() index
+  handle: text('handle').notNull().unique(),          // members can't change it; admins can (§10.2). citext-like via lower() index
   displayName: text('display_name').notNull(),
   bio: text('bio').notNull().default(''),
   avatarKey: text('avatar_key'),
@@ -621,6 +623,34 @@ optional and nothing asks for a real name, email or phone.
   room, so it never writes a `contributions` row. No feed items or notifications are created.
 - **Member list and search** carry the headline and "open to work"; search also matches the headline.
 
+### 10.2 Admins (added 2026-11-08)
+
+The owner asked for a real admin rather than a hidden backend role. `users.role = 'ops'` is the
+admin; the web app shows an **Admin** menu item and page to admins only (members get a 404 from
+`/ops/*` and "Not found" on `/admin`).
+
+- **Invite codes**: founder invites (no inviter, no limit), shown once with copy buttons.
+- **Reports**: the flag queue; Keep it / Restore / Remove. Admins can also remove **any** post (post
+  menu: "Remove (admin)") or project (project page) without reports. Removing closes any open
+  reports and tells the author (`post_removed`, `project_removed` with the title).
+- **Members**: everyone but deleted accounts, seated first and admins on top. Per person:
+  - **Ban** (not admins) and **Unban**: `unban_user()` re-seats them if a seat is free, else they
+    queue as a new invitee; their passkeys were kept, so they sign in as before. `set_state`
+    restarts `activated_at` on banned → active so the inactivity rule doesn't archive them at once.
+  - **Make admin / Remove admin**: only seated members can be made admin; the last admin cannot be
+    removed (rows locked so two admins can't remove each other at once).
+  - **Change handle**: same rules as sign-up, case-insensitively unique; changing only the case of
+    a handle is allowed. The member is told (`handle_changed`, with the new handle). The face is
+    drawn from the handle, so it changes too; old `/u/<handle>` links stop working.
+- **Community**: seat cap (1–1000; raising it runs `promote_waitlist()`, lowering it removes
+  nobody), open invites per member (0–20) and invite expiry (1–60 days). The seat charts read the
+  cap from `GET /seats` instead of the compiled-in default.
+- **Admin perks**: an "admin" tag next to the name (posts, member lists, profile), and
+  `run_lifecycle()` skips admins for inactivity archival and lurker detection (a flagged member
+  made admin is cleared at once).
+- **Bootstrap**: `OPS_HANDLES` grants admin on boot only while no admin exists; otherwise a handle
+  freed by a rename could be claimed by someone else and promoted at the next restart.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops.
@@ -661,11 +691,17 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST/DELETE /push/subscriptions` | U | Web Push |
 | `POST /payments/checkout` | U | Stripe Checkout session |
 | `POST /webhooks/stripe` | P (signed) | Stripe webhook |
+| `GET /seats` | A | Seat cap and seats in use (the cap is a setting admins change) |
 | `POST /ops/invites` | O | Mint founder invites |
 | `GET /ops/flags`, `POST /ops/flags/:postId/resolve` | O | Moderation queue |
-| `POST /ops/users/:id/ban` | O | Ban |
+| `POST /ops/posts/:id/remove`, `POST /ops/projects/:id/remove` | O | Remove any post / project; author told |
+| `GET /ops/members` | O | Everyone but deleted accounts, with state and role |
+| `POST /ops/users/:handle/ban`, `/unban` | O | Ban / lift a ban |
+| `POST /ops/users/:handle/role` | O | Make or remove an admin (never the last one) |
+| `POST /ops/users/:handle/handle` | O | Change a handle (signup rules; member told) |
+| `GET/PATCH /ops/settings` | O | Seat cap, open invites per member, invite expiry |
 
-Ops also has a CLI (`bun run ops:mint-invites --count 10`) that calls the same service code, used once to bootstrap.
+To members, every `/ops/*` path is a 404. Ops also has a CLI (`bun run ops:mint-invites --count 10`, `bun run ops -- grant <handle>`) that calls the same service code; on hosts without a shell, `BOOTSTRAP_INVITES` and `OPS_HANDLES` do the first-boot equivalents (`OPS_HANDLES` only while no admin exists).
 
 ## 12. Scheduled jobs
 
@@ -715,6 +751,7 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 5. **M5 — Events**: CRUD, RSVP + capacity, attendance confirmation, contributions.
 6. **M6 — Hardening**: flags + ops queue, rate limits, Web Push, load/race tests on seat functions, launch with 10 founder invites.
 7. **M7 — Portfolio** (2026-11-08, §10.1): the profile as a Behance-style portfolio, in four steps: CV card and in-place editing; projects and project pages; cover, the look, headline in the member list; reports and docs.
+8. **M8 — Admins** (2026-11-08, §10.2): the Admin page (invites, reports, members with ban/unban/admin/handle, community settings), removing any post or project, admin tag and activity-rule exemption.
 
 ## Appendix A — Decision log
 
@@ -730,9 +767,9 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 | Q8 | Stripe Checkout; store customer ID only. |
 | Q9 | v1 events free; external payment link only. |
 | Q10 | Single global chronological feed; posts, public replies, likes, images. No follows/reposts. |
-| Q11 | 5 flags hide a post pending ops review; ops is backend-only. |
+| Q11 | 5 flags hide a post pending ops review; ~~ops is backend-only~~ (2026-11-08: admins get an Admin page, §10.2). |
 | Q12 | Drizzle + PL/pgSQL for seat/state transitions. |
-| Q13 | Immutable handle, editable display name/bio. |
+| Q13 | Immutable handle (for members; 2026-11-08: admins can change any handle, §10.2), editable display name/bio. |
 | Q14 | State machine: waitlisted → active ↔ flagged_lurker → archived; banned; append-only event log. |
 | Q15 | The profile is a portfolio: one window, Behance layout inside the retro frame; members only; every field optional, no real name. |
 | Q16 | Portfolio look from a fixed set (3 typefaces, 2 backgrounds, 6 accents); background fixed, not following dark mode. |
