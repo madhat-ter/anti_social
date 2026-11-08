@@ -540,6 +540,94 @@ export const projectFlags = pgTable('project_flags', {
   index('project_flags_open').on(t.projectId).where(sql`resolved_at is null`),
 ]);
 
+// ─── Consultations (RFC §10.6): book a member's time ─────────────────────────
+// Anti never handles the money (a price note and the consultant's own link at most) and never
+// shows a contact until the consultant accepts; then both sides see each other's, for a while.
+
+/** A member's offer. No row = never set up. `active` false = paused. */
+export const consultOffers = pgTable('consult_offers', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  active: boolean('active').notNull().default(false),
+  /** interest slugs, 1–5 */
+  topics: jsonb('topics').notNull().default(sql`'[]'::jsonb`),
+  description: text('description').notNull().default(''),
+  minutes: integer('minutes').notNull().default(60),
+  /** what new requests start from; the consultant decides per request when accepting */
+  pricing: text('pricing').notNull().default('free'),
+  priceNote: text('price_note'),
+  paymentUrl: text('payment_url'),
+  /** private: copied onto a request only when it is accepted */
+  contact: text('contact').notNull().default(''),
+  /** an admin switched their consulting off */
+  blockedAt: tstz('blocked_at'),
+  /** hidden after reports until an admin decides */
+  hiddenAt: tstz('hidden_at'),
+  updatedAt: tstz('updated_at').notNull().defaultNow(),
+}, (t) => [
+  check('consult_offers_pricing', sql`${t.pricing} in ('free', 'paid')`),
+  check('consult_offers_description_len', sql`char_length(${t.description}) <= 500`),
+  check('consult_offers_contact_len', sql`char_length(${t.contact}) <= 300`),
+]);
+
+/**
+ * One request. pending → accepted (paid: waiting for the requester to agree) → revealed → done;
+ * or declined / expired / closed. Contacts are copies made at the reveal and wiped when hidden.
+ */
+export const consultations = pgTable('consultations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  consultantId: uuid('consultant_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  requesterId: uuid('requester_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** the interest slug, and its label at the time (the tag may be removed later) */
+  topic: text('topic').notNull(),
+  topicLabel: text('topic_label').notNull(),
+  need: text('need').notNull(),
+  whenText: text('when_text').notNull().default(''),
+  minutes: integer('minutes').notNull(),
+  status: text('status').notNull().default('pending'),
+  /** set when accepted */
+  pricing: text('pricing'),
+  priceNote: text('price_note'),
+  paymentUrl: text('payment_url'),
+  requesterContact: text('requester_contact'),
+  consultantContact: text('consultant_contact'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  decidedAt: tstz('decided_at'),
+  revealedAt: tstz('revealed_at'),
+  doneAt: tstz('done_at'),
+  closedAt: tstz('closed_at'),
+  closedBy: uuid('closed_by').references(() => users.id, { onDelete: 'set null' }),
+  contactsHiddenAt: tstz('contacts_hidden_at'),
+  /** the requester's public thank-you after a done session; the consultant can hide it */
+  thanks: text('thanks'),
+  thanksAt: tstz('thanks_at'),
+  thanksHidden: boolean('thanks_hidden').notNull().default(false),
+}, (t) => [
+  check('consultations_status', sql`${t.status} in ('pending', 'accepted', 'revealed', 'done', 'declined', 'expired', 'closed')`),
+  check('consultations_pricing', sql`${t.pricing} is null or ${t.pricing} in ('free', 'paid')`),
+  check('consultations_need_len', sql`char_length(${t.need}) between 1 and 1000`),
+  check('consultations_when_len', sql`char_length(${t.whenText}) <= 200`),
+  check('consultations_thanks_len', sql`${t.thanks} is null or char_length(${t.thanks}) between 1 and 300`),
+  check('consultations_two_people', sql`${t.consultantId} <> ${t.requesterId}`),
+  index('consultations_consultant').on(t.consultantId, t.createdAt),
+  index('consultations_requester').on(t.requesterId, t.createdAt),
+]);
+
+/** Reports on an offer (5 hide it) or on a request (one goes straight to the admins). */
+export const consultFlags = pgTable('consult_flags', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  offerUserId: uuid('offer_user_id').references(() => users.id, { onDelete: 'cascade' }),
+  consultationId: uuid('consultation_id').references(() => consultations.id, { onDelete: 'cascade' }),
+  reason: text('reason'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  resolvedAt: tstz('resolved_at'),
+  resolution: text('resolution'), // 'restored' | 'removed'
+}, (t) => [
+  check('consult_flags_one_target', sql`(${t.offerUserId} is null) <> (${t.consultationId} is null)`),
+  uniqueIndex('consult_flags_offer_once').on(t.userId, t.offerUserId).where(sql`offer_user_id is not null and resolved_at is null`),
+  uniqueIndex('consult_flags_request_once').on(t.userId, t.consultationId).where(sql`consultation_id is not null and resolved_at is null`),
+]);
+
 export const pushSubscriptions = pgTable('push_subscriptions', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

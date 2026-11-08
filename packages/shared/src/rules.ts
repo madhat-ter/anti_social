@@ -70,6 +70,31 @@ export const EVENT_INVITES_MAX = 20;
 export const COLLAB_STATUSES = ['recruiting', 'closed', 'finished'] as const;
 export type CollabStatus = (typeof COLLAB_STATUSES)[number];
 
+// ─── Consultations (RFC §10.6): book a member's time; contacts swap on acceptance ───
+/** Both sides must be at least this old: contact details and money between strangers. */
+export const CONSULT_MIN_AGE = 18;
+export const CONSULT_TOPICS_MAX = 5;
+export const CONSULT_DESCRIPTION_MAX = 500;
+/** session lengths a consultant can offer, in minutes */
+export const CONSULT_MINUTES = [30, 45, 60, 90, 120] as const;
+export const CONSULT_PRICE_NOTE_MAX = 100;
+/** free text: "WhatsApp +977…, Telegram @x". Only ever shown to the other side after acceptance. */
+export const CONSULT_CONTACT_MAX = 300;
+export const CONSULT_NEED_MAX = 1000;
+export const CONSULT_WHEN_MAX = 200;
+export const CONSULT_THANKS_MAX = 300;
+/** open requests (waiting, accepted or under way) one member can have with the same consultant */
+export const CONSULT_OPEN_PER_PAIR = 3;
+/** a request nobody answered (or a paid acceptance nobody agreed to) expires after this */
+export const CONSULT_ANSWER_DAYS = 7;
+/** contacts disappear again this long after a session is marked done… */
+export const CONSULT_CONTACT_DONE_DAYS = 14;
+/** …or this long after they were revealed, if it never is */
+export const CONSULT_CONTACT_MAX_DAYS = 60;
+export const CONSULT_STATUSES = ['pending', 'accepted', 'revealed', 'done', 'declined', 'expired', 'closed'] as const;
+export type ConsultStatus = (typeof CONSULT_STATUSES)[number];
+export type ConsultPricing = 'free' | 'paid';
+
 // ─── Setup: what every member fills in once, right after joining ────────────
 /** Gender only shapes the drawn face; it is never shown as text. */
 export const GENDERS = ['woman', 'man', 'nonbinary', 'undisclosed'] as const;

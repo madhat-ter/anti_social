@@ -944,6 +944,8 @@ input[type=search]::-webkit-search-cancel-button {
   .nav a[aria-current=page] { background: var(--ink); color: var(--paper); box-shadow: inset 0 0 0 2px var(--paper); }
   .nav .nav-me { grid-column: 4; grid-row: 1 / span 3; margin: 0; border: 0; padding: .3rem .5rem; align-items: center; }
   .nav a[href="/settings"] { grid-column: 1 / span 3; }
+  /* 18+ members have Consultations too: eight links, so Settings fills the two cells left in row three */
+  .nav:has(a[href="/consultations"]) a[href="/settings"] { grid-column: span 2; }
   /* moderators get one more link: a full-width row of its own */
   .nav .nav-admin { grid-column: 1 / -1; }
   .risk-meter { grid-template-columns: 1fr auto; }
@@ -1115,3 +1117,39 @@ ul.list.meetups li.past > a { color: var(--muted, #666); }
 .interest-add input { flex: 1 1 12rem; width: auto; }
 .adm-sub { font: 700 1rem var(--font-ui); margin: .75rem 0 0; }
 ul.list.adm-interests li { flex-wrap: wrap; }
+
+/* ─── Consultations (RFC §10.6) ─────────────────────────────────────────── */
+.consults { list-style: none; margin: 0; padding: 0; border-top: 1.5px solid var(--ink); }
+.consult-card { border-bottom: 1.5px solid var(--ink); }
+.consult-link { display: grid; grid-template-columns: 44px 1fr; gap: .9rem; padding: .9rem 0; color: inherit; text-decoration: none; align-items: start; }
+.consult-link:hover .consult-title { text-decoration: underline; text-decoration-color: var(--signal); text-underline-offset: 4px; }
+.consult-main { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+.consult-title { font: 400 1.05rem/1.35 var(--font-ui); }
+.consult-need { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tag.consult-status.hot { background: var(--signal); color: var(--signal-ink); border-color: var(--signal); }
+.tag.consult-status.revealed, .tag.consult-status.done { background: var(--ink); color: var(--paper); }
+.tag.consults-tag { border-style: dashed; }
+.consult-head { align-items: center; gap: 1rem; }
+.consult-head h1 { margin: 0; }
+.consult-contacts { border-color: var(--signal); box-shadow: 5px 5px 0 var(--signal); }
+.consult-contact { font-size: 1.3rem; font-weight: 700; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+.consult-contacts .mine { font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.consult-len select { width: auto; min-width: 9rem; }
+.consult-thanks, .pf-thanks blockquote { margin: 0; padding-left: .9rem; border-left: 4px solid var(--signal); font-size: 1.05rem; white-space: pre-wrap; }
+.consult-stage { margin: 0; }
+.members-filter { margin: .25rem 0 .75rem; }
+.block { display: block; }
+.pf-consult { border-top: 3px solid var(--ink); padding: 1.4rem 1.6rem 1.6rem; display: flex; flex-direction: column; gap: .8rem; }
+.pf-consult-desc { margin: 0; max-width: 46rem; }
+.pf-consult-facts { display: flex; flex-wrap: wrap; gap: 0 2.5rem; margin: 0; }
+.pf-consult-facts dt { font: 400 .85rem var(--font-ui); text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
+.pf-consult-facts dd { margin: 0; font-size: 1.35rem; font-weight: 700; }
+.pf-thanks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 1rem 1.5rem; }
+.pf-thanks li { display: flex; flex-direction: column; gap: .35rem; }
+.pf-thanks li.hidden { opacity: .55; }
+.consult-book { max-width: 46rem; }
+.adm-consult { margin: .5rem 0; }
+@media (max-width: 640px) {
+  .pf-consult { padding: 1.1rem 1rem 1.2rem; }
+  .consult-head { flex-direction: column; align-items: flex-start; }
+}

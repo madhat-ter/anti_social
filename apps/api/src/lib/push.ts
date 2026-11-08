@@ -70,7 +70,8 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
   const eventUrl = p.eventId ? `/events/${p.eventId}` : '/events';
   const collab = p.title ? `"${p.title}"` : 'a collab';
   const collabUrl = p.collabId ? `/collabs/${p.collabId}` : '/collabs';
-  const m = (title: string, body: string, url: string): PushMessage => ({ title, body, url, tag: `${r.kind}:${p.postId ?? p.eventId ?? p.collabId ?? ''}` });
+  const consultUrl = p.consultationId ? `/consultations/${p.consultationId}` : '/consultations';
+  const m = (title: string, body: string, url: string): PushMessage => ({ title, body, url, tag: `${r.kind}:${p.postId ?? p.eventId ?? p.collabId ?? p.consultationId ?? ''}` });
   switch (r.kind) {
     case 'reply': return m(`@${r.actor ?? 'someone'} replied`, r.post_snippet ?? '', p.postId ? `/p/${r.root_id ?? p.postId}#${p.postId}` : '/notifications');
     case 'activated': return m('You have a seat', 'Welcome in.', '/');
@@ -97,6 +98,15 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
     case 'event_declined': return m('Not this time', `${ev} is full of people already. Plenty more in Events.`, '/events');
     case 'event_invite': return m(`@${r.actor ?? 'someone'} invited you`, `Come to ${ev}?`, eventUrl);
     case 'collab_invite': return m(`@${r.actor ?? 'someone'} invited you`, `Join ${collab}?`, collabUrl);
+    // RFC §10.6: consultations. Never a contact in a push, only that something changed.
+    case 'consult_request': return m(`@${r.actor ?? 'someone'} asked for a consultation`, p.topic ? `On ${p.topic}.` : 'Open it to answer.', consultUrl);
+    case 'consult_accepted': return m(`@${r.actor ?? 'someone'} accepted`, p.pricing === 'paid' ? 'They set a price. Agree to it to swap contacts.' : 'Free. Your contacts are swapped.', consultUrl);
+    case 'consult_declined': return m('Not this time', p.topic ? `Your request on ${p.topic} was declined.` : 'Your request was declined.', consultUrl);
+    case 'consult_agreed': return m(`@${r.actor ?? 'someone'} agreed to the price`, 'Your contacts are swapped.', consultUrl);
+    case 'consult_expired': return m('A consultation request expired', 'Nobody answered in 7 days.', consultUrl);
+    case 'consult_done': return m('Session marked done', p.topic ? `On ${p.topic}.` : 'Thanks for taking part.', consultUrl);
+    case 'consult_thanks': return m(`@${r.actor ?? 'someone'} said thanks`, 'A thank-you is on your portfolio.', consultUrl);
+    case 'consult_closed': return m('A consultation was closed', 'The contacts are hidden again.', consultUrl);
     default: return null;
   }
 }

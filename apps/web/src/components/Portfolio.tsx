@@ -8,7 +8,7 @@
  * sits: "Edit portfolio" swaps every section for its inputs; Save sends one PATCH.
  */
 import Link from 'next/link';
-import { useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import {
   ABOUT_MAX_WORDS, ABOUT_MIN_WORDS, PF_ABOUT_MAX, countWords, PF_ACCENTS, PF_BACKGROUNDS, PF_EDUCATION_MAX, PF_ENTRY_LINE_MAX, PF_ENTRY_PLACE_MAX, PF_ENTRY_TITLE_MAX,
   PF_EXPERIENCE_MAX, PF_FONTS, PF_HEADLINE_MAX, PF_LINKS_MAX, PF_LINK_LABEL_MAX, PF_LINK_URL_MAX, PF_LOCATION_MAX, PF_TAGS_MAX,
@@ -45,8 +45,10 @@ const copyOf = (p: Portfolio): PortfolioFields => ({
 /** The cover while editing: unchanged, removed, or a fresh upload (with a local preview). */
 type CoverDraft = { id: string | null | undefined; preview: string | null; uploading: boolean };
 
-export function PortfolioWindow({ member, pf, projects, onSaved, onReorder }: {
+export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, consulting }: {
   member: MemberSummary; pf: Portfolio; projects: ProjectSummary[];
+  /** the Consulting section (RFC §10.6), between the work and the links */
+  consulting?: ReactNode;
   onSaved: (p: Portfolio) => void;
   /** owner only: the contents list in its new order */
   onReorder: (ids: string[]) => void;
@@ -255,6 +257,8 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder }: {
       {(projects.length > 0 || pf.mine) && !editing && (
         <Contents handle={member.handle} items={projects} mine={pf.mine} onReorder={onReorder} />
       )}
+
+      {!editing && consulting}
 
       {hasLinks && (
         <section className="pf-links" aria-label="Links">

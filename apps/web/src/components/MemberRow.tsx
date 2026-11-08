@@ -17,6 +17,7 @@ export function MemberRow({ m }: { m: MemberSummary }) {
           <BirthdayTag b={m.birthday} />
           {m.state === 'archived' && <span className="tag">archived</span>}
           {m.openToWork && <span className="tag open-tag">open to work</span>}
+          {m.consults && <span className="tag consults-tag" title="Takes consultations: book one from their portfolio">consults</span>}
         </span>
         {line && <span className="muted small bio-line">{line}</span>}
       </Link>

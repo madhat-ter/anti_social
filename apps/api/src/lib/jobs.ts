@@ -4,6 +4,7 @@ import type { Storage } from './storage';
 import type { PaymentProvider } from './payments';
 import { expireStaleCheckouts, processRefunds } from './billing';
 import { fanOutPush, NoPushSender, type PushSender } from './push';
+import { sweepConsultations } from './consultations';
 
 export type JobDeps = { storage: Storage; payments: PaymentProvider; push?: PushSender };
 
@@ -78,6 +79,12 @@ export const JOBS: Job[] = [
                (select count(*)::int from cleared where done = ${CHECKLIST_ITEMS}::int) as cleared`);
       return { sent: r?.sent ?? 0, cleared: r?.cleared ?? 0 };
     },
+  },
+  {
+    // Consultations (RFC §10.6): expire unanswered requests and unagreed prices, wipe old contacts.
+    name: 'consultations',
+    everyMs: HOUR,
+    run: async (tx) => sweepConsultations(tx),
   },
   {
     // Web Push fan-out of new notifications (RFC §12: near real time).

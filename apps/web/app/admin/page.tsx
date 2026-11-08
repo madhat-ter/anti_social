@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { api, ApiError, errorMessage, type AdminInterest, type AdminMember, type AdminSettings, type FlagItem, type Me } from '@/lib/api';
+import { api, ApiError, errorMessage, type AdminInterest, type AdminMember, type AdminSettings, type FlagItem, type Me, type OpsConsultation, type OpsConsultationDetail } from '@/lib/api';
 import { fmtDate, relativeTime, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { CopyButton, ErrorNote } from '@/components/ui';
@@ -27,6 +27,7 @@ function Admin({ me }: { me: Me }) {
         <Invites />
         <Reports />
         <Members me={me} />
+        <Consultations />
         <Community />
       </Win>
     </>
@@ -73,11 +74,61 @@ function Invites() {
 }
 
 type Ask = { item: FlagItem; resolution: 'restored' | 'removed' } | null;
+const KIND_LABEL: Record<FlagItem['kind'], string> = {
+  post: 'Post', project: 'Project', collab: 'Collab', consult_offer: 'Consultation offer', consultation: 'Consultation request',
+};
+
+/** A reported request in full: admins see contacts only here, to judge a report (RFC §10.6). */
+function ConsultDetail({ id }: { id: string }) {
+  const [d, setD] = useState<OpsConsultationDetail | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { api.opsConsultation(id).then(setD, (e) => setErr(errorMessage(e))); }, [id]);
+  if (err) return <ErrorNote message={err} />;
+  if (!d) return <Loading />;
+  return (
+    <dl className="facts adm-consult">
+      <dt>Topic</dt><dd>{d.topic} · {d.status}{d.pricing && <> · {d.pricing === 'paid' ? d.priceNote ?? 'paid' : 'free'}</>}</dd>
+      <dt>Asked</dt><dd className="pre">{d.need}</dd>
+      {d.when && <><dt>When</dt><dd>{d.when}</dd></>}
+      <dt>Contacts</dt>
+      <dd>@{d.consultant.handle}: {d.contacts.consultant ?? <em className="muted">not shared or already wiped</em>}<br />@{d.requester.handle}: {d.contacts.requester ?? <em className="muted">wiped</em>}</dd>
+      {d.paymentUrl && <><dt>Payment link</dt><dd className="mono">{d.paymentUrl}</dd></>}
+      {d.thanks && <><dt>Thank-you</dt><dd>{d.thanks}</dd></>}
+      <dt>Reports</dt><dd>{d.reports.map((r, i) => <span key={i} className="block">@{r.handle}{r.reason ? `: ${r.reason}` : ''} <span className="muted small">{fmtDate(r.at)}{!r.open && ' · handled'}</span></span>)}</dd>
+    </dl>
+  );
+}
+
+/** Who consulted whom and when. Never what was asked or the contacts (those only on a report). */
+function Consultations() {
+  const [items, setItems] = useState<OpsConsultation[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { api.opsConsultations().then(setItems, (e) => setErr(errorMessage(e))); }, []);
+  return (
+    <section className="panel-sec" aria-labelledby="adm-con">
+      <h2 id="adm-con">Consultations</h2>
+      <p className="muted">Who asked whom, and when. What they asked and their contacts stay between them unless one of them reports it.</p>
+      <ErrorNote message={err} />
+      {items === null ? (err ? null : <Loading />) : items.length === 0 ? <p className="muted">None yet.</p> : (
+        <ul className="list adm-consults">
+          {items.slice(0, 50).map((c) => (
+            <li key={c.id}>
+              <Link href={`/u/${c.requester.handle}`}>@{c.requester.handle}</Link> → <Link href={`/u/${c.consultant.handle}`}>@{c.consultant.handle}</Link>
+              {' '}<span className="muted small">{c.topic} · {c.status}{c.pricing ? ` · ${c.pricing}` : ''} · {relativeTime(c.createdAt)}</span>
+              {c.reported && <span className="tag danger">reported</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 function Reports() {
   const [items, setItems] = useState<FlagItem[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [ask, setAsk] = useState<Ask>(null);
+  const [open, setOpen] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setErr(null);
@@ -90,6 +141,8 @@ function Reports() {
     try {
       if (a.item.kind === 'post') await api.opsResolvePost(a.item.postId!, a.resolution);
       else if (a.item.kind === 'collab') await api.opsResolveCollab(a.item.collabId!, a.resolution);
+      else if (a.item.kind === 'consult_offer') await api.opsResolveConsultOffer(a.item.offerHandle!, a.resolution);
+      else if (a.item.kind === 'consultation') await api.opsResolveConsultation(a.item.consultationId!, a.resolution);
       else await api.opsResolveProject(a.item.projectId!, a.resolution);
       await load();
     } catch (e) { setErr(errorMessage(e)); }
@@ -98,13 +151,15 @@ function Reports() {
   const link = (f: FlagItem) => f.kind === 'post'
     ? `/p/${f.postId}`
     : f.kind === 'collab' ? `/collabs/${f.collabId}`
+    : f.kind === 'consult_offer' ? `/u/${f.offerHandle}`
+    : f.kind === 'consultation' ? null
     : f.author ? `/u/${f.author}/work/${f.projectId}` : null;
 
   return (
     <section className="panel-sec" aria-labelledby="adm-rep">
       <h2 id="adm-rep">Reports</h2>
       <div className="row between adm-rep-head">
-        <p className="muted">Posts, projects and collabs members reported. Five reports hide one automatically until you decide.</p>
+        <p className="muted">Posts, projects, collabs and consultations members reported. Five reports hide one automatically until you decide; a reported consultation request comes straight here.</p>
         <button type="button" className="btn" onClick={() => void load()}>Refresh</button>
       </div>
       <ErrorNote message={err} />
@@ -113,10 +168,11 @@ function Reports() {
           {items.map((f) => {
             const href = link(f);
             return (
-              <li key={f.postId ?? f.projectId ?? f.collabId}>
+              <li key={f.postId ?? f.projectId ?? f.collabId ?? f.consultationId ?? `offer:${f.offerHandle}`}>
                 <span className="adm-meta">
-                  <strong>{f.kind === 'post' ? 'Post' : f.kind === 'collab' ? 'Collab' : 'Project'}</strong>
-                  {f.kind === 'collab' ? ' hosted by ' : ' by '}{f.author ? <Link href={`/u/${f.author}`}>@{f.author}</Link> : 'a deleted member'}
+                  <strong>{KIND_LABEL[f.kind]}</strong>
+                  {f.kind === 'collab' ? ' hosted by ' : f.kind === 'consultation' ? ' to ' : ' by '}{f.author ? <Link href={`/u/${f.author}`}>@{f.author}</Link> : 'a deleted member'}
+                  {f.kind === 'consultation' && f.requester && <> from <Link href={`/u/${f.requester}`}>@{f.requester}</Link></>}
                   {' · '}{f.flags} report{f.flags === 1 ? '' : 's'}
                   {' · '}<time dateTime={f.firstFlaggedAt} title={fmtDate(f.firstFlaggedAt)}>{relativeTime(f.firstFlaggedAt)}</time>
                   {f.hidden && <span className="tag">hidden</span>}
@@ -127,12 +183,20 @@ function Reports() {
                     {f.reasons.map((r, i) => <li key={i}>{r}</li>)}
                   </ul>
                 )}
+                {f.kind === 'consultation' && open === f.consultationId && <ConsultDetail id={f.consultationId!} />}
                 <div className="row">
                   {href && <Link className="btn" href={href}>Open</Link>}
+                  {f.kind === 'consultation' && (
+                    <button type="button" className="btn" onClick={() => setOpen(open === f.consultationId ? null : f.consultationId!)}>
+                      {open === f.consultationId ? 'Hide request' : 'Read the request'}
+                    </button>
+                  )}
                   <button type="button" className="btn" onClick={() => setAsk({ item: f, resolution: 'restored' })}>
                     {f.hidden ? 'Restore' : 'Keep it'}
                   </button>
-                  <button type="button" className="btn danger" onClick={() => setAsk({ item: f, resolution: 'removed' })}>Remove</button>
+                  <button type="button" className="btn danger" onClick={() => setAsk({ item: f, resolution: 'removed' })}>
+                    {f.kind === 'consult_offer' ? 'Switch consulting off' : f.kind === 'consultation' ? 'Close it' : 'Remove'}
+                  </button>
                 </div>
               </li>
             );
@@ -150,8 +214,12 @@ function Reports() {
       <AlertDialog
         open={ask?.resolution === 'removed'}
         title="Remove"
-        message={<>Remove this {ask?.item.kind ?? 'post'}? Its author is told it was removed after reports. <strong>This cannot be undone.</strong></>}
-        confirmLabel="Remove"
+        message={ask?.item.kind === 'consult_offer'
+          ? <>Switch <strong>@{ask.item.offerHandle}</strong>&apos;s consulting off? Their offer disappears and requests not yet under way close. You can switch it back on from Members.</>
+          : ask?.item.kind === 'consultation'
+            ? <>Close this request? Both contacts are hidden at once and both people are told an admin closed it.</>
+            : <>Remove this {ask?.item.kind ?? 'post'}? Its author is told it was removed after reports. <strong>This cannot be undone.</strong></>}
+        confirmLabel={ask?.item.kind === 'consult_offer' ? 'Switch off' : ask?.item.kind === 'consultation' ? 'Close it' : 'Remove'}
         danger
         onConfirm={() => ask && void resolve(ask)}
         onCancel={() => setAsk(null)}
@@ -219,6 +287,15 @@ function Members({ me }: { me: Me }) {
     }
   }
 
+  async function consulting(m: AdminMember, on: boolean) {
+    setErr(null); setMsg(null);
+    try {
+      await api.opsSetConsulting(m.handle, on);
+      setMsg(on ? `@${m.handle} can offer consultations again.` : `@${m.handle}'s consulting is switched off.`);
+      await load();
+    } catch (e) { setErr(errorMessage(e)); }
+  }
+
   async function closeUnderage() {
     const u = underage;
     setUnderage(null); setErr(null); setMsg(null);
@@ -263,12 +340,16 @@ function Members({ me }: { me: Me }) {
                   {' · '}{m.lastSeenAt ? `seen ${relativeTime(m.lastSeenAt)}` : 'never seen'}
                   {' · '}{m.postCount} {m.postCount === 1 ? 'post' : 'posts'}
                   {m.age !== null && <> · age {m.age}</>}
+                  {m.consulting !== 'none' && <> · consulting {m.consulting === 'off' ? 'switched off' : m.consulting}</>}
                   {m.invitedBy && <> · invited by @{m.invitedBy}</>}
                 </span>
               </span>
               <span className="row adm-member-actions">
                 <button type="button" className="btn" onClick={() => setAsk({ kind: 'rename', m })}>Change handle</button>
                 <button type="button" className="btn" onClick={() => setAsk({ kind: 'birthday', m })}>Change birthday</button>
+                {m.consulting === 'off'
+                  ? <button type="button" className="btn" onClick={() => void consulting(m, true)}>Allow consulting</button>
+                  : m.consulting !== 'none' && <button type="button" className="btn" onClick={() => void consulting(m, false)}>Switch consulting off</button>}
                 {m.state === 'banned' ? (
                   <button type="button" className="btn" onClick={() => setAsk({ kind: 'unban', m })}>Unban</button>
                 ) : m.role === 'ops' ? (

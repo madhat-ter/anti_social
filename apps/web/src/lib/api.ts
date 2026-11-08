@@ -32,7 +32,12 @@ export interface Me {
 
 /** One reported post or project in the moderation queue. */
 export interface FlagItem {
-  kind: 'post' | 'project' | 'collab';
+  kind: 'post' | 'project' | 'collab' | 'consult_offer' | 'consultation';
+  /** consult_offer: whose offer */
+  offerHandle?: string;
+  /** consultation: the request (author = the consultant, requester = who asked) */
+  consultationId?: string;
+  requester?: string | null;
   postId?: string;
   collabId?: string;
   projectId?: string;
@@ -51,6 +56,8 @@ export interface AdminMember {
   invitedBy: string | null; postCount: number;
   /** whole years (admins only) */
   age: number | null;
+  /** consultations: never set up, on, paused, or switched off by an admin */
+  consulting: 'none' | 'on' | 'paused' | 'off';
 }
 /** The room's settings an admin can change, plus seats in use. */
 export interface AdminSettings { seatCap: number; invitesPerMember: number; inviteExpiryDays: number; seatsUsed: number }
@@ -196,6 +203,8 @@ export interface MemberSummary {
   /** from the portfolio: shown under the name in lists */
   headline: string;
   openToWork: boolean;
+  /** takes consultations (never true for viewers under 18) */
+  consults: boolean;
 }
 export interface Notification {
   id: string;
@@ -219,6 +228,8 @@ export interface Notification {
   collabTitle?: string | null;
   /** collab_finished: your draft project */
   draftId?: string | null;
+  /** consult_*: the request (its topic; pricing on consult_accepted; what it was waiting for on consult_expired) */
+  consultation?: { id: string; topic: string; pricing: string | null; was: string | null } | null;
 }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 export type RsvpStatus = 'going' | 'waitlisted' | 'cancelled';
@@ -276,6 +287,51 @@ export interface CollabInput {
   coverId?: string | null; status?: CollabStatus;
 }
 export interface CollabSuggestion extends CollabPerson { shared: string[]; match: number }
+
+// ─── Consultations (RFC §10.6) ──────────────────────────────────────────────
+export type ConsultPricing = 'free' | 'paid';
+export type ConsultStatus = 'pending' | 'accepted' | 'revealed' | 'done' | 'declined' | 'expired' | 'closed';
+export interface ThanksNote extends CollabPerson { text: string; at: string; hidden: boolean }
+/** What a member (18+) sees on someone's portfolio. Never the contact or the payment link. */
+export interface ConsultOffer {
+  handle: string; topics: string[]; description: string; minutes: number;
+  pricing: ConsultPricing; priceNote: string | null; sessionsDone: number;
+  thanks: ThanksNote[]; thanksCount: number;
+  mine: boolean; canBook: boolean; canReport: boolean;
+  active: boolean; blocked: boolean; hidden: boolean;
+}
+export interface MyConsultOffer {
+  active: boolean; topics: string[]; description: string; minutes: number;
+  pricing: ConsultPricing; priceNote: string | null; paymentUrl: string | null; contact: string;
+  blocked: boolean; hidden: boolean; allowed: boolean; exists: boolean;
+}
+export type ConsultOfferInput = Partial<Omit<MyConsultOffer, 'blocked' | 'hidden' | 'allowed' | 'exists'>>;
+export interface Consultation {
+  id: string; role: 'consultant' | 'requester';
+  consultant: CollabPerson; requester: CollabPerson;
+  topic: { slug: string; label: string }; need: string; when: string; minutes: number;
+  status: ConsultStatus; pricing: ConsultPricing | null; priceNote: string | null; paymentUrl: string | null;
+  contacts: { consultant: string; requester: string } | null; contactsUntil: string | null; expiresAt: string | null;
+  createdAt: string; decidedAt: string | null; revealedAt: string | null; doneAt: string | null; closedAt: string | null;
+  closedByMe: boolean;
+  thanks: { text: string; at: string; hidden: boolean } | null;
+  can: { accept: boolean; decline: boolean; agree: boolean; close: boolean; hideContacts: boolean; done: boolean; thank: boolean; hideThanks: boolean; report: boolean };
+  reported: boolean;
+}
+export interface ConsultRequestInput { topic: string; need: string; when: string; contact: string }
+/** Admins: who consulted whom and when. Never the contacts or what was asked. */
+export interface OpsConsultation {
+  id: string; consultant: CollabPerson; requester: CollabPerson; topic: string; status: ConsultStatus;
+  pricing: ConsultPricing | null; createdAt: string; reported: boolean;
+}
+/** Admins, on a reported request only: all of it. */
+export interface OpsConsultationDetail {
+  id: string; consultant: CollabPerson; requester: CollabPerson; topic: string; need: string; when: string;
+  status: ConsultStatus; pricing: ConsultPricing | null; priceNote: string | null; paymentUrl: string | null;
+  contacts: { consultant: string | null; requester: string | null };
+  createdAt: string; revealedAt: string | null; doneAt: string | null; closedAt: string | null; thanks: string | null;
+  reports: { handle: string; reason: string | null; at: string; open: boolean }[];
+}
 export type ProductKey = 'stay_fee_90d' | 'reinstatement';
 export interface Price { productKey: ProductKey; name: string; amountMinor: number; currency: string }
 export interface PaymentRecord {
@@ -438,6 +494,32 @@ export const api = {
   eventUpdates: (id: string, cursor?: string | null, limit = 20) => get<Page<Post>>(`/events/${encodeURIComponent(id)}/updates${qs({ cursor, limit })}`),
   memberCollabs: (handle: string) => get<{ items: CollabSummary[] }>(`/members/${encodeURIComponent(handle)}/collabs`),
 
+  myConsultOffer: () => get<MyConsultOffer>('/me/consult-offer'),
+  saveConsultOffer: (b: ConsultOfferInput) => call<MyConsultOffer>('PUT', '/me/consult-offer', b),
+  consultOffer: (handle: string) => get<{ offer: ConsultOffer | null }>(`/members/${encodeURIComponent(handle)}/consult-offer`),
+  consultThanks: (handle: string) => get<{ items: ThanksNote[] }>(`/members/${encodeURIComponent(handle)}/consult-thanks`),
+  flagConsultOffer: (handle: string, reason?: string) => post<{ flagged: true }>(`/members/${encodeURIComponent(handle)}/consult-offer/flag`, reason ? { reason } : {}),
+  requestConsultation: (handle: string, b: ConsultRequestInput) => post<Consultation>(`/members/${encodeURIComponent(handle)}/consultations`, b),
+  consultations: (box: 'received' | 'sent') => get<{ items: Consultation[]; waiting: number }>(`/consultations${qs({ box })}`),
+  consultWaiting: () => get<{ waiting: number }>('/consultations/waiting'),
+  consultation: (id: string) => get<Consultation>(`/consultations/${encodeURIComponent(id)}`),
+  acceptConsultation: (id: string, b: { pricing: ConsultPricing; priceNote?: string | null; paymentUrl?: string | null }) =>
+    post<Consultation>(`/consultations/${encodeURIComponent(id)}/accept`, b),
+  declineConsultation: (id: string) => post<Consultation>(`/consultations/${encodeURIComponent(id)}/decline`, {}),
+  agreeConsultation: (id: string) => post<Consultation>(`/consultations/${encodeURIComponent(id)}/agree`, {}),
+  closeConsultation: (id: string) => post<Consultation>(`/consultations/${encodeURIComponent(id)}/close`, {}),
+  doneConsultation: (id: string) => post<Consultation>(`/consultations/${encodeURIComponent(id)}/done`, {}),
+  thankConsultation: (id: string, text: string | null) => call<Consultation>('PUT', `/consultations/${encodeURIComponent(id)}/thanks`, { text }),
+  hideConsultThanks: (id: string, hidden: boolean) => post<Consultation>(`/consultations/${encodeURIComponent(id)}/thanks/hidden`, { hidden }),
+  flagConsultation: (id: string, reason?: string) => post<{ flagged: true }>(`/consultations/${encodeURIComponent(id)}/flag`, reason ? { reason } : {}),
+  opsConsultations: () => get<OpsConsultation[]>('/ops/consultations'),
+  opsConsultation: (id: string) => get<OpsConsultationDetail>(`/ops/consultations/${encodeURIComponent(id)}`),
+  opsResolveConsultation: (id: string, resolution: 'restored' | 'removed') =>
+    post<{ resolution: string }>(`/ops/consultations/${encodeURIComponent(id)}/resolve`, { resolution }),
+  opsResolveConsultOffer: (handle: string, resolution: 'restored' | 'removed') =>
+    post<{ resolution: string }>(`/ops/consult-offers/${encodeURIComponent(handle)}/resolve`, { resolution }),
+  opsSetConsulting: (handle: string, on: boolean) => post<{ switchedOn?: true; switchedOff?: true }>(`/ops/users/${encodeURIComponent(handle)}/consulting`, { on }),
+
   pushConfig: () => get<{ enabled: boolean; publicKey: string | null }>('/push/config'),
   pushSubscribe: (b: { endpoint: string; keys: { p256dh: string; auth: string } }) => post<{ ok: true }>('/push/subscriptions', b),
   pushUnsubscribe: (endpoint: string) => call<{ ok: true }>('DELETE', '/push/subscriptions', { endpoint }),
@@ -535,6 +617,12 @@ const MESSAGES: Record<string, string> = {
   not_seated: 'Only members with a seat can be admins.',
   capacity_below_going: 'More people are already going than that capacity allows.',
   attendance_closed: 'Attendance can be confirmed from the start time until 14 days after.',
+  consult_age: 'Consultations are for members 18 and over.',
+  consult_blocked: 'An admin switched your consulting off. You can still finish the sessions already agreed.',
+  consult_open_limit: 'You already have 3 open requests with them. Finish or close one first.',
+  own_offer: 'That is your own offer.',
+  not_consultant: 'Only the person asked can do that.',
+  not_requester: 'Only the person who asked can do that.',
 };
 
 export function errorMessage(e: unknown): string {

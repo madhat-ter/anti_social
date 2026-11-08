@@ -18,20 +18,23 @@ export type AdminMember = {
   invitedBy: string | null; postCount: number;
   /** whole years; admins only (members never see an age or a year) */
   age: number | null;
+  /** RFC §10.6: none (never set up), on, paused, or off (an admin switched it off) */
+  consulting: 'none' | 'on' | 'paused' | 'off';
 };
 
 /** Everyone except deleted accounts: seated first (admins on top), then the queue, archived, banned. */
 export async function adminMembers(db: Db): Promise<AdminMember[]> {
   const r = await rows<{
     handle: string; display_name: string; state: string; role: 'member' | 'ops'; gender: string | null; joined: string;
-    activated: string | null; seen: string | null; inv: string | null; posts: number; age: number | null;
+    activated: string | null; seen: string | null; inv: string | null; posts: number; age: number | null; consulting: 'none' | 'on' | 'paused' | 'off';
   }>(db, sql`
     select u.handle, u.display_name, u.state, u.role, u.gender,
       ${iso(sql`u.created_at`)} as joined, ${iso(sql`u.activated_at`)} as activated, ${iso(sql`u.last_seen_at`)} as seen,
       inv.handle as inv,
       (select count(*)::int from posts p where p.author_id = u.id and p.deleted_at is null) as posts,
-      case when u.birthday is not null then date_part('year', age(current_date, u.birthday))::int end as age
-    from users u left join users inv on inv.id = u.invited_by
+      case when u.birthday is not null then date_part('year', age(current_date, u.birthday))::int end as age,
+      case when o.user_id is null then 'none' when o.blocked_at is not null then 'off' when o.active then 'on' else 'paused' end as consulting
+    from users u left join users inv on inv.id = u.invited_by left join consult_offers o on o.user_id = u.id
     where u.state <> 'deleted'
     order by case u.state when 'active' then 0 when 'flagged_lurker' then 0 when 'waitlisted' then 1 when 'archived' then 2 else 3 end,
              (u.role = 'ops') desc, lower(u.handle)
@@ -39,7 +42,7 @@ export async function adminMembers(db: Db): Promise<AdminMember[]> {
   return r.map((x) => ({
     handle: x.handle, displayName: x.display_name, state: x.state, role: x.role, gender: x.gender ?? null,
     joinedAt: x.joined, activatedAt: x.activated, lastSeenAt: x.seen, invitedBy: x.inv, postCount: Number(x.posts),
-    age: x.age === null ? null : Number(x.age),
+    age: x.age === null ? null : Number(x.age), consulting: x.consulting,
   }));
 }
 

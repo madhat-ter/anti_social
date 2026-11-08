@@ -120,7 +120,13 @@ export async function resolveCollabFlags(db: Db, collabId: string, resolution: '
 }
 
 export type FlagQueueItem = {
-  kind: 'post' | 'project' | 'collab';
+  kind: 'post' | 'project' | 'collab' | 'consult_offer' | 'consultation';
+  /** a reported consultation offer: whose */
+  offerHandle?: string;
+  /** a reported consultation request (open GET /ops/consultations/:id for the whole of it) */
+  consultationId?: string;
+  /** for a request: the person who asked (author is the consultant) */
+  requester?: string | null;
   /** the reported collab, for kind 'collab' */
   collabId?: string;
   /** the reported post, for kind 'post' */
@@ -159,12 +165,34 @@ export async function flagQueue(db: Db): Promise<FlagQueueItem[]> {
         from collab_flags f join collabs co on co.id = f.collab_id
        where f.resolved_at is null and co.deleted_at is null
        group by co.id
+      union all
+      select 'consult_offer' as kind, o.user_id, 'Consultation offer' || case when o.description <> '' then ' — ' || left(o.description, 200) else '' end as body,
+             u.handle, (o.hidden_at is not null) as hidden, count(*)::int as n,
+             coalesce(array_agg(f.reason) filter (where f.reason is not null), '{}') as reasons,
+             min(f.created_at) as first_at
+        from consult_flags f join consult_offers o on o.user_id = f.offer_user_id join users u on u.id = o.user_id
+       where f.resolved_at is null
+       group by o.user_id, u.handle
+      union all
+      select 'consultation' as kind, c.id, c.topic_label || ' — ' || left(c.need, 200) as body,
+             u.handle, false as hidden, count(*)::int as n,
+             coalesce(array_agg(f.reason) filter (where f.reason is not null), '{}') as reasons,
+             min(f.created_at) as first_at
+        from consult_flags f join consultations c on c.id = f.consultation_id join users u on u.id = c.consultant_id
+       where f.resolved_at is null
+       group by c.id, u.handle
     ) q
     order by hidden desc, n desc, first_at
     limit 200`);
   const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : new Date(String(v)).toISOString());
+  const askers = new Map((await rows<{ id: string; handle: string }>(db, sql`
+    select c.id, u.handle from consultations c join users u on u.id = c.requester_id
+     where exists (select 1 from consult_flags f where f.consultation_id = c.id and f.resolved_at is null)`)).map((x) => [x.id, x.handle]));
+  const ids = (x: any) => x.kind === 'post' ? { postId: x.id } : x.kind === 'collab' ? { collabId: x.id }
+    : x.kind === 'consult_offer' ? { offerHandle: x.handle } : x.kind === 'consultation' ? { consultationId: x.id, requester: askers.get(x.id) ?? null }
+    : { projectId: x.id };
   return r.map((x) => ({
-    kind: x.kind, ...(x.kind === 'post' ? { postId: x.id } : x.kind === 'collab' ? { collabId: x.id } : { projectId: x.id }),
+    kind: x.kind, ...ids(x),
     body: x.body, author: x.handle, hidden: !!x.hidden, flags: Number(x.n),
     reasons: Array.isArray(x.reasons) ? x.reasons : [], firstFlaggedAt: iso(x.first_at),
   }));

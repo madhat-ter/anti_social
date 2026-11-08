@@ -6,6 +6,7 @@ import { api, errorMessage, type MemberSummary, type CollabSummary, type Pick, t
 import { PickCard } from '@/components/Picks';
 import { CollabCard } from '@/components/Collabs';
 import { PortfolioWindow } from '@/components/Portfolio';
+import { ConsultingSection, isAdult } from '@/components/Consult';
 import { usePaged, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { PostList } from '@/components/PostList';
@@ -14,7 +15,7 @@ import { Loading } from '@/components/retro';
 
 export default function ProfilePage() {
   useTitle('Profile');
-  return <SeatedShell>{(me) => <Profile myHandle={me.handle} />}</SeatedShell>;
+  return <SeatedShell>{(me) => <Profile myHandle={me.handle} adult={isAdult(me)} />}</SeatedShell>;
 }
 
 /** A member's picks, newest first; you can remove your own. */
@@ -54,7 +55,7 @@ function MemberCollabs({ handle, mine }: { handle: string; mine: boolean }) {
 }
 
 /** The portfolio window on top; posts and picks underneath, behind folder tabs. */
-function Profile({ myHandle }: { myHandle: string }) {
+function Profile({ myHandle, adult }: { myHandle: string; adult: boolean }) {
   const params = useParams<{ handle: string }>();
   const handle = decodeURIComponent(params.handle);
   const [member, setMember] = useState<MemberSummary | null>(null);
@@ -88,7 +89,8 @@ function Profile({ myHandle }: { myHandle: string }) {
   };
   return (
     <>
-      <PortfolioWindow member={member} pf={pf} projects={projects} onSaved={setPf} onReorder={reorder} />
+      <PortfolioWindow member={member} pf={pf} projects={projects} onSaved={setPf} onReorder={reorder}
+        consulting={<ConsultingSection handle={member.handle} viewerAdult={adult} />} />
       <ErrorNote message={orderErr} />
       <div className="tabs pf-tabs" role="tablist">
         {(['posts', 'collabs', 'picks'] as const).map((s) => (

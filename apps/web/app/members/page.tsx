@@ -25,11 +25,14 @@ function SeatMap({ myHandle }: { myHandle: string }) {
   useEffect(() => { loadAllMembers().then(setMembers, (e) => setErr(errorMessage(e))); }, []);
   useEffect(() => { seatCapCached().then(setSeatCap); }, []);
 
+  const [onlyConsults, setOnlyConsults] = useState(false);
   if (err) return <ErrorNote message={err} />;
   if (!members) return <Loading />;
 
   const cap = Math.max(seatCap, members.length);
   const open = cap - members.length;
+  const anyConsult = members.some((m) => m.consults);
+  const shown = onlyConsults ? members.filter((m) => m.consults) : members;
   return (
     <>
       <h1>Members</h1>
@@ -47,14 +50,21 @@ function SeatMap({ myHandle }: { myHandle: string }) {
           {open > 0 ? `${open} open. Invites from Settings fill them.` : 'The room is full; new people wait in line.'}
         </figcaption>
       </figure>
+      {anyConsult && (
+        <label className="check members-filter">
+          <input type="checkbox" checked={onlyConsults} onChange={(e) => setOnlyConsults(e.target.checked)} />
+          Only people who offer consultations
+        </label>
+      )}
       <ol className="seatmap">
-        {members.map((m) => (
+        {shown.map((m) => (
           <li key={m.handle} className={m.handle === myHandle ? 'me' : undefined}>
             <Link href={`/u/${m.handle}`} title={m.headline || m.bio || undefined}>
               <Avatar seed={m.handle} gender={m.gender} size={56} />
               <span className="seat-name">{m.displayName}</span>
               <span className="seat-handle">@{m.handle}</span>
               <BirthdayTag b={m.birthday} />
+              {m.consults && <span className="tag consults-tag" title="Takes consultations">consults</span>}
               {m.headline && (
                 <span className="seat-headline">
                   {m.openToWork && <span className="rdot on" role="img" aria-label="open to work" />}

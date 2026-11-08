@@ -10,7 +10,7 @@ import { Avatar } from '@/components/Avatar';
 import { AlertIcon, Dot } from '@/components/retro';
 
 /** System notices that need action get the warning triangle; good news gets the red dot. */
-const WARNINGS = new Set(['lurker_warning', 'seat_offer_expired', 'payment_refunded', 'event_cancelled', 'post_removed', 'project_removed']);
+const WARNINGS = new Set(['lurker_warning', 'seat_offer_expired', 'payment_refunded', 'event_cancelled', 'post_removed', 'project_removed', 'consult_removed', 'consult_switched_off']);
 
 export default function NotificationsPage() {
   useTitle('Notifications');
@@ -58,6 +58,22 @@ function describe(n: Notification): string {
   if (n.kind === 'event_declined') return `${ev} is full of people already. There are plenty more in Events.`;
   if (n.kind === 'event_invite') return `${who} invited you to ${ev}`;
   if (n.kind === 'collab_invite') return `${who} invited you to join ${co}`;
+  const on = n.consultation?.topic ? ` on ${n.consultation.topic}` : '';
+  if (n.kind === 'consult_request') return `${who} asked you for a consultation${on}`;
+  if (n.kind === 'consult_accepted') return n.consultation?.pricing === 'paid'
+    ? `${who} accepted your request${on} and set a price. Agree to it to swap contacts.`
+    : `${who} accepted your request${on}, free. Your contacts are swapped.`;
+  if (n.kind === 'consult_declined') return `Your consultation request${on} was declined. There are other people to ask.`;
+  if (n.kind === 'consult_agreed') return `${who} agreed to your price${on}. Your contacts are swapped.`;
+  if (n.kind === 'consult_expired') return n.consultation?.was === 'accepted'
+    ? `Your price for a consultation${on} was not agreed to in 7 days, so it expired.`
+    : `Your consultation request${on} was not answered in 7 days, so it expired.`;
+  if (n.kind === 'consult_done') return `${who} marked your consultation${on} done.`;
+  if (n.kind === 'consult_thanks') return `${who} left a thank-you on your portfolio.`;
+  if (n.kind === 'consult_closed') return n.actor ? `${who} closed a consultation${on}. The contacts are hidden again.` : `A consultation${on} was closed. The contacts are hidden again.`;
+  if (n.kind === 'consult_removed') return `An admin closed a consultation${on} after a report.`;
+  if (n.kind === 'consult_switched_off') return 'An admin switched your consulting off. Sessions already agreed can still be finished.';
+  if (n.kind === 'consult_reported') return 'A consultation request was reported and needs review in Admin.';
   return n.post ? `${who} interacted with your post` : 'Account update';
 }
 
@@ -104,7 +120,10 @@ function Notifications({ myHandle }: { myHandle: string }) {
       {p.items.length > 0 && (
         <ul className="notifs card">
           {p.items.map((n) => {
-            const href = n.kind === 'flag_threshold' || n.kind === 'made_admin' ? '/admin'
+            const href = n.kind === 'flag_threshold' || n.kind === 'made_admin' || n.kind === 'consult_reported' ? '/admin'
+              : n.kind === 'consult_thanks' ? `/u/${myHandle}`
+              : n.consultation ? `/consultations/${n.consultation.id}`
+              : n.kind === 'consult_switched_off' ? '/consultations?tab=offer'
               : n.kind === 'collab_finished' && n.draftId ? `/u/${myHandle}/work/${n.draftId}/edit`
               : n.kind === 'checklist_reminder' ? '/'
               : n.kind === 'handle_changed' && n.newHandle ? `/u/${n.newHandle}`

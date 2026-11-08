@@ -23,7 +23,7 @@ Stack: Next.js web client → Elysia (Bun) API → PostgreSQL (Drizzle + a few P
 - One API serving web now and mobile later.
 
 **Non-goals (v1)**
-- Direct/private messaging of any kind.
+- Direct/private messaging of any kind. (Consultations, §10.6, let two adults swap contacts after an accepted request; the conversation happens off the site.)
 - Follows, reposts, algorithmic ranking.
 - Platform-processed payments for events (Stripe Connect) — see §15.
 - Email, SMS, or social login.
@@ -739,6 +739,55 @@ Notifications: `collab_request`, `collab_joined`, `collab_accepted`, `collab_dec
 `collab_invite`, `collab_update`, `collab_meetup`, `collab_finished`, `collab_removed`,
 `event_request`, `event_accepted`, `event_declined`, `event_invite`, `event_update`.
 
+### 10.6 Consultations (added 2026-11-08)
+
+Grilled with the owner (Q1–Q17, all accepted). A member books another member's time; the other
+side accepts or declines, and decides per request whether it is free or paid. This is the one
+deliberate exception to "no private messaging, no contact details": on acceptance the two people
+see each other's contact (free text they typed) and take the conversation off the site, by mutual
+choice, one pair at a time.
+
+- **Who**: members only, and **18+ on both sides** (from the stored birthday; under-18s never see
+  the menu item, the portfolio section, the "consults" tag or the endpoints: `consult_age`).
+- **Money**: anti never handles it. Offers and acceptances carry a price note and, optionally, the
+  consultant's own `https://` payment link (shown only to the requester once there is a price). No
+  Stripe Connect, no ID checks, no refunds.
+- **Offer** (`consult_offers`, opt-in): 1–5 topics from the interests list, a description ≤ 500,
+  a session length (30/45/60/90/120 min), Free or Paid (a starting point; price note required for
+  Paid), and a private **contact** ≤ 300. Switching it on needs topics and a contact. Pausing stops
+  new requests; it is live only while active, not blocked by an admin, not hidden after reports,
+  and its owner is a seated adult.
+- **Request** (`consultations`): topic, what you need help with ≤ 1000, when suits you ≤ 200, your
+  contact ≤ 300. At most 3 open with the same consultant, 10 sent a day. States:
+  `pending` → `accepted` (Paid: waits for the requester's **"I agree to pay this"**) → `revealed`
+  → `done`; or `declined` (no reason given), `expired` (7 days unanswered, or 7 days without
+  agreeing to a price), `closed` (either side: withdraw, "No thanks", call it off). Free acceptance
+  reveals at once.
+- **Contacts**: the consultant's contact is copied onto the request at the reveal; both are shown
+  only while `revealed`/`done` and are hidden (and the copies wiped) when the request is closed, 14
+  days after Done, or 60 days after the reveal, whichever comes first. Reads apply the time limits
+  directly; the hourly `consultations` job expires requests (with notifications) and wipes copies.
+- **Done and thanks**: either side marks Done. The requester may leave a public thank-you ≤ 300 (no
+  stars or scores); the consultant can hide it. The portfolio shows "N sessions done".
+- **Portfolio**: a **Consulting** section (topics, length, usual price, description, sessions done,
+  newest 3 thank-yous plus "All", **Book a consultation**). Member lists carry a "consults" tag and
+  a filter (`GET /members?consults=1`). The menu has **Consultations** (Received / Sent / Your offer)
+  with a badge for requests waiting on you.
+- **Reports**: an offer like a project (5 reports hide it until ops decide; "remove" switches the
+  member's consulting off: offer blocked, requests not yet under way closed, agreed sessions keep
+  going). A request reaches the queue on one report (only two people see it). Admins see who
+  consulted whom and when (`GET /ops/consultations`), but read what was asked and the contacts
+  **only on a reported request** (`GET /ops/consultations/:id`). Admins can switch anyone's
+  consulting off or back on from Members.
+- **Bans and deletion**: `close_consultations_for()` (called by `ban_user` and `delete_account`)
+  closes everything open, wipes every contact copy and switches the offer off (deleted: removed).
+- Never a contribution for the lurker rule; no feed items.
+
+Notifications: `consult_request`, `consult_accepted` (with pricing), `consult_declined`,
+`consult_agreed`, `consult_expired`, `consult_done`, `consult_thanks`, `consult_closed`,
+`consult_removed`, `consult_switched_off`, and `consult_reported` for admins. Push texts never
+contain a contact.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops.
@@ -787,6 +836,11 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST /collabs/:id/leave`, `POST /collabs/:id/members/:handle/role`, `DELETE /collabs/:id/members/:handle` | A / host, managers | The team |
 | `GET /collabs/:id/updates`, `GET /members/:handle/collabs` | A | Updates (post with `POST /posts { collabId }`); a member's collabs |
 | `POST /collabs/:id/flag`, `POST /ops/collabs/:id/resolve`, `POST /ops/collabs/:id/remove` | A / O | Report; ops restore or remove |
+| `GET/PUT /me/consult-offer`, `GET /members/:handle/consult-offer`, `GET /members/:handle/consult-thanks` | A, 18+ | Consultation offer (§10.6) |
+| `POST /members/:handle/consultations`, `GET /consultations?box=received\|sent`, `GET /consultations/waiting`, `GET /consultations/:id` | A, 18+ | Requests |
+| `POST /consultations/:id/accept\|decline\|agree\|close\|done`, `PUT /consultations/:id/thanks`, `POST /consultations/:id/thanks/hidden` | A, 18+ (the two people) | The request's steps |
+| `POST /consultations/:id/flag`, `POST /members/:handle/consult-offer/flag` | A, 18+ | Reports |
+| `GET /ops/consultations[/:id]`, `POST /ops/consultations/:id/resolve`, `POST /ops/consult-offers/:handle/resolve`, `POST /ops/users/:handle/consulting` | O | Who consulted whom; reported requests in full; switch consulting off/on |
 | `POST /events/:id/attendance` | A (host) | Confirm attendees |
 | `GET /notifications`, `POST /notifications/read` | U | In-app inbox |
 | `POST/DELETE /push/subscriptions` | U | Web Push |

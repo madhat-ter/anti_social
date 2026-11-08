@@ -10,8 +10,11 @@ import { Avatar } from './Avatar';
 import { Loading } from './retro';
 import { Rail } from './Rail';
 import { PickWindow, useWide } from './Picks';
+import { isAdult } from './Consult';
 
 export const UNREAD_EVENT = 'anti:unread';
+/** a consultation changed: the menu badge re-counts what waits on you */
+export const CONSULT_EVENT = 'anti:consult';
 export function broadcastUnread(n: number) {
   window.dispatchEvent(new CustomEvent(UNREAD_EVENT, { detail: n }));
 }
@@ -57,7 +60,17 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
 function NavBar({ me }: { me: Me }) {
   const path = usePathname() ?? '/';
   const [unread, setUnread] = useState(0);
+  const [waiting, setWaiting] = useState(0);
+  const adult = isAdult(me);
   useEffect(() => { setUnreadInTitle(unread); }, [unread]);
+  // consultations waiting on you (to answer, or a price to agree to); 18+ only
+  useEffect(() => {
+    if (!adult) return;
+    const poll = () => { api.consultWaiting().then((r) => setWaiting(r.waiting), () => {}); };
+    poll();
+    window.addEventListener(CONSULT_EVENT, poll);
+    return () => window.removeEventListener(CONSULT_EVENT, poll);
+  }, [adult, path, unread]);
   useEffect(() => () => setUnreadInTitle(0), []);
 
   useEffect(() => {
@@ -87,6 +100,7 @@ function NavBar({ me }: { me: Me }) {
     { href: '/', label: 'Feed', match: (p) => p === '/' || p.startsWith('/p/') },
     { href: '/collabs', label: 'Collabs', match: (p) => p.startsWith('/collabs') },
     { href: '/events', label: 'Events', match: (p) => p.startsWith('/events') },
+    ...(adult ? [{ href: '/consultations', label: 'Consultations', match: (p: string) => p.startsWith('/consultations'), badge: waiting }] : []),
     { href: '/members', label: 'Members', match: (p) => p === '/members' },
     { href: '/search', label: 'Search', match: (p) => p === '/search' },
     { href: '/notifications', label: 'Notifications', match: (p) => p === '/notifications', badge: unread },
@@ -100,7 +114,7 @@ function NavBar({ me }: { me: Me }) {
         <Link key={i.href} href={i.href} className={i.cls} aria-current={i.match(path) ? 'page' : undefined}>
           {i.label}
           {!!i.badge && i.badge > 0 && (
-            <span className="badge" aria-label={`${i.badge} unread`}>{i.badge > 99 ? '99+' : i.badge}</span>
+            <span className="badge" aria-label={i.href === '/consultations' ? `${i.badge} waiting on you` : `${i.badge} unread`}>{i.badge > 99 ? '99+' : i.badge}</span>
           )}
         </Link>
       ))}

@@ -7,8 +7,9 @@ import { ApiError } from '../lib/errors';
 import { generateInviteCode } from '../lib/crypto';
 import {
   banUser, flagCollab, flagPost, flagProject, flagQueue, removeCollab, removePost, removeProject, resolveCollabFlags, resolveFlags,
-  resolveProjectFlags,
+  resolveProjectFlags, userIdByHandle,
 } from '../lib/moderation';
+import { opsConsultation, opsConsultations, resolveConsultationFlags, resolveOfferFlags, switchOff, switchOn } from '../lib/consultations';
 import { adminMembers, getAdminSettings, renameMember, setMemberBirthday, setMemberRole, unbanMember, updateAdminSettings } from '../lib/admin';
 import { UUID_RE } from '../lib/posts';
 import { hit } from '../lib/ratelimit';
@@ -64,6 +65,30 @@ export const moderationRoutes = (deps: Deps) => {
       if (!UUID_RE.test(params.id)) throw new ApiError(404, 'not_found');
       return removeCollab(db, params.id, a.user.id);
     })
+
+    // ─── Consultations (RFC §10.6) ───
+    .get('/ops/consultations', async ({ auth }) => {
+      requireOps(auth);
+      return opsConsultations(db);
+    })
+    .get('/ops/consultations/:id', async ({ auth, params }) => {
+      requireOps(auth);
+      return opsConsultation(db, params.id);
+    })
+    .post('/ops/consultations/:id/resolve', async ({ auth, params, body }) => {
+      const a = requireOps(auth);
+      return resolveConsultationFlags(db, params.id, body.resolution, a.user.id);
+    }, { body: t.Object({ resolution: t.Union([t.Literal('restored'), t.Literal('removed')]) }) })
+    .post('/ops/consult-offers/:handle/resolve', async ({ auth, params, body }) => {
+      const a = requireOps(auth);
+      const u = await userIdByHandle(db, params.handle);
+      return resolveOfferFlags(db, u.id, body.resolution, a.user.id);
+    }, { body: t.Object({ resolution: t.Union([t.Literal('restored'), t.Literal('removed')]) }) })
+    .post('/ops/users/:handle/consulting', async ({ auth, params, body }) => {
+      const a = requireOps(auth);
+      const u = await userIdByHandle(db, params.handle);
+      return body.on ? switchOn(db, u.id) : switchOff(db, u.id, a.user.id);
+    }, { body: t.Object({ on: t.Boolean() }) })
 
     .get('/ops/flags', async ({ auth }) => {
       requireOps(auth);

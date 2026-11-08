@@ -6,6 +6,7 @@ import type { Deps } from '../deps';
 import { ApiError } from '../lib/errors';
 import { birthdayCols, cursorBefore, listPosts, paginate, parseLimit, toBirthday, UUID_RE, type Birthday, type Page } from '../lib/posts';
 import { authPlugin, requireSeated, requireUser } from '../plugins/auth';
+import { consultsSql, isAdult } from '../lib/consultations';
 
 const pageQuery = t.Object({ cursor: t.Optional(t.String()), limit: t.Optional(t.String()) });
 const SEATED = sql`('active', 'flagged_lurker')`;
@@ -23,11 +24,13 @@ type MemberSummary = {
   invitedBy: { handle: string } | null; activatedAt: string | null; postCount: number;
   /** from the portfolio: shown under the name in lists */
   headline: string; openToWork: boolean;
+  /** RFC §10.6: takes consultations (only ever true for viewers 18+) */
+  consults: boolean;
 };
 type MemberRow = {
   id: string; cursor_ts: string; handle: string; display_name: string; bio: string; state: string; role: string; gender: string | null; m_bm: number | null; m_bd: number | null; interests: string[] | null;
   inv_handle: string | null; activated_iso: string | null; post_count: number;
-  headline: string | null; open_to_work: boolean | null;
+  headline: string | null; open_to_work: boolean | null; consults: boolean;
 };
 
 const memberSelect = sql`
@@ -35,7 +38,7 @@ const memberSelect = sql`
     u.handle, u.display_name, u.bio, u.state, u.role, u.gender, ${birthdayCols('u', 'm')}, inv.handle as inv_handle,
     to_char(u.activated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as activated_iso,
     (select count(*)::int from posts p where p.author_id = u.id and p.deleted_at is null and p.hidden_at is null) as post_count,
-    pf.headline, pf.open_to_work,
+    pf.headline, pf.open_to_work, ${consultsSql('u')} as consults,
     array(select ui.interest from user_interests ui join interests i on i.slug = ui.interest where ui.user_id = u.id order by i.label) as interests
   from users u
   left join users inv on inv.id = u.invited_by
@@ -45,8 +48,10 @@ const toMember = (r: MemberRow): MemberSummary => ({
   handle: r.handle, displayName: r.display_name, bio: r.bio, state: r.state, role: r.role, gender: r.gender ?? null, birthday: toBirthday(r.m_bm, r.m_bd), interests: r.interests ?? [],
   invitedBy: r.inv_handle ? { handle: r.inv_handle } : null,
   activatedAt: r.activated_iso, postCount: Number(r.post_count),
-  headline: r.headline ?? '', openToWork: !!r.open_to_work,
+  headline: r.headline ?? '', openToWork: !!r.open_to_work, consults: !!r.consults,
 });
+/** Under-18s never see consultations at all (RFC §10.6). */
+const forViewer = (m: MemberSummary, adult: boolean): MemberSummary => (adult ? m : { ...m, consults: false });
 
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => '\\' + c);
 
@@ -58,6 +63,7 @@ type NotifRow = {
   /** handle_changed: the new handle; project_removed: the project's title */
   x_to: string | null; x_title: string | null; x_done: string | null; x_total: string | null;
   c_id: string | null; c_title: string | null; x_project: string | null;
+  x_consult: string | null; x_topic: string | null; x_pricing: string | null; x_was: string | null;
 };
 
 async function unreadCount(db: Db, userId: string): Promise<number> {
@@ -98,20 +104,22 @@ export const socialRoutes = (deps: Deps) => {
           order by (u.handle ilike ${prefix} escape '\\' or u.display_name ilike ${prefix} escape '\\') desc, u.handle
           limit 10`),
       ]);
-      return { members: memberRows.map(toMember), posts: postPage.items };
+      return { members: memberRows.map((m) => forViewer(toMember(m), isAdult(a.user))), posts: postPage.items };
     }, { query: t.Object({ q: t.Optional(t.String()) }) })
 
     .get('/members', async ({ auth, query }): Promise<Page<MemberSummary>> => {
-      requireSeated(auth);
+      const a = requireSeated(auth);
+      const adult = isAdult(a.user);
       const limit = parseLimit(query.limit);
+      const only = adult && query.consults === '1' ? sql`and ${consultsSql('u')}` : sql``;
       const found = await rows<MemberRow>(db, sql`
         ${memberSelect}
-        where u.state in ${SEATED} ${cursorBefore(sql`coalesce(u.activated_at, u.created_at)`, sql`u.id`, query.cursor)}
+        where u.state in ${SEATED} ${only} ${cursorBefore(sql`coalesce(u.activated_at, u.created_at)`, sql`u.id`, query.cursor)}
         order by coalesce(u.activated_at, u.created_at) desc, u.id desc
         limit ${limit + 1}`);
       const { page, nextCursor } = paginate(found, limit);
-      return { items: page.map(toMember), nextCursor };
-    }, { query: pageQuery })
+      return { items: page.map((m) => forViewer(toMember(m), adult)), nextCursor };
+    }, { query: t.Object({ cursor: t.Optional(t.String()), limit: t.Optional(t.String()), consults: t.Optional(t.String()) }) })
 
     // The room's size: the seat cap is a setting admins can change, so the charts ask for it.
     .get('/seats', async ({ auth }) => {
@@ -121,10 +129,10 @@ export const socialRoutes = (deps: Deps) => {
     })
 
     .get('/members/:handle', async ({ auth, params }) => {
-      requireSeated(auth);
+      const a = requireSeated(auth);
       const m = await findMember(params.handle);
       if (!m) throw new ApiError(404, 'not_found');
-      return toMember(m);
+      return forViewer(toMember(m), isAdult(a.user));
     })
 
     .get('/members/:handle/posts', async ({ auth, params, query }) => {
@@ -146,7 +154,8 @@ export const socialRoutes = (deps: Deps) => {
           p.id as p_id, coalesce(p.root_id, p.id) as p_root, p.body as p_body, (p.deleted_at is not null) as p_deleted,
           ev.id as e_id, ev.title as e_title,
           n.payload->>'to' as x_to, n.payload->>'title' as x_title, n.payload->>'done' as x_done, n.payload->>'total' as x_total,
-          co.id as c_id, coalesce(co.title, n.payload->>'title') as c_title, n.payload->>'projectId' as x_project
+          co.id as c_id, coalesce(co.title, n.payload->>'title') as c_title, n.payload->>'projectId' as x_project,
+          n.payload->>'consultationId' as x_consult, n.payload->>'topic' as x_topic, n.payload->>'pricing' as x_pricing, n.payload->>'was' as x_was
         from notifications n
         left join users u on u.id = case when n.payload->>'actorId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'actorId')::uuid end
         left join posts p on p.id = case when n.payload->>'postId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'postId')::uuid end
@@ -170,6 +179,7 @@ export const socialRoutes = (deps: Deps) => {
           newHandle: r.kind === 'handle_changed' ? r.x_to : null,
           projectTitle: r.kind === 'project_removed' ? r.x_title : null,
           pickTitle: r.kind === 'pick_remark' || r.kind === 'remark_removed' ? r.x_title : null,
+          consultation: r.x_consult ? { id: r.x_consult, topic: r.x_topic ?? '', pricing: r.x_pricing, was: r.x_was } : null,
           checklist: r.kind === 'checklist_reminder' ? { done: Number(r.x_done ?? 0), total: Number(r.x_total ?? 5) } : null,
         })),
         nextCursor,

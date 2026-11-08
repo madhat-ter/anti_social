@@ -18,6 +18,8 @@ export const LIMITS = {
   rsvp: { limit: 60, windowSec: 3600 },
   /** RFC §10.5: asking to join collabs */
   collabRequest: { limit: 10, windowSec: 86_400 },
+  /** RFC §10.6: consultation requests sent */
+  consultRequest: { limit: 10, windowSec: 86_400 },
   /** members adding their own interest tags */
   interestAdd: { limit: 5, windowSec: 86_400 },
 } as const;

@@ -277,12 +277,30 @@ begin
 end $$;
 
 -- ─── Ops / account removal ──────────────────────────────────────────────────
+-- Consultations (RFC §10.6) when someone is banned or leaves: every open request they are part of
+-- closes, every contact either side could still see is wiped, and their offer is switched off.
+create or replace function close_consultations_for(p_user uuid) returns void
+language plpgsql as $$
+begin
+  update consultations set
+    status = case when status in ('pending', 'accepted', 'revealed') then 'closed' else status end,
+    closed_at = case when status in ('pending', 'accepted', 'revealed') then now() else closed_at end,
+    closed_by = case when status in ('pending', 'accepted', 'revealed') then p_user else closed_by end,
+    contacts_hidden_at = coalesce(contacts_hidden_at, now()),
+    requester_contact = null,
+    consultant_contact = null
+  where (consultant_id = p_user or requester_id = p_user)
+    and (status in ('pending', 'accepted', 'revealed') or requester_contact is not null or consultant_contact is not null);
+  update consult_offers set active = false, contact = '', updated_at = now() where user_id = p_user;
+end $$;
+
 create or replace function ban_user(p_user uuid, p_actor uuid) returns void
 language plpgsql as $$
 declare v_inviter uuid;
 begin
   perform seat_lock();
   perform set_state(p_user, 'banned', 'ops_ban', p_actor);
+  perform close_consultations_for(p_user);
   delete from sessions where user_id = p_user;
   delete from waitlist where user_id = p_user;
   update invites set revoked_at = now() where created_by = p_user and redeemed_at is null and revoked_at is null;
@@ -327,6 +345,8 @@ language plpgsql as $$
 begin
   perform seat_lock();
   perform set_state(p_user, 'deleted', p_reason, coalesce(p_actor, p_user));
+  perform close_consultations_for(p_user);
+  delete from consult_offers where user_id = p_user;
   delete from passkeys where user_id = p_user;
   delete from sessions where user_id = p_user;
   delete from waitlist where user_id = p_user;
