@@ -1,8 +1,9 @@
 /**
  * Portfolio screenshots. In-process API on :3101 with an in-memory DB, against a web build:
  *   (apps/web)  $env:API_URL='http://localhost:3101'; $env:NEXT_DIST_DIR='.next-shots-prod'; bun run build; bunx next start -p 3100
- *   bun scripts/screenshots-portfolio.ts     (SCHEME=dark for the dark theme)
- * Output: .screenshots/portfolio-<scheme>/NN-name.png
+ *   bun scripts/screenshots-portfolio.ts
+ * Output: .screenshots/portfolio/NN-name.png
+ * The visitor's browser asks for a dark colour scheme: the site has one theme and must stay white.
  */
 import { chromium, type BrowserContext, type Page } from 'playwright-core';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -16,8 +17,7 @@ import { FakeStripeProvider } from '../apps/api/src/lib/payments';
 import { MemoryPushSender } from '../apps/api/src/lib/push';
 
 const WEB = process.env.WEB_URL ?? 'http://localhost:3100';
-const SCHEME = (process.env.SCHEME === 'dark' ? 'dark' : 'light') as 'light' | 'dark';
-const OUT = join(import.meta.dir, '..', '.screenshots', `portfolio-${SCHEME}`);
+const OUT = join(import.meta.dir, '..', '.screenshots', 'portfolio');
 mkdirSync(OUT, { recursive: true });
 
 const t = await createTestDb({ seatCap: 10 });
@@ -84,9 +84,10 @@ async function makeImage(ctx: BrowserContext, file: string, bg: string, fg: stri
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
-  const view = { viewport: { width: 1280, height: 860 }, colorScheme: SCHEME };
+  const view = { viewport: { width: 1280, height: 860 } };
   const a = await browser.newContext(view);
-  const b = await browser.newContext(view);
+  // theo's OS is set to dark: every page he sees must still be the white theme
+  const b = await browser.newContext({ ...view, colorScheme: 'dark' });
 
   const maya = await newUser(a);
   await join_(maya, 'maya', 'Maya Lind');
@@ -163,6 +164,9 @@ try {
   await theo.goto(`${WEB}/u/maya`);
   await theo.getByText('Industrial designer').waitFor();
   if (await theo.getByRole('button', { name: 'Edit portfolio' }).count()) throw new Error('visitor sees the edit button');
+  const bodyBg = await theo.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  if (bodyBg !== 'rgb(255, 255, 255)') throw new Error(`dark OS turned the page ${bodyBg}; the site must stay white`);
+  console.log('dark-OS visitor still gets the white theme ok');
   await shot(theo, 'visitor');
   await theo.getByRole('tab', { name: 'Picks' }).click();
   await theo.getByText('No picks yet.', { exact: true }).waitFor();
@@ -249,7 +253,7 @@ try {
   await shot(theo, 'search-headline', false);
 
   // ── 10. phone
-  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: SCHEME });
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: 'dark' });
   await phone.addCookies(await b.cookies());
   const ph = await phone.newPage();
   ph.on('pageerror', (e) => pageErrors.push(`${ph.url()}: ${e.message}`));

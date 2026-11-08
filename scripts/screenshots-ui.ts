@@ -1,8 +1,8 @@
 /**
  * UI redesign screenshots (1-bit desktop × zine). In-process API on :3101 with an in-memory DB:
  *   (apps/web)  $env:API_URL='http://localhost:3101'; $env:NEXT_DIST_DIR='.next-shots'; bunx next dev -p 3100
- *   bun scripts/screenshots-ui.ts            (SCHEME=dark for the dark theme)
- * Output: .screenshots/ui-<scheme>/NN-name.png
+ *   bun scripts/screenshots-ui.ts
+ * Output: .screenshots/ui/NN-name.png   (the site has one theme, always light)
  */
 import { chromium, type BrowserContext, type Page } from 'playwright-core';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -16,8 +16,7 @@ import { FakeStripeProvider } from '../apps/api/src/lib/payments';
 import { MemoryPushSender } from '../apps/api/src/lib/push';
 
 const WEB = process.env.WEB_URL ?? 'http://localhost:3100';
-const SCHEME = (process.env.SCHEME === 'dark' ? 'dark' : 'light') as 'light' | 'dark';
-const OUT = join(import.meta.dir, '..', '.screenshots', `ui-${SCHEME}`);
+const OUT = join(import.meta.dir, '..', '.screenshots', 'ui');
 mkdirSync(OUT, { recursive: true });
 
 const t = await createTestDb({ seatCap: 3 }); // the 4th member waits for a seat
@@ -122,7 +121,7 @@ async function makeImage(ctx: BrowserContext, file: string) {
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
-  const view = { viewport: { width: 1100, height: 860 }, colorScheme: SCHEME };
+  const view = { viewport: { width: 1100, height: 860 } };
   const a = await browser.newContext(view);
   const b = await browser.newContext(view);
   const c = await browser.newContext(view);
@@ -326,16 +325,16 @@ try {
   await maya.goto(`${WEB}/events`);
   await maya.getByText('Long table dinner').first().waitFor();
   await shot(maya, 'desktop-events', false);
-  const wide = await (await browser.newContext({ viewport: { width: 1440, height: 960 }, colorScheme: SCHEME })).newPage();
+  const wide = await (await browser.newContext({ viewport: { width: 1440, height: 960 } })).newPage();
   await wide.goto(WEB);
   await wide.locator('.hero').waitFor();
   await wide.waitForTimeout(2200); // let the entrance finish
   await shot(wide, 'desktop-landing', false);
-  const anon = await (await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: SCHEME })).newPage();
+  const anon = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
   await anon.goto(WEB);
   await anon.locator('.hero').waitFor();
   await shot(anon, 'phone-landing');
-  console.log(`\naccessibility (${SCHEME}): ${a11y.size} rule(s) violated`);
+  console.log(`\naccessibility: ${a11y.size} rule(s) violated`);
   for (const f of a11y.values()) {
     console.log(`- [${f.impact}] ${f.id}: ${f.help}\n    screens: ${[...f.screens].join(', ')}\n    e.g. ${[...f.targets].slice(0, 4).join(' | ')}`);
   }

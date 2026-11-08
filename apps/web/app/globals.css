@@ -4,6 +4,10 @@
    Type: Archivo on its width axis (ultra-condensed black for posters, normal
    for reading) + Pixelify Sans, sentence case, for the computer chrome.
    The memorable thing: the doodle faces. Everything else stays quiet.
+   One theme, always light: the OS dark setting is ignored (2026-11-08). The
+   dark pieces are deliberate accents (title bars, the @you cell, primary
+   buttons, selected tabs, the lurker window), not a mode. A member may still
+   choose a black background for their own portfolio; see "the look" below.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
@@ -31,25 +35,6 @@
   --bg: var(--paper); --fg: var(--ink); --line: var(--ink); --card: var(--paper); --danger: var(--signal);
   --hover: rgba(0, 0, 0, .05); --highlight: rgba(232, 65, 44, .07); --radius: 0px;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --paper: #000000;
-    --panel: #161616;
-    --ink: #ffffff;
-    --gray: #949494;
-    --signal: #ff5436;
-    --signal-text: #ff6a4d;
-    --signal-ink: #000000;
-    --gray-strong: #b0b0b0;
-    --hair: rgba(255, 255, 255, .18);
-    --shadow-c: #ffffff;
-    --grain-opacity: .08;
-    --grain-blend: screen;
-    --hover: rgba(255, 255, 255, .07); --highlight: rgba(255, 84, 54, .12);
-  }
-}
-
 /* ─── base ─────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
