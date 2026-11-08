@@ -1036,3 +1036,14 @@ input[type=search]::-webkit-search-cancel-button {
 .remarks > li:first-child { border-top: 0; }
 .remarks-main { display: flex; flex-direction: column; gap: .15rem; flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .remarks-main .name { font-weight: 700; }
+/* Reddit-style vote arrows, 1-bit like the rest */
+.pick-score-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.vote-bar { display: inline-flex; align-items: center; gap: .1rem; border: 2px solid var(--ink); border-radius: 999px; padding: .1rem .2rem; background: var(--paper); }
+.vote-btn { appearance: none; background: none; border: 0; padding: .25rem; display: grid; place-items: center; color: var(--ink); cursor: pointer; border-radius: 999px; }
+.vote-btn:hover:not(:disabled) { background: var(--hover); }
+.vote-btn:focus-visible { outline: 3px solid var(--signal); outline-offset: 1px; }
+.vote-btn:disabled { cursor: default; opacity: .45; }
+.vote-score { font: 700 .95rem/1 var(--font-ui); min-width: 1.6em; text-align: center; color: var(--ink); }
+.pick-counts { font-size: .8rem; }
+.vote-arrow { display: block; }
+.pick-remark .vote-arrow, .remarks-main .vote-arrow { display: inline-block; vertical-align: -1px; }

@@ -96,14 +96,14 @@ try {
   console.log('saved window');
 
   // ── vote, then write a remark (the window holds still while you write)
-  await win.getByRole('button', { name: '👍 Good' }).click();
+  await win.getByRole('button', { name: /^Upvote/ }).click();
   await win.getByLabel('A remark (optional)').fill('The ending in the car. Bring tissues.');
   await win.screenshot({ path: file('writing-remark') });
   console.log('saved writing-remark');
   await win.getByRole('button', { name: 'Save' }).click();
   await win.getByText('Bring tissues').waitFor();
-  const tally = await win.locator('.pick-tally').innerText();
-  if (!tally.includes('👍 2') || !tally.includes('👎 1')) throw new Error(`tally after voting: ${tally}`);
+  const tally = await win.locator('.pick-counts').innerText();
+  if (tally !== '2 up · 1 down' || (await win.locator('.vote-score').innerText()) !== '1') throw new Error(`tally after voting: ${tally}`);
   await win.screenshot({ path: file('voted') });
   console.log('saved voted');
 

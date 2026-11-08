@@ -46,12 +46,13 @@ export function KindIcon({ kind, size = 22 }: { kind: SuggestionKind; size?: num
   );
 }
 
-/** 👍 12 · 👎 3 */
-function Tally({ p }: { p: Pick }) {
+/** A chunky 1-bit arrow, Reddit style: filled when it is your vote, outlined otherwise. */
+export function VoteArrow({ dir, filled = false, size = 18 }: { dir: 'up' | 'down'; filled?: boolean; size?: number }) {
   return (
-    <span className="pick-tally ui" aria-label={`${p.up} tried it and liked it, ${p.down} tried it and did not`}>
-      <span aria-hidden="true">👍 {p.up} · 👎 {p.down}</span>
-    </span>
+    <svg viewBox="0 0 16 16" width={size} height={size} aria-hidden="true" className="vote-arrow">
+      <path d="M8 1.6 L14.6 8.6 H10.6 V14.4 H5.4 V8.6 H1.4 Z" transform={dir === 'down' ? 'rotate(180 8 8)' : undefined}
+        fill={filled ? 'currentColor' : 'var(--paper)'} stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    </svg>
   );
 }
 
@@ -100,10 +101,23 @@ export function PickCard({ p, showAuthor = true, onChange, onEditing }: {
         </Link>
       )}
       <div className="pick-votes">
-        <Tally p={p} />
+        <div className="pick-score-row">
+          <div className="vote-bar" role="group" aria-label="Tried it? Vote">
+            <button type="button" className="vote-btn" aria-label="Upvote: tried it, good" aria-pressed={p.myVote === 1}
+              disabled={busy || p.mine || !onChange} title={p.mine ? 'Your pick' : 'Tried it: good'} onClick={() => void vote(1)}>
+              <VoteArrow dir="up" filled={p.myVote === 1} />
+            </button>
+            <span className="vote-score" title={`${p.up} up, ${p.down} down`}>{p.up - p.down}</span>
+            <button type="button" className="vote-btn" aria-label="Downvote: tried it, not for me" aria-pressed={p.myVote === -1}
+              disabled={busy || p.mine || !onChange} title={p.mine ? 'Your pick' : 'Tried it: not for me'} onClick={() => void vote(-1)}>
+              <VoteArrow dir="down" filled={p.myVote === -1} />
+            </button>
+          </div>
+          <span className="ui muted small pick-counts">{p.up} up · {p.down} down</span>
+        </div>
         {lr?.remark && (
           <p className="pick-remark">
-            <Link href={`/u/${lr.handle}`} className="ui">@{lr.handle}</Link> <span aria-label={lr.vote === 1 ? 'liked it' : 'not for them'}>{lr.vote === 1 ? '👍' : '👎'}</span>{' '}
+            <Link href={`/u/${lr.handle}`} className="ui">@{lr.handle}</Link> <span role="img" aria-label={lr.vote === 1 ? 'upvoted' : 'downvoted'}><VoteArrow dir={lr.vote === 1 ? 'up' : 'down'} filled size={12} /></span>{' '}
             &ldquo;{lr.remark}&rdquo;
           </p>
         )}
@@ -115,11 +129,7 @@ export function PickCard({ p, showAuthor = true, onChange, onEditing }: {
       </div>
       {!p.mine && onChange && (
         <div className="pick-tried">
-          <span className="ui muted">Tried it?</span>
-          <div className="row">
-            <button type="button" className={`btn pick-vote${p.myVote === 1 ? ' on' : ''}`} aria-pressed={p.myVote === 1} disabled={busy} onClick={() => void vote(1)}>👍 Good</button>
-            <button type="button" className={`btn pick-vote${p.myVote === -1 ? ' on' : ''}`} aria-pressed={p.myVote === -1} disabled={busy} onClick={() => void vote(-1)}>👎 Not for me</button>
-          </div>
+          {!p.myVote && <span className="ui muted small">Tried it? Vote up or down.</span>}
           {p.myVote && !writing && (
             <button type="button" className="link-btn" onClick={() => { setText(p.myRemark ?? ''); setWriting(true); }}>
               {p.myRemark ? 'Edit your remark' : 'Add a remark'}
@@ -189,7 +199,7 @@ function RemarksDialog({ open, pickId, title, onClose, onChanged }: {
                   <Avatar seed={r.handle} gender={r.gender} size={36} />
                   <span className="remarks-main">
                     <span><Link href={`/u/${r.handle}`} className="name">{r.displayName}</Link> <span className="muted ui">@{r.handle}</span>{' '}
-                      <span aria-label={r.vote === 1 ? 'liked it' : 'not for them'}>{r.vote === 1 ? '👍' : '👎'}</span></span>
+                      <span role="img" aria-label={r.vote === 1 ? 'upvoted' : 'downvoted'}><VoteArrow dir={r.vote === 1 ? 'up' : 'down'} filled size={13} /></span></span>
                     {r.remark ? <span>{r.remark}</span> : <span className="muted small">No remark.</span>}
                   </span>
                   {data.canModerate && r.remark && (
