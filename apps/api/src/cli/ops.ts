@@ -7,7 +7,7 @@
 import { createDb } from '@anti/db';
 import { ApiError } from '../lib/errors';
 import { banUser, flagQueue, resolveFlags, resolveProjectFlags, setOps } from '../lib/moderation';
-import { LocalDiskStorage, resolveUploadDir } from '../lib/storage';
+import { loadStorage } from '../lib/storage';
 
 const [cmd, a1, a2] = process.argv.slice(2);
 const url = process.env.DATABASE_URL;
@@ -28,9 +28,9 @@ try {
       for (const r of f.reasons) console.log(`    - ${r}`);
     }
   } else if (cmd === 'resolve' && a1 && (a2 === 'restored' || a2 === 'removed')) {
-    console.log(await resolveFlags(db, new LocalDiskStorage(resolveUploadDir()), a1, a2));
+    console.log(await resolveFlags(db, loadStorage(db), a1, a2));
   } else if (cmd === 'resolve-project' && a1 && (a2 === 'restored' || a2 === 'removed')) {
-    console.log(await resolveProjectFlags(db, new LocalDiskStorage(resolveUploadDir()), a1, a2));
+    console.log(await resolveProjectFlags(db, loadStorage(db), a1, a2));
   } else if (cmd === 'ban' && a1) console.log(await banUser(db, a1, null));
   else usage();
 } catch (e) {

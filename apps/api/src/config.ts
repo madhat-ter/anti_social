@@ -38,7 +38,8 @@ export function assertProductionSafe(cfg: Config) {
 
 /**
  * PAYMENTS=stripe needs STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET. PAYMENTS=fake (the default
- * when no Stripe key is set) uses the built-in fake checkout and is refused in production.
+ * when no Stripe key is set) uses the built-in fake checkout and is refused in production
+ * unless ALLOW_FAKE_PAYMENTS=true (test deploys only).
  */
 export function loadPaymentProvider(cfg: Config, env: Record<string, string | undefined> = process.env): PaymentProvider {
   const mode = env.PAYMENTS ?? (env.STRIPE_SECRET_KEY ? 'stripe' : 'fake');
@@ -48,6 +49,10 @@ export function loadPaymentProvider(cfg: Config, env: Record<string, string | un
     return new StripeProvider(key, secret);
   }
   if (mode !== 'fake') throw new Error(`PAYMENTS must be 'stripe' or 'fake', got '${mode}'`);
-  if (env.NODE_ENV === 'production') throw new Error('The fake payment provider cannot run in production');
+  // A free test deploy has no Stripe account: ALLOW_FAKE_PAYMENTS=true lets it run with the fake
+  // checkout (nobody is charged; "paying" is a button). Remove it before real members join.
+  if (env.NODE_ENV === 'production' && env.ALLOW_FAKE_PAYMENTS !== 'true') {
+    throw new Error('The fake payment provider cannot run in production (set ALLOW_FAKE_PAYMENTS=true for a test deploy)');
+  }
   return new FakeStripeProvider(cfg.webOrigin);
 }

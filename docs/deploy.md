@@ -2,6 +2,7 @@
 
 Target layout from RFC-0001 §6: **web** on Vercel, **API** on Fly.io (or Railway), **Postgres** on Neon.
 Nothing here has been run against real infrastructure yet; treat it as the checklist for the first deploy.
+No domain yet? [deploy-free.md](deploy-free.md) puts a test copy live on free plans (Vercel + Render + Neon).
 
 ## 0. Decide before anything else
 

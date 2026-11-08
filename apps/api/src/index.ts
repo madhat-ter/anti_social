@@ -1,16 +1,22 @@
 import { loadConfig, loadPaymentProvider } from './config';
-import { createDb } from '@anti/db';
+import { createDb, runMigrations } from '@anti/db';
 import { createApp } from './app';
 import { startScheduler } from './lib/jobs';
 import { loadPushSender } from './lib/push';
-import { LocalDiskStorage, resolveUploadDir } from './lib/storage';
+import { loadStorage } from './lib/storage';
 
 const cfg = loadConfig();
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL is not set');
+// Hosts where nobody runs `bun run db:migrate` by hand (Render, etc.): migrate before serving.
+if (process.env.MIGRATE_ON_BOOT === 'true') {
+  await runMigrations(url);
+  console.log('migrations applied');
+}
 const { db } = createDb(url);
-const port = Number(process.env.API_PORT ?? 3001);
-const storage = new LocalDiskStorage(resolveUploadDir());
+// API_PORT locally; PORT is what Render/Fly/Railway hand the process.
+const port = Number(process.env.API_PORT ?? process.env.PORT ?? 3001);
+const storage = loadStorage(db);
 const payments = loadPaymentProvider(cfg);
 const push = loadPushSender();
 

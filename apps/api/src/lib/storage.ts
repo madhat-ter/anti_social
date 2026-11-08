@@ -1,6 +1,8 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { eq } from 'drizzle-orm';
+import { mediaBlobs, type Db } from '@anti/db';
 
 /**
  * Blob storage for user media.
@@ -54,6 +56,40 @@ export class LocalDiskStorage implements Storage {
     if (!isValidKey(key)) return;
     await rm(this.path(key), { force: true });
   }
+}
+
+/**
+ * Images kept in Postgres (`media_blobs`). For hosts without a persistent disk (free tiers).
+ * Fine for a small test community; move to R2 before images add up past the database plan.
+ */
+export class DbStorage implements Storage {
+  constructor(private db: Db) {}
+
+  async put(key: string, bytes: Uint8Array, contentType: string) {
+    if (!isValidKey(key)) throw new Error('invalid storage key');
+    await this.db.insert(mediaBlobs).values({ key, contentType, bytes })
+      .onConflictDoUpdate({ target: mediaBlobs.key, set: { contentType, bytes } });
+  }
+
+  async get(key: string) {
+    if (!isValidKey(key)) return null;
+    const [row] = await this.db.select({ bytes: mediaBlobs.bytes, contentType: mediaBlobs.contentType })
+      .from(mediaBlobs).where(eq(mediaBlobs.key, key));
+    return row ? { bytes: new Uint8Array(row.bytes), contentType: row.contentType } : null;
+  }
+
+  async delete(key: string) {
+    if (!isValidKey(key)) return;
+    await this.db.delete(mediaBlobs).where(eq(mediaBlobs.key, key));
+  }
+}
+
+/** STORAGE=db keeps images in Postgres; anything else (default) uses the local disk. */
+export function loadStorage(db: Db, env: Record<string, string | undefined> = process.env): Storage {
+  const mode = env.STORAGE ?? 'disk';
+  if (mode === 'db') return new DbStorage(db);
+  if (mode !== 'disk') throw new Error(`STORAGE must be 'disk' or 'db', got '${mode}'`);
+  return new LocalDiskStorage(resolveUploadDir(env));
 }
 
 /** In-memory storage for tests. */

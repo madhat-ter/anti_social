@@ -1,0 +1,12 @@
+.git
+**/node_modules
+**/.turbo
+**/.next
+**/.next-*
+.pglite
+.uploads
+.screenshots
+.env
+.env.*
+!.env.example
+*.tsbuildinfo

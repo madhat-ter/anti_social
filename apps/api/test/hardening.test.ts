@@ -89,6 +89,31 @@ describe('flags and ops', () => {
   });
 });
 
+describe('database image storage (STORAGE=db)', () => {
+  test('put, overwrite, get, delete; bad keys are refused', async () => {
+    const { createTestDb } = await import('@anti/db/testing');
+    const { DbStorage, loadStorage, LocalDiskStorage } = await import('../src/lib/storage');
+    const t = await createTestDb();
+    try {
+      const s = new DbStorage(t.db);
+      expect(await s.get('a.webp')).toBeNull();
+      await s.put('a.webp', new Uint8Array([1, 2, 3]), 'image/webp');
+      await s.put('a.webp', new Uint8Array([4, 5]), 'image/webp');
+      expect(await s.get('a.webp')).toEqual({ bytes: new Uint8Array([4, 5]), contentType: 'image/webp' });
+      await s.delete('a.webp');
+      expect(await s.get('a.webp')).toBeNull();
+      expect(await s.get('../etc')).toBeNull();
+      await expect(s.put('../x', new Uint8Array(), 'image/webp')).rejects.toThrow('invalid storage key');
+
+      expect(loadStorage(t.db, { STORAGE: 'db' })).toBeInstanceOf(DbStorage);
+      expect(loadStorage(t.db, {})).toBeInstanceOf(LocalDiskStorage);
+      expect(() => loadStorage(t.db, { STORAGE: 's3' })).toThrow('STORAGE');
+    } finally {
+      await t.close();
+    }
+  });
+});
+
 describe('production safety', () => {
   test('refuses dev settings in production; API responses carry security headers', async () => {
     const { loadConfig } = await import('../src/config');
@@ -100,6 +125,9 @@ describe('production safety', () => {
     expect(() => loadConfig({ ...prod, RP_ID: 'localhost' })).toThrow('RP_ID');
     expect(() => loadConfig({ ...prod, RP_ID: 'other.example' })).toThrow('RP_ID');
     expect(() => loadPaymentProvider(loadConfig(prod), prod)).toThrow('fake payment provider');
+    // A free test deploy opts in explicitly; nothing else enables the fake checkout in production.
+    expect(loadPaymentProvider(loadConfig(prod), { ...prod, ALLOW_FAKE_PAYMENTS: 'true' }).kind).toBe('fake');
+    expect(() => loadPaymentProvider(loadConfig(prod), { ...prod, ALLOW_FAKE_PAYMENTS: '1' })).toThrow('fake payment provider');
 
     const w = await world();
     const r = await w.client().raw('GET', '/health');

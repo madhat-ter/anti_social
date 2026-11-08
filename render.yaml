@@ -1,0 +1,31 @@
+# Render Blueprint for a FREE test deploy of the API (see docs/deploy-free.md).
+# Values marked sync: false are asked for when you create the Blueprint.
+services:
+  - type: web
+    name: anti-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL # Neon *direct* connection string (not the -pooler one)
+        sync: false
+      - key: DATABASE_POOL_MAX
+        value: "5"
+      - key: RP_ID # e.g. anti-test.vercel.app (the web app's host, no https://)
+        sync: false
+      - key: WEB_ORIGIN # e.g. https://anti-test.vercel.app
+        sync: false
+      - key: MIGRATE_ON_BOOT
+        value: "true"
+      - key: STORAGE # images in Postgres: the free plan has no disk
+        value: db
+      - key: PAYMENTS
+        value: fake
+      - key: ALLOW_FAKE_PAYMENTS # test deploy only: nobody is charged
+        value: "true"
+      - key: TRUST_PROXY
+        value: "true"

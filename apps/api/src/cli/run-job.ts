@@ -1,7 +1,7 @@
 // Runs a scheduled job once, e.g. `bun run ops:run-job -- lifecycle`. Same code path as the scheduler.
 import { createDb } from '@anti/db';
 import { JOBS, runJob } from '../lib/jobs';
-import { LocalDiskStorage, resolveUploadDir } from '../lib/storage';
+import { loadStorage } from '../lib/storage';
 import { loadConfig, loadPaymentProvider } from '../config';
 import { loadPushSender } from '../lib/push';
 
@@ -18,6 +18,6 @@ if (!url) {
 }
 const { db, close } = createDb(url);
 const payments = loadPaymentProvider(loadConfig());
-const r = await runJob(db, job, { storage: new LocalDiskStorage(resolveUploadDir()), payments, push: loadPushSender() });
+const r = await runJob(db, job, { storage: loadStorage(db), payments, push: loadPushSender() });
 console.log(name, r);
 await close();

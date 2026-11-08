@@ -5,6 +5,7 @@ import {
 import { sql } from 'drizzle-orm';
 
 const tsvector = customType<{ data: string }>({ dataType: () => 'tsvector' });
+const bytea = customType<{ data: Uint8Array }>({ dataType: () => 'bytea' });
 const tstz = (name: string) => timestamp(name, { withTimezone: true });
 
 // ─── Users & lifecycle ──────────────────────────────────────────────────────
@@ -380,3 +381,12 @@ export const rateLimits = pgTable('rate_limits', {
   windowStart: tstz('window_start').notNull(),
   count: integer('count').notNull(),
 }, (t) => [primaryKey({ columns: [t.key, t.windowStart] }), index('rate_limits_window').on(t.windowStart)]);
+
+// ─── Media blobs (STORAGE=db: images kept in Postgres for hosts without a disk) ─
+
+export const mediaBlobs = pgTable('media_blobs', {
+  key: text('key').primaryKey(),
+  contentType: text('content_type').notNull(),
+  bytes: bytea('bytes').notNull(),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+});
