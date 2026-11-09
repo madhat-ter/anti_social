@@ -63,7 +63,10 @@ export const users = pgTable('users', {
   pinFailDay: date('pin_fail_day'),
   pinFailsDay: integer('pin_fails_day').notNull().default(0),
   pinBlockedAt: tstz('pin_blocked_at'),
+  /** RFC §10.14: 'light' (everyone starts here, whatever the device says) or 'dark', chosen in Settings */
+  theme: text('theme').notNull().default('light'),
 }, (t) => [
+  check('users_theme', sql`${t.theme} in ('light', 'dark')`),
   index('users_state_idx').on(t.state),
   uniqueIndex('users_handle_lower').on(sql`lower(${t.handle})`),
 ]);

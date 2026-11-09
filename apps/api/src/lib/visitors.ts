@@ -51,6 +51,7 @@ export function visitorUser(): SessionUser {
     birthdayPublic: false, setupDoneAt: now, checklistDismissedAt: now, contactPhoneEnc: null, contactEmailEnc: null,
     contactUpdatedAt: null, verifiedAt: null, verifiedBy: null, feedSeenThrough: null,
     pinHash: null, pinFails: 0, pinLocks: 0, pinLockedUntil: null, pinFailDay: null, pinFailsDay: 0, pinBlockedAt: null,
+    theme: 'light',
   };
 }
 
@@ -63,6 +64,8 @@ export function visitorProfile(pass: VisitorPass) {
     setupNeeded: false, gender: null, birthday: VISITOR_BIRTHDAY, birthdayPublic: false, contactEnabled: false, contact: null, verifiedAt: null,
     interests: [] as string[],
     pinSet: true,
+    // RFC §10.14: visitors always see the light pages
+    theme: 'light' as const,
     visitor: { expiresAt: pass.expiresAt.toISOString() },
   };
 }

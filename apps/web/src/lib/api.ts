@@ -36,6 +36,8 @@ export interface Me {
   verifiedAt: string | null;
   /** RFC §10.13: false for members who joined with a passkey and have not chosen a PIN yet */
   pinSet?: boolean;
+  /** RFC §10.14: light unless they chose dark in Settings (the device's own setting is ignored) */
+  theme?: 'light' | 'dark';
   /** RFC §10.8: set when "you" are a visitor on an admin's pass: an hour of reading, nothing else */
   visitor?: { expiresAt: string };
 }
@@ -464,7 +466,7 @@ const post = <T,>(p: string, b: unknown = {}) => call<T>('POST', p, b);
 
 export const api = {
   me: () => get<Me>('/me'),
-  updateMe: (b: { displayName?: string; bio?: string; gender?: Gender; birthdayPublic?: boolean }) => call<Me>('PATCH', '/me', b),
+  updateMe: (b: { displayName?: string; bio?: string; gender?: Gender; birthdayPublic?: boolean; theme?: 'light' | 'dark' }) => call<Me>('PATCH', '/me', b),
   checklist: () => get<ChecklistState>('/me/checklist'),
   interests: () => get<{ items: Interest[] }>('/interests'),
   setInterests: (interests: string[]) => call<{ interests: string[] }>('PUT', '/me/interests', { interests }),

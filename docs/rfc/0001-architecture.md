@@ -1051,6 +1051,22 @@ Members found passkeys hectic, so the way in is now the invite code once, then a
 - Constants: `PIN_LENGTH`, `PIN_RULES` in `packages/shared/src/pin.ts`. Tests:
   `apps/api/test/pin.test.ts`; screenshots: `scripts/screenshots-pin.ts`.
 
+### 10.14 Dark mode, by choice (added 2026-11-09)
+
+Some members want a dark page; Anti stays a white-paper site for everyone else. Decided with the
+owner, four points, all as proposed:
+
+- **Light by default, whatever the device says.** Settings → Appearance: Light or Dark, applied at
+  once, no "match my device" option (`prefers-color-scheme` is never read).
+- **Saved on the account** (`users.theme`, `PATCH /me {theme}`), so it follows the member to every
+  device, and copied into an `anti_theme` cookie: the root layout reads it (with the session
+  cookie) and renders `<html data-theme="dark">`, so a dark page never flashes white.
+- **Signed out and visitors: always light**, cookie or not.
+- **Portfolios keep their own look**: a "paper" portfolio stays white inside a dark page, "ink"
+  stays black; the menu, side windows and posts follow the viewer.
+- The theme is one block, `:root[data-theme="dark"]` in `globals.css` (every colour is a
+  variable). Tests: `apps/api/test/theme.test.ts`; screenshots: `scripts/screenshots-theme.ts`.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,
@@ -1189,6 +1205,7 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 13. **M13 — The feed** (2026-11-09, §10.11), in three steps: like counts for the author only, "new here", "First post" and the inviter's notice; the "new since" line, the end card and the visit log; the fold, conversation and event rows, and `/feed-rules`.
 14. **M14 — Posts and replies** (2026-11-09, §10.12): the thread's post framed and labelled, replies small on a thread line, replies in lists saying what they answer.
 15. **M15 — PIN sign-in** (2026-11-09, §10.13): joining and signing in with a handle and a 6-digit PIN, rests and locks, recovery and admin reset codes, passkeys optional.
+16. **M16 — Dark mode** (2026-11-09, §10.14): Settings → Appearance, light by default whatever the device says, saved on the account, no white flash.
 
 ## Appendix A — Decision log
 

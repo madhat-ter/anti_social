@@ -183,6 +183,13 @@
       "when": 1794213803756,
       "tag": "0025_pin",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794214688014,
+      "tag": "0026_theme",
+      "breakpoints": true
     }
   ]
 }

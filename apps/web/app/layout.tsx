@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { connection } from 'next/server';
+import { cookies } from 'next/headers';
 import { Archivo, Shantell_Sans, Space_Mono, Tiny5 } from 'next/font/google';
 import localFont from 'next/font/local';
 import './globals.css';
@@ -45,8 +46,13 @@ export const metadata: Metadata = { title: 'anti', description: 'A small, invite
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // render per request: the CSP nonce (proxy.ts) is new every time, so pages can't be prebuilt
   await connection();
+  // RFC §10.14: dark only for a signed-in member who chose it (the cookie mirrors their setting), so
+  // the first frame is already dark; signed-out pages and visitors stay light; the device is ignored
+  const jar = await cookies();
+  const dark = jar.get('anti_theme')?.value === 'dark' && jar.has('anti_session');
   return (
-    <html lang="en" className={`${archivo.variable} ${pixel.variable} ${mono.variable} ${hand.variable} ${bangla.variable}`}>
+    <html lang="en" data-theme={dark ? 'dark' : undefined} suppressHydrationWarning
+      className={`${archivo.variable} ${pixel.variable} ${mono.variable} ${hand.variable} ${bangla.variable}`}>
       <body>
         <a className="skip" href="#main">Skip to content</a>
         <header className="top">

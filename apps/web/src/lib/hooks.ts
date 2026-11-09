@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError, errorMessage, type Me, type Page } from './api';
+import { syncTheme } from './theme';
 
 /** Loads /me; `me` is null when signed out. */
 export function useMe() {
@@ -21,6 +22,8 @@ export function useMe() {
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
+  // RFC §10.14: the page wears the signed-in member's theme (light for nobody and for visitors)
+  useEffect(() => { if (!loading) syncTheme(me); }, [me, loading]);
   return { me, loading, error, refresh, setMe };
 }
 

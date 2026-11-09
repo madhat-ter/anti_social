@@ -7,6 +7,7 @@ import { DISPLAY_NAME_MAX, GENDERS, GENDER_LABEL, INTERESTS_MAX, type Gender } f
 import { InterestPicker } from '@/components/Interests';
 import { VerifiedBadge } from '@/components/Marks';
 import { ChoosePin } from '@/components/Pin';
+import { applyTheme } from '@/lib/theme';
 import { api, errorMessage, formatMoney, type InviteInfo, type Me, type PasskeyInfo, type PaymentRecord } from '@/lib/api';
 import { fmtDate, useMe, useTitle } from '@/lib/hooks';
 import { CopyButton, ErrorNote } from '@/components/ui';
@@ -40,6 +41,7 @@ export default function Settings() {
       <nav className="panel-index" aria-label="Sections">
         <a href="#profile">Profile</a>
         <a href="#face">Face</a>
+        <a href="#look">Appearance</a>
         <a href="#bday">Birthday</a>
         <a href="#interests">Interests</a>
         {me.contactEnabled && <a href="#contact">Contact</a>}
@@ -52,6 +54,7 @@ export default function Settings() {
       <Win title="Control panel" className="panel" bodyClassName="panel-body">
         <Profile me={me} onSaved={setMe} />
         <Face me={me} onSaved={setMe} />
+        <AppearanceSec me={me} onSaved={setMe} />
         <BirthdaySec me={me} onSaved={setMe} />
         <InterestsSec me={me} onSaved={setMe} />
         <ContactSec me={me} onSaved={setMe} />
@@ -178,6 +181,36 @@ function InterestsSec({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
       <h2 id="interests">Interests</h2>
       <p className="muted small">Pick up to {INTERESTS_MAX} ({picked.length} now). Collabs and events with the same interests find you, and you find them.</p>
       <InterestPicker value={picked} onChange={(n) => void change(n)} max={INTERESTS_MAX} />
+      <ErrorNote message={err} />
+    </section>
+  );
+}
+
+/** RFC §10.14: light (everyone starts here, whatever the device says) or dark; applies at once, on every device. */
+function AppearanceSec({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
+  const [err, setErr] = useState<string | null>(null);
+  const current = me.theme === 'dark' ? 'dark' : 'light';
+  async function pick(theme: 'light' | 'dark') {
+    if (theme === current) return;
+    setErr(null);
+    applyTheme(theme); // at once; the account follows
+    try { onSaved(await api.updateMe({ theme })); }
+    catch (e) { applyTheme(current); setErr(errorMessage(e)); }
+  }
+  return (
+    <section className="panel-sec" aria-labelledby="look">
+      <h2 id="look">Appearance</h2>
+      <fieldset className="setup-choices">
+        <legend className="ui">Theme</legend>
+        {(['light', 'dark'] as const).map((t) => (
+          <label key={t} className="check setup-choice">
+            <input type="radio" name="settings-theme" value={t} checked={current === t} onChange={() => void pick(t)} />
+            <span className={`theme-swatch ${t}`} aria-hidden="true" />
+            <span>{t === 'light' ? 'Light' : 'Dark'}</span>
+          </label>
+        ))}
+        <p className="muted small">Saved to your account, so it follows you to every device. Anti stays light until you choose Dark here, even if your phone is set to dark.</p>
+      </fieldset>
       <ErrorNote message={err} />
     </section>
   );

@@ -4,10 +4,11 @@
    Type: Archivo on its width axis (ultra-condensed black for posters, normal
    for reading) + Pixelify Sans, sentence case, for the computer chrome.
    The memorable thing: the doodle faces. Everything else stays quiet.
-   One theme, always light: the OS dark setting is ignored (2026-11-08). The
-   dark pieces are deliberate accents (title bars, the @you cell, primary
-   buttons, selected tabs, the lurker window), not a mode. A member may still
-   choose a black background for their own portfolio; see "the look" below.
+   Light for everyone: the OS dark setting is ignored (2026-11-08). A member
+   can choose Dark in Settings (RFC §10.14, 2026-11-09): the block under
+   :root swaps the variables. The dark pieces in light mode are deliberate
+   accents (title bars, the @you cell, primary buttons, selected tabs, the
+   lurker window). A portfolio keeps its own paper or ink; see "the look".
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
@@ -35,6 +36,26 @@
   --muted: var(--gray); --accent: var(--signal); --accent-ink: var(--signal-ink);
   --bg: var(--paper); --fg: var(--ink); --line: var(--ink); --card: var(--paper); --danger: var(--signal);
   --hover: rgba(0, 0, 0, .05); --highlight: rgba(232, 65, 44, .07); --radius: 0px;
+}
+/*
+ * RFC §10.14: dark mode, only when a member chooses it in Settings (never from the device). The
+ * same 1-bit idea inverted: near-black paper, near-white ink, the same red. Every colour above is
+ * a variable, so this block is the whole theme. A portfolio set to "paper" keeps its own white.
+ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #0d0d0d;
+  --panel: #1f1f1f;
+  --ink: #f4f4f4;
+  --gray: #9c9c9c;            /* 7:1 on the dark paper */
+  --gray-strong: #bdbdbd;
+  --signal-text: #ff7a66;     /* red for words on dark: 6.9:1 */
+  --signal-ink: #000000;
+  --hair: rgba(255, 255, 255, .18);
+  --shadow-c: #f4f4f4;
+  --grain-opacity: .04;
+  --grain-blend: screen;
+  --hover: rgba(255, 255, 255, .07); --highlight: rgba(232, 65, 44, .16);
 }
 /* ─── base ─────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
@@ -682,6 +703,11 @@ input[type=search]::-webkit-search-cancel-button {
   padding: .5rem 1rem; box-shadow: var(--shadow-sm); position: sticky; top: 4.2rem; z-index: 10;
 }
 .new-posts:hover { background: var(--ink); color: var(--paper); }
+/* RFC §10.14: the two little paper squares beside Light and Dark in Settings */
+.theme-swatch { display: inline-block; width: 1.4rem; height: 1rem; border: 2px solid var(--ink); vertical-align: middle; }
+.theme-swatch.light { background: #ffffff; }
+.theme-swatch.dark { background: #0d0d0d; }
+
 /* RFC §10.13: the PIN field (one input, wide-spaced digits), and an admin's reset code */
 .pin-field { display: grid; gap: .3rem; }
 .pin-field > label { font-weight: 600; }

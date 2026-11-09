@@ -90,6 +90,7 @@ export const meRoutes = (deps: Deps) => {
       interests: await interestsOf(db, u.id),
       // RFC §10.13: members who joined with a passkey are asked to choose a PIN
       pinSet: !!u.pinHash,
+      theme: u.theme === 'dark' ? 'dark' as const : 'light' as const,
     };
   }
 
@@ -107,7 +108,7 @@ export const meRoutes = (deps: Deps) => {
       '/',
       async ({ auth, body }) => {
         const a = requireUser(auth);
-        const patch: { displayName?: string; bio?: string; gender?: (typeof GENDERS)[number]; birthdayPublic?: boolean } = {};
+        const patch: { displayName?: string; bio?: string; gender?: (typeof GENDERS)[number]; birthdayPublic?: boolean; theme?: 'light' | 'dark' } = {};
         if (body.displayName !== undefined) {
           const d = body.displayName.trim();
           if (d.length < 1 || d.length > DISPLAY_NAME_MAX) {
@@ -119,6 +120,8 @@ export const meRoutes = (deps: Deps) => {
         // gender can change any time (the face redraws); the birthday cannot (admins can correct it)
         if (body.gender !== undefined) patch.gender = body.gender;
         if (body.birthdayPublic !== undefined) patch.birthdayPublic = body.birthdayPublic;
+        // RFC §10.14: light or dark, on the account so it follows the member to every device
+        if (body.theme !== undefined) patch.theme = body.theme;
         if (Object.keys(patch).length) await db.update(users).set(patch).where(eq(users.id, a.user.id));
         return profile(a.user.id);
       },
@@ -126,6 +129,7 @@ export const meRoutes = (deps: Deps) => {
         body: t.Object({
           displayName: t.Optional(t.String({ maxLength: 200 })), bio: t.Optional(t.String({ maxLength: 160 })),
           gender: t.Optional(genderSchema), birthdayPublic: t.Optional(t.Boolean()),
+          theme: t.Optional(t.Union([t.Literal('light'), t.Literal('dark')])),
         }),
       },
     )
