@@ -74,6 +74,8 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
   const m = (title: string, body: string, url: string): PushMessage => ({ title, body, url, tag: `${r.kind}:${p.postId ?? p.eventId ?? p.collabId ?? p.consultationId ?? ''}` });
   switch (r.kind) {
     case 'reply': return m(`@${r.actor ?? 'someone'} replied`, r.post_snippet ?? '', p.postId ? `/p/${r.root_id ?? p.postId}#${p.postId}` : '/notifications');
+    // RFC §10.16: someone wrote your @handle in a post
+    case 'mention': return m(`@${r.actor ?? 'someone'} mentioned you`, r.post_snippet ?? '', p.postId ? `/p/${r.root_id ?? p.postId}#${p.postId}` : '/notifications');
     case 'invitee_first_post': return m(`@${r.actor ?? 'someone'} posted for the first time`, r.post_snippet ? `${r.post_snippet} Say hello?` : 'Say hello?', p.postId ? `/p/${p.postId}` : '/notifications');
     // RFC §10.13: someone is guessing your PIN, or an admin made you a reset code
     case 'pin_locked': return m('Someone tried your PIN', 'Five wrong PINs in a row, so your account is resting for a while. If it was not you, change your PIN.', '/settings#pin');

@@ -42,6 +42,9 @@ can time out under the full suite on a busy machine; they pass on their own.
   algorithmic ranking, no A/B tests. "By person" view is deliberately not built.
 - **Posts look like what they are** (§10.12 posts vs replies, §10.15 framed cards shaped by
   `postShape`: photo / short / text).
+- **Mentions are typed, never a button** (§10.16): @ in any post box opens the member list;
+  `@handle` links only when it matched a seated member; one notification per person per post;
+  edits notify only newly added people; a mention is not a contribution.
 - **Visitors are not users** (§10.8). New "your own things" read endpoints go in
   `CLOSED_TO_VISITORS` (`apps/api/src/lib/visitors.ts`); new write buttons read `useReadOnly()`.
 - **Header quotes were removed on purpose.** Don't bring them back unless asked.

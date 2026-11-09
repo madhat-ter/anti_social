@@ -14,6 +14,7 @@ import { FEED_WHERE, markCaughtUp, resumeVisit, startVisit } from '../lib/feed';
 import { isValidKey } from '../lib/storage';
 import { hit } from '../lib/ratelimit';
 import { notifyUpdate, updatePlace } from '../lib/updates';
+import { addMentions, mentionIds, mentionsIn, notifyMentions, removeMentions, resolveMentionUsers } from '../lib/mentions';
 import { authPlugin, requireSeated } from '../plugins/auth';
 
 const MAX_PENDING_UPLOADS = 20;
@@ -36,9 +37,9 @@ export const postRoutes = (deps: Deps) => {
   /** A post anyone may act on: not hidden after reports (`withHidden`: admins reviewing a thread). */
   async function visiblePost(id: string, withHidden = false) {
     if (!UUID_RE.test(id)) return null;
-    const [p] = await rows<{ id: string; author_id: string | null; root_id: string | null; created_ms: number; deleted: boolean }>(
+    const [p] = await rows<{ id: string; author_id: string | null; root_id: string | null; parent_id: string | null; created_ms: number; deleted: boolean }>(
       db,
-      sql`select id, author_id, root_id, (extract(epoch from created_at) * 1000)::float8 as created_ms,
+      sql`select id, author_id, root_id, parent_id, (extract(epoch from created_at) * 1000)::float8 as created_ms,
                  (deleted_at is not null) as deleted
           from posts where id = ${id}::uuid ${withHidden ? sql`` : sql`and hidden_at is null`}`,
     );
@@ -125,6 +126,13 @@ export const postRoutes = (deps: Deps) => {
             userId: parent.author_id, kind: 'reply', payload: { postId, rootId, actorId: uid },
           });
         }
+        // RFC §10.16: @mentions become links and one notification each; the person replied to
+        // already has the reply notification, so they are not told twice.
+        const mentioned = await resolveMentionUsers(tx as unknown as Db, mentionsIn(text), uid);
+        await addMentions(tx as unknown as Db, postId, mentioned.map((m) => m.id));
+        await notifyMentions(tx as unknown as Db, {
+          postId, rootId, actorId: uid, userIds: mentioned.map((m) => m.id), skip: parent?.author_id ?? null,
+        });
         if (place) await notifyUpdate(tx as unknown as Db, place, uid, postId);
         // RFC §10.11: a member's first feed post tells whoever invited them, the person most
         // likely to say hello. Once per member, ever (a deleted first post does not ring twice).
@@ -181,7 +189,24 @@ export const postRoutes = (deps: Deps) => {
       }
       const [img] = await rows<{ n: number }>(db, sql`select count(*)::int as n from post_images where post_id = ${p.id}::uuid`);
       const text = cleanBody(body.body, (img?.n ?? 0) > 0);
-      await db.execute(sql`update posts set body = ${text}, edited_at = now() where id = ${p.id}::uuid`);
+      // RFC §10.16: an edit notifies only the people newly mentioned; removals just drop the link.
+      const next = await resolveMentionUsers(db, mentionsIn(text), uid);
+      const before = await mentionIds(db, p.id);
+      const nextIds = next.map((m) => m.id);
+      const added = nextIds.filter((id) => !before.includes(id));
+      const removed = before.filter((id) => !nextIds.includes(id));
+      const [parent] = p.parent_id
+        ? await rows<{ author_id: string | null }>(db, sql`select author_id from posts where id = ${p.parent_id}::uuid`)
+        : [];
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`update posts set body = ${text}, edited_at = now() where id = ${p.id}::uuid`);
+        const t = tx as unknown as Db;
+        await removeMentions(t, p.id, removed);
+        await addMentions(t, p.id, added);
+        await notifyMentions(t, {
+          postId: p.id, rootId: p.root_id, actorId: uid, userIds: added, skip: parent?.author_id ?? null,
+        });
+      });
       return (await getPost(db, uid, p.id))!;
     }, { body: t.Object({ body: t.String() }) })
 

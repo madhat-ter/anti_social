@@ -20,6 +20,7 @@ export default function NotificationsPage() {
 function describe(n: Notification): string {
   const who = n.actor ? `@${n.actor.handle}` : 'Someone';
   if (n.kind === 'reply') return `${who} replied to your post`;
+  if (n.kind === 'mention') return `${who} mentioned you`;
   if (n.kind === 'like') return `${who} liked your post`;
   if (n.kind === 'pin_locked') return 'Someone typed five wrong PINs for your account, so it rested for a while. If it was not you, change your PIN in Settings.';
   if (n.kind === 'pin_blocked') return 'Too many wrong PINs today: signing in with a PIN is off until you use your recovery code or an admin’s reset code.';

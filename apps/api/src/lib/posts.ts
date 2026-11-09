@@ -23,6 +23,8 @@ export type Post = {
   /** only the author ever gets the number (RFC §10.11): for everyone else it is null */
   likeCount: number | null;
   likedByMe: boolean; images: Image[];
+  /** RFC §10.16: @handles in the body that belong to a seated member (lowercased) */
+  mentions: string[];
   /** the author's first post on the feed (not counting collab or event updates) */
   firstPost: boolean;
   /** replies only: the post at the top of the thread, for "Replied to Mina's post: …" */
@@ -108,6 +110,9 @@ export function postSelect(viewerId: string): SQL {
       exists(select 1 from likes l where l.post_id = p.id and l.user_id = ${viewerId}::uuid) as liked_by_me,
       coalesce((select json_agg(json_build_object('id', i.id, 'key', i.r2_key, 'width', i.width, 'height', i.height)
                                 order by i.position) from post_images i where i.post_id = p.id), '[]'::json) as images,
+      coalesce((select json_agg(m.handle order by m.handle)
+                 from post_mentions pm join users m on m.id = pm.user_id
+                where pm.post_id = p.id and m.state <> 'deleted'), '[]'::json) as mentions,
       -- a reply says what it answers when it shows outside its thread (profile lists, search)
       ru.handle as ra_handle, ru.display_name as ra_display, (ru.state = 'deleted') as ra_gone,
       case when rp.deleted_at is null and rp.hidden_at is null then left(rp.body, 80) else '' end as r_snippet,
@@ -130,6 +135,7 @@ export type PostRow = {
   viewer_ops?: boolean | null;
   reply_count: number; like_count: number; liked_by_me: boolean;
   images: Array<{ id: string; key: string; width: number; height: number }> | string;
+  mentions?: string[] | string | null;
   pc_id?: string | null; pc_title?: string | null; pe_id?: string | null; pe_title?: string | null; pe_visible?: boolean | null;
 };
 
@@ -164,6 +170,8 @@ export function toPost(r: PostRow, viewerId: string): Post {
       }
       : null,
     images: deleted ? [] : imgs.map((i) => ({ id: i.id, url: mediaUrl(i.key), width: i.width, height: i.height })),
+    // RFC §10.16: handles that belong to a seated member, so the body can link them
+    mentions: deleted ? [] : (typeof r.mentions === 'string' ? (JSON.parse(r.mentions) as string[]) : (r.mentions ?? [])),
     canEdit: mine && !deleted && withinWindow,
     canDelete: mine && !deleted,
     canReport: !mine && !deleted,

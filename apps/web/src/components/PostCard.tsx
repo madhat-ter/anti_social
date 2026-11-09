@@ -13,11 +13,13 @@ import { ImageViewer } from './ImageViewer';
 import { VISITOR_NOTE, useReadOnly, why } from './Visitor';
 
 const URL_RE = /https?:\/\/[^\s<>"]+/g;
+/** RFC §10.16: @handles are linked only when the saved post says that member was mentioned. */
+const MENTION_RE = /(?<![\w@])@([a-zA-Z][a-zA-Z0-9_]{2,19})/g;
 
-/** Turns plain text into nodes with http(s) URLs linked. Never injects HTML. */
-export function linkify(text: string): ReactNode[] {
-  const out: ReactNode[] = [];
-  let last = 0;
+/** Turns plain text into nodes: http(s) URLs and real @mentions linked. Never injects HTML. */
+export function linkify(text: string, mentions: string[] = []): ReactNode[] {
+  const wanted = new Set(mentions.map((m) => m.toLowerCase()));
+  const tokens: { at: number; len: number; node: ReactNode }[] = [];
   let n = 0;
   for (const m of text.matchAll(URL_RE)) {
     let url = m[0];
@@ -26,11 +28,25 @@ export function linkify(text: string): ReactNode[] {
     const trail = url.match(/[.,;:!?)\]'"]+$/)?.[0] ?? '';
     if (trail) url = url.slice(0, url.length - trail.length);
     if (!url) continue;
-    if (start > last) out.push(text.slice(last, start));
-    out.push(
-      <a key={n++} href={url} target="_blank" rel="noopener noreferrer nofollow">{url}</a>,
-    );
-    last = start + url.length;
+    tokens.push({ at: start, len: url.length, node: <a key={n++} href={url} target="_blank" rel="noopener noreferrer nofollow">{url}</a> });
+  }
+  if (wanted.size) {
+    for (const m of text.matchAll(MENTION_RE)) {
+      const handle = m[1]!;
+      if (!wanted.has(handle.toLowerCase())) continue;
+      const at = m.index ?? 0;
+      const len = m[0].length;
+      if (tokens.some((t) => at < t.at + t.len && at + len > t.at)) continue; // an @ inside a URL
+      tokens.push({ at, len, node: <Link key={n++} href={`/u/${encodeURIComponent(handle)}`} className="mention">@{handle}</Link> });
+    }
+  }
+  tokens.sort((a, b) => a.at - b.at);
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const t of tokens) {
+    if (t.at > last) out.push(text.slice(last, t.at));
+    out.push(t.node);
+    last = t.at + t.len;
   }
   if (last < text.length) out.push(text.slice(last));
   return out.map((x, i) => <Fragment key={i}>{x}</Fragment>);
@@ -262,7 +278,7 @@ export function PostCard({
         className={`body${clamp ? ' clamp' : ''}`}
         style={clamp ? { WebkitLineClamp: FEED.clampLines } : undefined}
       >
-        {linkify(post.body)}
+        {linkify(post.body, post.mentions)}
       </p>
       {clamp && overflows && (
         <button

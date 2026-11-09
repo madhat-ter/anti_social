@@ -156,6 +156,8 @@ export interface Post {
   /** replies only: the post at the top of the thread (RFC §10.12, "Replied to Mina's post: …") */
   replyTo?: { rootId: string; author: { handle: string; displayName: string } | null; snippet: string } | null;
   images: Image[];
+  /** RFC §10.16: @handles in the body that belong to a seated member (lowercased) */
+  mentions?: string[];
   canEdit: boolean;
   canDelete: boolean;
   canReport: boolean;
@@ -536,6 +538,8 @@ export const api = {
   },
   search: (q: string) => get<{ members: MemberSummary[]; posts: Post[] }>(`/search${qs({ q })}`),
   members: (cursor?: string | null, limit = 30) => get<Page<MemberSummary>>(`/members${qs({ cursor, limit })}`),
+  /** RFC §10.16: the @ list in the composer (up to 8 seated members) */
+  mentionMembers: (q: string) => get<{ items: { handle: string; displayName: string; gender: Gender | null }[] }>(`/members/mention${qs({ q })}`),
   member: (handle: string) => get<MemberSummary>(`/members/${encodeURIComponent(handle)}`),
   randomPick: (exclude: string[] = []) => get<{ item: Pick | null }>(`/suggestions/random${qs({ exclude: exclude.join(',') })}`),
   votePick: (id: string, vote: 1 | -1, remark?: string | null) =>

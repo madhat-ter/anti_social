@@ -130,6 +130,22 @@ export const socialRoutes = (deps: Deps) => {
       return { cap: Number(r!.cap), used: Number(r!.used) };
     })
 
+    // RFC §10.16: the @ list in the composer. Small and members-only; static route before :handle.
+    .get('/members/mention', async ({ auth, query }) => {
+      const a = requireSeated(auth);
+      const q = (query.q ?? '').trim().slice(0, 40);
+      const like = escapeLike(q);
+      const found = await rows<{ handle: string; display_name: string; gender: string | null }>(db, sql`
+        select u.handle, u.display_name, u.gender::text as gender
+          from users u
+         where u.state in ${SEATED}
+           and u.id <> ${a.user.id}::uuid
+           ${q ? sql`and (u.handle ilike ${`${like}%`} escape '\\' or u.display_name ilike ${`%${like}%`} escape '\\')` : sql``}
+         order by (u.handle ilike ${`${like}%`} escape '\\') desc, coalesce(u.activated_at, u.created_at) desc
+         limit 8`);
+      return { items: found.map((r) => ({ handle: r.handle, displayName: r.display_name, gender: r.gender })) };
+    }, { query: t.Object({ q: t.Optional(t.String()) }) })
+
     .get('/members/:handle', async ({ auth, params }) => {
       const a = requireSeated(auth);
       const m = await findMember(params.handle);

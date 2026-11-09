@@ -1,8 +1,12 @@
 'use client';
 import { useEffect, useId, useRef, useState } from 'react';
+import type { Gender } from '@anti/shared';
 import { api, errorMessage, IMAGE_MAX_BYTES, IMAGES_MAX, POST_MAX, type Image, type Post } from '@/lib/api';
 import { ErrorNote } from './ui';
+import { Avatar } from './Avatar';
 import { VISITOR_NOTE, useReadOnly, why } from './Visitor';
+
+type MentionItem = { handle: string; displayName: string; gender: Gender | null };
 
 interface Att {
   key: string;
@@ -50,6 +54,49 @@ export function Composer({
   const fileRef = useRef<HTMLInputElement>(null);
   const attsRef = useRef<Att[]>([]);
   attsRef.current = atts;
+
+  /**
+   * RFC §10.16: typing @ opens the members list under the box. No mention button: the list is the
+   * only way in, and an @word that matches nobody stays plain text.
+   */
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const [mention, setMention] = useState<{ at: number; query: string } | null>(null);
+  const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
+  const [mentionAt, setMentionAt] = useState(0);
+
+  useEffect(() => {
+    if (!mention) { setMentionItems([]); return; }
+    let alive = true;
+    const t = setTimeout(() => {
+      api.mentionMembers(mention.query).then(
+        (r) => { if (alive) { setMentionItems(r.items); setMentionAt(0); } },
+        () => { if (alive) setMentionItems([]); },
+      );
+    }, 120);
+    return () => { alive = false; clearTimeout(t); };
+  }, [mention]);
+
+  /** where the caret is, is there an unfinished @word right before it? */
+  function trackMention(value: string, caret: number) {
+    const open = value.slice(0, caret).match(/(^|[^\w@])@([a-zA-Z0-9_]{0,19})$/);
+    if (!open) return setMention(null);
+    setMention({ at: caret - open[2]!.length - 1, query: open[2]! });
+  }
+
+  function chooseMention(item: MentionItem) {
+    const ta = bodyRef.current;
+    if (!ta || !mention) return;
+    const caret = ta.selectionStart ?? body.length;
+    const next = `${body.slice(0, mention.at)}@${item.handle} ${body.slice(caret)}`;
+    setBody(next);
+    setMention(null);
+    setMentionItems([]);
+    requestAnimationFrame(() => {
+      ta.focus();
+      const pos = mention.at + item.handle.length + 2;
+      ta.setSelectionRange(pos, pos);
+    });
+  }
 
   useEffect(() => () => { attsRef.current.forEach((a) => URL.revokeObjectURL(a.preview)); }, []);
 
@@ -146,20 +193,54 @@ export function Composer({
       </div>
       <div className="win-body">
       <label htmlFor={`${id}-body`} className="sr-only">{parentId ? 'Write a reply' : 'Write a post'}</label>
-      <textarea
-        id={`${id}-body`}
-        value={body}
-        rows={parentId ? 3 : 4}
-        placeholder={readOnly ? VISITOR_NOTE : placeholder ?? (parentId ? 'Write a reply...' : 'What is on your mind?')}
-        disabled={readOnly}
-        title={readOnly ? VISITOR_NOTE : undefined}
-        onChange={(e) => { setBody(e.target.value); if (e.target.value) setOpened(true); }}
-        onFocus={() => setOpened(true)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void submit(); }
-        }}
-        aria-describedby={`${id}-count`}
-      />
+      <div className="composer-text">
+        <textarea
+          id={`${id}-body`}
+          ref={bodyRef}
+          value={body}
+          rows={parentId ? 3 : 4}
+          placeholder={readOnly ? VISITOR_NOTE : placeholder ?? (parentId ? 'Write a reply...' : 'What is on your mind?')}
+          disabled={readOnly}
+          title={readOnly ? VISITOR_NOTE : undefined}
+          onChange={(e) => {
+            setBody(e.target.value);
+            if (e.target.value) setOpened(true);
+            trackMention(e.target.value, e.target.selectionStart ?? e.target.value.length);
+          }}
+          onFocus={() => setOpened(true)}
+          onBlur={() => { setTimeout(() => setMention(null), 100); }}
+          onKeyDown={(e) => {
+            if (mention && mentionItems.length > 0) {
+              if (e.key === 'ArrowDown') { e.preventDefault(); setMentionAt((i) => (i + 1) % mentionItems.length); return; }
+              if (e.key === 'ArrowUp') { e.preventDefault(); setMentionAt((i) => (i - 1 + mentionItems.length) % mentionItems.length); return; }
+              if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); chooseMention(mentionItems[mentionAt]!); return; }
+              if (e.key === 'Escape') { e.preventDefault(); setMention(null); return; }
+            }
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void submit(); }
+          }}
+          aria-describedby={`${id}-count`}
+          aria-expanded={!!mention && mentionItems.length > 0}
+          aria-controls={`${id}-mentions`}
+        />
+        {mention && mentionItems.length > 0 && (
+          <ul className="mention-list" id={`${id}-mentions`} role="listbox" aria-label="Mention a member">
+            {mentionItems.map((item, i) => (
+              <li key={item.handle} role="option" aria-selected={i === mentionAt}>
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  className={i === mentionAt ? 'on' : undefined}
+                  onMouseDown={(e) => { e.preventDefault(); chooseMention(item); }}
+                >
+                  <Avatar seed={item.handle} gender={item.gender} size={24} />
+                  <span className="mention-name">{item.displayName}</span>
+                  <span className="mention-handle">@{item.handle}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       {atts.length > 0 && (
         <ul className="thumbs" aria-label="Attached images">
           {atts.map((a, i) => (

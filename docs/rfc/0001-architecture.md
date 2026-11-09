@@ -1091,6 +1091,30 @@ reply to it. Decided with the owner, seven points, all as proposed:
 - Tests: `apps/api/test/post-shape.test.ts`; screenshots: `scripts/screenshots-feed-types.ts`
   (`SHOTS=before` for the old look).
 
+### 10.16 Mentions: type @, no button (added 2026-11-09)
+
+Decided with the owner, all as proposed:
+
+- **Typing @ is the trigger.** In every post box (feed composer, replies, collab and event
+  updates) an unfinished `@word` opens a list of up to 8 seated members under the box: handle
+  prefix first, then display name, each row a drawn face, the name and `@handle`. ↑/↓ moves,
+  Enter or Tab picks, Esc closes, clicking a row picks it. **There is no mention button.**
+- **The body stays plain text.** `@handle` is written as typed; the members it really names are
+  stored in `post_mentions` (post_id, user_id) when the post is saved. Links therefore survive a
+  handle change, and an edit can diff old against new.
+- **Only real mentions become links.** The post carries the handles back; only those render as a
+  link to `/u/<handle>`. An unknown @word, or an @ inside an email or URL, stays plain text.
+- **One notification per person per post** (`kind = 'mention'`, in-app and Web Push): "@theo
+  mentioned you". Replying to someone and also mentioning them sends only the reply notice.
+  Mentioning yourself does nothing.
+- **Edits** notify only people newly added in the 15-minute window; removing a mention drops the
+  link and sends nothing.
+- **Limits:** seated members only (`active`, `flagged_lurker`), case-insensitive, at most 10 per
+  post. A mention is not a contribution for the lurker rule.
+- **The picker's list** comes from `GET /members/mention?q=` (members-only, 8 rows).
+- Tests: `apps/api/test/mentions.test.ts`; screenshots: `scripts/screenshots-latest.ts`
+  (`15-mention-list`) and `.screenshots/mentions/`.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,

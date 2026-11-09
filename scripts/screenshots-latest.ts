@@ -156,6 +156,15 @@ try {
   await lap.locator('.posts article.post').first().waitFor();
   await shot(lap, 'feed-laptop');
 
+  // RFC §10.16: typing @ opens the member list (face, name, @handle); no mention button
+  const composer = lap.locator('#compose textarea, .composer textarea').first();
+  await composer.click();
+  await composer.type('Coffee with @m');
+  await lap.locator('.mention-list button').first().waitFor();
+  await shot(lap, 'mention-list');
+  await composer.fill('');
+  await lap.locator('body').click({ position: { x: 5, y: 300 } });
+
   const go = async (path: string, name: string, ready?: () => Promise<unknown>) => {
     await lap.goto(WEB + path);
     if (ready) await ready().catch(() => {});

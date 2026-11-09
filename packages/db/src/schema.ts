@@ -270,6 +270,13 @@ export const likes = pgTable('likes', {
   createdAt: tstz('created_at').notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.userId, t.postId] }), index('likes_post').on(t.postId)]);
 
+/** RFC §10.16: who a post really mentions (@handle in the body, resolved when it is saved). */
+export const postMentions = pgTable('post_mentions', {
+  postId: uuid('post_id').notNull().references(() => posts.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.postId, t.userId] }), index('post_mentions_user').on(t.userId, t.createdAt)]);
+
 export const flags = pgTable('flags', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   postId: uuid('post_id').notNull().references(() => posts.id, { onDelete: 'cascade' }),
