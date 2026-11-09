@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { FEED, postShape } from '@anti/shared';
 import { api, errorMessage, EDIT_WINDOW_MS, POST_MAX, type Post } from '@/lib/api';
 import { fmtDate, relativeTime } from '@/lib/hooks';
 import { ErrorNote } from './ui';
@@ -65,7 +66,15 @@ export function PostCard({
   actions,
   context = 'all',
   variant,
+  framed,
 }: {
+  /**
+   * RFC §10.15, a list of separate posts (the feed, a profile): each post is its own framed card,
+   * shaped by what it is. A photo runs the card's full width with the words under it, a short
+   * status is set large, a long one folds after a few lines. Reply and Like sit in a strip that
+   * closes the card.
+   */
+  framed?: boolean;
   /**
    * RFC §10.12, posts and replies look different: 'lead' is the post at the top of its thread
    * (heavier, labelled), 'reply' a reply inside its thread (smaller, on the thread line). Left out,
@@ -99,6 +108,23 @@ export function PostCard({
   /** true for a moment after *you* like it: the dot stamps in (never on page load) */
   const [stamp, setStamp] = useState(false);
   const [reported, setReported] = useState(false);
+  /** a long post in a framed list shows a few lines until "Read more"; once open it stays open */
+  const [opened, setOpened] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const bodyRef = useRef<HTMLParagraphElement>(null);
+  const shape = framed ? postShape(post.body, post.images.length) : null;
+  const clamp = !!framed && shape !== 'short' && !editing && !opened && !post.deleted;
+
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!clamp || !el) { setOverflows(false); return; }
+    // "Read more" only when the clamp actually hides something, at this width
+    const check = () => setOverflows(el.scrollHeight > el.clientHeight + 2);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [clamp, post.body]);
 
   useEffect(() => {
     if (!menu) return;
@@ -113,7 +139,7 @@ export function PostCard({
   /** a reply outside its thread: it carries a line saying what it answers */
   const listReply = !variant && !!post.parentId;
   const compact = variant === 'reply' || listReply;
-  const cls = `post${highlight ? ' highlight' : ''}${variant === 'lead' ? ' lead' : ''}${compact ? ' compact' : ''}${listReply ? ' list-reply' : ''}`;
+  const cls = `post${highlight ? ' highlight' : ''}${variant === 'lead' ? ' lead' : ''}${compact ? ' compact' : ''}${listReply ? ' list-reply' : ''}${framed ? ` framed shape-${shape}` : ''}`;
   const face = compact ? 36 : 52;
 
   if (post.deleted) {
@@ -202,6 +228,96 @@ export function PostCard({
     ? `${post.replyCount} ${post.replyCount === 1 ? 'reply' : 'replies'}`
     : post.firstPost && !post.canDelete ? 'Say hello' : 'Reply';
   const minutesLeft = Math.max(0, Math.ceil((new Date(post.createdAt).getTime() + EDIT_WINDOW_MS - Date.now()) / 60000));
+  /** a photo post in a framed list: the picture first at full width, the words under it */
+  const photoLed = shape === 'photo';
+
+  const bodyNode = editing ? (
+    <div className="stack">
+      <label htmlFor={`${uid}-edit`} className="sr-only">Edit post</label>
+      <textarea
+        id={`${uid}-edit`}
+        value={draft}
+        rows={4}
+        autoFocus
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void saveEdit(); }
+          if (e.key === 'Escape') setEditing(false);
+        }}
+      />
+      <div className="row">
+        <button type="button" className="btn primary" disabled={busy || !draft.trim() || draft.length > POST_MAX} onClick={saveEdit}>
+          {busy ? 'Saving...' : 'Save'}
+        </button>
+        <button type="button" className="btn" onClick={() => { setEditing(false); setErr(null); }}>Cancel</button>
+        <span className="grow" />
+        <span className="muted small">{minutesLeft > 0 ? `~${minutesLeft} min left to edit` : ''}</span>
+        <span className={`counter${draft.length > POST_MAX ? ' over' : ''}`}>{draft.length}/{POST_MAX}</span>
+      </div>
+    </div>
+  ) : photoLed && !post.body.trim() ? null : (
+    <>
+      <p
+        ref={bodyRef} id={`${uid}-b`} tabIndex={-1}
+        className={`body${clamp ? ' clamp' : ''}`}
+        style={clamp ? { WebkitLineClamp: FEED.clampLines } : undefined}
+      >
+        {linkify(post.body)}
+      </p>
+      {clamp && overflows && (
+        <button
+          type="button" className="read-more linklike" aria-controls={`${uid}-b`} aria-expanded={false}
+          onClick={() => { setOpened(true); bodyRef.current?.focus({ preventScroll: true }); }}
+        >
+          Read more
+        </button>
+      )}
+    </>
+  );
+
+  const imgsNode = post.images.length > 0 && (
+    <div className={`imgs n${Math.min(post.images.length, 4)}`}>
+      {post.images.map((im, i) => (
+        <a
+          key={im.id} href={im.url} target="_blank" rel="noopener noreferrer"
+          aria-label={`Open image ${i + 1} of ${post.images.length}`}
+          onClick={(e) => {
+            // plain click opens the viewer window; ctrl/cmd/middle-click still opens a tab
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+            e.preventDefault();
+            setViewing(i);
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={im.url} alt={`Image ${i + 1} of ${post.images.length}`} width={im.width} height={im.height} loading="lazy" />
+        </a>
+      ))}
+    </div>
+  );
+
+  const footNode = (
+    <footer className="post-foot">
+      {/* a zero is an invitation ("Reply"), not a count; on someone's first post, a welcome */}
+      <Link href={replyHref} className="foot-btn" aria-label={replyLabel}>
+        <span aria-hidden="true">↳ {replyLabel}</span>
+      </Link>
+      <button
+        type="button"
+        className={`foot-btn like${post.likedByMe ? ' on' : ''}${stamp ? ' stamp' : ''}`}
+        aria-pressed={post.likedByMe}
+        onClick={toggleLike}
+        disabled={post.hidden || readOnly}
+        {...why(readOnly ? VISITOR_NOTE : liked ? 'Only you see how many people liked your post' : false)}
+      >
+        <Dot on={post.likedByMe} size=".85em" />
+        {/* name = "Like 3": includes the visible count, so voice control ("click 3") works; with no count shown the word stands alone */}
+        <span className={liked ? 'sr-only' : undefined}>Like</span>
+        {liked && <span>{post.likeCount}<span className="sr-only">, only you see this</span></span>}
+      </button>
+      {actions}
+    </footer>
+  );
+  const errNode = <ErrorNote message={err} />;
 
   return (
     <article className={cls} id={id} aria-labelledby={`${uid}-h`}>
@@ -274,76 +390,15 @@ export function PostCard({
         <p className="muted replying">replying to <Link href={`/u/${replyingTo}`}>@{replyingTo}</Link></p>
       )}
 
-      {editing ? (
-        <div className="stack">
-          <label htmlFor={`${uid}-edit`} className="sr-only">Edit post</label>
-          <textarea
-            id={`${uid}-edit`}
-            value={draft}
-            rows={4}
-            autoFocus
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void saveEdit(); }
-              if (e.key === 'Escape') setEditing(false);
-            }}
-          />
-          <div className="row">
-            <button type="button" className="btn primary" disabled={busy || !draft.trim() || draft.length > POST_MAX} onClick={saveEdit}>
-              {busy ? 'Saving...' : 'Save'}
-            </button>
-            <button type="button" className="btn" onClick={() => { setEditing(false); setErr(null); }}>Cancel</button>
-            <span className="grow" />
-            <span className="muted small">{minutesLeft > 0 ? `~${minutesLeft} min left to edit` : ''}</span>
-            <span className={`counter${draft.length > POST_MAX ? ' over' : ''}`}>{draft.length}/{POST_MAX}</span>
-          </div>
-        </div>
-      ) : (
-        <p className="body">{linkify(post.body)}</p>
-      )}
-
-      {post.images.length > 0 && (
-        <div className={`imgs n${Math.min(post.images.length, 4)}`}>
-          {post.images.map((im, i) => (
-            <a
-              key={im.id} href={im.url} target="_blank" rel="noopener noreferrer"
-              aria-label={`Open image ${i + 1} of ${post.images.length}`}
-              onClick={(e) => {
-                // plain click opens the viewer window; ctrl/cmd/middle-click still opens a tab
-                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-                e.preventDefault();
-                setViewing(i);
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={im.url} alt={`Image ${i + 1} of ${post.images.length}`} width={im.width} height={im.height} loading="lazy" />
-            </a>
-          ))}
-        </div>
-      )}
-
-      <footer className="post-foot">
-        {/* a zero is an invitation ("Reply"), not a count; on someone's first post, a welcome */}
-        <Link href={replyHref} className="foot-btn" aria-label={replyLabel}>
-          <span aria-hidden="true">↳ {replyLabel}</span>
-        </Link>
-        <button
-          type="button"
-          className={`foot-btn like${post.likedByMe ? ' on' : ''}${stamp ? ' stamp' : ''}`}
-          aria-pressed={post.likedByMe}
-          onClick={toggleLike}
-          disabled={post.hidden || readOnly}
-          {...why(readOnly ? VISITOR_NOTE : liked ? 'Only you see how many people liked your post' : false)}
-        >
-          <Dot on={post.likedByMe} size=".85em" />
-          {/* name = "Like 3": includes the visible count, so voice control ("click 3") works; with no count shown the word stands alone */}
-          <span className={liked ? 'sr-only' : undefined}>Like</span>
-          {liked && <span>{post.likeCount}<span className="sr-only">, only you see this</span></span>}
-        </button>
-        {actions}
-      </footer>
-      <ErrorNote message={err} />
+      {!photoLed && bodyNode}
+      {!framed && imgsNode}
+      {!framed && footNode}
+      {!framed && errNode}
       </div>
+      {photoLed && imgsNode}
+      {photoLed && bodyNode && <div className="caption">{bodyNode}</div>}
+      {framed && errNode}
+      {framed && footNode}
 
       {post.images.length > 0 && (
         <ImageViewer

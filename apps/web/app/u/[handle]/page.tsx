@@ -100,7 +100,7 @@ function Profile({ myHandle, adult }: { myHandle: string; adult: boolean }) {
         ))}
       </div>
       {tab === 'posts'
-        ? <PostList p={posts} empty={mine ? 'You have not posted yet.' : 'No posts yet.'} />
+        ? <PostList framed p={posts} empty={mine ? 'You have not posted yet.' : 'No posts yet.'} />
         : tab === 'collabs' ? <MemberCollabs handle={member.handle} mine={mine} />
         : <MemberPicks handle={member.handle} mine={mine} />}
     </>

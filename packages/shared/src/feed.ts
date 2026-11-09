@@ -8,6 +8,20 @@ export type Foldable = {
   firstPost?: boolean;
 };
 
+/**
+ * RFC §10.15, a post's shape in a list, so a photo, a quick status and a story never look alike:
+ * 'photo' (any image: the picture runs the card's full width, the text under it as a caption),
+ * 'short' (a few words, set large as a note) or 'text' (everything else, folded past
+ * `FEED.clampLines` lines). Pure, so the app and the tests agree.
+ */
+export type PostShape = 'photo' | 'short' | 'text';
+export function postShape(body: string, imageCount: number): PostShape {
+  if (imageCount > 0) return 'photo';
+  const t = body.trim();
+  if (t.length <= FEED.shortMaxChars && t.split('\n').length <= FEED.shortMaxLines) return 'short';
+  return 'text';
+}
+
 export type FeedItem<P> =
   | { kind: 'post'; post: P }
   /** "3 more from Mina today": one author's extra posts that day, in feed order */

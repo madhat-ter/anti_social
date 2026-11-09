@@ -222,6 +222,11 @@ export const FEED = {
   threadMinRepliers: 2,
   /** …within this long of the post */
   threadWindowHours: 72,
+  /** RFC §10.15: a text post this short (and on at most this many lines) is set large, as a note */
+  shortMaxChars: 140,
+  shortMaxLines: 3,
+  /** a longer text post shows this many lines in a list, then "Read more" */
+  clampLines: 6,
 } as const;
 
 

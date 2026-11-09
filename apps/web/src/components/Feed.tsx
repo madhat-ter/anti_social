@@ -222,7 +222,7 @@ export function FeedList({ p, visit, mine, readOnly, empty, interlude }: {
     }
   };
   const card = (post: Post) => (
-    <PostCard post={post} onChange={(np) => p.setItems((cur) => replaceIn(cur, np))} />
+    <PostCard framed post={post} onChange={(np) => p.setItems((cur) => replaceIn(cur, np))} />
   );
   const pushItems = (list: FeedItem<Post>[], withRows: boolean) => {
     for (const x of list) {
@@ -261,7 +261,7 @@ export function FeedList({ p, visit, mine, readOnly, empty, interlude }: {
       {visit && fresh > 0 && !p.loading && (
         <p className="feed-since meta">{fresh} new since {sinceLabel(visit)}</p>
       )}
-      <div className="posts">
+      <div className="posts cards">
         {draw.map((d, i) => {
           const day = dayLabel(d.at);
           const header = day !== last;

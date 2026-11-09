@@ -453,6 +453,40 @@ details > summary { cursor: pointer; font: 700 .95rem var(--font-ui); }
 .reply-to-quote { font-style: italic; }
 .reply-actions { padding: 0 0 .5rem 4.25rem; margin-top: -.6rem; }
 .reply .composer { margin: .25rem 0 1rem 4.25rem; }
+/*
+ * RFC §10.15, a list of separate posts (the feed, a profile). Each post is its own framed card with
+ * a clear gap, so a status under a photo can't read as its caption or a reply. The card is shaped
+ * by what it holds: a photo runs the full width with the words under it, a short status is set
+ * large, a long one folds after a few lines. Reply and Like sit in a strip that closes the card.
+ */
+.posts.cards { border-top: 0; gap: 1.1rem; padding-bottom: .2rem; }
+.posts.cards > .day-h { padding: .9rem 0 0; }
+.posts.cards > .day-h:first-child { padding-top: .6rem; }
+.posts.cards .feed-row, .posts.cards .feed-fold { margin: 0; }
+.posts.cards > .interlude { border-bottom: 0; padding: 0; }
+.post.framed {
+  --card-px: 1.15rem;
+  border: 2px solid var(--ink); box-shadow: var(--shadow-sm); background: var(--paper);
+  padding: 1rem var(--card-px); row-gap: 0;
+}
+.post.framed .post-av, .post.framed.list-reply .post-av { grid-row: auto; }
+.post.framed.tombstone { border-style: dashed; box-shadow: none; padding: .8rem var(--card-px); }
+.post.framed > .imgs {
+  grid-column: 1 / -1; margin: .85rem calc(-1 * var(--card-px)) 0; border-width: 2px 0;
+}
+.post.framed > .imgs.n1 img { max-height: 36rem; }
+.post.framed > .caption { grid-column: 1 / -1; }
+.post.framed > .caption .body { margin-top: .7rem; max-width: 66ch; }
+.post.framed > .post-foot {
+  grid-column: 1 / -1; margin: .9rem calc(-1 * var(--card-px)) -1rem; padding: .5rem var(--card-px) .55rem;
+  border-top: 1.5px solid var(--ink);
+}
+.post.framed > .imgs + .post-foot { margin-top: 0; border-top: 0; }
+.post.framed > .error { grid-column: 1 / -1; }
+.post.framed.shape-short .body { font: 500 1.42rem/1.35 var(--font-text); letter-spacing: -.01em; margin-top: .35rem; }
+.post.framed .body.clamp { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+.post.framed .body:focus { outline: none; }
+.read-more { margin-top: .3rem; font: 600 .95rem var(--font-text); }
 .paged-footer { display: flex; flex-direction: column; align-items: center; gap: .6rem; padding: 1.5rem 0; min-height: 2rem; }
 .paged-footer .muted { font-family: var(--font-text); font-size: .9rem; }
 
@@ -1236,6 +1270,11 @@ input[type=search]::-webkit-search-cancel-button {
   .reply-actions { padding-left: 3.25rem; }
   .reply .composer { margin-left: 0; }
   .imgs.n1 img { max-height: 22rem; }
+  .post.framed { --card-px: .85rem; padding-top: .85rem; padding-bottom: .85rem; }
+  .post.framed > .post-foot { margin-bottom: -.85rem; }
+  .post.framed > .imgs.n1 img { max-height: 28rem; }
+  .post.framed.shape-short .body { font-size: 1.25rem; }
+  .posts.cards { gap: .9rem; }
   .seat-grid { gap: .35rem .2rem; }
   .rules { grid-template-columns: 1fr; }
   .rules li { border-right: 0; margin-right: 0; border-bottom: 1.5px solid var(--ink); padding-bottom: .9rem; }

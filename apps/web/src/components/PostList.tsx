@@ -23,9 +23,11 @@ export function dayLabel(iso: string, now = new Date()): string {
  * `interlude` puts something (the pick window on phones) after the `after`-th post, or after the
  * last one when there are fewer, so the first screen is posts and not furniture.
  */
-export function PostList({ p, empty, byDay = true, context = 'all', interlude }: {
+export function PostList({ p, empty, byDay = true, context = 'all', interlude, framed }: {
   p: ReturnType<typeof usePaged<Post>>; empty: string; byDay?: boolean; context?: 'all' | 'event' | 'none';
   interlude?: { after: number; node: ReactNode };
+  /** each post its own framed card, shaped by what it is (RFC §10.15): a profile's posts */
+  framed?: boolean;
 }) {
   let last = '';
   const n = p.items.length;
@@ -34,7 +36,7 @@ export function PostList({ p, empty, byDay = true, context = 'all', interlude }:
     <>
       <ListStatus p={p} count={n} empty={empty} />
       {interlude && n === 0 && !p.loading && !p.error && interlude.node}
-      <div className="posts">
+      <div className={`posts${framed ? ' cards' : ''}`}>
         {p.items.map((post, i) => {
           const day = byDay ? dayLabel(post.createdAt) : '';
           const header = byDay && day !== last;
@@ -42,7 +44,7 @@ export function PostList({ p, empty, byDay = true, context = 'all', interlude }:
           return (
             <Fragment key={post.id}>
               {header && <h2 className="day-h">{day}</h2>}
-              <PostCard post={post} context={context} onChange={(np) => p.setItems((cur) => replaceIn(cur, np))} />
+              <PostCard framed={framed} post={post} context={context} onChange={(np) => p.setItems((cur) => replaceIn(cur, np))} />
               {i === at && <div className="interlude">{interlude!.node}</div>}
             </Fragment>
           );

@@ -1067,6 +1067,26 @@ owner, four points, all as proposed:
 - The theme is one block, `:root[data-theme="dark"]` in `globals.css` (every colour is a
   variable). Tests: `apps/api/test/theme.test.ts`; screenshots: `scripts/screenshots-theme.ts`.
 
+### 10.15 Every post its own card, shaped by what it is (added 2026-11-09)
+
+The owner found the feed ran together: a status right under a photo read like its caption or a
+reply to it. Decided with the owner, seven points, all as proposed:
+
+- **Framed cards**: each post is its own box (2px ink border, small offset shadow) with a clear
+  gap before the next, the same window look as the rest of the site (`PostCard framed`,
+  `.posts.cards`).
+- **The shape tells what it is, no labels** (`postShape` in `packages/shared/src/feed.ts`):
+  - *photo* (any image): the picture runs the card's full width, the words under it as a caption;
+  - *short* (at most `FEED.shortMaxChars` 140 characters on at most 3 lines, no image): set large, as a note;
+  - *text*: normal size, folded after `FEED.clampLines` (6) lines with "Read more", which opens
+    it in place (shown only when the fold actually hides something at that width).
+- **Reply and Like sit in a strip** across the bottom of the card, so the actions close the post.
+- **Where**: the feed and a member's profile list. The thread page keeps §10.12; search, event
+  and collab update lists stay compact.
+- **Phones**: the same framed card with the page's small inset each side.
+- Tests: `apps/api/test/post-shape.test.ts`; screenshots: `scripts/screenshots-feed-types.ts`
+  (`SHOTS=before` for the old look).
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,
