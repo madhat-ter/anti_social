@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { connection } from 'next/server';
 import { Archivo, Shantell_Sans, Space_Mono, Tiny5 } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 
 /** One family on its width axis: ultra-condensed black for posters, normal width for reading. */
@@ -17,6 +18,23 @@ const hand = Shantell_Sans({ subsets: ['latin'], variable: '--f-hand', display: 
  * 5 reads as an 8 ("$5.00" looked like "$8.00" on the pay button). See scripts/font-compare.ts.
  */
 const pixel = Tiny5({ weight: '400', subsets: ['latin'], variable: '--f-pixel', display: 'swap' });
+/**
+ * Bangla (2026-11-09): Kalpurush by Tanbin Islam Siyam, SIL OFL 1.1 (app/fonts/kalpurush/OFL.txt),
+ * served unmodified from here. It covers only the Bengali block, so it sits after every other face
+ * in each stack and the browser uses it, and downloads it, only for Bangla characters.
+ */
+const bangla = localFont({
+  src: './fonts/kalpurush/Kalpurush.ttf',
+  weight: '400',
+  variable: '--f-bangla',
+  display: 'swap',
+  adjustFontFallback: false,
+  declarations: [
+    { prop: 'unicode-range', value: 'U+0951-0952, U+0964-0965, U+0980-09FE, U+200C-200D, U+20B9, U+25CC' },
+    // Kalpurush draws small for its size; this matches its letters to the English beside them
+    { prop: 'size-adjust', value: '115%' },
+  ],
+});
 
 export const metadata: Metadata = { title: 'anti', description: 'A small, invite-only network. One hundred seats.' };
 
@@ -24,7 +42,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // render per request: the CSP nonce (proxy.ts) is new every time, so pages can't be prebuilt
   await connection();
   return (
-    <html lang="en" className={`${archivo.variable} ${pixel.variable} ${mono.variable} ${hand.variable}`}>
+    <html lang="en" className={`${archivo.variable} ${pixel.variable} ${mono.variable} ${hand.variable} ${bangla.variable}`}>
       <body>
         <a className="skip" href="#main">Skip to content</a>
         <header className="top">

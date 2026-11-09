@@ -26,8 +26,9 @@
   --shadow-sm: 3px 3px 0 var(--shadow-c);
   --stripes: repeating-linear-gradient(to bottom, var(--ink) 0 1px, transparent 1px 3px);
   --desktop: radial-gradient(var(--ink) .9px, transparent 1.1px) 0 0 / 4px 4px; /* classic Mac desktop pattern */
-  --font-text: var(--f-archivo), ui-sans-serif, system-ui, sans-serif;
-  --font-ui: var(--f-pixel), ui-monospace, monospace;
+  /* Bangla characters fall through to Kalpurush in every stack (layout.tsx; unicode-range keeps it to Bangla only) */
+  --font-text: var(--f-archivo), var(--f-bangla), ui-sans-serif, system-ui, sans-serif;
+  --font-ui: var(--f-pixel), var(--f-bangla), ui-monospace, monospace;
   --grain-opacity: .05;
   --grain-blend: multiply;
   /* aliases for older markup */
@@ -45,6 +46,16 @@ body {
   -webkit-font-smoothing: antialiased;
   /* the bitmap UI face has one weight; never let the browser smear a fake bold onto it */
   font-synthesis: none;
+}
+/*
+ * Kalpurush (Bangla) has one weight too, but a Bangla title should still read bold. Archivo has
+ * every weight, so it is never synthesized; allowing synthesis on these reading-face elements only
+ * thickens their Bangla characters, and the pixel chrome stays untouched.
+ */
+h1, h2, .display, strong, b, .big, .name, .rail-name, .seat-name, .sheet-name, .event-title, .collab-title,
+.pick-title, .pf-entry-title, .pf-item-title, .pf-headline, .notif.unread .notif-title, .day-h, .rules b, .hero-type,
+.rail-ev-title, .pj-head h1, .pj-panel h2, .pf-sec-h, .section-h {
+  font-synthesis-weight: auto;
 }
 body::after {
   content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 100;
@@ -856,8 +867,8 @@ input[type=search]::-webkit-search-cancel-button {
    BODY only, so the frame stays the site's and the inside is the member's. A background is a
    design choice, so it is fixed: the system dark mode does not flip it. */
 .pf, .pj, .pf-chip { --pf-font: var(--font-text); --pf-hw: 900; --pf-stretch: 62%; }
-.look-mono { --pf-font: var(--f-mono), ui-monospace, monospace; --pf-hw: 700; --pf-stretch: 100%; }
-.look-hand { --pf-font: var(--f-hand), 'Segoe Print', 'Bradley Hand', cursive; --pf-hw: 800; --pf-stretch: 100%; }
+.look-mono { --pf-font: var(--f-mono), var(--f-bangla), ui-monospace, monospace; --pf-hw: 700; --pf-stretch: 100%; }
+.look-hand { --pf-font: var(--f-hand), var(--f-bangla), 'Segoe Print', 'Bradley Hand', cursive; --pf-hw: 800; --pf-stretch: 100%; }
 .pf > .win-body, .pj > .win-body { background: var(--paper); color: var(--ink); font-family: var(--pf-font); }
 .pf > .win-body :is(h1, h2, .pf-num, .pf-sec-h), .pj > .win-body :is(h1, h2, .pf-num, .pj-index a, .pj-nav > span:last-child) {
   font-family: var(--pf-font); font-weight: var(--pf-hw); font-stretch: var(--pf-stretch);
