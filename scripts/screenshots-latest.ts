@@ -9,7 +9,7 @@
  *   bun scripts/screenshots-latest.ts
  */
 import { chromium, type Page } from 'playwright-core';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
 const sharp = (await import('../apps/api/node_modules/sharp')).default;
@@ -24,6 +24,8 @@ import { MemoryPushSender } from '../apps/api/src/lib/push';
 const WEB = 'http://localhost:3100';
 const OUT = join(import.meta.dir, '..', '.screenshots', 'latest');
 mkdirSync(OUT, { recursive: true });
+// fixed names: a previous run's files (an old order, a renamed screen) must not linger beside the new set
+for (const f of readdirSync(OUT)) if (f.endsWith('.png')) unlinkSync(join(OUT, f));
 
 const ABOUT = 'I draw for small presses and print zines on an old risograph. Most weeks I am at the market with a sketchbook, drawing the stalls and the people who keep them going. I like slow projects, paper that smells of ink, and anything with a deadline far enough away to do it properly. Ask me about layout, colour separations, or where to find cheap paper in town.';
 const setup = (gender: string) => ({ about: ABOUT, gender, birthday: '1996-04-02' });
