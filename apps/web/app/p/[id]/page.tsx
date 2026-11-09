@@ -68,19 +68,20 @@ function ThreadView() {
           : <Link href="/">Back to the feed</Link>}
       </p>
       <h1 className="sr-only">Thread</h1>
-      <PostCard post={root} onChange={update} id={`post-${root.id}`} />
+      <PostCard post={root} onChange={update} id={`post-${root.id}`} variant="lead" />
       {/* hidden after reports: an admin is reviewing it, nobody can reply */}
       {!root.hidden && <Composer parentId={root.id} onCreated={added} />}
       <h2 className="section-h">Replies{replies.length ? ` (${replies.length})` : ''}</h2>
       {replies.length === 0 && <p className="muted">No replies yet.</p>}
-      <div className="posts">
+      {/* RFC §10.12: replies hang off the post on one line, smaller than it; flat, one level */}
+      <div className="posts thread-replies">
         {replies.map((r) => {
           const parent = r.parentId && r.parentId !== root.id ? byId.get(r.parentId) : null;
           const handle = parent?.author?.handle ?? null;
           return (
             <div key={r.id} className="reply">
               <PostCard
-                post={r} onChange={update} id={`post-${r.id}`} highlight={focus === r.id} replyingTo={handle}
+                post={r} onChange={update} id={`post-${r.id}`} highlight={focus === r.id} replyingTo={handle} variant="reply"
                 actions={!r.deleted && (
                   <button type="button" className="foot-btn" onClick={() => setReplyTo(replyTo === r.id ? null : r.id)} aria-expanded={replyTo === r.id}>
                     {replyTo === r.id ? 'Cancel reply' : 'Reply'}

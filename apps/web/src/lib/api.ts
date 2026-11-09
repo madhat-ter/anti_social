@@ -149,6 +149,8 @@ export interface Post {
   likedByMe: boolean;
   /** the author's first feed post: the reply button reads "Say hello" */
   firstPost?: boolean;
+  /** replies only: the post at the top of the thread (RFC §10.12, "Replied to Mina's post: …") */
+  replyTo?: { rootId: string; author: { handle: string; displayName: string } | null; snippet: string } | null;
   images: Image[];
   canEdit: boolean;
   canDelete: boolean;

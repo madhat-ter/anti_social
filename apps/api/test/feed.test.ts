@@ -231,6 +231,26 @@ describe('rows around the posts: conversations and events', () => {
   });
 });
 
+describe('replies say what they answer (RFC §10.12)', () => {
+  test('a reply in a member list carries its thread’s post: author and a snippet; a post carries none', async () => {
+    const { member, say } = await world();
+    const a = await member('alice');
+    const b = await member('bob');
+    const root = await say(a, 'Anyone up for a hike on Saturday? Leaving at 7 from the north gate.');
+    const r1 = await say(b, 'In!', { parentId: root.id });
+    await say(a, 'Great', { parentId: r1.id });
+    const list = (await a.get('/members/bob/posts')).body.items;
+    expect(list[0].replyTo).toEqual({
+      rootId: root.id, author: { handle: 'alice', displayName: 'alice' },
+      snippet: 'Anyone up for a hike on Saturday? Leaving at 7 from the north gate.',
+    });
+    expect((await a.get('/members/alice/posts')).body.items.map((x: any) => x.replyTo?.rootId ?? null)).toEqual([root.id, null]);
+    // a deleted post says nothing about itself
+    await a.del(`/posts/${root.id}`);
+    expect((await a.get('/members/bob/posts')).body.items[0].replyTo).toMatchObject({ rootId: root.id, snippet: '' });
+  });
+});
+
 /** set a member's line directly (tests only) */
 async function w_reset(rowsOf: (q: ReturnType<typeof sql>) => Promise<any[]>, id: string, through: string) {
   await rowsOf(sql`update users set feed_seen_through = ${through}::timestamptz where id = ${id}::uuid`);

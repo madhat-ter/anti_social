@@ -64,7 +64,14 @@ export function PostCard({
   id,
   actions,
   context = 'all',
+  variant,
 }: {
+  /**
+   * RFC §10.12, posts and replies look different: 'lead' is the post at the top of its thread
+   * (heavier, labelled), 'reply' a reply inside its thread (smaller, on the thread line). Left out,
+   * a reply shown in a list (a profile, search) says what it answers and is drawn small too.
+   */
+  variant?: 'lead' | 'reply';
   /** say which collab / event an update belongs to; less where the page already says it */
   context?: 'all' | 'event' | 'none';
   post: Post;
@@ -103,7 +110,11 @@ export function PostCard({
     return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', close); };
   }, [menu]);
 
-  const cls = `post${highlight ? ' highlight' : ''}`;
+  /** a reply outside its thread: it carries a line saying what it answers */
+  const listReply = !variant && !!post.parentId;
+  const compact = variant === 'reply' || listReply;
+  const cls = `post${highlight ? ' highlight' : ''}${variant === 'lead' ? ' lead' : ''}${compact ? ' compact' : ''}${listReply ? ' list-reply' : ''}`;
+  const face = compact ? 36 : 52;
 
   if (post.deleted) {
     return (
@@ -194,14 +205,24 @@ export function PostCard({
 
   return (
     <article className={cls} id={id} aria-labelledby={`${uid}-h`}>
+      {listReply && post.replyTo && (
+        <p className="reply-to">
+          <span aria-hidden="true">↳ </span>
+          <Link href={`/p/${post.replyTo.rootId}#${post.id}`}>
+            Replied to {post.replyTo.author ? `${post.replyTo.author.displayName}’s` : 'a'} post
+          </Link>
+          {post.replyTo.snippet && <span className="reply-to-quote">: &ldquo;{snip(post.replyTo.snippet)}&rdquo;</span>}
+        </p>
+      )}
       {post.author ? (
         <Link href={`/u/${post.author.handle}`} className="post-av" tabIndex={-1} aria-hidden="true">
-          <Avatar seed={post.author.handle} gender={post.author.gender} size={52} />
+          <Avatar seed={post.author.handle} gender={post.author.gender} size={face} />
         </Link>
       ) : (
-        <span className="post-av"><Avatar seed={null} size={52} /></span>
+        <span className="post-av"><Avatar seed={null} size={face} /></span>
       )}
       <div className="post-main">
+      {variant === 'lead' && <p className="post-kind"><span className="tag">Post</span></p>}
       <header className="post-head">
         <span id={`${uid}-h`}><AuthorLine post={post} /></span>
         <span className="muted dot" aria-hidden="true">·</span>
@@ -362,6 +383,14 @@ export function PostCard({
       />
     </article>
   );
+}
+
+/** the start of the post a reply answers: a few words, cut at a space */
+function snip(s: string, max = 60): string {
+  const t = s.replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  return `${cut.slice(0, cut.lastIndexOf(' ') > 30 ? cut.lastIndexOf(' ') : max)}…`;
 }
 
 /** Replace one post in a list by id. */

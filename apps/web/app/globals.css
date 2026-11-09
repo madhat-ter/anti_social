@@ -400,6 +400,36 @@ details > summary { cursor: pointer; font: 700 .95rem var(--font-ui); }
 }
 .foot-btn:hover { text-decoration: underline; text-underline-offset: 3px; color: var(--ink); }
 .foot-btn.like.on { color: var(--signal); }
+/*
+ * RFC §10.12, posts and replies look different. The post at the top of a thread is heavier: a
+ * framed card, larger text, a "Post" label. Replies are lighter: a 36px face, smaller text, and
+ * they hang off one line on the left that joins them to the post. A reply shown in a list
+ * (a profile, search) is drawn the same small way and says what it answers.
+ */
+.post.lead {
+  border: 2px solid var(--ink); box-shadow: var(--shadow-sm); background: var(--paper);
+  padding: 1.1rem 1.2rem 1rem; margin-bottom: .4rem;
+}
+.post.lead .body { font-size: 1.18rem; line-height: 1.5; }
+.post-kind { margin: 0 0 .2rem; }
+.post-kind .tag { margin-left: 0; background: var(--ink); color: var(--paper); }
+.post.compact { grid-template-columns: 36px minmax(0, 1fr); gap: .2rem .75rem; padding: .8rem 0 .75rem; border-bottom-width: 1px; }
+.post.compact .body { font-size: .97rem; line-height: 1.5; }
+.post.compact .post-head .name { font-size: .95rem; }
+.post.compact .post-foot { margin-top: .4rem; }
+.thread-replies { border-top: 0; margin-left: 25px; padding-left: 1.1rem; border-left: 3px solid var(--ink); }
+.thread-replies .post.compact { border-bottom-style: dashed; }
+.thread-replies .post.compact::before {
+  /* a short tick from the thread line to each reply's face */
+  content: ''; position: absolute; left: -1.1rem; top: 1.85rem; width: .8rem; height: 3px; background: var(--ink);
+}
+.post.list-reply .post-av { grid-row: 2 / span 4; }
+.reply-to {
+  grid-column: 1 / -1; margin: 0 0 .25rem; font: 400 .88rem/1.35 var(--font-text); color: var(--gray-strong);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.reply-to a { color: var(--ink); font-weight: 600; }
+.reply-to-quote { font-style: italic; }
 .reply-actions { padding: 0 0 .5rem 4.25rem; margin-top: -.6rem; }
 .reply .composer { margin: .25rem 0 1rem 4.25rem; }
 .paged-footer { display: flex; flex-direction: column; align-items: center; gap: .6rem; padding: 1.5rem 0; min-height: 2rem; }
@@ -1156,6 +1186,12 @@ input[type=search]::-webkit-search-cancel-button {
   .composer-bar { margin: .9rem -1rem -1rem; padding: .55rem 1rem; }
   .post { grid-template-columns: 40px minmax(0, 1fr); gap: .25rem .75rem; }
   .post-av .avatar { width: 40px; height: 40px; }
+  .post.compact { grid-template-columns: 30px minmax(0, 1fr); gap: .2rem .6rem; }
+  .post.compact .post-av .avatar { width: 30px; height: 30px; }
+  .post.lead { padding: .9rem .85rem .85rem; }
+  .post.lead .body { font-size: 1.1rem; }
+  .thread-replies { margin-left: 12px; padding-left: .75rem; }
+  .thread-replies .post.compact::before { left: -.75rem; width: .55rem; top: 1.6rem; }
   .reply-actions { padding-left: 3.25rem; }
   .reply .composer { margin-left: 0; }
   .imgs.n1 img { max-height: 22rem; }

@@ -1002,6 +1002,25 @@ a post. A line shows where you left off, and you will reach the end of it." Test
 `apps/api/test/feed.test.ts`, `apps/api/test/fold.test.ts`; screenshots:
 `scripts/screenshots-feed.ts`.
 
+### 10.12 Posts and replies look different (added 2026-11-09)
+
+The owner found posts and replies hard to tell apart: both were the same card. Decided with the
+owner, six points, all as proposed:
+
+- **Everywhere replies show**: the thread page, a member's profile list and search (the feed
+  itself shows posts only).
+- **The thread's post is heavier**: a framed card with a shadow, larger text and a "Post" label
+  (`PostCard variant="lead"`).
+- **Replies are lighter**: a 36px face (30px on phones) instead of 52, smaller text, dashed
+  dividers, and they hang off one line on the left joined to the post by a short tick
+  (`variant="reply"`, `.thread-replies`).
+- **Flat, one level.** A reply to a reply stays in the same list with "replying to @x"; no deeper
+  nesting (it breaks on phones, and threads here are short).
+- **In lists, a reply says what it answers**: "↳ Replied to Mina's post: 'Anyone up for a hike…'",
+  linking into the thread, drawn in the same small style. The API adds `replyTo {rootId, author,
+  snippet}` to every reply (the snippet is empty when the post was deleted or hidden).
+- `scripts/screenshots-replies.ts` shoots the same scene before (`SHOTS=before`) and after.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,
@@ -1133,6 +1152,7 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 11. **M11 — Trust** (2026-11-08, §10.7): the OG mark for admins, the verified badge, contact details for admins (encrypted, openings logged).
 12. **M12 — Visitor passes** (2026-11-08, §10.8), in four steps: the table, SQL and API with the read-only walls; the visitor's side of the app (code form, pass page, pill, struck-out controls, ended page); the admin panel; docs and screenshots.
 13. **M13 — The feed** (2026-11-09, §10.11), in three steps: like counts for the author only, "new here", "First post" and the inviter's notice; the "new since" line, the end card and the visit log; the fold, conversation and event rows, and `/feed-rules`.
+14. **M14 — Posts and replies** (2026-11-09, §10.12): the thread's post framed and labelled, replies small on a thread line, replies in lists saying what they answer.
 
 ## Appendix A — Decision log
 
