@@ -50,6 +50,8 @@ export const users = pgTable('users', {
   /** verified by an admin who checked the member; the badge shows by their name */
   verifiedAt: tstz('verified_at'),
   verifiedBy: uuid('verified_by').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
+  /** RFC §10.11: the newest feed post this member scrolled past to the "caught up" card; only moves forward */
+  feedSeenThrough: tstz('feed_seen_through'),
 }, (t) => [
   index('users_state_idx').on(t.state),
   uniqueIndex('users_handle_lower').on(sql`lower(${t.handle})`),
@@ -77,6 +79,22 @@ export const userSeenDays = pgTable('user_seen_days', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   day: date('day').notNull(),
 }, (t) => [primaryKey({ columns: [t.userId, t.day] })]);
+
+/**
+ * RFC §10.11: one row per feed visit (a visit starts after 30 quiet minutes). The only behavioural
+ * log the feed keeps: backlog size and whether the end card was reached, so the owner can tell
+ * whether members get through the feed. Pruned after 60 days; gone with the member.
+ */
+export const feedVisits = pgTable('feed_visits', {
+  id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  startedAt: tstz('started_at').notNull().defaultNow(),
+  /** the frozen "new since" line for this visit */
+  since: tstz('since').notNull(),
+  /** posts waiting above the line when the visit started */
+  newPosts: integer('new_posts').notNull(),
+  caughtUpAt: tstz('caught_up_at'),
+}, (t) => [index('feed_visits_user').on(t.userId, t.startedAt)]);
 
 export const settings = pgTable('settings', {
   key: text('key').primaryKey(),

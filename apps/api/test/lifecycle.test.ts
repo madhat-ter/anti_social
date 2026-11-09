@@ -76,7 +76,7 @@ describe('scheduled jobs', () => {
       values (${id}, 'old.webp', 1, 1, now() - interval '25 hours'), (${id}, 'new.webp', 1, 1, now())`);
 
     const r = await runJob(w.t.db, job('cleanup'), { storage: w.storage, payments: w.payments });
-    expect(r).toEqual({ status: 'ran', result: { sessions: 1, challenges: 1, uploads: 1, rateLimits: 0, visitorPasses: 0 } });
+    expect(r).toEqual({ status: 'ran', result: { sessions: 1, challenges: 1, uploads: 1, rateLimits: 0, visitorPasses: 0, feedVisits: 0 } });
     expect(w.storage.files.has('old.webp')).toBe(false);
     expect(w.storage.files.has('new.webp')).toBe(true);
     expect((await a.get('/me')).status).toBe(200); // live session survives

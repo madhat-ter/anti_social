@@ -7,7 +7,7 @@ import { usePaged, useMe, useTitle } from '@/lib/hooks';
 import { ErrorNote } from '@/components/ui';
 import { SeatedShell } from '@/components/Shell';
 import { Composer } from '@/components/Composer';
-import { PostList } from '@/components/PostList';
+import { FeedList, useFeedVisit } from '@/components/Feed';
 import { AccountUpdates, ArchivedCard, usePollMe, WaitlistCard } from '@/components/Lifecycle';
 import { CheckoutNotice } from '@/components/Billing';
 import { Avatar } from '@/components/Avatar';
@@ -81,7 +81,7 @@ function Landing() {
 
       <ul className="rules">
         <li><b>No DMs</b><span>Replies are public. If you want to talk, host an event and meet.</span></li>
-        <li><b>No algorithm</b><span>One feed, newest first. You will reach the end of it.</span></li>
+        <li><b>No algorithm</b><span>One feed, newest first. Likes never move a post. A line shows where you left off, and you will reach the end of it.</span></li>
         <li><b>Show up</b><span>Disappear for 30 days and your seat goes to someone who will.</span></li>
       </ul>
       {/* the Bangla font's licence asks for this backlink in the landing page footer (fonts/golesta-borno/LICENSE-Readme.txt, rule 6) */}
@@ -130,12 +130,18 @@ function useNewPosts(p: ReturnType<typeof usePaged<Post>>) {
   return { pending, show, forget };
 }
 
-function FeedView({ onPosted }: { onPosted: () => void }) {
+function FeedView({ me, onPosted }: { me: Me; onPosted: () => void }) {
   useTitle('Feed');
   // the side rail (pick window, birthdays) is only on screen from 1180px; narrower, both sit in the feed
   const wide = useWide(RAIL_QUERY);
   const readOnly = useReadOnly();
-  const p = usePaged<Post>('feed', (c) => api.feed(c));
+  const fv = useFeedVisit(me.handle);
+  // the first page starts (or resumes) a visit and brings back its "new since" line (RFC §10.11)
+  const p = usePaged<Post>('feed', async (c) => {
+    const page = await api.feed(c, 20, c ? {} : fv.params());
+    if (page.visit) fv.got(page.visit);
+    return page;
+  });
   const fresh = useNewPosts(p);
   useEffect(() => {
     if (window.location.hash !== '#compose') return;
@@ -164,8 +170,11 @@ function FeedView({ onPosted }: { onPosted: () => void }) {
         </button>
       )}
       {/* without the side rail (phones, tablets): the pick window sits after the first few posts, not before the first one */}
-      <PostList
+      <FeedList
         p={p}
+        visit={fv.visit}
+        mine={me.handle}
+        readOnly={readOnly}
         empty="It is quiet in here. Write the first post: the other seats will see it next time they come in."
         interlude={wide === false ? { after: 3, node: <PickWindow className="feed-pick" /> } : undefined}
       />
@@ -204,7 +213,7 @@ export default function Home() {
           <>
             {!m.visitor && <Intro me={m} refreshKey={posted} />}
             <CheckoutNotice refresh={refresh} />
-            <FeedView onPosted={() => { setPosted((n) => n + 1); if (me.state === 'flagged_lurker') void refresh(); }} />
+            <FeedView me={m} onPosted={() => { setPosted((n) => n + 1); if (me.state === 'flagged_lurker') void refresh(); }} />
           </>
         )}
       </SeatedShell>

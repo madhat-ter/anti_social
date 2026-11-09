@@ -953,6 +953,55 @@ all accepted.
 - Constants in `RULES` (`screen_time_limit_s`, `screen_time_rest_s`, `screen_time_nudges_s`); the
   nudge texts live in `ScreenTime.tsx`. `scripts/screenshots-screen-time.ts` walks it.
 
+### 10.11 The feed: newest first, with an end (added 2026-11-09)
+
+Built from a read of how big platforms and small community sites order their feeds, and what
+users and builders say about it. The feed is **not ranked**: no
+score, no likes or replies moving a post, nothing learned from what anyone looks at. At a hundred
+seats every post can be read; the real problems are the frequent poster who drowns out the rest,
+not knowing where you left off, and a newcomer posting into silence. The fixes are display rules on
+top of `(created_at desc, id desc)`, each one written on `/feed-rules`:
+
+- **Likes are the author's alone.** `likeCount` is a number only on your own posts, `null` on
+  everyone else's (feed, threads, the like endpoints). Likes never change position. (The
+  MusicLab result: visible counts make popularity snowball.)
+- **"new here" and "First post".** Posts by members in their first `new_member_exempt_days` (21)
+  carry "new here" by the name; a member's first root post outside collabs and events wears a
+  "First post" badge and its reply button reads "Say hello". The inviter gets
+  `invitee_first_post` (once per member, ever; not for replies or updates).
+- **The line.** A visit starts when the feed opens after `FEED.visitGapMinutes` (30) with no feed
+  activity in that tab (`sessionStorage`; a reload resumes it with `since=`). `GET /feed?visit=1`
+  returns `visit {since, capped, newPosts, visitId, threads, events, nextEvent}`; `since` is
+  `users.feed_seen_through`, never more than `FEED.newWindowDays` (7) back. The 30-second poll
+  sends neither parameter and never starts a visit.
+- **The end.** The feed loads on its own only until it reaches the line; there the end card says
+  "You're caught up. That's everything since Tue 9:14 pm." (or "Nothing new…"), the next event,
+  "Go outside.", and a *Show older posts* button; below the line only buttons load more. Once the
+  card has been on screen, `POST /feed/caught-up {through, visitId}` moves `feed_seen_through` to
+  the newest post in the list: clamped to now, forward only, closed to visitors.
+- **The fold.** On one local day an author's posts after the first `FEED.foldAfter` (2) collapse
+  into "3 more from Mina today", opened in place (`foldBusy` in `packages/shared/src/feed.ts`, pure
+  and unit-tested). Never folded: your own posts, newcomers, anyone's first post.
+- **Rows in time.** An older post (made up to 72 h before the line) that `FEED.threadMinRepliers`
+  (2) other people replied to since the line gets one row, "Mina's post from Monday: 3 people
+  replied since you were here", at the newest reply. Guards from the small sites that rank: the
+  author's and your own replies don't count, nor replies more than 72 h after the post, and rows
+  are counted from replies that still exist (reply-then-delete removes it). A new public event by
+  someone else gets a row at the moment it was made. Rows only sit above the line; the post itself
+  never moves.
+- **The log.** `feed_visits` (user, since, new posts waiting, when the end card was reached) is
+  the only behavioural data the feed keeps: the owner reads backlog sizes and how many visits reach
+  the end. Pruned after 60 days by the daily cleanup, gone with the member. Visitors write nothing.
+- **Not built:** a "By person" view (what you missed, grouped per member, quietest first). Build it
+  only if the 90th-percentile backlog stays above 150 posts, or fewer than half of the visits with
+  60+ new posts reach the end before a screen-time lock, or five members ask for it. Never an A/B
+  test; time on site and sessions are never objectives.
+
+The landing page keeps "no algorithm"; its rule now reads "One feed, newest first. Likes never move
+a post. A line shows where you left off, and you will reach the end of it." Tests:
+`apps/api/test/feed.test.ts`, `apps/api/test/fold.test.ts`; screenshots:
+`scripts/screenshots-feed.ts`.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,
@@ -975,7 +1024,8 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `DELETE /me` | U | Self-deletion |
 | `GET/POST /me/invites` | A | List / create (≤ 2 open, no penalty) |
 | `POST /me/waitlist/rejoin` | U (archived) | Join priority queue |
-| `GET /feed` | A | Global feed |
+| `GET /feed` | A | Global feed, newest first; `visit=1` / `since=` on the first page add the visit (§10.11) |
+| `POST /feed/caught-up` | A (not V) | The end card was seen: move the "new since" line forward (§10.11) |
 | `POST /posts` | A | Create post or reply |
 | `GET /posts/:id` | A | Post + thread |
 | `PATCH /posts/:id` | A | Edit (15 min) |
@@ -1034,7 +1084,7 @@ To members, every `/ops/*` path is a 404. Ops also has a CLI (`bun run ops:mint-
 | Job | Frequency | What |
 |---|---|---|
 | `run_lifecycle()` | Hourly | Archival, lurker detection/resolution/grace, waitlist decay, promotion (§8.2) |
-| Session + challenge cleanup | Daily | Delete expired `sessions`, `auth_challenges`; `visitor_passes` older than 30 days (§10.8) |
+| Session + challenge cleanup | Daily | Delete expired `sessions`, `auth_challenges`; `visitor_passes` older than 30 days (§10.8); `feed_visits` older than 60 days (§10.11) |
 | Upload quarantine sweep | Daily | Delete orphaned R2 quarantine objects > 24 h |
 | Notification fan-out | On insert (in-process queue) | Send Web Push for push-worthy kinds |
 
@@ -1082,6 +1132,7 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 10. **M10 — Collabs** (2026-11-08, §10.5), in four steps: interests; collabs with joining, requests and invites; updates, meetups and finishing into portfolio drafts; upgraded events and collab reports.
 11. **M11 — Trust** (2026-11-08, §10.7): the OG mark for admins, the verified badge, contact details for admins (encrypted, openings logged).
 12. **M12 — Visitor passes** (2026-11-08, §10.8), in four steps: the table, SQL and API with the read-only walls; the visitor's side of the app (code form, pass page, pill, struck-out controls, ended page); the admin panel; docs and screenshots.
+13. **M13 — The feed** (2026-11-09, §10.11), in three steps: like counts for the author only, "new here", "First post" and the inviter's notice; the "new since" line, the end card and the visit log; the fold, conversation and event rows, and `/feed-rules`.
 
 ## Appendix A — Decision log
 

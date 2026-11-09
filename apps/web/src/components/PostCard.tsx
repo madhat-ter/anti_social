@@ -45,6 +45,7 @@ export function AuthorLine({ post }: { post: Post }) {
           <Link href={`/u/${a.handle}`} className="handle muted">@{a.handle}</Link>
           <NameMarks admin={a.role === 'ops'} verified={a.verified} />
           <BirthdayTag b={a.birthday} />
+          {a.isNew && a.state !== 'archived' && <span className="tag new-here" title="Joined in the last three weeks">new here</span>}
           {a.state === 'archived' && <span className="tag" title="This member's seat was released">archived</span>}
           {post.hidden && <span className="tag danger" title="Members can't see it; admins can, to review it">hidden after reports</span>}
         </>
@@ -123,7 +124,8 @@ export function PostCard({
     const was = post;
     const nextLiked = !post.likedByMe;
     if (nextLiked) { setStamp(true); setTimeout(() => setStamp(false), 400); }
-    onChange({ ...post, likedByMe: nextLiked, likeCount: Math.max(0, post.likeCount + (nextLiked ? 1 : -1)) });
+    // the count exists only on your own posts; on anyone else's it stays null
+    onChange({ ...post, likedByMe: nextLiked, likeCount: post.likeCount === null ? null : Math.max(0, post.likeCount + (nextLiked ? 1 : -1)) });
     try {
       const r = nextLiked ? await api.like(post.id) : await api.unlike(post.id);
       onChange({ ...was, likedByMe: r.likedByMe, likeCount: r.likeCount });
@@ -183,6 +185,11 @@ export function PostCard({
     }
   }
 
+  /** a number shows only on your own posts (the API sends null for everyone else's) */
+  const liked = post.likeCount !== null && post.likeCount > 0;
+  const replyLabel = post.replyCount > 0
+    ? `${post.replyCount} ${post.replyCount === 1 ? 'reply' : 'replies'}`
+    : post.firstPost && !post.canDelete ? 'Say hello' : 'Reply';
   const minutesLeft = Math.max(0, Math.ceil((new Date(post.createdAt).getTime() + EDIT_WINDOW_MS - Date.now()) / 60000));
 
   return (
@@ -234,6 +241,7 @@ export function PostCard({
         )}
       </header>
 
+      {post.firstPost && <p className="first-post"><span className="tag">First post</span></p>}
       {!post.parentId && ((context === 'all' && (post.collab || post.event)) || (context === 'event' && post.event)) && (
         <p className="muted small post-context">
           Update{context === 'all' && post.collab && <> in <Link href={`/collabs/${post.collab.id}`}>{post.collab.title}</Link></>}
@@ -294,9 +302,9 @@ export function PostCard({
       )}
 
       <footer className="post-foot">
-        {/* a zero is an invitation ("Reply"), not a count */}
-        <Link href={replyHref} className="foot-btn" aria-label={post.replyCount === 0 ? 'Reply' : `${post.replyCount} ${post.replyCount === 1 ? 'reply' : 'replies'}`}>
-          <span aria-hidden="true">↳ {post.replyCount === 0 ? 'Reply' : `${post.replyCount} ${post.replyCount === 1 ? 'reply' : 'replies'}`}</span>
+        {/* a zero is an invitation ("Reply"), not a count; on someone's first post, a welcome */}
+        <Link href={replyHref} className="foot-btn" aria-label={replyLabel}>
+          <span aria-hidden="true">↳ {replyLabel}</span>
         </Link>
         <button
           type="button"
@@ -304,12 +312,12 @@ export function PostCard({
           aria-pressed={post.likedByMe}
           onClick={toggleLike}
           disabled={post.hidden || readOnly}
-          {...why(readOnly && VISITOR_NOTE)}
+          {...why(readOnly ? VISITOR_NOTE : liked ? 'Only you see how many people liked your post' : false)}
         >
           <Dot on={post.likedByMe} size=".85em" />
-          {/* name = "Like 3": includes the visible count, so voice control ("click 3") works; with no likes yet the word stands alone */}
-          <span className={post.likeCount === 0 ? undefined : 'sr-only'}>Like</span>
-          {post.likeCount > 0 && <span>{post.likeCount}</span>}
+          {/* name = "Like 3": includes the visible count, so voice control ("click 3") works; with no count shown the word stands alone */}
+          <span className={liked ? 'sr-only' : undefined}>Like</span>
+          {liked && <span>{post.likeCount}<span className="sr-only">, only you see this</span></span>}
         </button>
         {actions}
       </footer>

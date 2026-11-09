@@ -192,19 +192,21 @@ describe('threads', () => {
 });
 
 describe('likes and notifications', () => {
-  test('like idempotency, counts, unlike', async () => {
+  test('like idempotency, unlike; only the author ever sees the count (RFC §10.11)', async () => {
     const { member } = await world();
     const a = await member('alice');
     const b = await member('bob');
     const p = await newPost(a, 'likeable');
-    expect((await b.post(`/posts/${p.id}/like`)).body).toEqual({ likeCount: 1, likedByMe: true });
-    expect((await b.post(`/posts/${p.id}/like`)).body).toEqual({ likeCount: 1, likedByMe: true });
+    expect((await b.post(`/posts/${p.id}/like`)).body).toEqual({ likeCount: null, likedByMe: true });
+    expect((await b.post(`/posts/${p.id}/like`)).body).toEqual({ likeCount: null, likedByMe: true });
     expect((await a.post(`/posts/${p.id}/like`)).body).toEqual({ likeCount: 2, likedByMe: true });
-    const f = (await b.get('/feed')).body.items[0];
-    expect(f).toMatchObject({ likeCount: 2, likedByMe: true });
-    expect((await b.del(`/posts/${p.id}/like`)).body).toEqual({ likeCount: 1, likedByMe: false });
-    expect((await b.del(`/posts/${p.id}/like`)).body).toEqual({ likeCount: 1, likedByMe: false });
-    expect((await b.get('/feed')).body.items[0]).toMatchObject({ likeCount: 1, likedByMe: false });
+    expect((await b.get('/feed')).body.items[0]).toMatchObject({ likeCount: null, likedByMe: true });
+    expect((await a.get('/feed')).body.items[0]).toMatchObject({ likeCount: 2, likedByMe: true });
+    expect((await b.del(`/posts/${p.id}/like`)).body).toEqual({ likeCount: null, likedByMe: false });
+    expect((await b.del(`/posts/${p.id}/like`)).body).toEqual({ likeCount: null, likedByMe: false });
+    expect((await b.get('/feed')).body.items[0]).toMatchObject({ likeCount: null, likedByMe: false });
+    expect((await a.get(`/posts/${p.id}`)).body.root).toMatchObject({ likeCount: 1 });
+    expect((await b.get(`/posts/${p.id}`)).body.root).toMatchObject({ likeCount: null });
     expect((await b.post(`/posts/${crypto.randomUUID()}/like`)).status).toBe(404);
   });
 

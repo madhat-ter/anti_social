@@ -205,6 +205,25 @@ export const PAGE_DEFAULT_LIMIT = 20;
 export const PAGE_MAX_LIMIT = 50;
 export const SEARCH_QUERY_MAX = 100;
 
+/**
+ * RFC §10.11, the feed: newest first, never ranked. These numbers drive the display rules on top
+ * of it, and live here (not in `settings`) because the browser's fold must use the same ones as
+ * the server. First guesses tied to anti's other rules; tune them from the feed_visits numbers.
+ * The "new here" window is `new_member_exempt_days` in `settings`, shared with the lurker rule.
+ */
+export const FEED = {
+  /** a visit starts when the feed opens after this long with no feed activity on the device */
+  visitGapMinutes: 30,
+  /** "new since" never reaches further back than this */
+  newWindowDays: 7,
+  /** an author's posts after this many on one day fold into "N more from X today" */
+  foldAfter: 2,
+  /** an older post gets a "people replied" row when at least this many others replied */
+  threadMinRepliers: 2,
+  /** …within this long of the post */
+  threadWindowHours: 72,
+} as const;
+
 
 // ─── Events (RFC-0001 §10) ──────────────────────────────────────────────────
 export const EVENT_TITLE_MAX = 120;

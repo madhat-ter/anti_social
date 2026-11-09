@@ -111,7 +111,10 @@ export const JOBS: Job[] = [
       // visitor passes (RFC §10.8) stay listed for admins for 30 days; every pass is long over by then
       const passes = await rows<{ n: number }>(tx, sql`
         with d as (delete from visitor_passes where created_at < now() - interval '30 days' returning 1) select count(*)::int as n from d`);
-      return { sessions: sessions[0]?.n ?? 0, challenges: challenges[0]?.n ?? 0, uploads: orphans.length, rateLimits: limits[0]?.n ?? 0, visitorPasses: passes[0]?.n ?? 0 };
+      // RFC §10.11: the feed's visit log is behavioural data; two months is enough to read a trend
+      const visits = await rows<{ n: number }>(tx, sql`
+        with d as (delete from feed_visits where started_at < now() - interval '60 days' returning 1) select count(*)::int as n from d`);
+      return { sessions: sessions[0]?.n ?? 0, challenges: challenges[0]?.n ?? 0, uploads: orphans.length, rateLimits: limits[0]?.n ?? 0, visitorPasses: passes[0]?.n ?? 0, feedVisits: visits[0]?.n ?? 0 };
     },
   },
 ];

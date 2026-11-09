@@ -652,6 +652,36 @@ input[type=search]::-webkit-search-cancel-button {
   padding: .5rem 1rem; box-shadow: var(--shadow-sm); position: sticky; top: 4.2rem; z-index: 10;
 }
 .new-posts:hover { background: var(--ink); color: var(--paper); }
+/* RFC §10.11: where you left off, and the end of the feed */
+.feed-since { margin: .25rem 0 0; }
+.feed-end { margin: 1.4rem auto .6rem; max-width: 30rem; width: 100%; }
+.feed-end-body { display: grid; gap: .45rem; justify-items: center; text-align: center; padding: 1.1rem 1.25rem 1.25rem; }
+.feed-end-body p { margin: 0; }
+.feed-end-head { font: 700 1.35rem/1.15 var(--font-ui); }
+.feed-end-out { font-weight: 700; }
+.feed-end-body .btn { margin-top: .35rem; }
+.feed-end-event { max-width: 24rem; }
+/* rows placed at their own time: a conversation on an older post, a new event */
+.feed-row {
+  display: flex; align-items: center; gap: .6rem; margin: .55rem 0; padding: .55rem .75rem;
+  border: 2px dashed var(--ink); color: var(--ink); text-decoration: none; font-size: .95rem; line-height: 1.35;
+}
+.feed-row:hover, .feed-row:focus-visible { background: var(--ink); color: var(--paper); }
+.feed-row-act { text-decoration: underline; }
+/* a busy poster's extra posts that day, folded */
+.feed-fold {
+  display: block; width: 100%; margin: .4rem 0; padding: .45rem .75rem; text-align: left; cursor: pointer;
+  font: 700 .92rem/1.2 var(--font-ui); background: transparent; color: var(--ink); border: 2px solid var(--ink);
+}
+.feed-fold:hover { background: var(--ink); color: var(--paper); }
+.feed-fold:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
+.feed-fold[aria-expanded="true"] { border-style: dashed; }
+.feed-rules { max-width: 40rem; }
+.feed-rules-list { margin: 0; padding-left: 1.4rem; display: grid; gap: .55rem; line-height: 1.45; }
+/* RFC §10.11: a newcomer's name carries "new here"; a first post wears its badge above the text */
+.tag.new-here { border-style: dashed; }
+.first-post { margin: .15rem 0 .1rem; }
+.first-post .tag { margin-left: 0; background: var(--signal); color: var(--signal-ink); border-color: var(--signal); }
 /* empty lists: an invitation, not a shrug */
 .empty { border: 2px dashed var(--ink); padding: 1.5rem 1.25rem; font-size: 1.05rem; text-align: center; max-width: 34rem; margin: .5rem auto; }
 

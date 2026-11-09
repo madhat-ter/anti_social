@@ -21,6 +21,7 @@ function describe(n: Notification): string {
   const who = n.actor ? `@${n.actor.handle}` : 'Someone';
   if (n.kind === 'reply') return `${who} replied to your post`;
   if (n.kind === 'like') return `${who} liked your post`;
+  if (n.kind === 'invitee_first_post') return `${who}, whom you invited, wrote their first post. Say hello?`;
   if (n.kind === 'activated') return 'You have a seat. Welcome in.';
   if (n.kind === 'seat_offered') return 'A seat opened up for you. Reinstate within 72 hours to keep it.';
   if (n.kind === 'seat_offer_expired') return 'Your seat offer expired. You can rejoin the queue.';

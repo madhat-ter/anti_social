@@ -128,7 +128,8 @@ export class ApiError extends Error {
 /** `role` 'ops' = an admin (shown with the OG mark by the name, RFC §10.7). */
 /** Month and day only, and only when they show it; never the year (RFC §10.3). */
 export interface Birthday { month: number; day: number }
-export type Author = { handle: string; displayName: string; state: UserState; role?: 'member' | 'ops'; gender?: Gender | null; birthday?: Birthday | null; verified?: boolean } | null;
+/** `isNew`: in their first three weeks; the feed says "new here" and never folds their posts */
+export type Author = { handle: string; displayName: string; state: UserState; role?: 'member' | 'ops'; gender?: Gender | null; birthday?: Birthday | null; verified?: boolean; isNew?: boolean } | null;
 export interface Image { id: string; url: string; width: number; height: number }
 export interface Post {
   /** an update in a collab's thread / on an event's page (RFC §10.5) */
@@ -143,8 +144,11 @@ export interface Post {
   parentId: string | null;
   rootId: string | null;
   replyCount: number;
-  likeCount: number;
+  /** only on your own posts; null on everyone else's (likes are never a public score) */
+  likeCount: number | null;
   likedByMe: boolean;
+  /** the author's first feed post: the reply button reads "Say hello" */
+  firstPost?: boolean;
   images: Image[];
   canEdit: boolean;
   canDelete: boolean;
@@ -274,6 +278,24 @@ export interface Notification {
   consultation?: { id: string; topic?: string; pricing: string | null; was: string | null } | null;
 }
 export interface Page<T> { items: T[]; nextCursor: string | null }
+/** RFC §10.11: one visit to the feed. Posts newer than `since` are new; the feed stops at that line. */
+export interface FeedVisit {
+  since: string;
+  /** the line is a week back: nothing was ever caught up to (or it was long ago) */
+  capped: boolean;
+  newPosts: number;
+  /** null for visitors, and after a reload (the browser kept the first one) */
+  visitId: number | null;
+  /** older posts that two or more people replied to since the line; a row at the newest reply */
+  threads: FeedThreadRow[];
+  /** public events announced since the line; a row at the moment they were made */
+  events: FeedEventRow[];
+  /** shown on the end card: one you are going to first, else the soonest you can see */
+  nextEvent: { id: string; title: string; startsAt: string; going: number; imGoing: boolean } | null;
+}
+export type FeedPerson = { handle: string; displayName: string; gender: Gender | null } | null;
+export interface FeedThreadRow { rootId: string; at: string; repliers: number; postedAt: string; author: FeedPerson }
+export interface FeedEventRow { id: string; at: string; title: string; startsAt: string; going: number; joinMode: 'open' | 'approve'; host: FeedPerson }
 export type RsvpStatus = 'going' | 'waitlisted' | 'cancelled';
 export interface EventPerson { handle: string; displayName: string; state: UserState; attended: boolean; gender?: Gender | null; admin?: boolean; verified?: boolean }
 export interface AnEvent {
@@ -480,14 +502,18 @@ export const api = {
   createInvite: () => post<{ code: string; expiresAt: string }>('/me/invites', {}),
   rejoin: () => post<{ ok: true }>('/me/waitlist/rejoin', {}),
 
-  feed: (cursor?: string | null, limit = 20) => get<Page<Post>>(`/feed${qs({ cursor, limit })}`),
+  /** `visit`: start a visit (first page only); `since`: resume one after a reload (RFC §10.11) */
+  feed: (cursor?: string | null, limit = 20, v: { visit?: boolean; since?: string } = {}) =>
+    get<Page<Post> & { visit?: FeedVisit }>(`/feed${qs({ cursor, limit, visit: v.visit ? 1 : undefined, since: v.since })}`),
+  caughtUp: (through: string, visitId?: number | null) =>
+    post<{ seenThrough: string | null }>('/feed/caught-up', visitId == null ? { through } : { through, visitId }),
   createPost: (b: { body: string; parentId?: string; imageIds?: string[]; collabId?: string; eventId?: string }) => post<Post>('/posts', b),
   thread: (id: string) => get<Thread>(`/posts/${encodeURIComponent(id)}`),
   editPost: (id: string, body: string) => call<Post>('PATCH', `/posts/${encodeURIComponent(id)}`, { body }),
   deletePost: (id: string) => call<{ ok: true }>('DELETE', `/posts/${encodeURIComponent(id)}`),
-  like: (id: string) => post<{ likeCount: number; likedByMe: boolean }>(`/posts/${encodeURIComponent(id)}/like`, {}),
+  like: (id: string) => post<{ likeCount: number | null; likedByMe: boolean }>(`/posts/${encodeURIComponent(id)}/like`, {}),
   flagPost: (id: string, reason?: string) => post<{ flagged: true }>(`/posts/${encodeURIComponent(id)}/flag`, reason ? { reason } : {}),
-  unlike: (id: string) => call<{ likeCount: number; likedByMe: boolean }>('DELETE', `/posts/${encodeURIComponent(id)}/like`),
+  unlike: (id: string) => call<{ likeCount: number | null; likedByMe: boolean }>('DELETE', `/posts/${encodeURIComponent(id)}/like`),
   upload: (file: File) => {
     const fd = new FormData();
     fd.append('file', file);

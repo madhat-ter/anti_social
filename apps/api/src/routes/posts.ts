@@ -10,6 +10,7 @@ import { ApiError } from '../lib/errors';
 import {
   getPost, listPosts, mediaUrl, postSelect, toPost, UUID_RE, type Post, type PostRow,
 } from '../lib/posts';
+import { FEED_WHERE, markCaughtUp, resumeVisit, startVisit } from '../lib/feed';
 import { isValidKey } from '../lib/storage';
 import { hit } from '../lib/ratelimit';
 import { notifyUpdate, updatePlace } from '../lib/updates';
@@ -50,11 +51,24 @@ export const postRoutes = (deps: Deps) => {
 
   return new Elysia()
     .use(authPlugin(deps))
+    // RFC §10.11: newest first, always. `visit=1` (first page only) starts a visit and returns
+    // the frozen "new since" line; `since=` resumes one after a reload. The 30-second "new posts"
+    // poll sends neither, so it never starts a visit.
     .get('/feed', async ({ auth, query }) => {
       const a = requireSeated(auth);
-      return listPosts(db, a.user.id, sql`p.parent_id is null and p.deleted_at is null and p.hidden_at is null
-        and p.collab_id is null and p.event_id is null`, query);
-    }, { query: pageQuery })
+      const page = await listPosts(db, a.user.id, FEED_WHERE(), query);
+      if (query.cursor || (!query.visit && !query.since)) return page;
+      const visit = query.since
+        ? await resumeVisit(db, a.user.id, query.since)
+        : await startVisit(db, a.user.id, !!a.visitor);
+      return { ...page, visit };
+    }, { query: t.Object({ ...pageQuery.properties, visit: t.Optional(t.String()), since: t.Optional(t.String()) }) })
+
+    // the end card was on screen: everything up to `through` counts as read (closed to visitors)
+    .post('/feed/caught-up', async ({ auth, body }) => {
+      const a = requireSeated(auth);
+      return markCaughtUp(db, a.user.id, body.through, body.visitId);
+    }, { body: t.Object({ through: t.String(), visitId: t.Optional(t.Number()) }) })
 
     .post('/posts', async ({ auth, body }) => {
       const a = requireSeated(auth);
@@ -112,6 +126,20 @@ export const postRoutes = (deps: Deps) => {
           });
         }
         if (place) await notifyUpdate(tx as unknown as Db, place, uid, postId);
+        // RFC §10.11: a member's first feed post tells whoever invited them, the person most
+        // likely to say hello. Once per member, ever (a deleted first post does not ring twice).
+        if (!parent && !place) {
+          await tx.execute(sql`
+            insert into notifications(user_id, kind, payload)
+            select u.invited_by, 'invitee_first_post', jsonb_build_object('postId', ${postId}::text, 'actorId', ${uid}::text)
+              from users u join users inv on inv.id = u.invited_by
+             where u.id = ${uid}::uuid and inv.state in ('active', 'flagged_lurker')
+               and not exists (select 1 from posts q
+                                where q.author_id = ${uid}::uuid and q.parent_id is null and q.collab_id is null
+                                  and q.event_id is null and q.id <> ${postId}::uuid)
+               and not exists (select 1 from notifications n
+                                where n.kind = 'invitee_first_post' and n.payload->>'actorId' = ${uid}::text)`);
+        }
         return postId;
       });
 
@@ -194,7 +222,7 @@ export const postRoutes = (deps: Deps) => {
             where user_id = ${p.author_id}::uuid and kind = 'like'
               and payload->>'postId' = ${p.id}::text and payload->>'actorId' = ${uid}::text)`);
       }
-      return { likeCount: await likeCount(db, p.id), likedByMe: true as const };
+      return { likeCount: p.author_id === uid ? await likeCount(db, p.id) : null, likedByMe: true as const };
     })
 
     .delete('/posts/:id/like', async ({ auth, params }) => {
@@ -202,7 +230,7 @@ export const postRoutes = (deps: Deps) => {
       const p = await visiblePost(params.id);
       if (!p) throw new ApiError(404, 'not_found');
       await db.execute(sql`delete from likes where user_id = ${a.user.id}::uuid and post_id = ${p.id}::uuid`);
-      return { likeCount: await likeCount(db, p.id), likedByMe: false as const };
+      return { likeCount: p.author_id === a.user.id ? await likeCount(db, p.id) : null, likedByMe: false as const };
     })
 
     .post('/uploads', async ({ auth, body }) => {

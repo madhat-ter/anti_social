@@ -74,6 +74,7 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
   const m = (title: string, body: string, url: string): PushMessage => ({ title, body, url, tag: `${r.kind}:${p.postId ?? p.eventId ?? p.collabId ?? p.consultationId ?? ''}` });
   switch (r.kind) {
     case 'reply': return m(`@${r.actor ?? 'someone'} replied`, r.post_snippet ?? '', p.postId ? `/p/${r.root_id ?? p.postId}#${p.postId}` : '/notifications');
+    case 'invitee_first_post': return m(`@${r.actor ?? 'someone'} posted for the first time`, r.post_snippet ? `${r.post_snippet} Say hello?` : 'Say hello?', p.postId ? `/p/${p.postId}` : '/notifications');
     case 'activated': return m('You have a seat', 'Welcome in.', '/');
     case 'seat_offered': return m('A seat is being held for you', 'You have 72 hours to take it.', '/');
     case 'seat_offer_expired': return m('Your seat offer expired', 'You can rejoin the queue.', '/');
