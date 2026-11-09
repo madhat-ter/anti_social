@@ -4,8 +4,8 @@ import { cleanup, setup } from './client';
 
 afterEach(cleanup);
 
-/** RFC §10.10: half an hour of looking, then an hour away. */
-async function world() {
+/** RFC §10.10: half an hour of looking, then an hour away. Off by default; these worlds switch it on. */
+async function world(on = true) {
   const w = await setup({ seatCap: 20 });
   const member = async (handle: string) => {
     const c = w.client();
@@ -13,8 +13,35 @@ async function world() {
     return c;
   };
   const run = (q: ReturnType<typeof sql>) => w.t.db.execute(q);
+  if (on) await run(sql`update settings set value = '1'::jsonb where key = 'screen_time'`);
   return { ...w, member, run };
 }
+
+describe('screen time: the switch', () => {
+  test('off by default: nothing counts and nothing locks; an admin switches it on and off for everyone', async () => {
+    const w = await world(false);
+    const boss = await w.member('boss');
+    await w.run(sql`update users set role = 'ops' where handle = 'boss'`);
+    const maya = await w.member('maya');
+    expect((await maya.get('/me/screen-time')).body).toMatchObject({ enabled: false, usedSeconds: 0, lockedUntil: null });
+    expect((await maya.post('/me/screen-time/beat', { seconds: 60 })).body).toMatchObject({ enabled: false, usedSeconds: 0 });
+    expect((await boss.get('/ops/settings')).body.screenTime).toBe(false);
+
+    // on: it counts, and can lock
+    expect((await boss.patch('/ops/settings', { screenTime: 1 })).body.screenTime).toBe(true);
+    expect((await maya.get('/me/screen-time')).body.enabled).toBe(true);
+    for (let i = 0; i < 30; i++) await maya.post('/me/screen-time/beat', { seconds: 60 });
+    expect((await maya.get('/feed')).status).toBe(403);
+
+    // off again: everyone is let in at once, and the old minutes are gone
+    expect((await boss.patch('/ops/settings', { screenTime: 0 })).body.screenTime).toBe(false);
+    expect((await maya.get('/feed')).status).toBe(200);
+    expect((await maya.get('/me/screen-time')).body).toMatchObject({ enabled: false, usedSeconds: 0, lockedUntil: null });
+    expect((await boss.patch('/ops/settings', { screenTime: 2 })).body.error).toBe('setting_invalid');
+    // members cannot touch the switch
+    expect((await maya.patch('/ops/settings', { screenTime: 1 })).status).toBe(404);
+  });
+});
 
 describe('screen time', () => {
   test('heartbeats add up, one beat carries at most a minute, and nothing is counted twice', async () => {

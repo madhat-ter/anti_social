@@ -756,12 +756,14 @@ choice, one pair at a time.
 - **Money**: anti never handles it. Offers and acceptances carry a price note and, optionally, the
   consultant's own `https://` payment link (shown only to the requester once there is a price). No
   Stripe Connect, no ID checks, no refunds.
-- **Offer** (`consult_offers`, opt-in): 1–5 topics from the interests list, a description ≤ 500,
-  a session length (30/45/60/90/120 min), Free or Paid (a starting point; price note required for
-  Paid), and a private **contact** ≤ 300. Switching it on needs topics and a contact. Pausing stops
-  new requests; it is live only while active, not blocked by an admin, not hidden after reports,
-  and its owner is a seated adult.
-- **Request** (`consultations`): topic, what you need help with ≤ 1000, when suits you ≤ 200, your
+- **Offer** (`consult_offers`, opt-in): a switch, an optional description ≤ 500, a session length
+  (30/45/60/90/120 min), Free or Paid (a starting point; price note required for Paid), and a
+  private **contact** ≤ 300. Switching it on needs a contact. There are no topics (removed
+  2026-11-09, owner's call): a member consults on what they are in life right now, which the
+  portfolio already says; someone who reads it and is interested books. Pausing stops new
+  requests; it is live only while active, not blocked by an admin, not hidden after reports, and
+  its owner is a seated adult.
+- **Request** (`consultations`): what you need help with ≤ 1000, when suits you ≤ 200, your
   contact ≤ 300. At most 3 open with the same consultant, 10 sent a day. States:
   `pending` → `accepted` (Paid: waits for the requester's **"I agree to pay this"**) → `revealed`
   → `done`; or `declined` (no reason given), `expired` (7 days unanswered, or 7 days without
@@ -773,7 +775,7 @@ choice, one pair at a time.
   directly; the hourly `consultations` job expires requests (with notifications) and wipes copies.
 - **Done and thanks**: either side marks Done. The requester may leave a public thank-you ≤ 300 (no
   stars or scores); the consultant can hide it. The portfolio shows "N sessions done".
-- **Portfolio**: a **Consulting** section (topics, length, usual price, description, sessions done,
+- **Portfolio**: a **Consulting** section (length, usual price, description, sessions done,
   newest 3 thank-yous plus "All", **Book a consultation**). Member lists carry a "consults" tag and
   a filter (`GET /members?consults=1`). The menu has **Consultations** (Received / Sent / Your offer)
   with a badge for requests waiting on you.
@@ -917,6 +919,10 @@ all accepted.
   in the last five minutes; alert windows at 10, 20 and 25 minutes (once each per half hour,
   remembered on the device by the window's start), one button each; at 30 the lock window replaces
   every page with a countdown and *Sign out*, and clears itself when the hour is up.
+- **The switch.** Off by default (`settings.screen_time` = 0). An admin turns it on or off for
+  everyone from Admin → Community (`PATCH /ops/settings {screenTime: 0|1}`). While off, nothing
+  shows and heartbeats count nothing; switching it off deletes every `screen_time` row, so everyone
+  is let in at once and nobody carries old minutes into the next switch-on.
 - **Who.** Everyone with a seat. Admins see the timer and the nudges but are never locked out:
   their count runs on past the half hour (`exempt` in the state) and the wall ignores them.
   Visitors are excluded: their hour is the pass. Settings and setup are outside the shell;

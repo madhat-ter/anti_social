@@ -17,7 +17,8 @@ insert into settings(key, value) values
   ('stay_fee_exempt_days', '90'),
   ('reinstate_offer_hours', '72'),
   ('waitlist_decay_days', '60'),
-  ('ban_invite_penalty_days', '30')
+  ('ban_invite_penalty_days', '30'),
+  ('screen_time', '0')
 on conflict (key) do nothing;
 
 -- Placeholder prices (RFC §15 open question). Change rows in `pricing`; existing rows are never overwritten.

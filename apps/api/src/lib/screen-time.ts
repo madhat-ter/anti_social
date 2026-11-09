@@ -6,7 +6,7 @@
  * hour and nothing ever locks. Visitors have their own hour (RFC §10.8) and no row here.
  */
 import { eq, sql } from 'drizzle-orm';
-import { screenTime, type Db } from '@anti/db';
+import { scalar, screenTime, type Db } from '@anti/db';
 import { RULES } from '@anti/shared';
 
 export const LIMIT_S = RULES.screen_time_limit_s;
@@ -15,6 +15,8 @@ export const REST_S = RULES.screen_time_rest_s;
 const BEAT_MAX_S = 60;
 
 export type ScreenState = {
+  /** the admins' switch (settings.screen_time); off by default, and nothing below counts while off */
+  enabled: boolean;
   usedSeconds: number;
   limitSeconds: number;
   restSeconds: number;
@@ -28,8 +30,14 @@ export type ScreenState = {
 
 type Row = typeof screenTime.$inferSelect;
 
-function present(r: Row | null, exempt: boolean): ScreenState {
+/** The admins' switch: `settings.screen_time` = 1. */
+export async function screenEnabled(db: Db): Promise<boolean> {
+  return Number(await scalar(db, sql`select coalesce(setting_int('screen_time'), 0)`)) === 1;
+}
+
+function present(r: Row | null, exempt: boolean, enabled = true): ScreenState {
   return {
+    enabled,
     usedSeconds: r?.usedS ?? 0,
     limitSeconds: LIMIT_S,
     restSeconds: REST_S,
@@ -54,12 +62,14 @@ async function settle(db: Db, r: Row | null, exempt: boolean): Promise<Row | nul
 }
 
 export async function screenState(db: Db, userId: string, exempt = false): Promise<ScreenState> {
+  if (!(await screenEnabled(db))) return present(null, exempt, false);
   const [r] = await db.select().from(screenTime).where(eq(screenTime.userId, userId)).limit(1);
   return present(await settle(db, r ?? null, exempt), exempt);
 }
 
-/** The page was visible for `seconds` since the last beat. Returns the state afterwards. */
+/** The page was visible for `seconds` since the last beat. Returns the state afterwards. Counts nothing while the switch is off. */
 export async function screenBeat(db: Db, userId: string, seconds: number, exempt = false): Promise<ScreenState> {
+  if (!(await screenEnabled(db))) return present(null, exempt, false);
   const add = Math.max(0, Math.min(BEAT_MAX_S, Math.round(seconds)));
   const [existing] = await db.select().from(screenTime).where(eq(screenTime.userId, userId)).limit(1);
   const r = await settle(db, existing ?? null, exempt);

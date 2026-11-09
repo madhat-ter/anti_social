@@ -64,7 +64,7 @@ function Timed({ me, children }: { me: Me; children: ReactNode }) {
 
   // one tick a second while the tab is in front; a beat every 30 s and when it goes to the back
   useEffect(() => {
-    if (!state || locked) return;
+    if (!state || !state.enabled || locked) return;
     const t = setInterval(() => {
       setNow(Date.now());
       if (document.visibilityState !== 'visible') return;
@@ -91,7 +91,7 @@ function Timed({ me, children }: { me: Me; children: ReactNode }) {
 
   // nudges: once each per half hour, remembered on this device by the window's start
   useEffect(() => {
-    if (!state || locked) return;
+    if (!state || !state.enabled || locked) return;
     const key = `anti:nudged:${state.windowStartedAt ?? 'none'}`;
     let seen: number[] = [];
     try { seen = JSON.parse(sessionStorage.getItem(key) ?? '[]'); } catch { /* fine */ }
@@ -111,6 +111,8 @@ function Timed({ me, children }: { me: Me; children: ReactNode }) {
     </span>
   );
 
+  // the admins' switch is off (the default): no timer, no nudges, no lock
+  if (state && !state.enabled) return <>{children}</>;
   if (locked && state) return (
     <>
       {slot && createPortal(pill, slot)}

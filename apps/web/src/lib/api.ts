@@ -40,6 +40,8 @@ export interface Me {
 
 /** RFC §10.10: a member's half hour on the site. */
 export interface ScreenState {
+  /** the admins' switch; off by default, and nothing shows while off */
+  enabled: boolean;
   usedSeconds: number;
   limitSeconds: number;
   restSeconds: number;
@@ -98,7 +100,7 @@ export interface AdminContact {
   openedBy: { handle: string | null; at: string }[];
 }
 /** The room's settings an admin can change, plus seats in use. */
-export interface AdminSettings { seatCap: number; invitesPerMember: number; inviteExpiryDays: number; seatsUsed: number }
+export interface AdminSettings { seatCap: number; invitesPerMember: number; inviteExpiryDays: number; screenTime: boolean; seatsUsed: number }
 
 /** "Finish your profile": each item ticks itself from what you have done. */
 export type ChecklistItem = 'headline' | 'skills' | 'project' | 'post' | 'pick' | 'interests';
@@ -268,8 +270,8 @@ export interface Notification {
   collabTitle?: string | null;
   /** collab_finished: your draft project */
   draftId?: string | null;
-  /** consult_*: the request (its topic; pricing on consult_accepted; what it was waiting for on consult_expired) */
-  consultation?: { id: string; topic: string; pricing: string | null; was: string | null } | null;
+  /** consult_*: the request (pricing on consult_accepted; what it was waiting for on consult_expired; `topic` only on notifications from before 2026-11-09) */
+  consultation?: { id: string; topic?: string; pricing: string | null; was: string | null } | null;
 }
 export interface Page<T> { items: T[]; nextCursor: string | null }
 export type RsvpStatus = 'going' | 'waitlisted' | 'cancelled';
@@ -335,14 +337,14 @@ export type ConsultStatus = 'pending' | 'accepted' | 'revealed' | 'done' | 'decl
 export interface ThanksNote extends CollabPerson { text: string; at: string; hidden: boolean }
 /** What a member (18+) sees on someone's portfolio. Never the contact or the payment link. */
 export interface ConsultOffer {
-  handle: string; topics: string[]; description: string; minutes: number;
+  handle: string; description: string; minutes: number;
   pricing: ConsultPricing; priceNote: string | null; sessionsDone: number;
   thanks: ThanksNote[]; thanksCount: number;
   mine: boolean; canBook: boolean; canReport: boolean;
   active: boolean; blocked: boolean; hidden: boolean;
 }
 export interface MyConsultOffer {
-  active: boolean; topics: string[]; description: string; minutes: number;
+  active: boolean; description: string; minutes: number;
   pricing: ConsultPricing; priceNote: string | null; paymentUrl: string | null; contact: string;
   blocked: boolean; hidden: boolean; allowed: boolean; exists: boolean;
 }
@@ -350,7 +352,7 @@ export type ConsultOfferInput = Partial<Omit<MyConsultOffer, 'blocked' | 'hidden
 export interface Consultation {
   id: string; role: 'consultant' | 'requester';
   consultant: CollabPerson; requester: CollabPerson;
-  topic: { slug: string; label: string }; need: string; when: string; minutes: number;
+  need: string; when: string; minutes: number;
   status: ConsultStatus; pricing: ConsultPricing | null; priceNote: string | null; paymentUrl: string | null;
   contacts: { consultant: string; requester: string } | null; contactsUntil: string | null; expiresAt: string | null;
   createdAt: string; decidedAt: string | null; revealedAt: string | null; doneAt: string | null; closedAt: string | null;
@@ -359,15 +361,15 @@ export interface Consultation {
   can: { accept: boolean; decline: boolean; agree: boolean; close: boolean; hideContacts: boolean; done: boolean; thank: boolean; hideThanks: boolean; report: boolean };
   reported: boolean;
 }
-export interface ConsultRequestInput { topic: string; need: string; when: string; contact: string }
+export interface ConsultRequestInput { need: string; when: string; contact: string }
 /** Admins: who consulted whom and when. Never the contacts or what was asked. */
 export interface OpsConsultation {
-  id: string; consultant: CollabPerson; requester: CollabPerson; topic: string; status: ConsultStatus;
+  id: string; consultant: CollabPerson; requester: CollabPerson; status: ConsultStatus;
   pricing: ConsultPricing | null; createdAt: string; reported: boolean;
 }
 /** Admins, on a reported request only: all of it. */
 export interface OpsConsultationDetail {
-  id: string; consultant: CollabPerson; requester: CollabPerson; topic: string; need: string; when: string;
+  id: string; consultant: CollabPerson; requester: CollabPerson; need: string; when: string;
   status: ConsultStatus; pricing: ConsultPricing | null; priceNote: string | null; paymentUrl: string | null;
   contacts: { consultant: string | null; requester: string | null };
   createdAt: string; revealedAt: string | null; doneAt: string | null; closedAt: string | null; thanks: string | null;
@@ -606,7 +608,7 @@ export const api = {
   opsRemovePost: (id: string) => post<{ removed: true }>(`/ops/posts/${encodeURIComponent(id)}/remove`, {}),
   opsRemoveProject: (id: string) => post<{ removed: true }>(`/ops/projects/${encodeURIComponent(id)}/remove`, {}),
   opsSettings: () => get<AdminSettings>('/ops/settings'),
-  opsUpdateSettings: (b: Partial<Omit<AdminSettings, 'seatsUsed'>>) => call<AdminSettings>('PATCH', '/ops/settings', b),
+  opsUpdateSettings: (b: Partial<Omit<AdminSettings, 'seatsUsed' | 'screenTime'>> & { screenTime?: 0 | 1 }) => call<AdminSettings>('PATCH', '/ops/settings', b),
   opsInvites: (count: number) => post<{ code: string; expiresAt: string }[]>('/ops/invites', { count }),
   seats: () => get<{ cap: number; used: number }>('/seats'),
 

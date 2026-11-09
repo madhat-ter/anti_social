@@ -76,6 +76,7 @@ async function apiMember(handle: string, displayName: string, gender = 'undisclo
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
+  await q(`update settings set value = '1'::jsonb where key = 'screen_time'`); // the admins' switch, off by default
   const maya = await apiMember('maya', 'Maya Lind', 'woman');
   const theo = await apiMember('theo', 'Theo Park', 'man');
   await theo.call('POST', '/posts', { body: 'Anyone up for a hike on Saturday? Leaving at 7 from the north gate.' });

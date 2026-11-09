@@ -229,7 +229,7 @@ describe('admin: the room', () => {
     const w = await world(5);
     const boss = await w.admin();
     const amy = await w.member('amy');
-    expect((await boss.get('/ops/settings')).body).toEqual({ seatCap: 5, invitesPerMember: 2, inviteExpiryDays: 7, seatsUsed: 2 });
+    expect((await boss.get('/ops/settings')).body).toEqual({ seatCap: 5, invitesPerMember: 2, inviteExpiryDays: 7, screenTime: false, seatsUsed: 2 });
     expect((await amy.get('/seats')).body).toEqual({ cap: 5, used: 2 });
     for (const bad of [{ seatCap: 0 }, { seatCap: 1001 }, { invitesPerMember: 2.5 }, { inviteExpiryDays: 61 }]) {
       expect((await boss.patch('/ops/settings', bad)).body.error).toBe('setting_invalid');
