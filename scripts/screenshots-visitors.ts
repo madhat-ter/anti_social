@@ -125,7 +125,7 @@ try {
   await theo.call('POST', '/events', { title: 'Saturday hike, north gate', description: 'An easy loop, three hours, coffee after.', startsAt: inDays(4), location: 'North gate, 7:00' });
   await maya.call('POST', '/collabs', { title: 'Zine about the old market', description: 'We print a small zine about the stalls and the people who run them.', interests: ['writing', 'photography'], roles: ['Writer', 'Photographer'], teamMax: 4, joinMode: 'approve' });
   await maya.call('PATCH', '/me/portfolio', { headline: 'Illustrator and zine maker', location: 'Kathmandu', skills: ['Illustration', 'Risograph', 'Layout'] });
-  await maya.call('PUT', '/me/consult-offer', { active: true, topics: ['design'], description: 'Portfolio reviews and first-job advice.', minutes: 60, pricing: 'free', contact: 'Telegram @maya' });
+  await maya.call('PUT', '/me/consult-offer', { active: true, description: 'Portfolio reviews and first-job advice.', minutes: 60, pricing: 'free', contact: 'Telegram @maya' });
 
   // ── 1. the admin makes a pass
   await seef.goto(`${WEB}/admin`);

@@ -604,8 +604,7 @@ export const projectFlags = pgTable('project_flags', {
 export const consultOffers = pgTable('consult_offers', {
   userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
   active: boolean('active').notNull().default(false),
-  /** interest slugs, 1–5 */
-  topics: jsonb('topics').notNull().default(sql`'[]'::jsonb`),
+  /** what they can help with, in their own words (optional): the portfolio says who they are */
   description: text('description').notNull().default(''),
   minutes: integer('minutes').notNull().default(60),
   /** what new requests start from; the consultant decides per request when accepting */
@@ -633,9 +632,6 @@ export const consultations = pgTable('consultations', {
   id: uuid('id').primaryKey().defaultRandom(),
   consultantId: uuid('consultant_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   requesterId: uuid('requester_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  /** the interest slug, and its label at the time (the tag may be removed later) */
-  topic: text('topic').notNull(),
-  topicLabel: text('topic_label').notNull(),
   need: text('need').notNull(),
   whenText: text('when_text').notNull().default(''),
   minutes: integer('minutes').notNull(),

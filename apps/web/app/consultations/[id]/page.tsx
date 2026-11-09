@@ -53,7 +53,7 @@ function View() {
         <header className="row consult-head">
           <Avatar seed={them.handle} gender={them.gender} size={64} />
           <div>
-            <h1>{c.topic.label} <ConsultStatusTag c={c} /></h1>
+            <h1>Consultation <ConsultStatusTag c={c} /></h1>
             <p className="muted">
               {iAmConsultant ? 'From ' : 'With '}
               <Link href={`/u/${them.handle}`}>{them.displayName}<NameMarks admin={them.admin} verified={them.verified} size=".85em" /> @{them.handle}</Link> · asked {fmtDate(c.createdAt)}

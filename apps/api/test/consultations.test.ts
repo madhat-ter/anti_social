@@ -26,10 +26,10 @@ async function world() {
 }
 
 const offer = {
-  active: true, topics: ['design', 'photography'], description: 'Portfolio reviews and first-job advice.',
+  active: true, description: 'Portfolio reviews and first-job advice.',
   minutes: 60, pricing: 'free', contact: 'Telegram @ana_designs',
 };
-const ask = { topic: 'design', need: 'Can you look at my portfolio before I apply?', when: 'Weekday evenings', contact: 'WhatsApp +977 98000 00000' };
+const ask = { need: 'Can you look at my portfolio before I apply?', when: 'Weekday evenings', contact: 'WhatsApp +977 98000 00000' };
 
 /** a 14-year-old, today */
 const minorBirthday = () => { const d = new Date(); return `${d.getUTCFullYear() - 14}-01-01`; };
@@ -42,14 +42,13 @@ describe('consultation offers', () => {
 
     expect((await ana.get('/me/consult-offer')).body).toMatchObject({ exists: false, active: false, allowed: true });
     for (const bad of [
-      { topics: [] }, { topics: ['nope'] }, { contact: '' }, { minutes: 50 }, { pricing: 'maybe' },
+      { contact: '' }, { minutes: 50 }, { pricing: 'maybe' },
       { pricing: 'paid', priceNote: '' }, { paymentUrl: 'http://pay.example' }, { description: 'x'.repeat(501) },
-      { topics: ['design', 'photography', 'writing', 'music', 'film', 'art'] },
     ]) {
       expect((await ana.put('/me/consult-offer', { ...offer, ...bad })).body.error).toBe('consult_invalid');
     }
     const saved = (await ana.put('/me/consult-offer', { ...offer, pricing: 'paid', priceNote: 'NPR 2,000 / hour', paymentUrl: 'https://pay.example/ana' })).body;
-    expect(saved).toMatchObject({ exists: true, active: true, topics: ['design', 'photography'], pricing: 'paid', contact: offer.contact });
+    expect(saved).toMatchObject({ exists: true, active: true, pricing: 'paid', contact: offer.contact });
 
     const seen = (await ben.get('/members/ana/consult-offer')).body.offer;
     expect(seen).toMatchObject({ handle: 'ana', pricing: 'paid', priceNote: 'NPR 2,000 / hour', sessionsDone: 0, canBook: true, mine: false, thanks: [] });
@@ -82,8 +81,8 @@ describe('consultation offers', () => {
     expect((await kid.post('/members/ana/consultations', ask)).body.error).toBe('consult_age');
     expect((await kid.get('/consultations')).body.error).toBe('consult_age');
     // an under-18 member's offer row (made before an admin corrected a birthday) is never live
-    await w.t.db.execute(sql`insert into consult_offers (user_id, active, topics, contact)
-      select id, true, '["design"]'::jsonb, 'x' from users where handle = 'kid'`);
+    await w.t.db.execute(sql`insert into consult_offers (user_id, active, contact)
+      select id, true, 'x' from users where handle = 'kid'`);
     expect((await ana.get('/members/kid/consult-offer')).body.offer).toBeNull();
   });
 });
@@ -96,11 +95,11 @@ describe('consultation requests', () => {
     await ana.put('/me/consult-offer', offer);
 
     expect((await ana.post('/members/ana/consultations', ask)).body.error).toBe('own_offer');
-    for (const bad of [{ topic: 'writing' }, { need: ' ' }, { contact: '' }, { when: 'x'.repeat(201) }]) {
+    for (const bad of [{ need: ' ' }, { contact: '' }, { when: 'x'.repeat(201) }]) {
       expect((await ben.post('/members/ana/consultations', { ...ask, ...bad })).body.error).toBe('consult_invalid');
     }
     const r = (await ben.post('/members/ana/consultations', ask)).body;
-    expect(r).toMatchObject({ role: 'requester', status: 'pending', topic: { slug: 'design', label: 'Design' }, minutes: 60, contacts: null });
+    expect(r).toMatchObject({ role: 'requester', status: 'pending', minutes: 60, contacts: null });
     expect(r.can).toMatchObject({ close: true, accept: false, agree: false });
     expect(r.expiresAt).toBeTruthy();
 
@@ -174,7 +173,7 @@ describe('consultation requests', () => {
     expect(await w.kinds('ana')).toEqual(['consult_request', 'consult_done', 'consult_thanks']);
     expect(await w.kinds('ben')).toEqual(['consult_accepted']);
     const n = (await ben.get('/notifications')).body.items.find((x: any) => x.kind === 'consult_accepted');
-    expect(n).toMatchObject({ consultation: { id, topic: 'Design', pricing: 'free' }, actor: { handle: 'ana' } });
+    expect(n).toMatchObject({ consultation: { id, pricing: 'free' }, actor: { handle: 'ana' } });
 
     // hiding contacts on a done session keeps it done
     const hid = (await ana.post(`/consultations/${id}/close`)).body;

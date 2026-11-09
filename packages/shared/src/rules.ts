@@ -77,7 +77,6 @@ export type CollabStatus = (typeof COLLAB_STATUSES)[number];
 // ─── Consultations (RFC §10.6): book a member's time; contacts swap on acceptance ───
 /** Both sides must be at least this old: contact details and money between strangers. */
 export const CONSULT_MIN_AGE = 18;
-export const CONSULT_TOPICS_MAX = 5;
 export const CONSULT_DESCRIPTION_MAX = 500;
 /** session lengths a consultant can offer, in minutes */
 export const CONSULT_MINUTES = [30, 45, 60, 90, 120] as const;

@@ -1,8 +1,9 @@
 /**
  * Consultations (RFC §10.6): a member books another member's time.
  *
- *   offer      opt-in: topics (interest tags), a description, a session length, Free or Paid
- *              (a price note), and a private contact. Pausing stops new requests.
+ *   offer      opt-in: a switch, an optional description, a session length, Free or Paid (a price
+ *              note), and a private contact. No topics: the portfolio says who they are, and
+ *              people book after reading it (owner's call, 2026-11-09). Pausing stops new requests.
  *   request    pending → accepted (Paid: waits for the requester to agree to the price)
  *              → revealed (both contacts visible to the other side) → done; or declined,
  *              expired (7 days unanswered / not agreed) or closed (either side, at any point).
@@ -18,7 +19,7 @@ import { rows, scalar, type Db } from '@anti/db';
 import {
   ageOn, CONSULT_ANSWER_DAYS, CONSULT_CONTACT_DONE_DAYS, CONSULT_CONTACT_MAX, CONSULT_CONTACT_MAX_DAYS, CONSULT_DESCRIPTION_MAX,
   CONSULT_MIN_AGE, CONSULT_MINUTES, CONSULT_NEED_MAX, CONSULT_OPEN_PER_PAIR, CONSULT_PRICE_NOTE_MAX, CONSULT_THANKS_MAX,
-  CONSULT_TOPICS_MAX, CONSULT_WHEN_MAX, utcToday, type ConsultPricing, type ConsultStatus,
+  CONSULT_WHEN_MAX, utcToday, type ConsultPricing, type ConsultStatus,
 } from '@anti/shared';
 import { ApiError } from './errors';
 import { UUID_RE } from './posts';
@@ -30,7 +31,7 @@ export type ThanksNote = Person & { text: string; at: string; hidden: boolean };
 
 /** What anyone (18+) sees on a portfolio. */
 export type OfferView = {
-  handle: string; topics: string[]; description: string; minutes: number;
+  handle: string; description: string; minutes: number;
   pricing: ConsultPricing; priceNote: string | null;
   sessionsDone: number;
   /** newest visible first; the owner also sees hidden ones (marked) */
@@ -42,7 +43,7 @@ export type OfferView = {
 
 /** The owner's editable offer. */
 export type MyOffer = {
-  active: boolean; topics: string[]; description: string; minutes: number;
+  active: boolean; description: string; minutes: number;
   pricing: ConsultPricing; priceNote: string | null; paymentUrl: string | null; contact: string;
   blocked: boolean; hidden: boolean;
   /** 18 or over: may offer and book at all */
@@ -56,7 +57,6 @@ export type Consultation = {
   /** which side the viewer is on */
   role: 'consultant' | 'requester';
   consultant: Person; requester: Person;
-  topic: { slug: string; label: string };
   need: string; when: string; minutes: number;
   status: ConsultStatus;
   pricing: ConsultPricing | null; priceNote: string | null; paymentUrl: string | null;
@@ -94,7 +94,7 @@ export function requireAdult(user: Pick<SessionUser, 'birthday'>) {
 
 /** An offer anyone can book: switched on, not stopped by an admin or reports, a seated adult with a contact. */
 const offerLive = (o: string, u: string) => sql`(${sql.raw(o)}.active and ${sql.raw(o)}.blocked_at is null and ${sql.raw(o)}.hidden_at is null
-  and ${sql.raw(o)}.contact <> '' and jsonb_array_length(${sql.raw(o)}.topics) > 0
+  and ${sql.raw(o)}.contact <> ''
   and ${sql.raw(u)}.state in ${SEATED} and ${adultSql(u)})`;
 
 /** For the member list: "Consults" tag and filter. */
@@ -125,40 +125,29 @@ async function notify(db: Db, userId: string, kind: string, payload: Record<stri
 // ─── The offer ──────────────────────────────────────────────────────────────
 
 type OfferRow = {
-  active: boolean; topics: unknown; description: string; minutes: number; pricing: ConsultPricing;
+  active: boolean; description: string; minutes: number; pricing: ConsultPricing;
   price_note: string | null; payment_url: string | null; contact: string; blocked: boolean; hidden: boolean;
 };
 
-/** Only tags that still exist (admins can remove one), in label order. */
-async function liveTopics(db: Db, slugs: string[]): Promise<string[]> {
-  if (!slugs.length) return [];
-  return (await rows<{ slug: string }>(db, sql`select slug from interests
-    where slug in (${sql.join(slugs.map((s) => sql`${s}`), sql`, `)}) order by label`)).map((r) => r.slug);
-}
-
 export async function getMyOffer(db: Db, me: SessionUser): Promise<MyOffer> {
-  const [o] = await rows<OfferRow>(db, sql`select active, topics, description, minutes, pricing, price_note, payment_url, contact,
+  const [o] = await rows<OfferRow>(db, sql`select active, description, minutes, pricing, price_note, payment_url, contact,
     (blocked_at is not null) as blocked, (hidden_at is not null) as hidden from consult_offers where user_id = ${me.id}::uuid`);
   if (!o) {
-    return { active: false, topics: [], description: '', minutes: 60, pricing: 'free', priceNote: null, paymentUrl: null, contact: '',
+    return { active: false, description: '', minutes: 60, pricing: 'free', priceNote: null, paymentUrl: null, contact: '',
       blocked: false, hidden: false, allowed: isAdult(me), exists: false };
   }
   return {
-    active: !!o.active, topics: await liveTopics(db, json<string[]>(o.topics, [])), description: o.description, minutes: Number(o.minutes),
+    active: !!o.active, description: o.description, minutes: Number(o.minutes),
     pricing: o.pricing, priceNote: o.price_note, paymentUrl: o.payment_url, contact: o.contact,
     blocked: !!o.blocked, hidden: !!o.hidden, allowed: isAdult(me), exists: true,
   };
 }
 
-/** Saves the whole offer. Switching it on needs topics and a contact. */
+/** Saves the whole offer. Switching it on needs a contact. */
 export async function saveMyOffer(db: Db, me: SessionUser, body: Record<string, unknown>): Promise<MyOffer> {
   requireAdult(me);
   const cur = await getMyOffer(db, me);
   const has = (k: string) => body[k] !== undefined;
-  const topics = has('topics') ? body.topics : cur.topics;
-  if (!Array.isArray(topics) || topics.length > CONSULT_TOPICS_MAX) throw bad(`Up to ${CONSULT_TOPICS_MAX} topics.`);
-  const picked = [...new Set(topics.map(String))];
-  if ((await liveTopics(db, picked)).length !== picked.length) throw bad('One of those topics does not exist.');
   const minutes = has('minutes') ? Number(body.minutes) : cur.minutes;
   if (!(CONSULT_MINUTES as readonly number[]).includes(minutes)) throw bad(`A session is ${CONSULT_MINUTES.join(', ')} minutes.`);
   const pricing = has('pricing') ? body.pricing : cur.pricing;
@@ -170,14 +159,13 @@ export async function saveMyOffer(db: Db, me: SessionUser, body: Record<string, 
   const active = has('active') ? body.active === true : cur.active;
   if (active) {
     if (cur.blocked) throw new ApiError(403, 'consult_blocked', 'An admin switched your consulting off.');
-    if (!picked.length) throw bad('Pick at least one topic.');
     if (!contact) throw bad('Add how people can reach you. Only people you accept ever see it.');
     if (pricing === 'paid' && !priceNote) throw bad('Say what it costs, for example "NPR 2,000 per hour".');
   }
   await db.execute(sql`
-    insert into consult_offers (user_id, active, topics, description, minutes, pricing, price_note, payment_url, contact, updated_at)
-    values (${me.id}::uuid, ${active}, ${JSON.stringify(picked)}::jsonb, ${description}, ${minutes}, ${pricing}, ${priceNote}, ${paymentUrl}, ${contact}, now())
-    on conflict (user_id) do update set active = excluded.active, topics = excluded.topics, description = excluded.description,
+    insert into consult_offers (user_id, active, description, minutes, pricing, price_note, payment_url, contact, updated_at)
+    values (${me.id}::uuid, ${active}, ${description}, ${minutes}, ${pricing}, ${priceNote}, ${paymentUrl}, ${contact}, now())
+    on conflict (user_id) do update set active = excluded.active, description = excluded.description,
       minutes = excluded.minutes, pricing = excluded.pricing, price_note = excluded.price_note, payment_url = excluded.payment_url,
       contact = excluded.contact, updated_at = now()`);
   return getMyOffer(db, me);
@@ -207,7 +195,7 @@ async function thanksFor(db: Db, consultantId: string, includeHidden: boolean, l
 export async function getOffer(db: Db, viewer: SessionUser, handle: string): Promise<OfferView | null> {
   if (!isAdult(viewer)) return null;
   const [o] = await rows<OfferRow & { user_id: string; handle: string; live: boolean; done: number; thanks_n: number; reported: boolean }>(db, sql`
-    select o.user_id, u.handle, o.active, o.topics, o.description, o.minutes, o.pricing, o.price_note, o.payment_url, o.contact,
+    select o.user_id, u.handle, o.active, o.description, o.minutes, o.pricing, o.price_note, o.payment_url, o.contact,
       (o.blocked_at is not null) as blocked, (o.hidden_at is not null) as hidden, ${offerLive('o', 'u')} as live,
       (select count(*)::int from consultations c where c.consultant_id = o.user_id and c.status = 'done') as done,
       (select count(*)::int from consultations c where c.consultant_id = o.user_id and c.thanks is not null and not c.thanks_hidden) as thanks_n,
@@ -218,7 +206,7 @@ export async function getOffer(db: Db, viewer: SessionUser, handle: string): Pro
   const mine = o.user_id === viewer.id;
   if (!o.live && !mine) return null;
   return {
-    handle: o.handle, topics: await liveTopics(db, json<string[]>(o.topics, [])), description: o.description, minutes: Number(o.minutes),
+    handle: o.handle, description: o.description, minutes: Number(o.minutes),
     pricing: o.pricing, priceNote: o.price_note, sessionsDone: Number(o.done),
     thanks: await thanksFor(db, o.user_id, mine, 3), thanksCount: Number(o.thanks_n),
     mine, canBook: !mine && !!o.live, canReport: !mine && !!o.live && !o.reported,
@@ -237,7 +225,7 @@ export async function allThanks(db: Db, viewer: SessionUser, handle: string): Pr
 // ─── Requests ───────────────────────────────────────────────────────────────
 
 type Row = Record<string, unknown> & {
-  id: string; consultant_id: string; requester_id: string; topic: string; topic_label: string; need: string; when_text: string;
+  id: string; consultant_id: string; requester_id: string; need: string; when_text: string;
   minutes: number; status: ConsultStatus; eff: ConsultStatus; pricing: ConsultPricing | null; price_note: string | null; payment_url: string | null;
   requester_contact: string | null; consultant_contact: string | null; visible: boolean; until_iso: string | null; expires_iso: string | null;
   created_iso: string; decided_iso: string | null; revealed_iso: string | null; done_iso: string | null; closed_iso: string | null;
@@ -255,7 +243,7 @@ const VISIBLE = sql`(c.contacts_hidden_at is null and (
     or (c.status = 'done' and c.done_at >= now() - ${DONE_KEEP} and c.revealed_at >= now() - ${MAX_KEEP})))`;
 
 const select = (me: string) => sql`
-  select c.id, c.consultant_id, c.requester_id, c.topic, c.topic_label, c.need, c.when_text, c.minutes, c.status, ${EFF} as eff,
+  select c.id, c.consultant_id, c.requester_id, c.need, c.when_text, c.minutes, c.status, ${EFF} as eff,
     c.pricing, c.price_note, c.payment_url, c.requester_contact, c.consultant_contact, ${VISIBLE} as visible,
     ${iso(sql`case when c.status = 'done' then least(c.done_at + ${DONE_KEEP}, c.revealed_at + ${MAX_KEEP}) else c.revealed_at + ${MAX_KEEP} end`)} as until_iso,
     ${iso(sql`case when c.status = 'pending' then c.created_at + ${ANSWER} when c.status = 'accepted' then c.decided_at + ${ANSWER} end`)} as expires_iso,
@@ -275,7 +263,7 @@ function toConsultation(r: Row, me: string): Consultation {
   const mineToAnswer = role === 'consultant';
   return {
     id: r.id, role, consultant: person(r, 'k'), requester: person(r, 'q'),
-    topic: { slug: r.topic, label: r.topic_label }, need: r.need, when: r.when_text, minutes: Number(r.minutes),
+    need: r.need, when: r.when_text, minutes: Number(r.minutes),
     status: eff, pricing: r.pricing, priceNote: r.price_note,
     // the payment link is for the person paying, once there is something to pay for
     paymentUrl: r.pricing === 'paid' && (eff === 'accepted' || eff === 'revealed' || eff === 'done') ? r.payment_url : null,
@@ -331,14 +319,11 @@ export async function waitingCount(db: Db, me: string): Promise<number> {
 
 export async function createRequest(db: Db, me: SessionUser, handle: string, body: Record<string, unknown>): Promise<Consultation> {
   requireAdult(me);
-  const [k] = await rows<{ id: string; topics: unknown; minutes: number; live: boolean }>(db, sql`
-    select u.id, o.topics, o.minutes, ${offerLive('o', 'u')} as live
+  const [k] = await rows<{ id: string; minutes: number; live: boolean }>(db, sql`
+    select u.id, o.minutes, ${offerLive('o', 'u')} as live
       from users u join consult_offers o on o.user_id = u.id where lower(u.handle) = lower(${handle})`);
   if (!k || !k.live) throw new ApiError(404, 'not_found', 'They are not taking consultations right now.');
   if (k.id === me.id) throw new ApiError(409, 'own_offer', 'You cannot book yourself.');
-  const topic = String(body.topic ?? '');
-  const topics = await liveTopics(db, json<string[]>(k.topics, []));
-  if (!topics.includes(topic)) throw bad('Pick one of the topics they consult on.');
   const need = text(body.need, 'What you need help with', CONSULT_NEED_MAX, true);
   if (!need) throw bad('Say what you need help with.');
   const when = text(body.when, 'When suits you', CONSULT_WHEN_MAX);
@@ -351,11 +336,10 @@ export async function createRequest(db: Db, me: SessionUser, handle: string, bod
     throw new ApiError(409, 'consult_open_limit', `You already have ${CONSULT_OPEN_PER_PAIR} open requests with them. Finish or close one first.`);
   }
   await hit(db, 'consultRequest', me.id);
-  const label = String(await scalar(db, sql`select label from interests where slug = ${topic}`));
   const [c] = await rows<{ id: string }>(db, sql`
-    insert into consultations (consultant_id, requester_id, topic, topic_label, need, when_text, minutes, requester_contact)
-    values (${k.id}::uuid, ${me.id}::uuid, ${topic}, ${label}, ${need}, ${when}, ${Number(k.minutes)}, ${contact}) returning id`);
-  await notify(db, k.id, 'consult_request', { consultationId: c!.id, actorId: me.id, topic: label });
+    insert into consultations (consultant_id, requester_id, need, when_text, minutes, requester_contact)
+    values (${k.id}::uuid, ${me.id}::uuid, ${need}, ${when}, ${Number(k.minutes)}, ${contact}) returning id`);
+  await notify(db, k.id, 'consult_request', { consultationId: c!.id, actorId: me.id });
   return getConsultation(db, me, c!.id);
 }
 
@@ -370,7 +354,7 @@ async function change(db: Db, me: SessionUser, id: string, fn: (tx: Db, r: Row) 
 }
 const conflict = (detail: string) => new ApiError(409, 'consult_state', detail);
 const other = (r: Row, me: string) => (r.consultant_id === me ? r.requester_id : r.consultant_id);
-const payload = (r: Row, me: string | null, extra: Record<string, unknown> = {}) => ({ consultationId: r.id, actorId: me, topic: r.topic_label, ...extra });
+const payload = (r: Row, me: string | null, extra: Record<string, unknown> = {}) => ({ consultationId: r.id, actorId: me, ...extra });
 
 /** The consultant accepts: Free reveals both contacts now; Paid waits for the requester to agree. */
 export async function acceptRequest(db: Db, me: SessionUser, id: string, body: Record<string, unknown>) {
@@ -522,7 +506,7 @@ export async function switchOff(db: Db, userId: string, actorId: string | null) 
     const closed = await rows<Row>(tx, sql`update consultations c set status = 'closed', closed_at = now(), closed_by = ${actorId}::uuid,
         contacts_hidden_at = now(), requester_contact = null, consultant_contact = null
       where c.consultant_id = ${userId}::uuid and c.status in ('pending', 'accepted')
-      returning c.id, c.requester_id, c.consultant_id, c.topic_label`);
+      returning c.id, c.requester_id, c.consultant_id`);
     for (const r of closed) await notify(tx, r.requester_id, 'consult_closed', payload(r, null));
     await notify(tx, userId, 'consult_switched_off', {});
   });
@@ -557,7 +541,7 @@ export async function resolveConsultationFlags(db: Db, id: string, resolution: '
           status = case when c.status in ('pending', 'accepted', 'revealed') then 'closed' else c.status end,
           closed_at = coalesce(c.closed_at, now()), closed_by = coalesce(c.closed_by, ${actorId}::uuid),
           contacts_hidden_at = coalesce(c.contacts_hidden_at, now()), requester_contact = null, consultant_contact = null
-        where c.id = ${id}::uuid returning c.id, c.requester_id, c.consultant_id, c.topic_label`);
+        where c.id = ${id}::uuid returning c.id, c.requester_id, c.consultant_id`);
       if (r) for (const u of [r.requester_id, r.consultant_id]) await notify(tx, u, 'consult_removed', payload(r, null));
     }
     return { resolution };
@@ -574,7 +558,7 @@ export async function opsConsultation(db: Db, id: string) {
     select u.handle, f.reason, ${iso(sql`f.created_at`)} as at, (f.resolved_at is null) as open
       from consult_flags f join users u on u.id = f.user_id where f.consultation_id = ${id}::uuid order by f.created_at`);
   return {
-    id: r.id, consultant: person(r, 'k'), requester: person(r, 'q'), topic: r.topic_label, need: r.need, when: r.when_text,
+    id: r.id, consultant: person(r, 'k'), requester: person(r, 'q'), need: r.need, when: r.when_text,
     status: r.eff, pricing: r.pricing, priceNote: r.price_note, paymentUrl: r.payment_url,
     contacts: { consultant: r.consultant_contact, requester: r.requester_contact },
     createdAt: r.created_iso, revealedAt: r.revealed_iso, doneAt: r.done_iso, closedAt: r.closed_iso,
@@ -587,7 +571,7 @@ export async function opsConsultations(db: Db) {
   const r = await rows<Row>(db, sql`select * from (${select('00000000-0000-0000-0000-000000000000')}) x order by x.created_iso desc limit 200`);
   const reported = new Set((await rows<{ id: string }>(db, sql`select distinct consultation_id as id from consult_flags where consultation_id is not null`)).map((x) => x.id));
   return r.map((x) => ({
-    id: x.id, consultant: person(x, 'k'), requester: person(x, 'q'), topic: x.topic_label, status: x.eff, pricing: x.pricing,
+    id: x.id, consultant: person(x, 'k'), requester: person(x, 'q'), status: x.eff, pricing: x.pricing,
     createdAt: x.created_iso, reported: reported.has(x.id),
   }));
 }
@@ -599,18 +583,18 @@ export async function opsConsultations(db: Db) {
  * and unagreed prices expire (people are told), contacts past their time are wiped.
  */
 export async function sweepConsultations(db: Db) {
-  const expired = await rows<{ id: string; requester_id: string; consultant_id: string; topic_label: string; was: string }>(db, sql`
+  const expired = await rows<{ id: string; requester_id: string; consultant_id: string; was: string }>(db, sql`
     with old as (
       select id, status as was from consultations
        where (status = 'pending' and created_at < now() - ${ANSWER}) or (status = 'accepted' and decided_at < now() - ${ANSWER})
        for update)
     update consultations c set status = 'expired', requester_contact = null, consultant_contact = null
       from old where c.id = old.id
-     returning c.id, c.requester_id, c.consultant_id, c.topic_label, old.was`);
+     returning c.id, c.requester_id, c.consultant_id, old.was`);
   for (const e of expired) {
     // waiting for an answer: the asker hears; waiting for the asker to agree: the consultant hears
     const to = e.was === 'pending' ? e.requester_id : e.consultant_id;
-    await notify(db, to, 'consult_expired', { consultationId: e.id, actorId: null, topic: e.topic_label, was: e.was });
+    await notify(db, to, 'consult_expired', { consultationId: e.id, actorId: null, was: e.was });
   }
   const hidden = await rows(db, sql`update consultations c set contacts_hidden_at = now(), requester_contact = null, consultant_contact = null
     where c.contacts_hidden_at is null and c.status in ('revealed', 'done') and not ${VISIBLE} returning 1`);

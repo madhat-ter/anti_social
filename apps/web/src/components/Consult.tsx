@@ -6,7 +6,7 @@
 import Link from 'next/link';
 import { useEffect, useId, useState } from 'react';
 import {
-  ageOn, CONSULT_CONTACT_MAX, CONSULT_DESCRIPTION_MAX, CONSULT_MIN_AGE, CONSULT_MINUTES, CONSULT_PRICE_NOTE_MAX, CONSULT_TOPICS_MAX,
+  ageOn, CONSULT_CONTACT_MAX, CONSULT_DESCRIPTION_MAX, CONSULT_MIN_AGE, CONSULT_MINUTES, CONSULT_PRICE_NOTE_MAX,
   localToday,
 } from '@anti/shared';
 import {
@@ -14,7 +14,6 @@ import {
 } from '@/lib/api';
 import { relativeTime } from '@/lib/hooks';
 import { Avatar } from './Avatar';
-import { InterestPicker, InterestTags } from './Interests';
 import { NameMarks } from './Marks';
 import { AlertDialog } from './retro';
 import { ErrorNote } from './ui';
@@ -53,8 +52,8 @@ export function ConsultCard({ c }: { c: Consultation }) {
         <span className="consult-main">
           <span className="consult-title">
             {c.role === 'consultant'
-              ? <>@{them.handle}<NameMarks admin={them.admin} verified={them.verified} size=".85em" /> asks about <b>{c.topic.label}</b></>
-              : <>You asked @{them.handle}<NameMarks admin={them.admin} verified={them.verified} size=".85em" /> about <b>{c.topic.label}</b></>}
+              ? <><b>{them.displayName}</b><NameMarks admin={them.admin} verified={them.verified} size=".85em" /> asks for a consultation</>
+              : <>You asked <b>{them.displayName}</b><NameMarks admin={them.admin} verified={them.verified} size=".85em" /> for a consultation</>}
             {' '}<ConsultStatusTag c={c} />
           </span>
           <span className="muted small consult-need">{c.need}</span>
@@ -94,13 +93,9 @@ export function OfferEditor({ initial, onSaved }: { initial: MyConsultOffer; onS
         <span className={`tag${initial.active ? ' on' : ''}`}>{initial.active ? 'on' : initial.exists ? 'paused' : 'off'}</span>
       </div>
       {initial.hidden && <div className="banner" role="status">Hidden after reports until an admin looks. People cannot book you meanwhile.</div>}
-      <p className="muted small">Members can book a session with you. You decide on each request, and for each one whether it is free or paid. Anti never handles the money.</p>
+      <p className="muted small">Members who read your portfolio can book a session with you about what you do. You decide on each request, and for each one whether it is free or paid. Anti never handles the money.</p>
 
-      <fieldset>
-        <legend>What you consult on (up to {CONSULT_TOPICS_MAX})</legend>
-        <InterestPicker value={d.topics ?? []} onChange={(t) => set('topics', t)} max={CONSULT_TOPICS_MAX} />
-      </fieldset>
-      <label>About your sessions
+      <label>About your sessions (optional)
         <textarea value={d.description ?? ''} maxLength={CONSULT_DESCRIPTION_MAX} rows={4}
           placeholder="Portfolio reviews, first-job advice, how I would approach your brief…" onChange={(e) => set('description', e.target.value)} />
         <span className="counter">{(d.description ?? '').length} / {CONSULT_DESCRIPTION_MAX}</span>
@@ -182,7 +177,6 @@ export function ConsultingSection({ handle, viewerAdult }: { handle: string; vie
           : o.canBook && (readOnly ? <WatchOnly>Book a consultation</WatchOnly> : <Link className="btn primary" href={`/u/${handle}/consult`}>Book a consultation</Link>)}
       </div>
       {o.hidden && <p className="tag danger">hidden after reports</p>}
-      <InterestTags slugs={o.topics} />
       {o.description && <p className="body pf-consult-desc">{o.description}</p>}
       <dl className="pf-consult-facts">
         <div><dt>Session</dt><dd>{minutesLabel(o.minutes)}</dd></div>

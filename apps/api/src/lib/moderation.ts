@@ -174,7 +174,7 @@ export async function flagQueue(db: Db): Promise<FlagQueueItem[]> {
        where f.resolved_at is null
        group by o.user_id, u.handle
       union all
-      select 'consultation' as kind, c.id, c.topic_label || ' — ' || left(c.need, 200) as body,
+      select 'consultation' as kind, c.id, left(c.need, 200) as body,
              u.handle, false as hidden, count(*)::int as n,
              coalesce(array_agg(f.reason) filter (where f.reason is not null), '{}') as reasons,
              min(f.created_at) as first_at
