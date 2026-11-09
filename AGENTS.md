@@ -74,6 +74,14 @@ command line matches `start -p 3100` and stop them all. The build may edit
 `apps/web/tsconfig.json`; revert that (`git checkout -- apps/web/tsconfig.json`). Members made
 by scripts must `PUT /me/setup` and join with `POST /auth/join` and a PIN.
 
+### The latest UI, for the owner
+
+After any UI change, run `bun scripts/screenshots-latest.ts` (same stack as above). It overwrites
+`.screenshots/latest/` with the whole UI under fixed names (`01-landing` … `14-feed-dark`) plus
+`_when.txt` with the time and commit, so the newest look is always in the same file names. Show
+the screens you changed in the reply. A before/after pair for one change still goes in that
+feature's own folder (e.g. `.screenshots/feed-types-before/`).
+
 ## Windows / PowerShell traps
 
 - `git commit -m "..."` with quotes inside can silently commit nothing. Write the message to a
