@@ -1,42 +1,20 @@
 'use client';
 /**
  * Desktop side windows (shown only on wide screens, see .shell in globals.css): the next few
- * events, the pick, the room's seats, and today's birthdays. Each is small, glanceable, and links on.
+ * events, the pick, Pet Corner, and today's birthdays. Each is small, glanceable, and links on.
  * (No "you" window since 2026-11-09: your profile is in the menu; inviting is in Settings.)
+ * (Seats became Pet Corner, RFC §10.17; the seat chart lives on Members and Admin.)
  */
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { RULES } from '@anti/shared';
-import { api, type AnEvent, type Me, type MemberSummary } from '@/lib/api';
-import { membersCached, seatCapCached } from '@/lib/members';
+import { api, type AnEvent, type Me } from '@/lib/api';
 import { BirthdaysWindow } from './Birthday';
 import { Win } from './retro';
 import { VisitorWindow } from './Visitor';
 import { PickWindow, RAIL_QUERY, useWide } from './Picks';
+import { PetCorner } from './Pets';
 import { bnLang } from '@/lib/lang';
-
-function Seats({ me }: { me: Me }) {
-  const [members, setMembers] = useState<MemberSummary[] | null>(null);
-  const [seatCap, setSeatCap] = useState<number>(RULES.seat_cap);
-  useEffect(() => { membersCached().then(setMembers, () => setMembers(null)); }, []);
-  useEffect(() => { seatCapCached().then(setSeatCap); }, []);
-  const cap = Math.max(seatCap, members?.length ?? 0);
-  return (
-    <Win title="seats" as="section" bodyClassName="stack rail-seats">
-      <div className="seat-chart small" role="img" aria-label={members ? `${members.length} of ${cap} seats taken` : 'Seats'}>
-        {Array.from({ length: cap }, (_, i) => {
-          const m = members?.[i];
-          return <span key={i} className={!m ? 'open' : m.handle === me.handle ? 'taken me' : 'taken'} />;
-        })}
-      </div>
-      <p className="ui">
-        {members ? <><strong>{members.length}</strong> of {cap} taken</> : 'Counting…'}
-        {' '}<Link href="/members">See who</Link>
-      </p>
-    </Win>
-  );
-}
 
 function NextEvents() {
   const [events, setEvents] = useState<AnEvent[] | null>(null);
@@ -78,8 +56,8 @@ export function Rail({ me }: { me: Me }) {
       {me.visitor && <VisitorWindow expiresAt={me.visitor.expiresAt} />}
       {!path.startsWith('/events') && <NextEvents />}
       {shown && <PickWindow />}
-      {path !== '/members' && <Seats me={me} />}
-      <BirthdaysWindow />
+      <PetCorner me={me} />
+      {path !== '/members' && <BirthdaysWindow />}
     </aside>
   );
 }

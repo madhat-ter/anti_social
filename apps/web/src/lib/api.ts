@@ -167,6 +167,30 @@ export interface Post {
   hidden?: boolean;
 }
 export type SuggestionKind = 'movie' | 'book' | 'place' | 'food';
+/** RFC §10.17: a pet is a content identity owned by one member; not an account. */
+export type PetSpecies = 'dog' | 'cat' | 'bird';
+export type PetLabel = 'everyday' | 'advice' | 'health' | 'help';
+export interface Pet {
+  id: string;
+  name: string;
+  species: PetSpecies;
+  avatar: { variant: number; url: string | null };
+  owner: { handle: string; displayName: string };
+}
+export interface PetPost {
+  id: string;
+  body: string;
+  createdAt: string;
+  label: PetLabel;
+  images: Image[];
+  /** only the owner sees the count, like posts */
+  likeCount: number | null;
+  likedByMe: boolean;
+  replyCount: number;
+  pet: Pet;
+  canDelete: boolean;
+  canReport: boolean;
+}
 /** A member's pick: a movie, book, place or food they suggest. */
 export interface Pick {
   id: string;
@@ -254,6 +278,8 @@ export interface MemberSummary {
   invitedBy: { handle: string } | null;
   activatedAt: string | null;
   postCount: number;
+  /** RFC §10.17: the pets shown on this profile (GET /members/:handle) */
+  pets?: Pet[];
   /** from the portfolio: shown under the name in lists */
   headline: string;
   openToWork: boolean;
@@ -524,7 +550,7 @@ export const api = {
     get<Page<Post> & { visit?: FeedVisit }>(`/feed${qs({ cursor, limit, visit: v.visit ? 1 : undefined, since: v.since })}`),
   caughtUp: (through: string, visitId?: number | null) =>
     post<{ seenThrough: string | null }>('/feed/caught-up', visitId == null ? { through } : { through, visitId }),
-  createPost: (b: { body: string; parentId?: string; imageIds?: string[]; collabId?: string; eventId?: string }) => post<Post>('/posts', b),
+  createPost: (b: { body: string; parentId?: string; imageIds?: string[]; collabId?: string; eventId?: string; petId?: string; petLabel?: PetLabel }) => post<Post>('/posts', b),
   thread: (id: string) => get<Thread>(`/posts/${encodeURIComponent(id)}`),
   editPost: (id: string, body: string) => call<Post>('PATCH', `/posts/${encodeURIComponent(id)}`, { body }),
   deletePost: (id: string) => call<{ ok: true }>('DELETE', `/posts/${encodeURIComponent(id)}`),
@@ -541,6 +567,14 @@ export const api = {
   /** RFC §10.16: the @ list in the composer (up to 8 seated members) */
   mentionMembers: (q: string) => get<{ items: { handle: string; displayName: string; gender: Gender | null }[] }>(`/members/mention${qs({ q })}`),
   member: (handle: string) => get<MemberSummary>(`/members/${encodeURIComponent(handle)}`),
+  /** RFC §10.17: Pet Corner — the newest pet posts; a pet's page; your own pets */
+  pets: (cursor?: string | null, limit = 20) => get<Page<PetPost>>(`/pets${qs({ cursor, limit })}`),
+  myPets: () => get<{ items: Pet[] }>('/pets/mine'),
+  pet: (id: string) => get<{ pet: Pet; posts: PetPost[] }>(`/pets/${encodeURIComponent(id)}`),
+  createPet: (b: { name: string; species: PetSpecies; avatarVariant?: number; avatarId?: string }) => post<Pet>('/pets', b),
+  updatePet: (id: string, b: { name?: string; species?: PetSpecies; avatarVariant?: number; avatarId?: string; removeAvatar?: boolean }) =>
+    call<Pet>('PATCH', `/pets/${encodeURIComponent(id)}`, b),
+  deletePet: (id: string) => call<{ ok: true; posts: number }>('DELETE', `/pets/${encodeURIComponent(id)}`),
   randomPick: (exclude: string[] = []) => get<{ item: Pick | null }>(`/suggestions/random${qs({ exclude: exclude.join(',') })}`),
   votePick: (id: string, vote: 1 | -1, remark?: string | null) =>
     call<Pick>('PUT', `/suggestions/${encodeURIComponent(id)}/vote`, remark === undefined ? { vote } : { vote, remark }),

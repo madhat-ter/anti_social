@@ -7,6 +7,7 @@ import { ApiError } from '../lib/errors';
 import { birthdayCols, cursorBefore, listPosts, paginate, parseLimit, toBirthday, UUID_RE, type Birthday, type Page } from '../lib/posts';
 import { authPlugin, requireSeated, requireUser } from '../plugins/auth';
 import { consultsSql, isAdult } from '../lib/consultations';
+import { listOwnerPets } from '../lib/pets';
 
 const pageQuery = t.Object({ cursor: t.Optional(t.String()), limit: t.Optional(t.String()) });
 const SEATED = sql`('active', 'flagged_lurker')`;
@@ -39,7 +40,7 @@ const memberSelect = sql`
   select u.id, coalesce(u.activated_at, u.created_at)::text as cursor_ts,
     u.handle, u.display_name, u.bio, u.state, u.role, u.gender, (u.verified_at is not null) as verified, ${birthdayCols('u', 'm')}, inv.handle as inv_handle,
     to_char(u.activated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as activated_iso,
-    (select count(*)::int from posts p where p.author_id = u.id and p.deleted_at is null and p.hidden_at is null) as post_count,
+    (select count(*)::int from posts p where p.author_id = u.id and p.pet_id is null and p.deleted_at is null and p.hidden_at is null) as post_count,
     pf.headline, pf.open_to_work, ${consultsSql('u')} as consults,
     array(select ui.interest from user_interests ui join interests i on i.slug = ui.interest where ui.user_id = u.id order by i.label) as interests
   from users u
@@ -56,6 +57,7 @@ const toMember = (r: MemberRow): MemberSummary => ({
 const forViewer = (m: MemberSummary, adult: boolean): MemberSummary => (adult ? m : { ...m, consults: false });
 
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => '\\' + c);
+
 
 type NotifRow = {
   id: string; kind: string; cursor_ts: string; created_iso: string; read_iso: string | null;
@@ -96,7 +98,7 @@ export const socialRoutes = (deps: Deps) => {
       const contains = `%${like}%`;
       const prefix = `${like}%`;
       const [postPage, memberRows] = await Promise.all([
-        listPosts(db, a.user.id, sql`p.deleted_at is null and p.hidden_at is null
+        listPosts(db, a.user.id, sql`p.deleted_at is null and p.hidden_at is null and p.pet_id is null
           and p.search @@ websearch_to_tsquery('simple', ${q})`, { limit: '20' }),
         rows<MemberRow>(db, sql`
           ${memberSelect}
@@ -150,14 +152,15 @@ export const socialRoutes = (deps: Deps) => {
       const a = requireSeated(auth);
       const m = await findMember(params.handle);
       if (!m) throw new ApiError(404, 'not_found');
-      return forViewer(toMember(m), isAdult(a.user));
+      // RFC §10.17: the pets on this member's profile
+      return { ...forViewer(toMember(m), isAdult(a.user)), pets: await listOwnerPets(db, m.id) };
     })
 
     .get('/members/:handle/posts', async ({ auth, params, query }) => {
       const a = requireSeated(auth);
       const m = await findMember(params.handle);
       if (!m) throw new ApiError(404, 'not_found');
-      return listPosts(db, a.user.id, sql`p.author_id = ${m.id}::uuid and p.deleted_at is null and p.hidden_at is null`, query);
+      return listPosts(db, a.user.id, sql`p.author_id = ${m.id}::uuid and p.pet_id is null and p.deleted_at is null and p.hidden_at is null`, query);
     }, { query: pageQuery })
 
     .get('/notifications', async ({ auth, query }) => {

@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { Gender } from '@anti/shared';
-import { api, errorMessage, IMAGE_MAX_BYTES, IMAGES_MAX, POST_MAX, type Image, type Post } from '@/lib/api';
+import { api, errorMessage, IMAGE_MAX_BYTES, IMAGES_MAX, POST_MAX, type Image, type PetLabel, type Post } from '@/lib/api';
 import { ErrorNote } from './ui';
 import { Avatar } from './Avatar';
 import { VISITOR_NOTE, useReadOnly, why } from './Visitor';
@@ -20,6 +20,7 @@ export function Composer({
   parentId,
   collabId,
   eventId,
+  pet,
   meetups,
   title,
   onCreated,
@@ -32,6 +33,8 @@ export function Composer({
   collabId?: string;
   /** an update on this event's page */
   eventId?: string;
+  /** RFC §10.17: write as this pet (author stays the owner) */
+  pet?: { id: string; name: string };
   /** a collab's meetups: the update can be tied to one */
   meetups?: { id: string; title: string }[];
   /** the window title */
@@ -51,6 +54,8 @@ export function Composer({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [meetup, setMeetup] = useState('');
+  /** RFC §10.17: a pet post carries one label */
+  const [petLabel, setPetLabel] = useState<PetLabel>('everyday');
   const fileRef = useRef<HTMLInputElement>(null);
   const attsRef = useRef<Att[]>([]);
   attsRef.current = atts;
@@ -102,7 +107,7 @@ export function Composer({
 
   // Draft autosave: text only, this device only, one draft per place you can write.
   // Restored after mount (localStorage is not available during server render).
-  const draftKey = `anti:draft:${parentId ?? (collabId ? `c:${collabId}` : eventId ? `e:${eventId}` : 'feed')}`;
+  const draftKey = `anti:draft:${parentId ?? (pet ? `pet:${pet.id}` : collabId ? `c:${collabId}` : eventId ? `e:${eventId}` : 'feed')}`;
   const [restored, setRestored] = useState(false);
   const [savedDraft, setSavedDraft] = useState(false);
   useEffect(() => {
@@ -168,6 +173,7 @@ export function Composer({
         ...(parentId ? { parentId } : {}),
         ...(collabId ? { collabId } : {}),
         ...(eventId ?? meetup ? { eventId: eventId ?? meetup } : {}),
+        ...(pet ? { petId: pet.id, petLabel } : {}),
         ...(imageIds.length ? { imageIds } : {}),
       });
       atts.forEach((a) => URL.revokeObjectURL(a.preview));
@@ -189,7 +195,7 @@ export function Composer({
     >
       <div className="win-bar" aria-hidden="true">
         <span className="win-close" />
-        <span className="win-title">{title ?? (parentId ? 'reply.txt' : 'new_post.txt')}</span>
+        <span className="win-title">{title ?? (pet ? `posting_as_${pet.name.toLowerCase().replace(/\s+/g, '_')}.txt` : parentId ? 'reply.txt' : 'new_post.txt')}</span>
       </div>
       <div className="win-body">
       <label htmlFor={`${id}-body`} className="sr-only">{parentId ? 'Write a reply' : 'Write a post'}</label>
@@ -199,7 +205,7 @@ export function Composer({
           ref={bodyRef}
           value={body}
           rows={parentId ? 3 : 4}
-          placeholder={readOnly ? VISITOR_NOTE : placeholder ?? (parentId ? 'Write a reply...' : 'What is on your mind?')}
+          placeholder={readOnly ? VISITOR_NOTE : placeholder ?? (pet ? `What is ${pet.name} up to?` : parentId ? 'Write a reply...' : 'What is on your mind?')}
           disabled={readOnly}
           title={readOnly ? VISITOR_NOTE : undefined}
           onChange={(e) => {
@@ -263,6 +269,16 @@ export function Composer({
             {meetups.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
           </select>
         </label>
+      )}
+      {pet && (
+        <div className="row chips composer-label" role="radiogroup" aria-label="Kind of update">
+          {(['everyday', 'advice', 'health', 'help'] as const).map((l) => (
+            <button key={l} type="button" role="radio" aria-checked={petLabel === l}
+              className={`chip${petLabel === l ? ' on' : ''}`} onClick={() => setPetLabel(l)}>
+              {l === 'everyday' ? 'Everyday' : l === 'advice' ? 'Advice' : l === 'health' ? 'Health' : 'Help'}
+            </button>
+          ))}
+        </div>
       )}
       <div className="row composer-bar">
         <input

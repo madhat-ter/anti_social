@@ -15,10 +15,11 @@ import {
   PF_TAG_MAX, PROJECTS_MAX, PROJECT_IMAGES_MAX,
 } from '@anti/shared';
 import {
-  api, errorMessage, IMAGE_MAX_BYTES, type MemberSummary, type PfAccent, type PfEntry, type PfLink, type PfStyle, type Portfolio,
+  api, errorMessage, IMAGE_MAX_BYTES, type MemberSummary, type Pet, type PfAccent, type PfEntry, type PfLink, type PfStyle, type Portfolio,
   type PortfolioFields, type ProjectSummary,
 } from '@/lib/api';
 import { Avatar } from './Avatar';
+import { PetsRow } from './Pets';
 import { BirthdayTag } from './Birthday';
 import { NameMarks } from './Marks';
 import { InterestTags } from './Interests';
@@ -47,10 +48,13 @@ const copyOf = (p: Portfolio): PortfolioFields => ({
 /** The cover while editing: unchanged, removed, or a fresh upload (with a local preview). */
 type CoverDraft = { id: string | null | undefined; preview: string | null; uploading: boolean };
 
-export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, consulting }: {
+export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, consulting, pets, onPets }: {
   member: MemberSummary; pf: Portfolio; projects: ProjectSummary[];
   /** the Consulting section (RFC §10.6), between the work and the links */
   consulting?: ReactNode;
+  /** RFC §10.17: the member's pets, and the owner-only Add Pet button */
+  pets?: Pet[];
+  onPets?: (pets: Pet[]) => void;
   onSaved: (p: Portfolio) => void;
   /** owner only: the contents list in its new order */
   onReorder: (ids: string[]) => void;
@@ -160,6 +164,7 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
             </div>
           )}
         </div>
+        <PetsRow pets={pets ?? []} mine={pf.mine} onChange={onPets ?? (() => {})} />
       </header>
 
       {editing && (

@@ -235,6 +235,10 @@ export const posts = pgTable('posts', {
   collabId: uuid('collab_id').references((): AnyPgColumn => collabs.id, { onDelete: 'cascade' }),
   /** an update on an event's page (a collab meetup, or any event); replies carry it too */
   eventId: uuid('event_id').references((): AnyPgColumn => events.id, { onDelete: 'cascade' }),
+  /** RFC §10.17: this post is written as a pet; the author stays the owner */
+  petId: uuid('pet_id').references((): AnyPgColumn => pets.id, { onDelete: 'cascade' }),
+  /** a pet post's label: everyday | advice | health | help */
+  petLabel: text('pet_label'),
   search: tsvector('search').generatedAlwaysAs(sql`to_tsvector('simple', body)`),
   createdAt: tstz('created_at').notNull().defaultNow(),
 }, (t) => [
@@ -247,6 +251,18 @@ export const posts = pgTable('posts', {
   index('posts_event').on(t.eventId, t.createdAt).where(sql`event_id is not null`),
   index('posts_search').using('gin', t.search),
 ]);
+
+/** RFC §10.17: a pet is a content identity owned by one member (up to three each). */
+export const pets = pgTable('pets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ownerId: uuid('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  species: text('species').notNull(), // 'dog' | 'cat' | 'bird'
+  /** any non-negative number: it seeds one of the endless drawn looks for this species */
+  avatarVariant: integer('avatar_variant').notNull().default(0),
+  avatarKey: text('avatar_key'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+}, (t) => [index('pets_owner').on(t.ownerId, t.createdAt)]);
 
 export const postImages = pgTable('post_images', {
   id: uuid('id').primaryKey().defaultRandom(),

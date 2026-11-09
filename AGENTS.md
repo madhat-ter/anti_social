@@ -27,6 +27,11 @@ can time out under the full suite on a busy machine; they pass on their own.
 - After any UI change, show screenshots: a "before" and an "after" of the same scene.
 - Plain language in replies. No jargon without explaining it.
 
+## Open tasks
+
+- **Pet avatars** (`docs/tasks/pet-avatars.md`) — hand the drawing to Claude. Pet Corner itself is
+  built and tested (RFC §10.17); only the generated faces need another pass.
+
 ## Product rules that are easy to break
 
 - **Light by default, always.** Dark mode is a choice in Settings only. Never read

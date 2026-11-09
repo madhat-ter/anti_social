@@ -15,6 +15,7 @@ import { isValidKey } from '../lib/storage';
 import { hit } from '../lib/ratelimit';
 import { notifyUpdate, updatePlace } from '../lib/updates';
 import { addMentions, mentionIds, mentionsIn, notifyMentions, removeMentions, resolveMentionUsers } from '../lib/mentions';
+import { ownedPet, PET_LABELS, type PetLabel } from '../lib/pets';
 import { authPlugin, requireSeated } from '../plugins/auth';
 
 const MAX_PENDING_UPLOADS = 20;
@@ -84,6 +85,17 @@ export const postRoutes = (deps: Deps) => {
       // an update for a collab and/or an event page (RFC §10.5): checked before the transaction
       const place = body.parentId ? null : await updatePlace(db, uid, body.collabId, body.eventId);
 
+      // RFC §10.17: a pet post is written as the pet but authored by its owner.
+      if (body.petId && !UUID_RE.test(body.petId)) throw new ApiError(404, 'pet_not_found');
+      const pet = body.petId ? await ownedPet(db, uid, body.petId) : null;
+      if (body.petId && !pet) throw new ApiError(404, 'pet_not_found');
+      if (pet && (body.parentId || body.collabId || body.eventId)) {
+        throw new ApiError(400, 'bad_request', 'A pet post stands on its own.');
+      }
+      const petLabel: PetLabel | null = pet
+        ? (PET_LABELS.includes(body.petLabel as PetLabel) ? (body.petLabel as PetLabel) : 'everyday')
+        : null;
+
       const id = await db.transaction(async (tx) => {
         await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${uid}::text, 0))`);
         const [recent] = rowsOf<{ n: number }>(await tx.execute(
@@ -105,6 +117,8 @@ export const postRoutes = (deps: Deps) => {
           authorId: uid, body: text, parentId: parent?.id ?? null, rootId,
           collabId: parent ? parent.collab_id : place?.collabId ?? null,
           eventId: parent ? parent.event_id : place?.eventId ?? null,
+          petId: pet?.id ?? null,
+          petLabel,
         }).returning({ id: posts.id });
         const postId = created!.id;
 
@@ -118,7 +132,8 @@ export const postRoutes = (deps: Deps) => {
 
         // Replying to your own post does not count toward the lurker rule (RFC §13): otherwise one
         // post plus a self-reply clears a flag. Replies to anyone else (in any thread) do count.
-        if (!parent || parent.author_id !== uid) {
+        // A pet post is never a contribution (RFC §10.17).
+        if (!pet && (!parent || parent.author_id !== uid)) {
           await tx.insert(contributions).values({ userId: uid, kind: parent ? 'reply' : 'post', refId: postId });
         }
         if (parent?.author_id && parent.author_id !== uid) {
@@ -127,16 +142,19 @@ export const postRoutes = (deps: Deps) => {
           });
         }
         // RFC §10.16: @mentions become links and one notification each; the person replied to
-        // already has the reply notification, so they are not told twice.
-        const mentioned = await resolveMentionUsers(tx as unknown as Db, mentionsIn(text), uid);
-        await addMentions(tx as unknown as Db, postId, mentioned.map((m) => m.id));
-        await notifyMentions(tx as unknown as Db, {
-          postId, rootId, actorId: uid, userIds: mentioned.map((m) => m.id), skip: parent?.author_id ?? null,
-        });
+        // already has the reply notification, so they are not told twice. A pet post writes as the
+        // pet, and mentions name members, so pet posts do not carry mentions (§10.17).
+        if (!pet) {
+          const mentioned = await resolveMentionUsers(tx as unknown as Db, mentionsIn(text), uid);
+          await addMentions(tx as unknown as Db, postId, mentioned.map((m) => m.id));
+          await notifyMentions(tx as unknown as Db, {
+            postId, rootId, actorId: uid, userIds: mentioned.map((m) => m.id), skip: parent?.author_id ?? null,
+          });
+        }
         if (place) await notifyUpdate(tx as unknown as Db, place, uid, postId);
         // RFC §10.11: a member's first feed post tells whoever invited them, the person most
         // likely to say hello. Once per member, ever (a deleted first post does not ring twice).
-        if (!parent && !place) {
+        if (!parent && !place && !pet) {
           await tx.execute(sql`
             insert into notifications(user_id, kind, payload)
             select u.invited_by, 'invitee_first_post', jsonb_build_object('postId', ${postId}::text, 'actorId', ${uid}::text)
@@ -144,7 +162,7 @@ export const postRoutes = (deps: Deps) => {
              where u.id = ${uid}::uuid and inv.state in ('active', 'flagged_lurker')
                and not exists (select 1 from posts q
                                 where q.author_id = ${uid}::uuid and q.parent_id is null and q.collab_id is null
-                                  and q.event_id is null and q.id <> ${postId}::uuid)
+                                  and q.event_id is null and q.pet_id is null and q.id <> ${postId}::uuid)
                and not exists (select 1 from notifications n
                                 where n.kind = 'invitee_first_post' and n.payload->>'actorId' = ${uid}::text)`);
         }
@@ -156,6 +174,7 @@ export const postRoutes = (deps: Deps) => {
       body: t.Object({
         body: t.Optional(t.String()), parentId: t.Optional(t.String()), imageIds: t.Optional(t.Array(t.String())),
         collabId: t.Optional(t.String()), eventId: t.Optional(t.String()),
+        petId: t.Optional(t.String()), petLabel: t.Optional(t.String({ maxLength: 20 })),
       }),
     })
 

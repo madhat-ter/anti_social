@@ -96,11 +96,11 @@ export function postSelect(viewerId: string): SQL {
       -- "new here" uses the lurker rule's own window, so the feed and the rule share one meaning of new
       coalesce(u.activated_at > now() - days('new_member_exempt_days'), false) as a_new,
       -- a first post is news for three weeks; after that it is just a post (no badge, no "Say hello")
-      (p.parent_id is null and p.collab_id is null and p.event_id is null and p.deleted_at is null
+      (p.parent_id is null and p.collab_id is null and p.event_id is null and p.pet_id is null and p.deleted_at is null
        and p.created_at > now() - days('new_member_exempt_days') and not exists (
          select 1 from posts q
           where q.author_id = p.author_id and q.parent_id is null and q.collab_id is null and q.event_id is null
-            and q.deleted_at is null and (q.created_at, q.id) < (p.created_at, p.id))) as first_post,
+            and q.pet_id is null and q.deleted_at is null and (q.created_at, q.id) < (p.created_at, p.id))) as first_post,
       exists(select 1 from users v where v.id = ${viewerId}::uuid and v.role = 'ops') as viewer_ops,
       case when p.root_id is null
         then (select count(*)::int from posts r where r.root_id = p.id and r.deleted_at is null and r.hidden_at is null)

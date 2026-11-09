@@ -140,6 +140,7 @@ export function PhoneBar({ me, unread, waiting, adult }: { me: Me; unread: numbe
                 <ul className="sheet-list">
                   <li><Link href="/notifications" aria-current={path === '/notifications' ? 'page' : undefined}>Notifications <Badge n={unread} what="unread" /></Link></li>
                   <li><Link href="/search" aria-current={path === '/search' ? 'page' : undefined}>Search</Link></li>
+                  <li><Link href="/pets" aria-current={path.startsWith('/pets') || path.startsWith('/pet/') ? 'page' : undefined}>Pet Corner</Link></li>
                   {adult && <li><Link href="/consultations" aria-current={path.startsWith('/consultations') ? 'page' : undefined}>Consultations <Badge n={waiting} what="waiting on you" /></Link></li>}
                   <li><Link href="/settings" aria-current={path === '/settings' ? 'page' : undefined}>Settings</Link></li>
                   {me.role === 'ops' && <li><Link href="/admin" aria-current={path === '/admin' ? 'page' : undefined}>Admin</Link></li>}

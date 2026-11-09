@@ -131,7 +131,8 @@ function NavBar({ me }: { me: Me }) {
     { href: '/members', label: 'Members', match: (p) => p === '/members' },
     { href: '/search', label: 'Search', match: (p) => p === '/search' },
     ...(visitor ? [] : [
-      { href: '/notifications', label: 'Notifications', match: (p: string) => p === '/notifications', badge: unread, cls: 'nav-drawer nav-drawer-first' },
+      { href: '/pets', label: 'Pet Corner', match: (p: string) => p.startsWith('/pets') || p.startsWith('/pet/'), cls: 'nav-drawer nav-drawer-first' },
+      { href: '/notifications', label: 'Notifications', match: (p: string) => p === '/notifications', badge: unread, cls: 'nav-drawer' },
       { href: '/settings', label: 'Settings', match: (p: string) => p === '/settings', cls: 'nav-drawer' },
     ]),
     ...(me.role === 'ops' ? [{ href: '/admin', label: 'Admin', match: (p: string) => p === '/admin', cls: 'nav-drawer nav-admin' }] : []),

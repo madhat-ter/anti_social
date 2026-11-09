@@ -90,6 +90,8 @@ function Profile({ myHandle, adult }: { myHandle: string; adult: boolean }) {
   return (
     <>
       <PortfolioWindow member={member} pf={pf} projects={projects} onSaved={setPf} onReorder={reorder}
+        pets={member.pets ?? []}
+        onPets={(pets) => setMember((cur) => cur ? { ...cur, pets } : cur)}
         consulting={<ConsultingSection handle={member.handle} viewerAdult={adult} />} />
       <ErrorNote message={orderErr} />
       <div className="tabs pf-tabs" role="tablist">

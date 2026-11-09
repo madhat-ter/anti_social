@@ -1115,6 +1115,38 @@ Decided with the owner, all as proposed:
 - Tests: `apps/api/test/mentions.test.ts`; screenshots: `scripts/screenshots-latest.ts`
   (`15-mention-list`) and `.screenshots/mentions/`.
 
+### 10.17 Pet Corner: pets as sub-accounts (added 2026-11-09)
+
+The right-hand seats window becomes **Pet Corner**: a live feed of the room's pets. Decided with
+the owner, every answer as proposed:
+
+- **A pet is a content identity, not an account.** It has no seat, no PIN and cannot sign in; it
+  belongs to one member, up to **3 pets each**, and posts as itself.
+- **Add Pet** sits at the right end of your own profile's cover banner, opposite your face, name
+  and headline (only you see it). It opens a window: name, species (**Dog**, **Cat** or **Bird**),
+  and an optional photo.
+- **Default looks are drawn in code**: endless per species — any variant number draws a new face,
+  seeded from it and the species, in the same hand-drawn 1-bit ink as member faces. A pet keeps
+  its look; an uploaded photo replaces it.
+- **Each pet has `/pet/<id>`**: a small header (avatar, name, species, "pet of @owner") and its
+  posts. The owner also sees Edit and Delete there.
+- **Posting as a pet happens on the pet's page**, where the composer says "Posting as Max"; the
+  main feed composer stays the member's. A pet post carries one label — **Everyday**, **Advice**,
+  **Health** or **Help** — and otherwise follows posts (1500 characters, up to 4 images, 15-minute
+  edit).
+- **Pet Corner** shows the newest pet posts: on wide screens in the right rail (where the seats
+  window was), and below 1180px on its own **`/pets`** page. Each card shows the pet's avatar, its
+  name, "pet of @owner", the label, the words and any picture.
+- **Others can like, reply and report** a pet post. Replies stay inside Pet Corner; five reports
+  hide a pet post like any other; the **owner is notified in their own inbox** for replies and
+  likes. A pet post is **never a lurker contribution**.
+- **Deleting a pet** removes the pet and all its posts, images and replies, after a confirmation
+  that says how many posts will go.
+- **The seats window only disappears from the rail.** The seat chart and count stay on the
+  Members page and in Admin.
+- The owner's profile gains a small row of their pets (avatars linking to each pet page). Pet
+  posts do not offer @mentions: mentions name members, not pets.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,

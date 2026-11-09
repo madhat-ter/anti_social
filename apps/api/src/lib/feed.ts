@@ -9,9 +9,9 @@ import { FEED } from '@anti/shared';
 import { ApiError } from './errors';
 import { TS_RE } from './posts';
 
-/** The feed's filter: root posts on nobody's collab or event page, not deleted, not hidden. */
+/** The feed's filter: root posts on nobody's collab or event page, not a pet post, visible. */
 export const FEED_WHERE = (p = 'p'): SQL => sql.raw(
-  `${p}.parent_id is null and ${p}.deleted_at is null and ${p}.hidden_at is null and ${p}.collab_id is null and ${p}.event_id is null`);
+  `${p}.parent_id is null and ${p}.deleted_at is null and ${p}.hidden_at is null and ${p}.collab_id is null and ${p}.event_id is null and ${p}.pet_id is null`);
 
 const iso = (col: SQL) => sql`to_char((${col}) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 
