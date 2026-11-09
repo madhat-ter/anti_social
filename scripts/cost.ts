@@ -1,18 +1,21 @@
 /**
  * What building this site has cost: a spreadsheet computed from the Claude Code transcripts
- * of this project (every assistant turn records its token usage and model), plus hosting.
+ * of this project (every assistant turn records its token usage and model), plus the Command Code
+ * sessions (which record their own cost in dollars), plus hosting.
  *
  *   bun scripts/cost.ts [transcripts dir]          → writes COST.xlsx at the repo root
  *   bun scripts/cost.ts --edit [transcripts dir]   → updates the numbers in the existing COST.xlsx in place
  *
- * Default dir: ~/.claude/projects/E--work-anti-site (this repo's project folder). Scans every
+ * Claude dir: ~/.claude/projects/E--work-anti-site (this repo's project folder). Scans every
  * .jsonl under it (subagent transcripts live in subfolders), dedupes by message id, and prices
- * the tokens at Anthropic's published API list prices (table below). The workbook is written by
- * exceljs (a dev dependency). The owner wanted a spreadsheet, not a PDF (2026-11-09).
+ * the tokens at Anthropic's published API list prices (table below).
+ * Command Code dir: ~/.commandcode/projects/<repo-slug>, where every turn already carries
+ * `usage.costUsd`; those are added as the money actually spent there.
+ * The workbook is written by exceljs (a dev dependency). The owner wanted a spreadsheet, not a PDF (2026-11-09).
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import ExcelJS from 'exceljs';
 
 // $ per million tokens: input, output, cache read, cache write (5-minute = 1.25x input, 1-hour = 2x input).
@@ -97,8 +100,52 @@ for (const f of files(dir)) {
   }
 }
 
+// ── Command Code sessions for this repo (each turn records its own cost in dollars)
+type CcLine = {
+  timestamp?: string; model?: string;
+  usage?: { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number; costUsd?: number };
+};
+type CcTally = { turns: number; in: number; out: number; read: number; write: number; cost: number };
+const ccByModel = new Map<string, CcTally>();
+const ccBySession = new Map<string, { first: string; last: string; turns: number; cost: number; in: number; out: number; read: number; write: number; model: string }>();
+const repoSlug = resolve(import.meta.dir, '..').toLowerCase().replace(/:/g, '').replace(/[\\/]+/g, '-');
+const ccDir = join(homedir(), '.commandcode', 'projects', repoSlug);
+if (existsSync(ccDir)) {
+  for (const f of files(ccDir)) {
+    const session = f.replace(ccDir, '').replace(/^[\\/]/, '').replace(/\.jsonl$/, '').split(/[\\/]/)[0]!;
+    for (const line of readFileSync(f, 'utf8').split('\n')) {
+      if (!line) continue;
+      let rec: CcLine;
+      try { rec = JSON.parse(line) as CcLine; } catch { continue; }
+      const u = rec.usage;
+      if (!u) continue;
+      const ts = rec.timestamp ?? '';
+      const model = rec.model ?? '(unknown)';
+      const cost = Number(u.costUsd ?? 0);
+      const t = ccByModel.get(model) ?? { turns: 0, in: 0, out: 0, read: 0, write: 0, cost: 0 };
+      t.turns++;
+      t.in += Number(u.inputTokens ?? 0); t.out += Number(u.outputTokens ?? 0);
+      t.read += Number(u.cacheReadTokens ?? 0); t.write += Number(u.cacheWriteTokens ?? 0);
+      t.cost += cost;
+      ccByModel.set(model, t);
+      const s = ccBySession.get(session) ?? { first: ts, last: ts, turns: 0, cost: 0, in: 0, out: 0, read: 0, write: 0, model: '' };
+      if (!s.model) s.model = model;
+      if (ts && (!s.first || ts < s.first)) s.first = ts;
+      if (ts > s.last) s.last = ts;
+      s.turns++; s.cost += cost;
+      s.in += Number(u.inputTokens ?? 0); s.out += Number(u.outputTokens ?? 0);
+      s.read += Number(u.cacheReadTokens ?? 0); s.write += Number(u.cacheWriteTokens ?? 0);
+      ccBySession.set(session, s);
+    }
+  }
+}
+
 // ── numbers
 const total = [...byModel.values()].reduce((a, t) => a + t.cost, 0);
+const ccTotal = [...ccByModel.values()].reduce((a, t) => a + t.cost, 0);
+const ccTurns = [...ccByModel.values()].reduce((a, t) => a + t.turns, 0);
+const ccSessions = [...ccBySession].filter(([, v]) => v.turns > 0).sort((a, b) => a[1].first.localeCompare(b[1].first));
+const grand = total + ccTotal;
 const sum = (k: keyof Tally) => [...byModel.values()].reduce((a, t) => a + (t[k] as number), 0);
 const asks = [...bySession.values()].reduce((a, s) => a + s.asks, 0);
 const M = (n: number) => (n / 1e6).toFixed(2);
@@ -108,6 +155,7 @@ const when = (iso: string) => new Date(iso).toLocaleString('en-GB', { day: 'nume
 const hours = (a: string, b: string) => ((new Date(b).getTime() - new Date(a).getTime()) / 3.6e6);
 const sessions = [...bySession].filter(([, v]) => v.turns > 0).sort((a, b) => a[1].first.localeCompare(b[1].first));
 const activeHours = sessions.reduce((a, [, v]) => a + hours(v.first, v.last), 0);
+const ccHours = ccSessions.reduce((a, [, v]) => a + hours(v.first, v.last), 0);
 const now = new Date();
 
 // the spreadsheet: a Summary sheet, then one sheet per table
@@ -129,20 +177,24 @@ summary.columns = [{ header: 'What', key: 'k', width: 44 }, { header: 'Value', k
 head(summary);
 summary.addRows([
   { k: 'Model usage at API list price', v: total },
+  { k: 'Command Code usage (recorded cost)', v: ccTotal },
   { k: 'Hosting, domain, storage, payments', v: 0 },
-  { k: 'Total so far', v: total },
+  { k: 'Total so far', v: grand },
   { k: 'Claude Code sessions', v: sessions.length },
-  { k: 'Hours of work (first to last message per session)', v: Number(activeHours.toFixed(1)) },
+  { k: 'Command Code sessions', v: ccSessions.length },
+  { k: 'Hours of work (first to last message per session)', v: Number((activeHours + ccHours).toFixed(1)) },
   { k: 'Messages typed by the owner', v: asks },
   { k: 'Model turns', v: sum('turns') },
+  { k: 'Command Code model turns', v: ccTurns },
   { k: 'First session', v: day(firstAt) },
   { k: 'Last activity', v: day(lastAt) },
   { k: 'Computed on', v: day(now.toISOString()) },
 ]);
-for (const r of [2, 3, 4]) summary.getCell(`B${r}`).numFmt = USD;
-bold(summary.getRow(4));
+for (const r of [2, 3, 4, 5]) summary.getCell(`B${r}`).numFmt = USD;
+bold(summary.getRow(5));
 summary.addRow({});
-summary.addRow({ k: 'The cost is what the tokens would be billed at Anthropic API list prices. On a Claude subscription the money actually paid is the subscription fee; this is the value used against it.' });
+summary.addRow({ k: 'The Claude rows are what the tokens would be billed at Anthropic API list prices. On a Claude subscription the money actually paid is the subscription fee; this is the value used against it.' });
+summary.addRow({ k: 'Command Code rows are the cost Command Code recorded for each turn, which is the money actually spent there.' });
 summary.addRow({ k: 'Cache writes with no recorded lifetime are priced as 5-minute writes, the cheaper rate.' + (unpriced.size ? ` Left out (no price): ${[...unpriced].join(', ')}.` : '') });
 
 const models = wb.addWorksheet('Model usage');
@@ -204,10 +256,38 @@ sess.getColumn('cost').numFmt = USD;
 sess.addRow({});
 sess.addRow({ s: 'Length is the time between a session\'s first and last message, so it includes pauses. Subagent work counts in the session that started it.' });
 
+/** The Command Code sheet: one row per session, with the cost its own transcript recorded. */
+function fillCcSheet(ws: ExcelJS.Worksheet) {
+  ws.columns = [
+    { header: 'Session', key: 's', width: 12 }, { header: 'Started', key: 'start', width: 20 },
+    { header: 'Model', key: 'model', width: 30 }, { header: 'Turns', key: 'turns', width: 9 },
+    { header: 'Input (M tokens)', key: 'in', width: 16 }, { header: 'Output (M tokens)', key: 'out', width: 17 },
+    { header: 'Cache read (M tokens)', key: 'read', width: 21 }, { header: 'Cache write (M tokens)', key: 'write', width: 22 },
+    { header: 'Cost (recorded)', key: 'cost', width: 16 },
+  ];
+  head(ws);
+  for (const [id, v] of ccSessions) {
+    ws.addRow({
+      s: id.slice(0, 8), start: when(v.first), model: v.model, turns: v.turns,
+      in: v.in / 1e6, out: v.out / 1e6, read: v.read / 1e6, write: v.write / 1e6, cost: v.cost,
+    });
+  }
+  const end = ws.rowCount;
+  const t = ws.addRow({ s: 'Total' });
+  for (const c of ['D', 'E', 'F', 'G', 'H', 'I']) t.getCell(c).value = { formula: `SUM(${c}2:${c}${end})` };
+  bold(t);
+  for (const c of ['in', 'out', 'read', 'write']) ws.getColumn(c).numFmt = MTOK;
+  ws.getColumn('cost').numFmt = USD;
+  ws.addRow({});
+  ws.addRow({ s: 'Cost is the value Command Code recorded on each turn, not a list price. Times are first to last message, so they include pauses.' });
+}
+
+fillCcSheet(wb.addWorksheet('Command Code'));
+
 const out = join(import.meta.dir, '..', 'COST.xlsx');
 if (EDIT && existsSync(out)) await editInPlace(out);
 else await wb.xlsx.writeFile(out);
-console.log(`Total at list price: ${$(total)} over ${sessions.length} sessions. ${EDIT ? 'Updated' : 'Wrote'} ${out}.`);
+console.log(`Total: ${$(grand)} (Claude list price ${$(total)} + Command Code ${$(ccTotal)}) over ${sessions.length + ccSessions.length} sessions. ${EDIT ? 'Updated' : 'Wrote'} ${out}.`);
 
 /**
  * Edit mode: open the workbook as it is (with whatever was changed in Excel) and touch only the
@@ -233,16 +313,49 @@ async function editInPlace(path: string) {
   };
 
   const s = sheet('Summary');
-  const put = (label: string, v: number | string) => { const r = rowOf(s, label); if (r) s.getCell(`B${r}`).value = v; };
+  /** set a summary value; a label the older workbook does not have yet is inserted above the notes */
+  const put = (label: string, v: number | string) => {
+    let r = rowOf(s, label);
+    if (!r) {
+      // insert above the explanatory notes (eachRow skips the blank row, so look for the notes)
+      let at = 0;
+      s.eachRow((row, i) => {
+        if (!at && i > 1 && /API list prices|Command Code recorded|Cache writes/.test(String(row.getCell(1).value ?? ''))) at = i;
+      });
+      if (!at) at = s.rowCount + 1;
+      s.insertRow(at, [label, v]);
+      r = at;
+    }
+    s.getCell(`B${r}`).value = v;
+  };
   put('Model usage at API list price', total);
-  put('Total so far', total);
+  put('Command Code usage (recorded cost)', ccTotal);
+  put('Total so far', grand);
   put('Claude Code sessions', sessions.length);
-  put('Hours of work (first to last message per session)', Number(activeHours.toFixed(1)));
+  put('Command Code sessions', ccSessions.length);
+  put('Hours of work (first to last message per session)', Number((activeHours + ccHours).toFixed(1)));
   put('Messages typed by the owner', asks);
   put('Model turns', sum('turns'));
+  put('Command Code model turns', ccTurns);
   put('First session', day(firstAt));
   put('Last activity', day(lastAt));
   put('Computed on', day(now.toISOString()));
+  for (const label of ['Model usage at API list price', 'Command Code usage (recorded cost)', 'Hosting, domain, storage, payments', 'Total so far']) {
+    const r = rowOf(s, label);
+    if (r) s.getCell(`B${r}`).numFmt = USD;
+  }
+  const totalRow = rowOf(s, 'Total so far');
+  if (totalRow) bold(s.getRow(totalRow));
+  // keep the notes truthful for workbooks written before Command Code was counted
+  let noteRow = 0;
+  s.eachRow((row, i) => { if (!noteRow && String(row.getCell(1).value ?? '').includes('API list prices')) noteRow = i; });
+  const ccNote = 'Command Code rows are the cost Command Code recorded for each turn, which is the money actually spent there.';
+  if (noteRow) {
+    s.getCell(`A${noteRow}`).value = 'The Claude rows are what the tokens would be billed at Anthropic API list prices. On a Claude subscription the money actually paid is the subscription fee; this is the value used against it.';
+    let hasCc = 0;
+    s.eachRow((row, i) => { if (!hasCc && String(row.getCell(1).value ?? '').includes('Command Code recorded')) hasCc = i; });
+    if (!hasCc) s.insertRow(noteRow + 1, [ccNote]);
+  }
 
   const m = sheet('Model usage');
   for (const [model, t] of [...byModel].sort((a, b) => b[1].cost - a[1].cost)) {
@@ -265,6 +378,11 @@ async function editInPlace(path: string) {
     row.getCell(4).value = v.asks; row.getCell(5).value = v.turns; row.getCell(6).value = v.cost;
   }
   sums(ps, ['C', 'D', 'E', 'F']);
+
+  // the Command Code sheet is ours alone: rebuild it on every run
+  const oldCc = book.getWorksheet('Command Code');
+  if (oldCc) book.removeWorksheet(oldCc.id);
+  fillCcSheet(book.addWorksheet('Command Code'));
 
   await book.xlsx.writeFile(path);
 }

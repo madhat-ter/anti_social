@@ -52,7 +52,8 @@ can time out under the full suite on a busy machine; they pass on their own.
 ## Files to leave alone
 
 - `COST.xlsx` — updated only when the owner asks (`bun scripts/cost.ts --edit` edits the
-  figures in place; never regenerate it). Excel may hold it open (`~$COST.xlsx`).
+  figures in place; never regenerate it). It counts Claude Code at API list price, Command Code
+  at the cost its transcripts record, and hosting. Excel may hold it open (`~$COST.xlsx`).
 - `reports/`, `research_notes/` — private research notes, kept out of git on purpose. Don't link
   them from tracked docs.
 - `.env*` — never commit. The repo is **public**.
