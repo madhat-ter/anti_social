@@ -29,8 +29,8 @@ can time out under the full suite on a busy machine; they pass on their own.
 
 ## Open tasks
 
-- **Pet avatars** (`docs/tasks/pet-avatars.md`) — hand the drawing to Claude. Pet Corner itself is
-  built and tested (RFC §10.17); only the generated faces need another pass.
+None right now. (Pet avatars were finished on 2026-11-10; the record and the reference doodles
+are in `docs/tasks/pet-avatars.md` and `docs/tasks/pet-avatars/`.)
 
 ## Product rules that are easy to break
 

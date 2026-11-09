@@ -1,4 +1,10 @@
-# Open task: draw the pet avatars
+# Pet avatars: drawn (done)
+
+> **Status (2026-11-10): done and shipped.** The new faces are in
+> `apps/web/src/components/PetAvatar.tsx` (poses taken from the reference doodles below). Review
+> tools: `scripts/pets-sheet.ts` and `scripts/screenshots-pets.ts`. Screenshots: `.screenshots/pets/`
+> (the `after-*` / `page-after-*` files; `old-do-not-use/` is the earlier pass, kept only for
+> comparison). Every existing pet got a new face.
 
 **For Claude.** Pet Corner (RFC §10.17) is built, tested and on `main`. The owner is not happy
 with one part only: **the drawn pet faces**. Everything else is finished; do not redesign it.
