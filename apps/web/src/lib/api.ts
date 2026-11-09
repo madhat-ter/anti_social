@@ -47,6 +47,8 @@ export interface ScreenState {
   lockedUntil: string | null;
   /** ISO; identifies the current half hour */
   windowStartedAt: string | null;
+  /** an admin: the timer shows and counts on, the lock never comes */
+  exempt: boolean;
 }
 
 /** RFC §10.8: one visitor pass as the admin panel lists it (the code is shown once, at creation). */

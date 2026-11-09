@@ -15,10 +15,10 @@ export const screenTimeRoutes = (deps: Deps) =>
     .get('/', async ({ auth }) => {
       if (!auth) throw new ApiError(401, 'unauthenticated');
       if (auth.visitor) throw new ApiError(403, 'visitor_readonly', 'Visitors can only watch.');
-      return screenState(deps.db, auth.user.id);
+      return screenState(deps.db, auth.user.id, auth.user.role === 'ops');
     })
     .post('/beat', async ({ auth, body }) => {
       if (!auth) throw new ApiError(401, 'unauthenticated');
       if (auth.visitor) throw new ApiError(403, 'visitor_readonly', 'Visitors can only watch.');
-      return screenBeat(deps.db, auth.user.id, body.seconds);
+      return screenBeat(deps.db, auth.user.id, body.seconds, auth.user.role === 'ops');
     }, { body: t.Object({ seconds: t.Number({ minimum: 0, maximum: 3600 }) }) });

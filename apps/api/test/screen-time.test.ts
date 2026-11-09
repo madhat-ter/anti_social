@@ -83,6 +83,23 @@ describe('screen time', () => {
     expect((await maya.post('/me/screen-time/beat', { seconds: 10 })).body.usedSeconds).toBe(10);
   });
 
+  test('an admin sees the timer count on and is never locked out', async () => {
+    const w = await world();
+    const boss = await w.member('boss');
+    await w.run(sql`update users set role = 'ops' where handle = 'boss'`);
+    expect((await boss.get('/me/screen-time')).body.exempt).toBe(true);
+    let last: any = null;
+    for (let i = 0; i < 32; i++) last = (await boss.post('/me/screen-time/beat', { seconds: 60 })).body;
+    expect(last.usedSeconds).toBe(1920); // past the half hour, uncapped
+    expect(last.lockedUntil).toBeNull();
+    expect((await boss.get('/feed')).status).toBe(200);
+    // a lock left over from before they were made admin is dropped
+    await w.run(sql`update screen_time set locked_until = now() + interval '30 minutes'`);
+    expect((await boss.get('/feed')).status).toBe(200);
+    const s = (await boss.get('/me/screen-time')).body;
+    expect(s.lockedUntil).toBeNull();
+  });
+
   test('a visitor has no screen time of their own', async () => {
     const w = await world();
     const boss = await w.member('boss');

@@ -58,7 +58,8 @@ function Timed({ me, children }: { me: Me; children: ReactNode }) {
     } catch { /* the next beat carries it */ } finally { beating.current = false; }
   }, []);
 
-  const locked = !!state?.lockedUntil && new Date(state.lockedUntil).getTime() > now;
+  const exempt = !!state?.exempt; // an admin: the timer counts on, nothing locks
+  const locked = !exempt && !!state?.lockedUntil && new Date(state.lockedUntil).getTime() > now;
   const limit = state?.limitSeconds ?? RULES.screen_time_limit_s;
 
   // one tick a second while the tab is in front; a beat every 30 s and when it goes to the back
@@ -69,12 +70,12 @@ function Timed({ me, children }: { me: Me; children: ReactNode }) {
       if (document.visibilityState !== 'visible') return;
       extraRef.current += 1;
       setExtra(extraRef.current);
-      if (extraRef.current >= BEAT_S || state.usedSeconds + extraRef.current >= limit) void beat();
+      if (extraRef.current >= BEAT_S || (!exempt && state.usedSeconds + extraRef.current >= limit)) void beat();
     }, 1000);
     const onHide = () => { if (document.visibilityState === 'hidden') void beat(); };
     document.addEventListener('visibilitychange', onHide);
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', onHide); };
-  }, [state, locked, limit, beat]);
+  }, [state, locked, limit, exempt, beat]);
 
   // the rest counts down on the lock screen; when it ends, ask again and the fresh half hour begins
   useEffect(() => {
@@ -86,7 +87,7 @@ function Timed({ me, children }: { me: Me; children: ReactNode }) {
     return () => clearInterval(t);
   }, [locked, state, load]);
 
-  const used = Math.min(limit, (state?.usedSeconds ?? 0) + extra);
+  const used = exempt ? (state?.usedSeconds ?? 0) + extra : Math.min(limit, (state?.usedSeconds ?? 0) + extra);
 
   // nudges: once each per half hour, remembered on this device by the window's start
   useEffect(() => {
@@ -105,7 +106,7 @@ function Timed({ me, children }: { me: Me; children: ReactNode }) {
   const pill = state && (
     <span className={`time-pill${locked ? ' rest' : soon ? ' soon' : ''}`} role="timer"
       aria-label={locked ? `Locked out, ${mmss(Math.ceil((new Date(state.lockedUntil!).getTime() - now) / 1000))} to go` : `${mmss(used)} of your half hour used`}
-      title={locked ? 'Come back when this reaches zero.' : 'Your half hour on the site. Then an hour away.'}>
+      title={locked ? 'Come back when this reaches zero.' : exempt ? 'Your time on the site. Admins are reminded, never locked out.' : 'Your half hour on the site. Then an hour away.'}>
       {locked ? `rest ${mmss(Math.ceil((new Date(state.lockedUntil!).getTime() - now) / 1000))}` : mmss(used)}
     </span>
   );

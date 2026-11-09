@@ -917,8 +917,10 @@ all accepted.
   in the last five minutes; alert windows at 10, 20 and 25 minutes (once each per half hour,
   remembered on the device by the window's start), one button each; at 30 the lock window replaces
   every page with a countdown and *Sign out*, and clears itself when the hour is up.
-- **Who.** Everyone with a seat, admins included. Visitors are excluded: their hour is the pass.
-  Settings and setup are outside the shell; Settings carries the timer too, setup does not.
+- **Who.** Everyone with a seat. Admins see the timer and the nudges but are never locked out:
+  their count runs on past the half hour (`exempt` in the state) and the wall ignores them.
+  Visitors are excluded: their hour is the pass. Settings and setup are outside the shell;
+  Settings carries the timer too, setup does not.
 - Constants in `RULES` (`screen_time_limit_s`, `screen_time_rest_s`, `screen_time_nudges_s`); the
   nudge texts live in `ScreenTime.tsx`. `scripts/screenshots-screen-time.ts` walks it.
 

@@ -32,8 +32,8 @@ export function authPlugin(deps: Deps, seed?: unknown) {
       auth = await resolveSession(deps.db, token);
       if (auth && (auth.user.state === 'banned' || auth.user.state === 'deleted')) auth = null;
       if (auth) await touchLastSeen(deps.db, auth.user.id);
-      // RFC §10.10: the half hour is spent; only the lock screen, the timer and signing out answer
-      if (auth?.lockedUntil && auth.lockedUntil.getTime() > Date.now()) {
+      // RFC §10.10: the half hour is spent; only the lock screen, the timer and signing out answer (admins are never locked)
+      if (auth?.lockedUntil && auth.user.role !== 'ops' && auth.lockedUntil.getTime() > Date.now()) {
         const path = new URL(request.url).pathname;
         if (!openWhileLocked(path)) throw new ApiError(403, 'rest_time', auth.lockedUntil.toISOString());
       }
