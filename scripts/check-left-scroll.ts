@@ -1,6 +1,6 @@
 /**
  * The left column scrolls on its own (2026-11-09). In-process API on :3101, web build on :3100 (see
- * other screenshot scripts). A short screen makes the menu + pick window taller than the window:
+ * other screenshot scripts). A very short screen makes the admin's menu taller than the window:
  * scrolling the feed must leave the left column where it is, and the wheel over the left column
  * must move only the left column.
  */
@@ -53,7 +53,7 @@ try {
   for (let i = 0; i < 18; i++) await maya.call('POST', '/posts', { body: `Post number ${i + 1}. ` + 'A line of text to make the feed long. '.repeat(12) });
   await maya.call('POST', '/suggestions', { kind: 'book', title: 'Piranesi', note: 'A house with infinite halls.' });
 
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 560 } });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 420 } });
   await ctx.addCookies([...maya.jar].map(([name, value]) => ({ name, value, domain: 'localhost', path: '/' })));
   const p = await ctx.newPage();
   p.setDefaultTimeout(60_000);

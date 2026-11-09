@@ -15,6 +15,13 @@ import { Win } from './retro';
 import { ErrorNote } from './ui';
 
 export const VISITOR_NOTE = 'Visitors can only watch.';
+/**
+ * A greyed-out control says why: the reason shows on hover (CSS, `[data-why]` in globals.css) and is read
+ * out by screen readers. A native title would take a second to appear and never shows on a disabled button
+ * in some browsers. `why(false)` gives nothing, so it can be spread unconditionally.
+ */
+export const why = (reason: string | false | null | undefined): Record<string, string> =>
+  reason ? { 'data-why': reason, 'aria-description': reason } : {};
 /** the pill turns red with this long to go */
 const SOON_MS = 5 * 60_000;
 
@@ -90,10 +97,10 @@ export function VisitorWindow({ expiresAt, onClose }: { expiresAt: string; onClo
         <Avatar seed={null} size={56} label="A visitor, no face yet" />
         <span>
           <span className="rail-name">Visitor</span>
-          <span className={`ui ${soon ? 'visitor-soon' : 'muted'}`}>{leftText(expiresAt, now)}</span>
+          <span className={`meta${soon ? ' visitor-soon' : ''}`}>{leftText(expiresAt, now)}</span>
         </span>
       </span>
-      <p className="ui muted small">You are looking around on a pass. {VISITOR_NOTE}</p>
+      <p className="meta">You are looking around on a pass. {VISITOR_NOTE}</p>
       <button type="button" className="btn" onClick={() => void leave()} disabled={busy}>Leave</button>
     </Win>
   );
@@ -118,12 +125,12 @@ export function VisitorCodeForm({ initial = '', compact = false }: { initial?: s
   const well = normalizeInviteCode(code).length === 8;
   return (
     <form className={`visit-form${compact ? ' compact' : ''}`} onSubmit={go} aria-label="Visitor code">
-      {compact ? <p className="ui muted">Have a visitor code?</p> : null}
+      {compact ? <p className="meta">Have a visitor code?</p> : null}
       <div className="row visit-row">
         <label className={compact ? 'sr-only' : undefined} htmlFor="visit-code">Visitor code</label>
         <input id="visit-code" className="code-input" value={code} onChange={(e) => setCode(e.target.value)} placeholder="XXXX-XXXX"
           autoComplete="off" autoCapitalize="characters" spellCheck={false} required maxLength={12} />
-        <button className={`btn${compact ? '' : ' primary'}`} disabled={busy || !well}>{busy ? 'Opening…' : 'Visit for an hour'}</button>
+        <button className={`btn${compact ? '' : ' primary'}`} disabled={busy || !well} {...why(!busy && !well && 'Type the code from your pass first.')}>{busy ? 'Opening…' : 'Visit for an hour'}</button>
       </div>
       <ErrorNote message={err} />
     </form>
@@ -132,7 +139,7 @@ export function VisitorCodeForm({ initial = '', compact = false }: { initial?: s
 
 /** What a disabled "write" link looks like to a visitor: the same button, struck out, with the note. */
 export function WatchOnly({ children, primary = true }: { children: ReactNode; primary?: boolean }) {
-  return <span className={`btn${primary ? ' primary' : ''}`} aria-disabled="true" title={VISITOR_NOTE}>{children}</span>;
+  return <span className={`btn${primary ? ' primary' : ''}`} aria-disabled="true" {...why(VISITOR_NOTE)}>{children}</span>;
 }
 
 /** "Visitors can only watch" as a line, where a form would be; `banner` makes it a notice strip (phones, where the composer would be). */

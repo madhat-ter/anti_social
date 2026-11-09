@@ -11,11 +11,11 @@ import { Avatar } from './Avatar';
 import { NameMarks } from './Marks';
 import { Loading } from './retro';
 import { Rail } from './Rail';
-import { PickWindow, useWide } from './Picks';
 import { isAdult } from './Consult';
 import { ReadOnlyProvider, VisitorPill, isVisitor, membersOnlyPath, useVisitorEnd } from './Visitor';
 import { PhoneBar, TopBell } from './PhoneBar';
 import { ScreenTime } from './ScreenTime';
+import { Shortcuts } from './Shortcuts';
 
 export const UNREAD_EVENT = 'anti:unread';
 /** a consultation changed: the menu badge re-counts what waits on you */
@@ -31,7 +31,6 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
   const me = given ?? own.me;
   const loading = given ? false : own.loading;
   const seated = isSeated(me);
-  const wide = useWide();
   const shellRef = useRef<HTMLDivElement>(null);
   useStickyColumns(shellRef);
 
@@ -57,7 +56,7 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
       <div className={`shell${isVisitor(me) ? ' visiting' : ''}`} ref={shellRef}>
         <div className="shell-left">
           <NavBar me={me} />
-          {wide && <PickWindow />}
+          <Shortcuts />
         </div>
         <div className="shell-main">
           <LurkerBanner me={me} />
@@ -122,6 +121,7 @@ function NavBar({ me }: { me: Me }) {
 
   const mine = `/u/${me.handle}`;
   // a visitor (RFC §10.8) gets the rooms, not the drawers: no inbox, no settings, no admin
+  // the rooms first; your drawers (Notifications, Settings, Admin) as a group at the bottom of the menu window
   const items: { href: string; label: string; match: (p: string) => boolean; badge?: number; cls?: string }[] = [
     { href: '/', label: 'Feed', match: (p) => p === '/' || p.startsWith('/p/') },
     { href: '/collabs', label: 'Collabs', match: (p) => p.startsWith('/collabs') },
@@ -130,10 +130,10 @@ function NavBar({ me }: { me: Me }) {
     { href: '/members', label: 'Members', match: (p) => p === '/members' },
     { href: '/search', label: 'Search', match: (p) => p === '/search' },
     ...(visitor ? [] : [
-      { href: '/notifications', label: 'Notifications', match: (p: string) => p === '/notifications', badge: unread },
-      { href: '/settings', label: 'Settings', match: (p: string) => p === '/settings' },
+      { href: '/notifications', label: 'Notifications', match: (p: string) => p === '/notifications', badge: unread, cls: 'nav-drawer nav-drawer-first' },
+      { href: '/settings', label: 'Settings', match: (p: string) => p === '/settings', cls: 'nav-drawer' },
     ]),
-    ...(me.role === 'ops' ? [{ href: '/admin', label: 'Admin', match: (p: string) => p === '/admin', cls: 'nav-admin' }] : []),
+    ...(me.role === 'ops' ? [{ href: '/admin', label: 'Admin', match: (p: string) => p === '/admin', cls: 'nav-drawer nav-admin' }] : []),
   ];
 
   if (visitor) {

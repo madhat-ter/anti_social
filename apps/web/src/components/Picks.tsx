@@ -12,7 +12,7 @@ import { Avatar } from './Avatar';
 import { NameMarks } from './Marks';
 import { Win } from './retro';
 import { ErrorNote } from './ui';
-import { VISITOR_NOTE, useReadOnly } from './Visitor';
+import { VISITOR_NOTE, useReadOnly, why } from './Visitor';
 import { bnLang } from '@/lib/lang';
 
 export const KINDS: { kind: SuggestionKind; label: string; placeholder: string }[] = [
@@ -74,7 +74,9 @@ export function PickCard({ p, showAuthor = true, onChange, onEditing }: {
   const [err, setErr] = useState<string | null>(null);
   const [listing, setListing] = useState(false);
   const holding = writing || listing;
-  const voteTitle = (own: string) => (readOnly ? VISITOR_NOTE : p.mine ? 'Your pick' : own);
+  // greyed out for a visitor or on your own pick: say why; otherwise a plain hint
+  const off = readOnly ? VISITOR_NOTE : p.mine ? 'You suggested this one: the others vote.' : null;
+  const voteTitle = (own: string) => (off ? why(off) : { title: own });
   useEffect(() => { onEditing?.(holding); }, [holding, onEditing]);
   // a different pick on screen: start clean
   useEffect(() => { setWriting(false); setErr(null); }, [p.id]);
@@ -109,12 +111,12 @@ export function PickCard({ p, showAuthor = true, onChange, onEditing }: {
         <div className="pick-score-row">
           <div className="vote-bar" role="group" aria-label="Tried it? Vote">
             <button type="button" className="vote-btn" aria-label="Upvote: tried it, good" aria-pressed={p.myVote === 1}
-              disabled={busy || p.mine || !onChange || readOnly} title={voteTitle('Tried it: good')} onClick={() => void vote(1)}>
+              disabled={busy || p.mine || !onChange || readOnly} {...voteTitle('Tried it: good')} onClick={() => void vote(1)}>
               <VoteArrow dir="up" filled={p.myVote === 1} />
             </button>
             <span className="vote-score" title={`${p.up} up, ${p.down} down`}>{p.up - p.down}</span>
             <button type="button" className="vote-btn" aria-label="Downvote: tried it, not for me" aria-pressed={p.myVote === -1}
-              disabled={busy || p.mine || !onChange || readOnly} title={voteTitle('Tried it: not for me')} onClick={() => void vote(-1)}>
+              disabled={busy || p.mine || !onChange || readOnly} {...voteTitle('Tried it: not for me')} onClick={() => void vote(-1)}>
               <VoteArrow dir="down" filled={p.myVote === -1} />
             </button>
           </div>
@@ -134,7 +136,7 @@ export function PickCard({ p, showAuthor = true, onChange, onEditing }: {
       </div>
       {!p.mine && onChange && (
         <div className="pick-tried">
-          {!p.myVote && <span className="ui muted small">{readOnly ? 'Members who tried it vote up or down.' : 'Tried it? Vote up or down.'}</span>}
+          {!p.myVote && <span className="meta">{readOnly ? 'Members who tried it vote up or down.' : 'Tried it? Vote up or down.'}</span>}
           {p.myVote && !writing && (
             <button type="button" className="link-btn" onClick={() => { setText(p.myRemark ?? ''); setWriting(true); }}>
               {p.myRemark ? 'Edit your remark' : 'Add a remark'}
@@ -223,7 +225,9 @@ function RemarksDialog({ open, pickId, title, onClose, onChanged }: {
   );
 }
 
-/** Wide screens show the window in the left column; narrow screens in the feed. */
+/** From this width the side rail (right column) is on screen: the pick window and birthdays live there. */
+export const RAIL_QUERY = '(min-width: 1180px)';
+/** Whether a media query matches; null until the first render on the client. */
 export function useWide(query = '(min-width: 900px)') {
   const [wide, setWide] = useState<boolean | null>(null);
   useEffect(() => {
@@ -302,7 +306,7 @@ export function PickWindow({ className }: { className?: string }) {
       <ErrorNote message={err} />
       <div className="row between">
         <button type="button" className="btn" onClick={() => void next()} disabled={busy || !item}>Another</button>
-        <button type="button" className="btn primary" onClick={() => setAsking(true)} disabled={readOnly} title={readOnly ? VISITOR_NOTE : undefined}>+ Suggest</button>
+        <button type="button" className="btn primary" onClick={() => setAsking(true)} disabled={readOnly} {...why(readOnly && VISITOR_NOTE)}>+ Suggest</button>
       </div>
       <SuggestDialog
         open={asking}

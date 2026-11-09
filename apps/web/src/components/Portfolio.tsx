@@ -94,7 +94,9 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
 
   // what the cover strip shows right now
   const coverUrl = editing ? (cover.id === null ? null : cover.preview ?? pf.cover?.url ?? null) : pf.cover?.url ?? null;
-  const hasCv = editing || !!v.about || v.skills.length > 0 || v.tools.length > 0 || v.experience.length > 0 || v.education.length > 0;
+  const cvLeft = editing || !!v.about || v.skills.length > 0 || v.tools.length > 0;
+  const cvRight = editing || v.experience.length > 0 || v.education.length > 0;
+  const hasCv = cvLeft || cvRight;
   const hasLinks = editing || v.links.length > 0;
 
   return (
@@ -123,7 +125,7 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
             <BirthdayTag b={member.birthday} />
             {member.state === 'archived' && <span className="tag" title="This member's seat was released">archived</span>}
           </h1>
-          <p className="mono muted">@{member.handle}</p>
+          <p className="meta">@{member.handle}</p>
           {editing ? (
             <div className="pf-hero-edit">
               <label>Headline
@@ -206,8 +208,9 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
       )}
 
       {hasCv && (
-        <div className="pf-cv">
-          <div className="pf-col">
+        // one column when either half would be empty (an empty box read as broken)
+        <div className={`pf-cv${cvLeft && cvRight ? '' : ' one'}`}>
+          {cvLeft && <div className="pf-col">
             {(editing || v.about) && (
               <section className="pf-sec" aria-labelledby={`${id}-about`}>
                 <h2 id={`${id}-about`}>About</h2>
@@ -236,8 +239,8 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
                   : <Tags items={v.tools} />}
               </section>
             )}
-          </div>
-          <div className="pf-col">
+          </div>}
+          {cvRight && <div className="pf-col">
             {(editing || v.experience.length > 0) && (
               <section className="pf-sec" aria-labelledby={`${id}-exp`}>
                 <h2 id={`${id}-exp`}>Experience</h2>
@@ -252,7 +255,7 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
                   : <Entries items={v.education} />}
               </section>
             )}
-          </div>
+          </div>}
         </div>
       )}
 

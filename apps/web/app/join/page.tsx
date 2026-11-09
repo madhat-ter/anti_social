@@ -82,7 +82,7 @@ export default function Join() {
             <div className="you">
               <div className="you-face">
                 <Avatar seed={previewSeed} size={104} label={previewSeed ? `Your face, made from @${previewSeed}` : 'No handle yet'} />
-                <p className="ui muted">{previewSeed ? 'A first sketch. It finishes when you set up your profile.' : 'Type a handle to meet your face.'}</p>
+                <p className="meta">{previewSeed ? 'A first sketch. It finishes when you set up your profile.' : 'Type a handle to meet your face.'}</p>
               </div>
               <div className="stack grow">
                 <label>Handle

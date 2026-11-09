@@ -1,10 +1,11 @@
 'use client';
 /**
  * Desktop side windows (shown only on wide screens, see .shell in globals.css): the next few
- * events, the room's seats, and today's birthdays. Each is small, glanceable, and links on.
+ * events, the pick, the room's seats, and today's birthdays. Each is small, glanceable, and links on.
  * (No "you" window since 2026-11-09: your profile is in the menu; inviting is in Settings.)
  */
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { RULES } from '@anti/shared';
 import { api, type AnEvent, type Me, type MemberSummary } from '@/lib/api';
@@ -12,6 +13,7 @@ import { membersCached, seatCapCached } from '@/lib/members';
 import { BirthdaysWindow } from './Birthday';
 import { Win } from './retro';
 import { VisitorWindow } from './Visitor';
+import { PickWindow, RAIL_QUERY, useWide } from './Picks';
 import { bnLang } from '@/lib/lang';
 
 function Seats({ me }: { me: Me }) {
@@ -64,13 +66,19 @@ function NextEvents() {
 }
 
 export function Rail({ me }: { me: Me }) {
+  const path = usePathname() ?? '/';
+  // the rail is on screen from 1180px (globals.css); below that the pick window sits in the feed
+  const shown = useWide(RAIL_QUERY);
   return (
     // the owner dropped the "you" window (2026-11-09): the next events take the top; your profile is in the menu.
     // A visitor still gets their window first: it has the time left and the way out.
+    // The pick window moved here from under the menu (2026-11-09) so the menu column never scrolls.
+    // A window that repeats the page you are on (events on Events, seats on Members) stays away.
     <aside className="rail" aria-label="At a glance">
       {me.visitor && <VisitorWindow expiresAt={me.visitor.expiresAt} />}
-      <NextEvents />
-      <Seats me={me} />
+      {!path.startsWith('/events') && <NextEvents />}
+      {shown && <PickWindow />}
+      {path !== '/members' && <Seats me={me} />}
       <BirthdaysWindow />
     </aside>
   );

@@ -155,12 +155,13 @@ try {
   // ── 3. in: the feed as a visitor, pill with the time left, composer struck out
   await vis.getByRole('button', { name: 'Visit for an hour' }).click();
   await vis.waitForURL(`${WEB}/`);
-  await vis.getByText(/Visitor/).first().waitFor();
+  // with the side rail on screen the time left is in the visitor window only (the menu pill is hidden)
+  await vis.locator('.rail').getByText(/min left/).waitFor();
   await vis.getByText('Printed the first twenty copies').waitFor();
   const nav = vis.getByRole('navigation', { name: 'Main' });
   if (await nav.getByRole('link', { name: 'Settings' }).count()) throw new Error('a visitor sees Settings');
   if (await nav.getByRole('link', { name: 'Notifications' }).count()) throw new Error('a visitor sees Notifications');
-  if (!(await nav.getByText(/min left/).count())) throw new Error('no time left in the pill');
+  if (await nav.getByText(/min left/).isVisible()) throw new Error('the time left shows twice (menu pill and side window)');
   const ta = vis.locator('#compose textarea');
   if (!(await ta.isDisabled())) throw new Error('the composer is not disabled for a visitor');
   if ((await ta.getAttribute('placeholder')) !== 'Visitors can only watch.') throw new Error('composer placeholder');

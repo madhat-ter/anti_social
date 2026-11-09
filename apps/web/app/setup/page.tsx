@@ -145,7 +145,7 @@ export default function SetupPage() {
             <div className="you">
               <div className="you-face">
                 <Avatar seed={me.handle} gender={gender} size={104} label={`Your face${gender ? `, drawn as ${GENDER_LABEL[gender].toLowerCase()}` : ''}`} />
-                <p className="ui muted">{gender ? 'This is you.' : 'Pick one to see your face.'}</p>
+                <p className="meta">{gender ? 'This is you.' : 'Pick one to see your face.'}</p>
               </div>
               <fieldset className="setup-choices grow">
                 <legend className="sr-only">Gender</legend>

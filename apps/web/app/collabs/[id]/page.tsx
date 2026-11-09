@@ -17,7 +17,7 @@ import { PostList } from '@/components/PostList';
 import { eventWhen } from '@/components/Events';
 import { usePaged } from '@/lib/hooks';
 import type { Post } from '@/lib/api';
-import { VISITOR_NOTE, useReadOnly } from '@/components/Visitor';
+import { VISITOR_NOTE, useReadOnly, why } from '@/components/Visitor';
 import { ActionMenu } from '@/components/ActionMenu';
 import { bnLang } from '@/lib/lang';
 
@@ -41,7 +41,7 @@ function CollabView({ myHandle }: { myHandle: string }) {
   const [done, setDone] = useState<string | null>(null);
   const readOnly = useReadOnly();
   /** a visitor sees the buttons a member would, and can't press them */
-  const ro = readOnly ? { disabled: true, title: VISITOR_NOTE } : {};
+  const ro = readOnly ? { disabled: true, ...why(VISITOR_NOTE) } : {};
 
   const load = useCallback(async () => {
     try { setC(await api.collab(id)); } catch (e) { setErr(errorMessage(e)); }

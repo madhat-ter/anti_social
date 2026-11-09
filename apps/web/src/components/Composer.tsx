@@ -2,7 +2,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { api, errorMessage, IMAGE_MAX_BYTES, IMAGES_MAX, POST_MAX, type Image, type Post } from '@/lib/api';
 import { ErrorNote } from './ui';
-import { VISITOR_NOTE, useReadOnly } from './Visitor';
+import { VISITOR_NOTE, useReadOnly, why } from './Visitor';
 
 interface Att {
   key: string;
@@ -194,7 +194,7 @@ export function Composer({
           className="sr-only"
           onChange={(e) => pick(e.target.files)}
         />
-        <label htmlFor={`${id}-file`} className={`btn attach${atts.length >= IMAGES_MAX || readOnly ? ' disabled' : ''}`} aria-disabled={atts.length >= IMAGES_MAX || readOnly} title={readOnly ? VISITOR_NOTE : undefined}>
+        <label htmlFor={`${id}-file`} className={`btn attach${atts.length >= IMAGES_MAX || readOnly ? ' disabled' : ''}`} aria-disabled={atts.length >= IMAGES_MAX || readOnly} {...why(readOnly ? VISITOR_NOTE : atts.length >= IMAGES_MAX && `Up to ${IMAGES_MAX} pictures`)}>
           + Image
         </label>
         <span className="grow" />
@@ -202,7 +202,7 @@ export function Composer({
         <span id={`${id}-count`} className={`counter${over ? ' over' : ''}`} aria-live="polite">
           {body.length}/{POST_MAX}
         </span>
-        <button className="btn primary" type="submit" disabled={!canPost} title={readOnly ? VISITOR_NOTE : hasFailed ? 'Failed uploads are skipped' : 'Ctrl/Cmd+Enter'}>
+        <button className="btn primary" type="submit" disabled={!canPost} title={readOnly ? undefined : hasFailed ? 'Failed uploads are skipped' : 'Ctrl/Cmd+Enter'} {...why(readOnly && VISITOR_NOTE)}>
           {busy ? 'Posting...' : (submitLabel ?? (parentId ? 'Reply' : 'Post'))}
         </button>
       </div>

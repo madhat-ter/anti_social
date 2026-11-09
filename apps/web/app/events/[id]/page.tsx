@@ -18,7 +18,7 @@ import { eventWhen, MyStatus, spotsText } from '@/components/Events';
 import { AlertDialog, Loading } from '@/components/retro';
 import { Avatar } from '@/components/Avatar';
 import { NameMarks } from '@/components/Marks';
-import { VISITOR_NOTE, useReadOnly } from '@/components/Visitor';
+import { VISITOR_NOTE, useReadOnly, why } from '@/components/Visitor';
 
 export default function EventPage() {
   useTitle('Event');
@@ -35,7 +35,7 @@ function EventView() {
   const [note, setNote] = useState('');
   const readOnly = useReadOnly();
   /** a visitor sees the buttons a member would, and can't press them */
-  const ro = readOnly ? { disabled: true, title: VISITOR_NOTE } : {};
+  const ro = readOnly ? { disabled: true, ...why(VISITOR_NOTE) } : {};
 
   const load = useCallback(async () => {
     try { setEv(await api.event(id)); } catch (e) { setErr(errorMessage(e)); }

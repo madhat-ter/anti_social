@@ -9,7 +9,7 @@ import { BirthdayTag } from './Birthday';
 import { NameMarks } from './Marks';
 import { AlertDialog, Dot } from './retro';
 import { ImageViewer } from './ImageViewer';
-import { VISITOR_NOTE, useReadOnly } from './Visitor';
+import { VISITOR_NOTE, useReadOnly, why } from './Visitor';
 
 const URL_RE = /https?:\/\/[^\s<>"]+/g;
 
@@ -304,7 +304,7 @@ export function PostCard({
           aria-pressed={post.likedByMe}
           onClick={toggleLike}
           disabled={post.hidden || readOnly}
-          title={readOnly ? VISITOR_NOTE : undefined}
+          {...why(readOnly && VISITOR_NOTE)}
         >
           <Dot on={post.likedByMe} size=".85em" />
           {/* name = "Like 3": includes the visible count, so voice control ("click 3") works; with no likes yet the word stands alone */}

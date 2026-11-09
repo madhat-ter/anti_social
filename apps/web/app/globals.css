@@ -222,9 +222,31 @@ button.win-close:hover { background: var(--ink); }
 .btn.danger { color: var(--signal-text); border-color: var(--signal-text); }
 .btn.danger:hover { background: var(--signal); color: var(--signal-ink); }
 .btn.danger.default { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--signal); }
-.btn:disabled, .btn[aria-disabled=true] {
+.btn:disabled, .btn[aria-disabled=true],
+.btn:disabled:hover, .btn[aria-disabled=true]:hover { /* greyed out stays greyed out under the pointer (no red "primary" hover) */
   cursor: not-allowed; color: var(--gray); border-color: var(--gray); transform: none; box-shadow: none;
   background: repeating-linear-gradient(135deg, transparent 0 4px, var(--hair) 4px 5px);
+}
+/* keyboard shortcuts (Shortcuts.tsx): the line under the menu, the list, the post in focus */
+.kbd-hint { display: none; }
+@media (min-width: 900px) and (pointer: fine) {
+  .link-btn.kbd-hint { display: block; align-self: flex-start; text-align: left; font: 400 .85rem/1.5 var(--font-text); color: var(--gray-strong); text-decoration: none; padding: 0 .2rem; white-space: nowrap; }
+  .link-btn.kbd-hint:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+}
+kbd { font: 700 .8rem/1 var(--font-ui); border: 1.5px solid currentColor; border-bottom-width: 3px; padding: .1rem .35rem; border-radius: 3px; background: var(--paper); color: var(--ink); }
+.kbd-list { display: grid; gap: .45rem; margin: 0; }
+.kbd-list > div { display: grid; grid-template-columns: 4.5rem 1fr; align-items: center; }
+.kbd-list dt, .kbd-list dd { margin: 0; }
+.posts article.post { scroll-margin-top: 5rem; }
+.posts article.post:focus { outline: none; }
+.posts article.post:focus-visible { outline: 3px solid var(--signal); outline-offset: 3px; }
+
+/* a greyed-out control says why (why() in Visitor.tsx): a black slip under it on hover or keyboard focus */
+[data-why] { position: relative; }
+[data-why]:hover::after, [data-why]:focus-visible::after {
+  content: attr(data-why); position: absolute; z-index: 40; left: 50%; top: calc(100% + 6px); transform: translateX(-50%);
+  width: max-content; max-width: 15rem; white-space: normal; text-align: left; pointer-events: none;
+  font: 400 .85rem/1.35 var(--font-text); letter-spacing: 0; text-transform: none; color: var(--paper); background: var(--ink); padding: .35rem .55rem;
 }
 .link-btn { font: 400 .95rem var(--font-ui); background: none; border: 0; color: var(--ink); cursor: pointer; padding: 0;
   text-decoration: underline; text-underline-offset: 3px; }
@@ -463,7 +485,7 @@ ul.events { list-style: none; margin: 0; padding: 0; display: flex; flex-directi
 .seats { display: grid; gap: 1rem; }
 .seat-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: .5rem .35rem; }
 .seat-grid .avatar { width: 100%; height: auto; }
-.seats-caption { font: 400 1rem var(--font-ui); }
+.seats-caption { font: 400 .95rem/1.45 var(--font-text); color: var(--gray-strong); }
 .rules { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); border-top: 3px solid var(--ink); }
 .rules li { padding: 1rem 1rem 0 0; border-right: 1.5px solid var(--ink); margin-right: 1rem; }
 .rules li:last-child { border-right: 0; margin-right: 0; }
@@ -696,7 +718,10 @@ input[type=search]::-webkit-search-cancel-button {
     flex-direction: column; overflow: visible; margin: 0;
     box-shadow: var(--shadow);
   }
-  .shell-left > .nav a { border-right: 0; border-bottom: 2px solid var(--ink); padding: .6rem .85rem; justify-content: flex-start; font-size: 1rem; }
+  .shell-left > .nav a { border-right: 0; border-bottom: 2px solid var(--ink); padding: .45rem .85rem; justify-content: flex-start; font-size: 1rem; }
+  /* your drawers, a group at the bottom: a double rule above, smaller rows */
+  .shell-left > .nav a.nav-drawer { font-size: .92rem; padding: .35rem .85rem; }
+  .shell-left > .nav a.nav-drawer-first { margin-top: .4rem; border-top: 2px solid var(--ink); }
   .shell-left > .nav a .badge { margin-left: auto; }
   .shell-left > .nav .nav-me { margin: 0; border: 0; order: -1; border-bottom: 3px solid var(--ink); padding: .7rem .85rem; gap: .6rem; }
   .shell-left > .nav .nav-me .avatar { width: 36px; height: 36px; }
@@ -711,9 +736,11 @@ input[type=search]::-webkit-search-cancel-button {
   .top-inner { max-width: 84rem; }
   .shell { grid-template-columns: 12.5rem minmax(0, 42rem) 17.5rem; justify-content: space-between; gap: 2.25rem; }
   .rail { display: flex; flex-direction: column; gap: 1.25rem; position: sticky; top: 4.6rem; }
+  /* a visitor's time left is in the side window (with the way out): not twice */
+  .shell-left > .nav .nav-visitor { display: none; }
 }
 
-/* left column on wide screens: menu, then the pick window, both stay in view */
+/* left column on wide screens: the menu stays in view (the pick window lives in the right column since 2026-11-09) */
 @media (min-width: 900px) {
   .shell-left {
     position: sticky; top: 4.6rem; display: flex; flex-direction: column; gap: 1.25rem;
@@ -814,6 +841,8 @@ input[type=search]::-webkit-search-cancel-button {
 .pf-cv { display: grid; grid-template-columns: 1fr 1fr; border-top: 3px solid var(--ink); }
 .pf-col { padding: 1.4rem 1.6rem 1.6rem; display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
 .pf-col + .pf-col { border-left: 2px solid var(--ink); }
+.pf-cv.one { grid-template-columns: 1fr; }
+.pf-cv.one .pf-about { max-width: 42rem; }
 .pf-sec { display: flex; flex-direction: column; gap: .6rem; }
 .pf-sec > h2, .pf-links-h { font-size: 1.4rem; display: flex; align-items: center; gap: .55rem; }
 .pf-sec > h2::before, .pf-links-h::before { content: ''; width: .6rem; height: .6rem; border-radius: 50%; background: var(--signal); flex: none; }
@@ -1014,7 +1043,10 @@ input[type=search]::-webkit-search-cancel-button {
    (PhoneBar.tsx); the drawers (profile, search, consultations, settings, admin) open in a sheet
    from the fifth tab. The composer is one line until tapped, the checklist folds, and the pick
    window waits until after the third post: the first screen is posts. */
-.tabbar, .sheet, .sheet-back, .phone-only, .ck-toggle { display: none; }
+.tabbar, .sheet, .sheet-back, .phone-only { display: none; }
+/* the pick window after the third post, wherever there is no side rail (under 1180px) */
+.interlude { padding: 1rem 0 .25rem; border-bottom: 1.5px solid var(--ink); }
+.interlude .feed-pick { margin: 0; }
 @media (max-width: 899.98px) {
   .nav, .wide-only { display: none; }
   .phone-only { display: block; }
@@ -1065,16 +1097,6 @@ input[type=search]::-webkit-search-cancel-button {
   .composer.collapsible:not(.open) textarea { min-height: 1.7rem; height: 1.7rem; overflow: hidden; font-size: 1.02rem; }
   .composer.collapsible:not(.open) .composer-bar, .composer.collapsible:not(.open) .composer-meetup { display: none; }
 
-  /* the checklist: a line with a count until asked for */
-  .ck-toggle { display: inline; }
-  .ck-head { gap: .6rem; }
-  .checklist:not(.open) .checklist-items, .checklist:not(.open) .dlg-actions { display: none; }
-  .checklist:not(.open) .win-body { padding-top: .8rem; padding-bottom: .8rem; }
-  .checklist:not(.open) h2 { font-size: 1.2rem; }
-
-  /* the pick window after the third post */
-  .interlude { padding: 1rem 0 .25rem; border-bottom: 1.5px solid var(--ink); }
-  .interlude .feed-pick { margin: 0; }
   .watch-strip { font-size: .98rem; }
 }
 
@@ -1177,6 +1199,14 @@ ul.list.adm-visits li { flex-wrap: wrap; }
 .ck.on { background: var(--ink); }
 .ck.on::after { content: ''; width: .35rem; height: .65rem; border: solid var(--paper); border-width: 0 2.5px 2.5px 0; transform: translateY(-1px) rotate(45deg); }
 .checklist-text .link-btn { font: inherit; text-align: left; align-self: flex-start; padding: 0; text-decoration: underline; text-underline-offset: .2em; }
+/* folded (every screen): one line with the count and the next thing to do, until "Show all" */
+.ck-top { flex-wrap: wrap; row-gap: .35rem; column-gap: 1rem; }
+.ck-head { gap: .6rem; }
+.ck-next { margin: 0 auto 0 0; font-size: .98rem; }
+.ck-next .link-btn { font: inherit; text-decoration: underline; text-underline-offset: .2em; }
+.checklist:not(.open) .checklist-items, .checklist:not(.open) .dlg-actions { display: none; }
+.checklist:not(.open) .win-body { padding-top: .75rem; padding-bottom: .75rem; }
+.checklist:not(.open) h2 { font-size: 1.2rem; }
 /* Picks: "tried it" votes and remarks */
 .pick-votes { display: flex; flex-direction: column; gap: .3rem; margin-top: .5rem; }
 .pick-tally { font-size: .85rem; }
@@ -1200,7 +1230,7 @@ ul.list.adm-visits li { flex-wrap: wrap; }
 .vote-btn { appearance: none; background: none; border: 0; padding: .25rem; display: grid; place-items: center; color: var(--ink); cursor: pointer; border-radius: 999px; }
 .vote-btn:hover:not(:disabled) { background: var(--hover); }
 .vote-btn:focus-visible { outline: 3px solid var(--signal); outline-offset: 1px; }
-.vote-btn:disabled { cursor: default; opacity: .45; }
+.vote-btn:disabled { cursor: default; color: var(--gray); }
 .vote-score { font: 700 .95rem/1 var(--font-ui); min-width: 1.6em; text-align: center; color: var(--ink); }
 .pick-counts { font-size: .82rem; }
 .vote-arrow { display: block; }

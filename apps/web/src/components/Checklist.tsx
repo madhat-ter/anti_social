@@ -43,14 +43,22 @@ export function Checklist({ me, refreshKey = 0 }: { me: Me; refreshKey?: number 
     ta?.focus();
   };
 
+  const doIt = (i: Item) =>
+    i.action === 'pick' ? <button type="button" className="link-btn" onClick={() => setAsking(true)}>{i.label}</button>
+      : i.action === 'post' ? <button type="button" className="link-btn" onClick={writePost}>{i.label}</button>
+      : <Link href={i.href!(me.handle)}>{i.label}</Link>;
+  const next = ITEMS.find((i) => !c.items[i.key])!;
+
+  // folded to one line (the count and the next thing to do) on every screen, so the feed is the
+  // first screen; "Show all" opens the list (owner's call, 2026-11-09)
   return (
     <Win title="checklist.txt" as="aside" className={`checklist${open ? ' open' : ''}`} onClose={() => void hide()} bodyClassName="stack">
-      <div className="row between">
+      <div className="row between ck-top">
         <h2>Finish your profile</h2>
+        {!open && <p className="ck-next">Next: {doIt(next)}</p>}
         <span className="row ck-head">
           <span className="meta">{done} of {ITEMS.length} done</span>
-          {/* phones: the list is folded away until asked for (CSS shows this button only there) */}
-          <button type="button" className="link-btn ck-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? 'Less' : 'Show'}</button>
+          <button type="button" className="link-btn ck-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? 'Less' : 'Show all'}</button>
         </span>
       </div>
       <ul className="checklist-items">
@@ -61,10 +69,7 @@ export function Checklist({ me, refreshKey = 0 }: { me: Me; refreshKey?: number 
               <span className={`ck${ok ? ' on' : ''}`} aria-hidden="true" />
               <span className="checklist-text">
                 <span className="sr-only">{ok ? 'Done: ' : 'To do: '}</span>
-                {ok ? <s>{i.label}</s>
-                  : i.action === 'pick' ? <button type="button" className="link-btn" onClick={() => setAsking(true)}>{i.label}</button>
-                  : i.action === 'post' ? <button type="button" className="link-btn" onClick={writePost}>{i.label}</button>
-                  : <Link href={i.href!(me.handle)}>{i.label}</Link>}
+                {ok ? <s>{i.label}</s> : doIt(i)}
                 <span className="muted small">{i.hint}</span>
               </span>
             </li>

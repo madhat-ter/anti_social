@@ -14,7 +14,7 @@ import { Avatar } from '@/components/Avatar';
 import { Welcome, wasWelcomed } from '@/components/Welcome';
 import { Checklist } from '@/components/Checklist';
 import { BirthdayLine } from '@/components/Birthday';
-import { PickWindow, useWide } from '@/components/Picks';
+import { PickWindow, RAIL_QUERY, useWide } from '@/components/Picks';
 import { AlertIcon, Loading, Win } from '@/components/retro';
 import { NameMarks } from '@/components/Marks';
 import { VisitorCodeForm, WatchOnlyNote, useReadOnly } from '@/components/Visitor';
@@ -132,7 +132,8 @@ function useNewPosts(p: ReturnType<typeof usePaged<Post>>) {
 
 function FeedView({ onPosted }: { onPosted: () => void }) {
   useTitle('Feed');
-  const wide = useWide();
+  // the side rail (pick window, birthdays) is only on screen from 1180px; narrower, both sit in the feed
+  const wide = useWide(RAIL_QUERY);
   const readOnly = useReadOnly();
   const p = usePaged<Post>('feed', (c) => api.feed(c));
   const fresh = useNewPosts(p);
@@ -162,7 +163,7 @@ function FeedView({ onPosted }: { onPosted: () => void }) {
           {fresh.pending.length} new {fresh.pending.length === 1 ? 'post' : 'posts'} <span aria-hidden="true">↑</span>
         </button>
       )}
-      {/* phones: the pick window sits after the first few posts, not before the first one */}
+      {/* without the side rail (phones, tablets): the pick window sits after the first few posts, not before the first one */}
       <PostList
         p={p}
         empty="It is quiet in here. Write the first post: the other seats will see it next time they come in."

@@ -899,6 +899,29 @@ five commits. The rules it left behind, for anything added later:
 
 `scripts/screenshots-phone.ts` walks the phone shell, the pill and the member filters.
 
+**The desktop pass (same day, later).** A second critique, of the wide screens, added:
+
+- **The feed opens on posts here too.** The checklist is one line on every screen: the title, the
+  next thing to do (a link), the count and "Show all".
+- **The menu column is only the menu.** Rows are tighter; your drawers (Notifications, Settings,
+  Admin) are a smaller group under a double rule; under it, "? Keyboard shortcuts". It fits a
+  1366×768 laptop without scrolling (it still has its own scroll if it ever does not). The pick
+  window lives in the right column, which opens with the next events (the "you" window is gone:
+  your profile is in the menu). Under 1180px there is no right column, so the pick window and the
+  birthday line sit in the feed, as on phones.
+- **No window repeats its page:** no next-events window on Events, no seats window on Members, and
+  a visitor's time left is in the side window only (the menu pill shows where there is no rail).
+- **No empty boxes.** The portfolio's About/Skills | Experience/Education box is one column when
+  either half would be empty.
+- **A greyed-out control says why.** `why(reason)` in `Visitor.tsx` sets `data-why`, shown as a
+  black slip on hover or keyboard focus (CSS) and read out via `aria-description`; native `title`
+  tooltips were slow and do not show on disabled buttons everywhere.
+- **Keyboard** (`Shortcuts.tsx`): N write a post, / search (the page's own search box when it has
+  one), J/K next and previous post, Enter open it, Esc leave a text box, ? the list. Ignored while
+  typing, with modifiers, or while a dialog is open.
+
+`scripts/screenshots-desktop.ts` checks each of these at laptop sizes.
+
 ### 10.10 Screen time (added 2026-11-09)
 
 The site would rather you went outside, so it says so and then shows you the door. Grilled Q1–Q9,
