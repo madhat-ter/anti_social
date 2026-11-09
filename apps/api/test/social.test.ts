@@ -80,11 +80,11 @@ describe('posts and feed', () => {
   test('body validation', async () => {
     const { member } = await world();
     const a = await member('alice');
-    for (const body of [{ body: '' }, { body: '   ' }, {}, { body: 'x'.repeat(501) }]) {
+    for (const body of [{ body: '' }, { body: '   ' }, {}, { body: 'x'.repeat(1501) }]) {
       const r = await a.post('/posts', body);
       expect([JSON.stringify(body).slice(0, 20), r.status, r.body.error]).toEqual([JSON.stringify(body).slice(0, 20), 400, 'body_invalid']);
     }
-    expect((await a.post('/posts', { body: 'x'.repeat(500) })).status).toBe(200);
+    expect((await a.post('/posts', { body: 'x'.repeat(1500) })).status).toBe(200);
     expect((await a.post('/posts', { body: 'hi', parentId: crypto.randomUUID() })).body.error).toBe('parent_not_found');
     expect((await a.post('/posts', { body: 'hi', parentId: 'nope' })).body.error).toBe('parent_not_found');
     expect((await a.post('/posts', { body: 'hi', imageIds: ['nope'] })).body.error).toBe('image_invalid');

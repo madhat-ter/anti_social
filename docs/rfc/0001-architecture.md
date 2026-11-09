@@ -48,7 +48,7 @@ Stack: Next.js web client → Elysia (Bun) API → PostgreSQL (Drizzle + a few P
 | Waitlist decay | Waitlisted user not seen for 60 days is removed from the queue. |
 | Ban penalty | Inviter of a banned user loses invite privileges for 30 days. |
 | Flags | 5 distinct members flagging a post hides it until an admin reviews it. Admins can also remove any post or project directly. |
-| Posts | 500 chars, ≤ 4 images × 5 MB (EXIF stripped), edit within 15 min (marked "edited"), delete anytime, 20 posts/hour. |
+| Posts | 1500 chars (raised from 500 on 2026-11-09), ≤ 4 images × 5 MB (EXIF stripped), edit within 15 min (marked "edited"), delete anytime, 20 posts/hour. |
 | Equal permissions | Every member has the same capabilities, except admins (role `ops`): they moderate, ban and unban, change handles, mint invites without limit and set the room's size. Admins carry the OG mark (§10.7; it replaced the "admin" tag) and are exempt from the inactivity and lurker rules. See §10.2. |
 | Handles | Chosen at sign-up; members cannot change them. Admins can change anyone's handle (their own included); the face, drawn from the handle, changes with it. |
 
@@ -280,7 +280,7 @@ export const posts = pgTable('posts', {
   authorId: uuid('author_id'),                         // null after author deletion
   parentId: uuid('parent_id'),                         // reply → parent post
   rootId: uuid('root_id'),                             // thread root
-  body: text('body').notNull(),                        // CHECK length <= 500
+  body: text('body').notNull(),                        // CHECK length <= 1500
   editedAt: timestamp('edited_at', { withTimezone: true }),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
   hiddenAt: timestamp('hidden_at', { withTimezone: true }),     // flag threshold reached

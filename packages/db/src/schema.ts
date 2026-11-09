@@ -192,7 +192,7 @@ export const posts = pgTable('posts', {
   search: tsvector('search').generatedAlwaysAs(sql`to_tsvector('simple', body)`),
   createdAt: tstz('created_at').notNull().defaultNow(),
 }, (t) => [
-  check('posts_body_len', sql`char_length(${t.body}) <= 500`),
+  check('posts_body_len', sql`char_length(${t.body}) <= 1500`),
   index('posts_feed').on(t.createdAt.desc(), t.id.desc())
     .where(sql`parent_id is null and deleted_at is null and hidden_at is null`),
   index('posts_thread').on(t.rootId, t.createdAt),

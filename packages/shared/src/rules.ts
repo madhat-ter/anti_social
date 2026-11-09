@@ -194,7 +194,8 @@ export const PROJECT_LAYOUTS = ['full', 'left', 'right'] as const;
 export type ProjectLayout = (typeof PROJECT_LAYOUTS)[number];
 
 // ─── Posts & media (RFC-0001 §10) ───────────────────────────────────────────
-export const POST_MAX_CHARS = 500;
+/** raised from 500 on 2026-11-09 (owner's call); the DB check in schema.ts must match */
+export const POST_MAX_CHARS = 1500;
 export const POST_MAX_IMAGES = 4;
 export const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 export const IMAGE_MAX_DIMENSION = 2048;
