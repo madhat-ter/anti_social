@@ -174,16 +174,16 @@ function NavBar({ me }: { me: Me }) {
 }
 
 /**
- * The side columns stay in view while the page scrolls. One that fits the screen sticks under the
- * header; a taller one (short or zoomed screens, an admin's longer menu) scrolls with the page and
- * sticks once its bottom is in view, so it is never cut off and never needs its own scrollbar.
+ * The right-hand column stays in view while the page scrolls. One that fits the screen sticks under
+ * the header; a taller one scrolls with the page and sticks once its bottom is in view. (The left
+ * column has its own scroll instead: see .shell-left in globals.css.)
  */
 function useStickyColumns(ref: React.RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     const root = ref.current;
     if (!root) return;
     const fit = () => {
-      for (const el of root.querySelectorAll<HTMLElement>(':scope > .shell-left, :scope > .rail')) {
+      for (const el of root.querySelectorAll<HTMLElement>(':scope > .rail')) {
         el.style.top = '';
         const top = parseFloat(getComputedStyle(el).top) || 0;
         const room = window.innerHeight - top - 16;
@@ -192,7 +192,7 @@ function useStickyColumns(ref: React.RefObject<HTMLDivElement | null>) {
     };
     fit();
     const ro = new ResizeObserver(fit);
-    root.querySelectorAll(':scope > .shell-left, :scope > .rail').forEach((el) => ro.observe(el));
+    root.querySelectorAll(':scope > .rail').forEach((el) => ro.observe(el));
     window.addEventListener('resize', fit);
     return () => { ro.disconnect(); window.removeEventListener('resize', fit); };
   }, [ref]);

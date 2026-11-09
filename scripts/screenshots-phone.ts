@@ -236,7 +236,9 @@ try {
   if (!(await bar.locator('.tb-you.on').count())) throw new Error('the you tab is not lit on Search');
   // the folder tabs on Events must be untouched by the tab bar's styles
   await bar.getByRole('link', { name: 'Events' }).tap();
-  const folderTab = ph.locator('.tabs .tab.on').first();
+  await ph.waitForURL(/\/events$/);
+  // :visible: Next keeps pages already seen (Collabs, with its own lit tab) in the page, hidden
+  const folderTab = ph.locator('.tabs .tab.on:visible').first();
   await folderTab.waitFor();
   const fb = await folderTab.boundingBox();
   if (!fb || fb.height > 60) throw new Error(`folder tab is ${fb?.height}px tall: tab bar styles leaked`);

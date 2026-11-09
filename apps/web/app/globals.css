@@ -717,8 +717,12 @@ input[type=search]::-webkit-search-cancel-button {
 @media (min-width: 900px) {
   .shell-left {
     position: sticky; top: 4.6rem; display: flex; flex-direction: column; gap: 1.25rem;
-    /* room for the windows' drop shadows; taller-than-screen columns: see useStickyColumns */
+    /* room for the windows' drop shadows */
     padding: 0 8px 8px 0;
+    /* its own scroll (owner's call, 2026-11-09): never longer than the screen, scrolls on its own, and
+       reaching its end does not hand the scroll on to the feed */
+    max-height: calc(100vh - 4.6rem - 1rem); overflow-y: auto; overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: var(--ink) transparent;
   }
   .rail { padding-bottom: 8px; }
   /* no tall empty band under the content */

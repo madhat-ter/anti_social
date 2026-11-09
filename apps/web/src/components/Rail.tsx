@@ -1,34 +1,18 @@
 'use client';
 /**
- * Desktop side windows (shown only on wide screens, see .shell in globals.css):
- * you, the room's seats, and the next few events. Each is small, glanceable, and links on.
+ * Desktop side windows (shown only on wide screens, see .shell in globals.css): the next few
+ * events, the room's seats, and today's birthdays. Each is small, glanceable, and links on.
+ * (No "you" window since 2026-11-09: your profile is in the menu; inviting is in Settings.)
  */
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { RULES } from '@anti/shared';
 import { api, type AnEvent, type Me, type MemberSummary } from '@/lib/api';
 import { membersCached, seatCapCached } from '@/lib/members';
-import { Avatar } from './Avatar';
 import { BirthdaysWindow } from './Birthday';
-import { NameMarks } from './Marks';
 import { Win } from './retro';
 import { VisitorWindow } from './Visitor';
 import { bnLang } from '@/lib/lang';
-
-function You({ me }: { me: Me }) {
-  return (
-    <Win title="you" as="section" bodyClassName="rail-you">
-      <Link href={`/u/${me.handle}`} className="rail-you-link">
-        <Avatar seed={me.handle} gender={me.gender} size={56} />
-        <span>
-          <span className="rail-name">{me.displayName}<NameMarks admin={me.role === 'ops'} verified={!!me.verifiedAt} size=".85em" /></span>
-          <span className="meta">@{me.handle}</span>
-        </span>
-      </Link>
-      <Link className="btn" href="/settings">Invite someone</Link>
-    </Win>
-  );
-}
 
 function Seats({ me }: { me: Me }) {
   const [members, setMembers] = useState<MemberSummary[] | null>(null);
@@ -81,11 +65,13 @@ function NextEvents() {
 
 export function Rail({ me }: { me: Me }) {
   return (
+    // the owner dropped the "you" window (2026-11-09): the next events take the top; your profile is in the menu.
+    // A visitor still gets their window first: it has the time left and the way out.
     <aside className="rail" aria-label="At a glance">
-      {me.visitor ? <VisitorWindow expiresAt={me.visitor.expiresAt} /> : <You me={me} />}
+      {me.visitor && <VisitorWindow expiresAt={me.visitor.expiresAt} />}
+      <NextEvents />
       <Seats me={me} />
       <BirthdaysWindow />
-      <NextEvents />
     </aside>
   );
 }
