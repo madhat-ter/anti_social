@@ -1,6 +1,8 @@
 # anti-site
 
-An invite-only, 100-seat, Twitter-like social app. Passkey-only auth (WebAuthn): no email, no password. People join with an invite code, pick a handle (only an admin can change it later), register a passkey, and are shown a one-time recovery code. Then everyone fills in a short setup once: a few words about themselves, a gender (it only shapes their drawn face) and a birthday (13 or older). When all seats are taken, new members are waitlisted.
+An invite-only, 100-seat, Twitter-like social app. Sign-in is a handle and a 6-digit PIN (passkeys optional): no email, no password. People join with an invite code, pick a handle (only an admin can change it later), choose a PIN, and are shown a one-time recovery code.
+
+Working on the code (people or AI tools): read [AGENTS.md](AGENTS.md) first. Then everyone fills in a short setup once: a few words about themselves, a gender (it only shapes their drawn face) and a birthday (13 or older). When all seats are taken, new members are waitlisted.
 
 Architecture and product rules: [docs/rfc/0001-architecture.md](docs/rfc/0001-architecture.md).
 

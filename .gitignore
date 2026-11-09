@@ -10,4 +10,12 @@ next-env.d.ts
 .uploads/
 .screenshots/
 .next-shots/
+.next-shots-prod/
+# local only: env backups, AI tool settings, private research notes, Excel lock files
+.env.*
+!.env.example
+.commandcode/
+reports/
+research_notes/
+~$*
 
