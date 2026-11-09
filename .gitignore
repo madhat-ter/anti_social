@@ -11,7 +11,8 @@ next-env.d.ts
 .screenshots/
 .next-shots/
 .next-shots-prod/
-# local only: env backups, AI tool settings, private research notes, Excel lock files
+# local only: env backups, AI tool settings, private research notes, the cost sheet, Excel lock files
+COST.xlsx
 .env.*
 !.env.example
 .commandcode/
