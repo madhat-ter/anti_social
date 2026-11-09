@@ -14,6 +14,19 @@ tail), some just heads. A dog must read as a dog, a cat as a cat, a bird as a bi
 The owner has 11 reference doodles in the chat (dogs, cats, birds). Ask for them if they are not
 attached; do not invent a different art direction.
 
+## Reference images
+
+`docs/tasks/pet-avatars/01.jpg` … `11.jpg` are the owner's own reference doodles. They show the
+line and the character to aim for — **not assets to ship**: study them, then redraw in SVG; do not
+copy them into the app or use them as avatars.
+
+- `01`–`04`: dogs — loose profile heads, floppy/pointed ears, dot or dash eyes, a filled nose;
+  one wears shades and is drawn full-body with legs and a tail.
+- `05`–`07`: cats — pointed ears, whiskers, a tongue, a body with a tail (one holds a fish).
+- `08`–`11`: birds — round bodies, a small or long beak, stick legs, the odd crest.
+
+The line is thick, uneven and confident: long loopy outlines, small filled eyes, no shading.
+
 ## Where it lives
 
 - `apps/web/src/components/PetAvatar.tsx` — the generator: `dog(r)`, `cat(r)`, `bird(r)` and the
