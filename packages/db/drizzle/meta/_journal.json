@@ -176,6 +176,13 @@
       "when": 1794211462048,
       "tag": "0024_feed",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794213803756,
+      "tag": "0025_pin",
+      "breakpoints": true
     }
   ]
 }

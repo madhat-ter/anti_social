@@ -16,6 +16,7 @@ import { ReadOnlyProvider, VisitorPill, isVisitor, membersOnlyPath, useVisitorEn
 import { PhoneBar, TopBell } from './PhoneBar';
 import { ScreenTime } from './ScreenTime';
 import { Shortcuts } from './Shortcuts';
+import { PinGate } from './Pin';
 
 export const UNREAD_EVENT = 'anti:unread';
 /** a consultation changed: the menu badge re-counts what waits on you */
@@ -48,6 +49,8 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
   if (loading) return <Loading />;
   if (own.error && !given) return <ErrorNote message={errorMessage(own.error)} />;
   if (!me || !seated || needsSetup || visitorAstray) return <Loading what="Redirecting" />;
+  // RFC §10.13: joined with a passkey, no PIN yet: choosing one comes first (once)
+  if (me.pinSet === false && !isVisitor(me)) return <PinGate me={me} />;
 
   // phones/tablets: nav on top, one column. Wide screens: menu | content | side windows (CSS).
   return (

@@ -75,6 +75,10 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
   switch (r.kind) {
     case 'reply': return m(`@${r.actor ?? 'someone'} replied`, r.post_snippet ?? '', p.postId ? `/p/${r.root_id ?? p.postId}#${p.postId}` : '/notifications');
     case 'invitee_first_post': return m(`@${r.actor ?? 'someone'} posted for the first time`, r.post_snippet ? `${r.post_snippet} Say hello?` : 'Say hello?', p.postId ? `/p/${p.postId}` : '/notifications');
+    // RFC §10.13: someone is guessing your PIN, or an admin made you a reset code
+    case 'pin_locked': return m('Someone tried your PIN', 'Five wrong PINs in a row, so your account is resting for a while. If it was not you, change your PIN.', '/settings#pin');
+    case 'pin_blocked': return m('Your PIN is locked for today', 'Too many wrong PINs. Use your recovery code, or ask an admin for a reset code.', '/settings#pin');
+    case 'pin_reset_code': return m('An admin made you a PIN reset code', 'If you did not ask for one, tell another admin.', '/notifications');
     case 'activated': return m('You have a seat', 'Welcome in.', '/');
     case 'seat_offered': return m('A seat is being held for you', 'You have 72 hours to take it.', '/');
     case 'seat_offer_expired': return m('Your seat offer expired', 'You can rejoin the queue.', '/');

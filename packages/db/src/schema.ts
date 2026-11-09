@@ -52,10 +52,35 @@ export const users = pgTable('users', {
   verifiedBy: uuid('verified_by').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
   /** RFC §10.11: the newest feed post this member scrolled past to the "caught up" card; only moves forward */
   feedSeenThrough: tstz('feed_seen_through'),
+  // ── RFC §10.13: signing in with a handle and a 6-digit PIN (argon2id hash; null until chosen)
+  pinHash: text('pin_hash'),
+  /** wrong PINs in a row since the last lock or success */
+  pinFails: integer('pin_fails').notNull().default(0),
+  /** locks since the last success: each one doubles the rest (15 min, 30, 60…) */
+  pinLocks: integer('pin_locks').notNull().default(0),
+  pinLockedUntil: tstz('pin_locked_until'),
+  /** wrong PINs on `pin_fail_day`; at the day's limit the account waits for a reset */
+  pinFailDay: date('pin_fail_day'),
+  pinFailsDay: integer('pin_fails_day').notNull().default(0),
+  pinBlockedAt: tstz('pin_blocked_at'),
 }, (t) => [
   index('users_state_idx').on(t.state),
   uniqueIndex('users_handle_lower').on(sql`lower(${t.handle})`),
 ]);
+
+/**
+ * RFC §10.13: a one-hour code an admin gives a member who forgot their PIN (or is locked out).
+ * Only the hash is kept; the row stays as the log of who reset whom.
+ */
+export const pinResets = pgTable('pin_resets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  codeHash: text('code_hash').notNull(),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  expiresAt: tstz('expires_at').notNull(),
+  usedAt: tstz('used_at'),
+}, (t) => [index('pin_resets_user').on(t.userId, t.createdAt)]);
 
 /** RFC §10.7: every time an admin opens a member's contact details. */
 export const contactViews = pgTable('contact_views', {

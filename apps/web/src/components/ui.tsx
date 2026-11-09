@@ -34,7 +34,7 @@ export function RecoveryCodeStep({ code, onDone }: { code: string; onDone: () =>
       <Win title="recovery_code.txt" bodyClassName="stack">
         <div className="dlg-body">
           <AlertIcon />
-          <p>This is the only way back in if you lose every passkey. It is shown once. Write it down or put it in a password manager.</p>
+          <p>If you forget your PIN, this code lets you choose a new one (an admin can also help). It is shown once. Write it down or put it in a password manager.</p>
         </div>
         <p className="code" aria-label="Recovery code">{code}</p>
         <div className="row between">

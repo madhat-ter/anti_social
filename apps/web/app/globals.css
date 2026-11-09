@@ -682,6 +682,21 @@ input[type=search]::-webkit-search-cancel-button {
   padding: .5rem 1rem; box-shadow: var(--shadow-sm); position: sticky; top: 4.2rem; z-index: 10;
 }
 .new-posts:hover { background: var(--ink); color: var(--paper); }
+/* RFC §10.13: the PIN field (one input, wide-spaced digits), and an admin's reset code */
+.pin-field { display: grid; gap: .3rem; }
+.pin-field > label { font-weight: 600; }
+.pin-row { display: flex; gap: .5rem; align-items: stretch; }
+.pin-input {
+  width: 14ch; font: 700 1.6rem/1 var(--font-ui); letter-spacing: .4em; padding: .45rem .2rem .45rem .6rem;
+  font-variant-numeric: tabular-nums;
+}
+.pin-show { font-size: .85rem; }
+.pin-gate { max-width: 34rem; }
+.pin-reset-code { border: 2px solid var(--ink); padding: .85rem 1rem; margin: .5rem 0; display: grid; gap: .5rem; background: var(--paper); }
+.pin-reset-code p { margin: 0; }
+.linklike { background: none; border: 0; padding: 0; font: inherit; color: var(--ink); text-decoration: underline; cursor: pointer; }
+.linklike:disabled { color: var(--gray); cursor: default; }
+
 /* RFC §10.11: where you left off, and the end of the feed */
 .feed-since { margin: .25rem 0 0; }
 .feed-end { margin: 1.4rem auto .6rem; max-width: 30rem; width: 100%; }

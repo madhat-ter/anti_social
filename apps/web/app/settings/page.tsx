@@ -6,6 +6,7 @@ import { startRegistration } from '@simplewebauthn/browser';
 import { DISPLAY_NAME_MAX, GENDERS, GENDER_LABEL, INTERESTS_MAX, type Gender } from '@anti/shared';
 import { InterestPicker } from '@/components/Interests';
 import { VerifiedBadge } from '@/components/Marks';
+import { ChoosePin } from '@/components/Pin';
 import { api, errorMessage, formatMoney, type InviteInfo, type Me, type PasskeyInfo, type PaymentRecord } from '@/lib/api';
 import { fmtDate, useMe, useTitle } from '@/lib/hooks';
 import { CopyButton, ErrorNote } from '@/components/ui';
@@ -42,6 +43,7 @@ export default function Settings() {
         <a href="#bday">Birthday</a>
         <a href="#interests">Interests</a>
         {me.contactEnabled && <a href="#contact">Contact</a>}
+        <a href="#pin">PIN</a>
         <a href="#pk">Passkeys</a>
         {seated && <a href="#inv">Invites</a>}
         <a href="#pay">Payments</a>
@@ -53,6 +55,7 @@ export default function Settings() {
         <BirthdaySec me={me} onSaved={setMe} />
         <InterestsSec me={me} onSaved={setMe} />
         <ContactSec me={me} onSaved={setMe} />
+        <PinSec me={me} />
         <Passkeys />
         <PushToggle />
         {seated && <Invites />}
@@ -180,6 +183,27 @@ function InterestsSec({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
   );
 }
 
+/** RFC §10.13: change your PIN (the current one first); every other device is signed out. */
+function PinSec({ me }: { me: Me }) {
+  const [done, setDone] = useState(false);
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="panel-sec" aria-labelledby="pin">
+      <h2 id="pin">PIN</h2>
+      <p className="muted">You sign in with your handle, <strong>@{me.handle}</strong>, and a 6-digit PIN. Changing it signs you out on every other device.</p>
+      {done && <p role="status">Your PIN is changed. Other devices are signed out.</p>}
+      {open
+        ? <ChoosePin needCurrent={me.pinSet !== false} birthday={me.birthday} submitLabel="Change PIN" submit={async (pin, current) => {
+            await api.setPin(pin, current);
+            setOpen(false); setDone(true);
+          }}>
+            <button type="button" className="btn" onClick={() => setOpen(false)}>Cancel</button>
+          </ChoosePin>
+        : <div className="row"><button type="button" className="btn" onClick={() => { setOpen(true); setDone(false); }}>Change PIN</button></div>}
+    </section>
+  );
+}
+
 function Passkeys() {
   const [list, setList] = useState<PasskeyInfo[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -206,11 +230,12 @@ function Passkeys() {
   return (
     <section className="panel-sec" aria-labelledby="pk">
       <h2 id="pk">Passkeys</h2>
+      <p className="muted">Optional. A passkey lets this device sign you in with your fingerprint or face instead of the PIN.</p>
       <ul className="list">
         {list.map((p) => (
           <li key={p.id}>
             <span>{p.deviceLabel || 'Passkey'}<br /><small className="muted">Added {fmtDate(p.createdAt)}{p.lastUsedAt ? `, last used ${fmtDate(p.lastUsedAt)}` : ''}</small></span>
-            <button className="btn danger" onClick={() => remove(p.id)} disabled={list.length <= 1}>Remove</button>
+            <button className="btn danger" onClick={() => remove(p.id)}>Remove</button>
           </li>
         ))}
       </ul>

@@ -14,6 +14,7 @@ import { adminMembers, getAdminSettings, renameMember, setMemberBirthday, setMem
 import { UUID_RE } from '../lib/posts';
 import { activePassCount, createPass, listPasses, revokePass } from '../lib/visitors';
 import { hit } from '../lib/ratelimit';
+import { createPinReset } from '../lib/pin';
 import { authPlugin, requireSeated, requireUser } from '../plugins/auth';
 import type { Auth } from '../lib/sessions';
 
@@ -138,6 +139,12 @@ export const moderationRoutes = (deps: Deps) => {
       const a = requireOps(auth);
       return setVerified(db, params.handle, body.on, a.user.id);
     }, { body: t.Object({ on: t.Boolean() }) })
+
+    /** RFC §10.13: a one-hour code for a member who forgot their PIN; never for yourself; logged. */
+    .post('/ops/users/:handle/pin-reset', async ({ auth, params }) => {
+      const a = requireOps(auth);
+      return createPinReset(db, a.user.id, params.handle);
+    })
 
     /** RFC §10.7: a member's contact details; every opening is logged. */
     .get('/ops/users/:handle/contact', async ({ auth, params }) => {

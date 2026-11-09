@@ -3,14 +3,14 @@ import { useTitle } from '@/lib/hooks';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { startRegistration } from '@simplewebauthn/browser';
 import { validateHandle, DISPLAY_NAME_MAX } from '@anti/shared';
 import { api, errorMessage } from '@/lib/api';
 import { ErrorNote, RecoveryCodeStep } from '@/components/ui';
 import { Avatar } from '@/components/Avatar';
+import { ChoosePin } from '@/components/Pin';
 import { Win } from '@/components/retro';
 
-const STEPS = ['Invite code', 'Your handle', 'Passkey'] as const;
+const STEPS = ['Invite code', 'Your handle', 'Your PIN'] as const;
 
 function Steps({ at }: { at: number }) {
   return (
@@ -78,7 +78,7 @@ export default function Join() {
           }}>
             {wouldWaitlist
               ? <p className="banner">All seats are taken. You will join the waitlist and get a seat when one opens.</p>
-              : <p>A seat is free. It is yours once you create a passkey.</p>}
+              : <p>A seat is free. It is yours once you choose a PIN.</p>}
             <div className="you">
               <div className="you-face">
                 <Avatar seed={previewSeed} size={104} label={previewSeed ? `Your face, made from @${previewSeed}` : 'No handle yet'} />
@@ -102,25 +102,22 @@ export default function Join() {
           </form>
         )}
 
+        {/* RFC §10.13: a 6-digit PIN, typed twice; you sign in with your handle and it */}
         {step === 3 && (
           <div className="stack">
             <div className="you">
               <div className="you-face"><Avatar seed={handle} size={104} /></div>
               <div className="stack grow">
                 <p><strong>{displayName}</strong> <span className="ui muted">@{handle}</span></p>
-                <p>Create a passkey to finish. Your device will ask for your fingerprint, face or PIN. There is no password to remember.</p>
+                <p>Choose a 6-digit PIN to finish. You sign in with your handle, <strong>@{handle}</strong>, and this PIN.</p>
               </div>
             </div>
-            <ErrorNote message={err} />
-            <div className="row between">
-              <button className="btn" onClick={() => { setErr(null); setStep(2); }} disabled={busy}>Back</button>
-              <button className="btn primary" disabled={busy} onClick={() => run(async () => {
-                const ch = await api.registerOptions({ code, handle, displayName: displayName.trim() });
-                const response = await startRegistration({ optionsJSON: ch.options as any });
-                const res = await api.registerVerify({ challengeId: ch.challengeId, response });
-                setRecovery(res.recoveryCode); setStep(4);
-              })}>Create passkey</button>
-            </div>
+            <ChoosePin submitLabel="Join" submit={async (pin) => {
+              const res = await api.join({ code, handle, displayName: displayName.trim(), pin });
+              setRecovery(res.recoveryCode); setStep(4);
+            }}>
+              <button type="button" className="btn" onClick={() => { setErr(null); setStep(2); }}>Back</button>
+            </ChoosePin>
           </div>
         )}
       </Win>

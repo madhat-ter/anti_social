@@ -50,6 +50,7 @@ export function visitorUser(): SessionUser {
     birthday: VISITOR_BIRTHDAY,
     birthdayPublic: false, setupDoneAt: now, checklistDismissedAt: now, contactPhoneEnc: null, contactEmailEnc: null,
     contactUpdatedAt: null, verifiedAt: null, verifiedBy: null, feedSeenThrough: null,
+    pinHash: null, pinFails: 0, pinLocks: 0, pinLockedUntil: null, pinFailDay: null, pinFailsDay: 0, pinBlockedAt: null,
   };
 }
 
@@ -61,6 +62,7 @@ export function visitorProfile(pass: VisitorPass) {
     invitedBy: null, activatedAt: null, lastSeenAt: null, lurkerExemptUntil: null, waitlist: null, lurker: null, archived: null,
     setupNeeded: false, gender: null, birthday: VISITOR_BIRTHDAY, birthdayPublic: false, contactEnabled: false, contact: null, verifiedAt: null,
     interests: [] as string[],
+    pinSet: true,
     visitor: { expiresAt: pass.expiresAt.toISOString() },
   };
 }

@@ -11,6 +11,8 @@ export const LIMITS = {
   inviteCheck: { limit: 10, windowSec: 60 },
   /** WebAuthn ceremonies per IP. */
   auth: { limit: 60, windowSec: 60 },
+  /** RFC §10.13: PIN sign-ins and PIN resets per IP, on top of each account's own lock */
+  pinGuess: { limit: 60, windowSec: 3600 },
   like: { limit: 300, windowSec: 3600 },
   flag: { limit: 30, windowSec: 86_400 },
   upload: { limit: 60, windowSec: 3600 },

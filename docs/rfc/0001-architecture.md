@@ -17,7 +17,7 @@ Stack: Next.js web client → Elysia (Bun) API → PostgreSQL (Drizzle + a few P
 
 **Goals**
 - Invite-only onboarding with a hard cap of 100 seats, enforced atomically in the database.
-- Passkey-only authentication; the user's identity is their handle plus their passkey(s).
+- ~~Passkey-only authentication~~ (2026-11-09, §10.13: a handle and a 6-digit PIN; passkeys optional); the user's identity is their handle.
 - Automated archival of inactive members and lurkers; paid reinstatement and paid stay exemptions.
 - Public feed (posts, replies, likes, images) and events (host, RSVP, attend).
 - One API serving web now and mobile later.
@@ -1021,6 +1021,36 @@ owner, six points, all as proposed:
   snippet}` to every reply (the snippet is empty when the post was deleted or hidden).
 - `scripts/screenshots-replies.ts` shoots the same scene before (`SHOTS=before`) and after.
 
+### 10.13 Signing in with a handle and a PIN (added 2026-11-09)
+
+Members found passkeys hectic, so the way in is now the invite code once, then a handle and a
+6-digit PIN. Decided with the owner, thirteen points, all as proposed:
+
+- **Joining**: invite code → handle and display name → a PIN typed twice → the recovery code,
+  shown once ("I saved it") → setup. `POST /auth/join {code, handle, displayName, pin}`; no
+  passkey step. (`/auth/register/options|verify` stay for older clients and tests.)
+- **Signing in**: `POST /auth/pin/login {handle, pin}` (handle case-insensitive, `@` allowed). A
+  wrong PIN and an unknown handle get the same `401 pin_invalid`. Banned: `account_unavailable`,
+  only after the right PIN. Sessions stay 7 days.
+- **Guessing**: 5 wrong in a row → the account rests 15 minutes (`423 pin_resting`, detail = the
+  time), doubling with each further rest until a right PIN; 10 wrong in a day → `423 pin_blocked`
+  until a recovery code or an admin's code. The count is per account, under a row lock; on top,
+  `pinGuess` allows 60 tries per IP per hour. The member is told (`pin_locked`, `pin_blocked`).
+  PINs are argon2id hashes; `pinProblem` (packages/shared) refuses one digit six times, straight
+  runs, repeated pairs or triples, and the member's birthday as six digits.
+- **Forgot your PIN**: `POST /auth/pin/reset {handle, code, pin}` with the recovery code (also
+  removes passkeys, signs out everywhere, returns a new recovery code) or an admin's reset code
+  (one hour, one use, unlocks, signs out everywhere). Admin → Members → *Reset PIN*
+  (`POST /ops/users/:handle/pin-reset`): never for yourself; a new code retires the older one;
+  the member is told (`pin_reset_code`); `pin_resets` is the log of who reset whom.
+- **Changing it**: Settings → PIN, `PUT /me/pin {pin, currentPin}`; every other device is signed out.
+- **Passkeys are an extra**: under Settings, optional; with a PIN the last one can be removed.
+  "Use a passkey" stays on the sign-in page.
+- **Existing members** (joined with a passkey, `pinSet: false` on `/me`): the next passkey
+  sign-in, and every page until then, asks them to choose a PIN first. Admins sign in the same way.
+- Constants: `PIN_LENGTH`, `PIN_RULES` in `packages/shared/src/pin.ts`. Tests:
+  `apps/api/test/pin.test.ts`; screenshots: `scripts/screenshots-pin.ts`.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,
@@ -1034,6 +1064,11 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST /auth/login/options` | P | Discoverable login options |
 | `POST /auth/login/verify` | P | Verify, start session |
 | `POST /auth/recover/options` / `verify` | P | Recovery-code flow; rotates code |
+| `POST /auth/join` | P | Join with an invite and a 6-digit PIN (§10.13); returns the recovery code once |
+| `POST /auth/pin/login` | P (rate-limited) | Handle + PIN; rests and locks per §10.13 |
+| `POST /auth/pin/reset` | P (rate-limited) | Recovery code or admin's reset code + new PIN |
+| `PUT /me/pin` | U | Choose or change the PIN (current PIN needed once one is set) |
+| `POST /ops/users/:handle/pin-reset` | O | One-hour PIN reset code for a member (not yourself; logged) |
 | `POST /auth/logout` | U | End session |
 | `GET /me` | U | Profile, state, waitlist position / offer, lurker countdown, `setupNeeded`, gender, own birthday |
 | `GET/PUT /me/setup` | U | Setup: About you, gender, birthday (under 13 + `confirmUnderage`: account closed) |
@@ -1116,7 +1151,7 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 - **Sessions**: hashed tokens; revoke-all on recovery and ban; CSRF mitigated by `SameSite=Lax` + Origin check on mutating requests.
 - **Rate limits** (per user, Postgres- or memory-backed): posts 20/h, likes 300/h, flags 30/day, join requests (collabs and events) 10/day, invites per §3, auth endpoints per IP.
 - **Content**: body length CHECK in DB; images re-encoded server-side (removes EXIF/GPS and polyglot payloads).
-- **Privacy**: no real name collected. A cell phone and an email are required since §10.7, seen only by the member and admins, stored encrypted with a key outside the database, every admin opening logged, erased with the account; nothing else asks for them (sign-in stays passkey-only). IP addresses not persisted beyond rate-limit windows. Event location can be RSVP-only.
+- **Privacy**: no real name collected. A cell phone and an email are required since §10.7, seen only by the member and admins, stored encrypted with a key outside the database, every admin opening logged, erased with the account; nothing else asks for them (sign-in is a handle and a PIN, §10.13). IP addresses not persisted beyond rate-limit windows. Event location can be RSVP-only.
 - **Gaming the lurker rule**: likes don't count; deleted posts remove their contribution; a reply to your own post does not count (replies to anyone else do, in any thread); portfolio and project edits never count.
 - **Portfolio**: every field optional, no real-name field; links must be `https://` and may not carry credentials; the look is a fixed set of classes, never member CSS; the cover and project images go through the same re-encoding as post images.
 - **Audit**: `user_state_events` and `payments` are append-only for operational and financial auditing.
@@ -1153,13 +1188,14 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 12. **M12 — Visitor passes** (2026-11-08, §10.8), in four steps: the table, SQL and API with the read-only walls; the visitor's side of the app (code form, pass page, pill, struck-out controls, ended page); the admin panel; docs and screenshots.
 13. **M13 — The feed** (2026-11-09, §10.11), in three steps: like counts for the author only, "new here", "First post" and the inviter's notice; the "new since" line, the end card and the visit log; the fold, conversation and event rows, and `/feed-rules`.
 14. **M14 — Posts and replies** (2026-11-09, §10.12): the thread's post framed and labelled, replies small on a thread line, replies in lists saying what they answer.
+15. **M15 — PIN sign-in** (2026-11-09, §10.13): joining and signing in with a handle and a 6-digit PIN, rests and locks, recovery and admin reset codes, passkeys optional.
 
 ## Appendix A — Decision log
 
 | # | Decision |
 |---|---|
 | Q1 | Separate Elysia API + Next.js client from day one (Eden Treaty). |
-| Q2 | Passkey-only; multiple passkeys per account + one-time recovery code. |
+| Q2 | ~~Passkey-only~~ (2026-11-09: handle + 6-digit PIN, §10.13; passkeys optional); one-time recovery code. |
 | Q3 | ≤ 2 open invites per active member, 7-day expiry; invite tree recorded. |
 | Q4 | Cap full → FIFO waitlist. |
 | Q5 | Activity = any authenticated request, `last_seen` once/day; 7-day sessions. |

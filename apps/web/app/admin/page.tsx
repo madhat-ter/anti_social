@@ -355,6 +355,7 @@ function Members({ me }: { me: Me }) {
   /** RFC §10.7: work through who is not verified yet; contact details opened on request (logged) */
   const [filter, setFilter] = useState<MemberFilter>('all');
   const [contacts, setContacts] = useState<Record<string, AdminContact>>({});
+  const [pinCode, setPinCode] = useState<{ handle: string; code: string; expiresAt: string } | null>(null);
 
   const load = useCallback(async () => {
     try { setList(await api.opsMembers()); } catch (e) { setErr(errorMessage(e)); }
@@ -417,6 +418,13 @@ function Members({ me }: { me: Me }) {
     } catch (e) { setErr(errorMessage(e)); }
   }
 
+  /** RFC §10.13: a one-hour code to give the member in person or by phone; they are told; it is logged */
+  async function resetPin(m: AdminMember) {
+    setErr(null); setMsg(null);
+    try { const r = await api.opsPinReset(m.handle); setPinCode({ handle: m.handle, ...r }); }
+    catch (e) { setErr(errorMessage(e)); }
+  }
+
   async function showContact(m: AdminMember) {
     if (contacts[m.handle]) { setContacts((c) => { const n = { ...c }; delete n[m.handle]; return n; }); return; }
     setErr(null);
@@ -468,6 +476,17 @@ function Members({ me }: { me: Me }) {
       </div>
       {msg && <p role="status" className="muted">{msg}</p>}
       <ErrorNote message={err} />
+      {pinCode && (
+        <div className="pin-reset-code" role="status">
+          <p>
+            PIN reset code for <strong>@{pinCode.handle}</strong>. Give it to them in person or on the phone, not in a post.
+            It works once, until {new Date(pinCode.expiresAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}.
+            They enter it under <em>Forgot your PIN?</em> on the sign-in page.
+          </p>
+          <p className="code" aria-label="Reset code">{pinCode.code}</p>
+          <div className="row"><CopyButton text={pinCode.code} /><button type="button" className="btn" onClick={() => setPinCode(null)}>Done</button></div>
+        </div>
+      )}
       {list === null ? <Loading /> : shown.length === 0 ? <p className="muted">Nobody matches.</p> : (
         <ul className="adm-members">
           {shown.map((m) => (
@@ -509,6 +528,7 @@ function Members({ me }: { me: Me }) {
                 {m.hasContact && <button type="button" className="btn" onClick={() => void showContact(m)}>{contacts[m.handle] ? 'Hide contact' : 'Show contact'}</button>}
                 <ActionMenu label={`More actions for @${m.handle}`} items={[
                   seatedState(m) && m.verified && { label: 'Remove verification', onSelect: () => void verify(m, false) },
+                  m.handle !== me.handle && m.state !== 'banned' && { label: 'Reset PIN', onSelect: () => void resetPin(m) },
                   { label: 'Change handle', onSelect: () => setAsk({ kind: 'rename', m }) },
                   { label: 'Change birthday', onSelect: () => setAsk({ kind: 'birthday', m }) },
                   m.consulting === 'off' && { label: 'Allow consulting', onSelect: () => void consulting(m, true) },
@@ -534,7 +554,7 @@ function Members({ me }: { me: Me }) {
       <AlertDialog
         open={ask?.kind === 'unban'}
         title="Unban member"
-        message={<>Unban <strong>{who}</strong>? They can sign in again with their passkey. They get a seat if one is free; otherwise they wait in line.</>}
+        message={<>Unban <strong>{who}</strong>? They can sign in again with their handle and PIN. They get a seat if one is free; otherwise they wait in line.</>}
         confirmLabel="Unban"
         onConfirm={() => ask && void act(ask)}
         onCancel={() => setAsk(null)}

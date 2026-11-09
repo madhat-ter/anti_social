@@ -10,7 +10,7 @@ import { Avatar } from '@/components/Avatar';
 import { AlertIcon, Dot } from '@/components/retro';
 
 /** System notices that need action get the warning triangle; good news gets the red dot. */
-const WARNINGS = new Set(['lurker_warning', 'seat_offer_expired', 'payment_refunded', 'event_cancelled', 'post_removed', 'project_removed', 'consult_removed', 'consult_switched_off']);
+const WARNINGS = new Set(['pin_locked', 'pin_blocked', 'pin_reset_code', 'lurker_warning', 'seat_offer_expired', 'payment_refunded', 'event_cancelled', 'post_removed', 'project_removed', 'consult_removed', 'consult_switched_off']);
 
 export default function NotificationsPage() {
   useTitle('Notifications');
@@ -21,6 +21,9 @@ function describe(n: Notification): string {
   const who = n.actor ? `@${n.actor.handle}` : 'Someone';
   if (n.kind === 'reply') return `${who} replied to your post`;
   if (n.kind === 'like') return `${who} liked your post`;
+  if (n.kind === 'pin_locked') return 'Someone typed five wrong PINs for your account, so it rested for a while. If it was not you, change your PIN in Settings.';
+  if (n.kind === 'pin_blocked') return 'Too many wrong PINs today: signing in with a PIN is off until you use your recovery code or an admin’s reset code.';
+  if (n.kind === 'pin_reset_code') return `${who} (an admin) made you a one-hour PIN reset code. If you did not ask for it, tell another admin.`;
   if (n.kind === 'invitee_first_post') return `${who}, whom you invited, wrote their first post. Say hello?`;
   if (n.kind === 'activated') return 'You have a seat. Welcome in.';
   if (n.kind === 'seat_offered') return 'A seat opened up for you. Reinstate within 72 hours to keep it.';
@@ -128,6 +131,7 @@ function Notifications({ myHandle }: { myHandle: string }) {
               : n.kind === 'consult_switched_off' ? '/consultations?tab=offer'
               : n.kind === 'collab_finished' && n.draftId ? `/u/${myHandle}/work/${n.draftId}/edit`
               : n.kind === 'checklist_reminder' ? '/'
+              : n.kind.startsWith('pin_') ? '/settings#pin'
               : n.kind === 'verified' ? '/settings#contact'
               : n.kind === 'handle_changed' && n.newHandle ? `/u/${n.newHandle}`
               : n.post ? `/p/${n.post.rootId ?? n.post.id}#${n.post.id}` : n.event ? `/events/${n.event.id}`

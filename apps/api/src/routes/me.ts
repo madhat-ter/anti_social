@@ -14,6 +14,8 @@ import { checkEmail, checkPhone, contactEnabled, hasContact, openContact, saveCo
 import type { Db } from '@anti/db';
 import { interestsOf } from './interests';
 import { visitorProfile } from '../lib/visitors';
+import { changePin } from '../lib/pin';
+import { hit } from '../lib/ratelimit';
 
 /** Queue standing. `priority` 'reinstating' = former member (seat is offered, paid); 'new' = invitee (seated free). */
 type Waitlist = { position: number; total: number; priority: 'reinstating' | 'new'; offeredUntil: string | null };
@@ -86,6 +88,8 @@ export const meRoutes = (deps: Deps) => {
       contact: hasContact(u) ? { phone: openContact(u.contactPhoneEnc), email: openContact(u.contactEmailEnc), updatedAt: iso(u.contactUpdatedAt) } : null,
       verifiedAt: iso(u.verifiedAt),
       interests: await interestsOf(db, u.id),
+      // RFC §10.13: members who joined with a passkey are asked to choose a PIN
+      pinSet: !!u.pinHash,
     };
   }
 
@@ -93,6 +97,12 @@ export const meRoutes = (deps: Deps) => {
     .use(authPlugin(deps))
     // a visitor (RFC §10.8) gets a stand-in profile with `visitor.expiresAt`; the app reads that flag
     .get('/', ({ auth }) => (auth?.visitor ? visitorProfile(auth.visitor) : profile(requireUser(auth).user.id)))
+    // RFC §10.13: choose or change the PIN; with one set, the current PIN is needed. Other devices are signed out.
+    .put('/pin', async ({ auth, body }) => {
+      const a = requireUser(auth);
+      await hit(db, 'pinGuess', a.user.id);
+      return changePin(db, a.user.id, a.tokenHash, body.pin, body.currentPin);
+    }, { body: t.Object({ pin: t.String({ maxLength: 12 }), currentPin: t.Optional(t.String({ maxLength: 12 })) }) })
     .patch(
       '/',
       async ({ auth, body }) => {
@@ -254,7 +264,9 @@ export const meRoutes = (deps: Deps) => {
         await tx.execute(sql`select id from users where id = ${a.user.id}::uuid for update`);
         const mine = await tx.select({ id: passkeys.id }).from(passkeys).where(eq(passkeys.userId, a.user.id));
         if (!mine.some((p) => p.id === params.id)) throw new ApiError(404, 'not_found');
-        if (mine.length <= 1) throw new ApiError(409, 'last_passkey', 'You cannot remove your only passkey.');
+        // with a PIN (RFC §10.13) a passkey is an extra, so the last one can go; without, it is the only way in
+        const pinSet = await scalar<boolean>(tx as never, sql`select pin_hash is not null from users where id = ${a.user.id}::uuid`);
+        if (mine.length <= 1 && !pinSet) throw new ApiError(409, 'last_passkey', 'Choose a PIN first: this passkey is your only way in.');
         await tx.delete(passkeys).where(and(eq(passkeys.id, params.id), eq(passkeys.userId, a.user.id)));
       });
       return { ok: true };

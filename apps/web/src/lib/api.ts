@@ -34,6 +34,8 @@ export interface Me {
   contact: { phone: string | null; email: string | null; updatedAt: string | null } | null;
   /** when an admin verified you (the badge shows by your name) */
   verifiedAt: string | null;
+  /** RFC §10.13: false for members who joined with a passkey and have not chosen a PIN yet */
+  pinSet?: boolean;
   /** RFC §10.8: set when "you" are a visitor on an admin's pass: an hour of reading, nothing else */
   visitor?: { expiresAt: string };
 }
@@ -488,6 +490,15 @@ export const api = {
   opsVisitorPasses: () => get<{ items: VisitorPassInfo[]; active: number }>('/ops/visitor-passes'),
   opsCreateVisitorPass: (label: string) => post<VisitorPassInfo & { code: string }>('/ops/visitor-passes', { label }),
   opsRevokeVisitorPass: (id: string) => post<VisitorPassInfo>(`/ops/visitor-passes/${encodeURIComponent(id)}/revoke`, {}),
+  // RFC §10.13: joining and signing in with a handle and a 6-digit PIN
+  join: (b: { code: string; handle: string; displayName: string; pin: string }) =>
+    post<{ state: UserState; recoveryCode: string }>('/auth/join', b),
+  pinLogin: (b: { handle: string; pin: string }) => post<{ state: UserState }>('/auth/pin/login', b),
+  /** `code`: the recovery code, or an admin's one-hour reset code */
+  pinReset: (b: { handle: string; code: string; pin: string }) =>
+    post<{ state: UserState; recoveryCode: string | null }>('/auth/pin/reset', b),
+  setPin: (pin: string, currentPin?: string) => call<{ ok: true }>('PUT', '/me/pin', currentPin ? { pin, currentPin } : { pin }),
+  opsPinReset: (handle: string) => post<{ code: string; expiresAt: string }>(`/ops/users/${encodeURIComponent(handle)}/pin-reset`, {}),
   registerOptions: (b: { code: string; handle: string; displayName: string }) => post<Challenge>('/auth/register/options', b),
   registerVerify: (b: { challengeId: string; response: unknown }) =>
     post<{ state: UserState; recoveryCode: string }>('/auth/register/verify', b),
@@ -667,7 +678,7 @@ const MESSAGES: Record<string, string> = {
   passkey_invalid: 'That passkey was not recognised.',
   account_unavailable: 'This account is unavailable.',
   recovery_failed: 'Handle or recovery code is incorrect.',
-  last_passkey: 'You cannot remove your last passkey. Add another first.',
+  last_passkey: 'Choose a PIN first: this passkey is your only way in.',
   invite_limit: 'You have reached your invite limit.',
   invite_penalty: 'You cannot create invites right now.',
   invite_not_allowed_state: 'Your account cannot create invites right now.',

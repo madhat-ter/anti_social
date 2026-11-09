@@ -33,6 +33,12 @@ export function generateRecoveryCode(): { display: string; normalized: string } 
   return { display: formatInviteCode(normalized), normalized };
 }
 
+/** RFC §10.13: an admin's PIN reset code, 8 symbols = 40 bits, one hour, one use, rate-limited. */
+export function generatePinResetCode(length: number): { display: string; normalized: string } {
+  const normalized = randomSymbols(length);
+  return { display: formatInviteCode(normalized), normalized };
+}
+
 export const normalizeRecoveryCode = normalizeInviteCode;
 
 export function hashRecoveryCode(normalized: string): Promise<string> {
