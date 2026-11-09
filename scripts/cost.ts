@@ -2,14 +2,15 @@
  * What building this site has cost: a spreadsheet computed from the Claude Code transcripts
  * of this project (every assistant turn records its token usage and model), plus hosting.
  *
- *   bun scripts/cost.ts [transcripts dir]      → writes COST.xlsx at the repo root
+ *   bun scripts/cost.ts [transcripts dir]          → writes COST.xlsx at the repo root
+ *   bun scripts/cost.ts --edit [transcripts dir]   → updates the numbers in the existing COST.xlsx in place
  *
  * Default dir: ~/.claude/projects/E--work-anti-site (this repo's project folder). Scans every
  * .jsonl under it (subagent transcripts live in subfolders), dedupes by message id, and prices
  * the tokens at Anthropic's published API list prices (table below). The workbook is written by
  * exceljs (a dev dependency). The owner wanted a spreadsheet, not a PDF (2026-11-09).
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import ExcelJS from 'exceljs';
@@ -47,7 +48,10 @@ function* files(dir: string): Generator<string> {
 }
 
 // ── read every transcript
-const dir = process.argv[2] ?? join(homedir(), '.claude', 'projects', 'E--work-anti-site');
+const args = process.argv.slice(2);
+/** `--edit`: update the numbers in the existing COST.xlsx and leave everything else in it alone (owner's call, 2026-11-09) */
+const EDIT = args.includes('--edit');
+const dir = args.find((a) => !a.startsWith('--')) ?? join(homedir(), '.claude', 'projects', 'E--work-anti-site');
 const byModel = new Map<string, Tally>();
 const bySession = new Map<string, { first: string; last: string; cost: number; turns: number; asks: number }>();
 const seen = new Set<string>();
@@ -201,5 +205,66 @@ sess.addRow({});
 sess.addRow({ s: 'Length is the time between a session\'s first and last message, so it includes pauses. Subagent work counts in the session that started it.' });
 
 const out = join(import.meta.dir, '..', 'COST.xlsx');
-await wb.xlsx.writeFile(out);
-console.log(`Total at list price: ${$(total)} over ${sessions.length} sessions. Wrote ${out}.`);
+if (EDIT && existsSync(out)) await editInPlace(out);
+else await wb.xlsx.writeFile(out);
+console.log(`Total at list price: ${$(total)} over ${sessions.length} sessions. ${EDIT ? 'Updated' : 'Wrote'} ${out}.`);
+
+/**
+ * Edit mode: open the workbook as it is (with whatever was changed in Excel) and touch only the
+ * figures: the Summary values, the per-model and per-session rows (found by the name in column A;
+ * new ones go in above "Total"), the Total formulas, and any price row that is missing.
+ */
+async function editInPlace(path: string) {
+  const book = new ExcelJS.Workbook();
+  await book.xlsx.readFile(path);
+  const sheet = (name: string) => { const ws = book.getWorksheet(name); if (!ws) throw new Error(`COST.xlsx has no "${name}" sheet`); return ws; };
+  const rowOf = (ws: ExcelJS.Worksheet, a: string) => { let r = 0; ws.eachRow((row, i) => { if (!r && String(row.getCell(1).value ?? '').trim() === a) r = i; }); return r; };
+  /** the row for `key` (inserted above Total when new, copying the style of the row above) */
+  const keyed = (ws: ExcelJS.Worksheet, key: string) => {
+    const at = rowOf(ws, key);
+    if (at) return ws.getRow(at);
+    const totalAt = rowOf(ws, 'Total');
+    ws.insertRow(totalAt, [key], 'i');
+    return ws.getRow(totalAt);
+  };
+  const sums = (ws: ExcelJS.Worksheet, cols: string[]) => {
+    const totalAt = rowOf(ws, 'Total');
+    for (const c of cols) ws.getCell(`${c}${totalAt}`).value = { formula: `SUM(${c}2:${c}${totalAt - 1})` } as ExcelJS.CellFormulaValue;
+  };
+
+  const s = sheet('Summary');
+  const put = (label: string, v: number | string) => { const r = rowOf(s, label); if (r) s.getCell(`B${r}`).value = v; };
+  put('Model usage at API list price', total);
+  put('Total so far', total);
+  put('Claude Code sessions', sessions.length);
+  put('Hours of work (first to last message per session)', Number(activeHours.toFixed(1)));
+  put('Messages typed by the owner', asks);
+  put('Model turns', sum('turns'));
+  put('First session', day(firstAt));
+  put('Last activity', day(lastAt));
+  put('Computed on', day(now.toISOString()));
+
+  const m = sheet('Model usage');
+  for (const [model, t] of [...byModel].sort((a, b) => b[1].cost - a[1].cost)) {
+    const row = keyed(m, model);
+    row.getCell(2).value = t.turns; row.getCell(3).value = t.in / 1e6; row.getCell(4).value = t.out / 1e6;
+    row.getCell(5).value = t.read / 1e6; row.getCell(6).value = t.write5m / 1e6; row.getCell(7).value = t.write1h / 1e6; row.getCell(8).value = t.cost;
+  }
+  sums(m, ['B', 'C', 'D', 'E', 'F', 'G', 'H']);
+
+  const pr = sheet('Prices used');
+  const used = new Set([...byModel.keys()].map((k) => Object.keys(PRICES).find((p) => k.startsWith(p))));
+  for (const [k, p] of Object.entries(PRICES).filter(([k]) => used.has(k))) {
+    if (!rowOf(pr, k)) pr.addRow([k, p.in, p.out, p.read, p.write5m, p.write1h]);
+  }
+
+  const ps = sheet('Per session');
+  for (const [id, v] of sessions) {
+    const row = keyed(ps, id.slice(0, 8));
+    row.getCell(2).value = when(v.first); row.getCell(3).value = Number(hours(v.first, v.last).toFixed(1));
+    row.getCell(4).value = v.asks; row.getCell(5).value = v.turns; row.getCell(6).value = v.cost;
+  }
+  sums(ps, ['C', 'D', 'E', 'F']);
+
+  await book.xlsx.writeFile(path);
+}
