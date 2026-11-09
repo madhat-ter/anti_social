@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { api, errorMessage, type Me } from '@/lib/api';
 import { isSeated, setUnreadInTitle, useMe } from '@/lib/hooks';
@@ -32,8 +32,6 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
   const me = given ?? own.me;
   const loading = given ? false : own.loading;
   const seated = isSeated(me);
-  const shellRef = useRef<HTMLDivElement>(null);
-  useStickyColumns(shellRef);
 
   const needsSetup = !!me?.setupNeeded;
   // a visitor (RFC §10.8) on a members-only page (settings, inbox, writing, editing) goes back to the feed
@@ -56,7 +54,7 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
   return (
     <ReadOnlyProvider on={isVisitor(me)}>
       <ScreenTime me={me}>
-      <div className={`shell${isVisitor(me) ? ' visiting' : ''}`} ref={shellRef}>
+      <div className={`shell${isVisitor(me) ? ' visiting' : ''}`}>
         <div className="shell-left">
           <NavBar me={me} />
           <Shortcuts />
@@ -174,29 +172,4 @@ function NavBar({ me }: { me: Me }) {
       {phone}
     </>
   );
-}
-
-/**
- * The right-hand column stays in view while the page scrolls. One that fits the screen sticks under
- * the header; a taller one scrolls with the page and sticks once its bottom is in view. (The left
- * column has its own scroll instead: see .shell-left in globals.css.)
- */
-function useStickyColumns(ref: React.RefObject<HTMLDivElement | null>) {
-  useEffect(() => {
-    const root = ref.current;
-    if (!root) return;
-    const fit = () => {
-      for (const el of root.querySelectorAll<HTMLElement>(':scope > .rail')) {
-        el.style.top = '';
-        const top = parseFloat(getComputedStyle(el).top) || 0;
-        const room = window.innerHeight - top - 16;
-        if (el.offsetHeight > room) el.style.top = `${window.innerHeight - el.offsetHeight - 16}px`;
-      }
-    };
-    fit();
-    const ro = new ResizeObserver(fit);
-    root.querySelectorAll(':scope > .rail').forEach((el) => ro.observe(el));
-    window.addEventListener('resize', fit);
-    return () => { ro.disconnect(); window.removeEventListener('resize', fit); };
-  }, [ref]);
 }

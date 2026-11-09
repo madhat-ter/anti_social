@@ -870,7 +870,13 @@ input[type=search]::-webkit-search-cancel-button {
   .wrap:has(> .shell) { max-width: 84rem; }
   .top-inner { max-width: 84rem; }
   .shell { grid-template-columns: 12.5rem minmax(0, 42rem) 17.5rem; justify-content: space-between; gap: 2.25rem; }
-  .rail { display: flex; flex-direction: column; gap: 1.25rem; position: sticky; top: 4.6rem; }
+  /* the side windows have their own scroll (owner's call, 2026-11-09): never longer than the screen,
+     and reaching their end does not hand the scroll on to the feed */
+  .rail {
+    display: flex; flex-direction: column; gap: 1.25rem; position: sticky; top: 4.6rem;
+    max-height: calc(100vh - 4.6rem - 1rem); overflow-y: auto; overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: var(--ink) transparent;
+  }
   /* a visitor's time left is in the side window (with the way out): not twice */
   .shell-left > .nav .nav-visitor { display: none; }
 }

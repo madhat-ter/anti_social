@@ -909,6 +909,10 @@ five commits. The rules it left behind, for anything added later:
   window lives in the right column, which opens with the next events (the "you" window is gone:
   your profile is in the menu). Under 1180px there is no right column, so the pick window and the
   birthday line sit in the feed, as on phones.
+- **The side windows scroll on their own** (owner's call, 2026-11-09). The right column is never
+  taller than the screen: it scrolls under the header, like the menu, so a short laptop window can
+  still reach the last window instead of losing it below the fold. The scroll does not carry on
+  into the feed.
 - **No window repeats its page:** no next-events window on Events, no seats window on Members, and
   a visitor's time left is in the side window only (the menu pill shows where there is no rail).
 - **No empty boxes.** The portfolio's About/Skills | Experience/Education box is one column when
