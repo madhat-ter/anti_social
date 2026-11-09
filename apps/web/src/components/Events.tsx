@@ -9,6 +9,7 @@ import { InterestPicker, InterestTags } from './Interests';
 import { errorMessage, type AnEvent, type EventInput } from '@/lib/api';
 import { NameMarks } from './Marks';
 import { ErrorNote } from './ui';
+import { bnLang } from '@/lib/lang';
 
 /** "Sat, Nov 14 · 10:00 AM – 12:00 PM" in the viewer's time zone. */
 export function eventWhen(startsAt: string, endsAt: string | null): string {
@@ -60,7 +61,7 @@ export function EventCard({ e }: { e: AnEvent }) {
           <span className="d">{start.getDate()}</span>
         </span>
         <span className="event-main">
-          <span className="event-title">{e.title} <MyStatus e={e} />{e.audience === 'team' && <span className="tag">team only</span>}{e.cancelledAt && <span className="tag danger">cancelled</span>}</span>
+          <span className="event-title" {...bnLang(e.title)}>{e.title} <MyStatus e={e} />{e.audience === 'team' && <span className="tag">team only</span>}{e.cancelledAt && <span className="tag danger">cancelled</span>}</span>
           {e.collab && <span className="muted small">Meetup for {e.collab.title}</span>}
           {e.joinMode === 'approve' && <span className="muted small">Ask to come</span>}
           <InterestTags slugs={e.interests ?? []} />
@@ -138,7 +139,7 @@ export function EventForm({ initial, submitLabel, onSubmit }: {
           <span className="d">{previewStart ? previewStart.getDate() : '?'}</span>
         </span>
         <span className="event-main">
-          <span className="event-title">{title.trim() || 'Your event'}</span>
+          <span className="event-title" {...bnLang(title)}>{title.trim() || 'Your event'}</span>
           <span className="muted small">{startsAt ? eventWhen(fromLocalInput(startsAt)!, fromLocalInput(endsAt)) : 'Pick a time'}</span>
           <span className="muted small">{rsvpOnly ? 'Location shared with people going' : location.trim() || 'Somewhere'}</span>
           <span className="muted small">{capacity.trim() ? `${capacity} spots` : 'No limit on spots'}</span>

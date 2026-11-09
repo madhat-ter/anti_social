@@ -57,6 +57,8 @@ h1, h2, .display, strong, b, .big, .name, .rail-name, .seat-name, .sheet-name, .
 .rail-ev-title, .pj-head h1, .pj-panel h2, .pf-sec-h, .section-h {
   font-synthesis-weight: auto;
 }
+/* poster headings use the ultra-condensed English space, too narrow to part Bangla words (lib/lang.ts marks them) */
+:is(h1, h2, .event-title, .collab-title, .pick-title, .rail-ev-title)[lang=bn] { word-spacing: .22em; }
 body::after {
   content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 100;
   opacity: var(--grain-opacity); mix-blend-mode: var(--grain-blend);
@@ -456,6 +458,7 @@ ul.events { list-style: none; margin: 0; padding: 0; display: flex; flex-directi
 .hero-type .outline { color: transparent; -webkit-text-stroke: 3px var(--ink); margin-top: -.02em; }
 .hero-type .stop { color: var(--signal); -webkit-text-stroke: 0; }
 .hero-sub { font-size: 1.2rem; line-height: 1.5; max-width: 34rem; }
+.landing-foot { grid-area: foot; grid-column: 1 / -1; margin: 0; padding-top: .5rem; font-size: .85rem; }
 .hero-how { font-size: 1rem; line-height: 1.5; max-width: 34rem; color: var(--gray-strong); }
 .seats { display: grid; gap: 1rem; }
 .seat-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: .5rem .35rem; }
@@ -775,7 +778,7 @@ input[type=search]::-webkit-search-cancel-button {
   .wrap:has(> .hero) { max-width: 78rem; }
   .hero {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 4rem; row-gap: 2rem; align-items: start;
-    grid-template-areas: "type seats" "sub seats" "alert seats" "how seats" "visit seats" "rules rules";
+    grid-template-areas: "type seats" "sub seats" "alert seats" "how seats" "visit seats" "rules rules" "foot foot";
   }
   .hero-type { grid-area: type; }
   .hero-type > span { font-size: clamp(6rem, 12.5vw, 11.5rem); }

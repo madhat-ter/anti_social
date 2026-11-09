@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, errorMessage, type EventDetail, type Post } from '@/lib/api';
 import { Composer } from '@/components/Composer';
 import { ActionMenu } from '@/components/ActionMenu';
+import { bnLang } from '@/lib/lang';
 import { PostList } from '@/components/PostList';
 import { usePaged } from '@/lib/hooks';
 import { InterestTags } from '@/components/Interests';
@@ -64,7 +65,7 @@ function EventView() {
             <span className="d">{start.getDate()}</span>
           </span>
           <div>
-            <h1>{ev.title}</h1>
+            <h1 {...bnLang(ev.title)}>{ev.title}</h1>
             <MyStatus e={ev} />
             {ev.audience === 'team' && <span className="tag" title="Only the collab's team can see this">team only</span>}
             <InterestTags slugs={ev.interests} />

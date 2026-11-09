@@ -13,6 +13,7 @@ import { NameMarks } from './Marks';
 import { Win } from './retro';
 import { ErrorNote } from './ui';
 import { VISITOR_NOTE, useReadOnly } from './Visitor';
+import { bnLang } from '@/lib/lang';
 
 export const KINDS: { kind: SuggestionKind; label: string; placeholder: string }[] = [
   { kind: 'movie', label: 'Movie', placeholder: 'Perfect Days' },
@@ -97,7 +98,7 @@ export function PickCard({ p, showAuthor = true, onChange, onEditing }: {
   return (
     <figure className="pick">
       <figcaption className="pick-kind"><KindIcon kind={p.kind} /> {labelOf(p.kind)}</figcaption>
-      <p className="pick-title">{p.title}</p>
+      <p className="pick-title" {...bnLang(p.title)}>{p.title}</p>
       {p.note && <p className="pick-note">{p.note}</p>}
       {showAuthor && p.author && (
         <Link href={`/u/${p.author.handle}`} className="pick-by">

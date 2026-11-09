@@ -13,6 +13,7 @@ import { BirthdaysWindow } from './Birthday';
 import { NameMarks } from './Marks';
 import { Win } from './retro';
 import { VisitorWindow } from './Visitor';
+import { bnLang } from '@/lib/lang';
 
 function You({ me }: { me: Me }) {
   return (
@@ -66,7 +67,7 @@ function NextEvents() {
               <li key={e.id}>
                 <Link href={`/events/${e.id}`}>
                   <span className="rail-date"><span className="d">{d.getDate()}</span><span className="m">{d.toLocaleDateString(undefined, { month: 'short' })}</span></span>
-                  <span className="rail-ev-title">{e.title}</span>
+                  <span className="rail-ev-title" {...bnLang(e.title)}>{e.title}</span>
                 </Link>
               </li>
             );

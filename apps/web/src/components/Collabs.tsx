@@ -10,6 +10,7 @@ import { api, errorMessage, IMAGE_MAX_BYTES, type Collab, type CollabInput, type
 import { InterestPicker, InterestTags } from './Interests';
 import { NameMarks } from './Marks';
 import { ErrorNote } from './ui';
+import { bnLang } from '@/lib/lang';
 
 export const STATUS_LABEL = { recruiting: 'recruiting', closed: 'team set', finished: 'finished' } as const;
 
@@ -36,7 +37,7 @@ export function CollabCard({ c }: { c: CollabSummary }) {
           ? <img className="collab-cover" src={c.cover.url} alt="" width={c.cover.width} height={c.cover.height} loading="lazy" />
           : <span className="collab-cover blank" aria-hidden>{c.title.slice(0, 1).toUpperCase()}</span>}
         <span className="collab-main">
-          <span className="collab-title">{c.title} <StatusTag c={c} /> <MyTag c={c} /></span>
+          <span className="collab-title" {...bnLang(c.title)}>{c.title} <StatusTag c={c} /> <MyTag c={c} /></span>
           <span className="muted small">
             {c.teamCount} of {c.teamMax} people{c.host && <> · hosted by @{c.host.handle}<NameMarks admin={c.host.admin} verified={c.host.verified} size=".9em" /></>}
             {c.status === 'recruiting' && <> · {c.joinMode === 'open' ? 'anyone can join' : 'ask to join'}</>}

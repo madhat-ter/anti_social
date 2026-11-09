@@ -1,10 +1,10 @@
 /**
- * Bangla text in Kalpurush (2026-11-09). In-process API on :3101 with an in-memory DB, against a web build:
+ * Bangla text in Li Golesta Borno (Lipighor), the owner's choice (2026-11-09). In-process API on :3101 with an in-memory DB, against a web build:
  *   (apps/web)  $env:API_URL='http://localhost:3101'; $env:NEXT_DIST_DIR='.next-shots-prod'; bun run build; bunx next start -p 3100
  *   bun scripts/screenshots-bangla.ts
  * Output: .screenshots/bangla/NN-name.png
  * A member with a Bangla name posts in Bangla (mixed with English), hosts an event with a Bangla
- * title, and has a Bangla About; Chrome's own report of the fonts it drew with must say Kalpurush
+ * title, and has a Bangla About; Chrome's own report of the fonts it drew with must say Golesta Borno
  * for the Bangla and Archivo for the English in the same paragraph.
  */
 import { chromium, type CDPSession, type Page } from 'playwright-core';
@@ -106,9 +106,9 @@ try {
   const body = await fontsOf(cdp, page, 'article.post p.body');
   const names = body.map((f) => f.familyName).join(', ');
   console.log('post body fonts:', JSON.stringify(body));
-  if (!body.some((f) => /Kalpurush/i.test(f.familyName))) throw new Error(`Bangla in a post is not drawn in Kalpurush: ${names}`);
+  if (!body.some((f) => /Golesta/i.test(f.familyName))) throw new Error(`Bangla in a post is not drawn in Golesta Borno: ${names}`);
   if (!body.some((f) => /Archivo/i.test(f.familyName))) throw new Error(`the English in the same post is not Archivo: ${names}`);
-  if (!fontRequests.some((u) => /Kalpurush/i.test(u) || /\.ttf/i.test(u))) console.log('note: font requests', fontRequests);
+  if (!fontRequests.some((u) => /Golesta/i.test(u) || /\.ttf/i.test(u))) console.log('note: font requests', fontRequests);
   await shot(page, 'feed-bangla-post');
 
   // ── 2. the event with a Bangla title (poster heading, bold)
@@ -118,7 +118,7 @@ try {
   await page.getByRole('heading', { name: 'শনিবারের চা আড্ডা' }).waitFor();
   await page.evaluate(() => document.fonts.ready);
   const h1 = await fontsOf(cdp, page, 'h1');
-  if (!h1.some((f) => /Kalpurush/i.test(f.familyName))) throw new Error(`the Bangla event title is not Kalpurush: ${JSON.stringify(h1)}`);
+  if (!h1.some((f) => /Golesta/i.test(f.familyName))) throw new Error(`the Bangla event title is not Golesta Borno: ${JSON.stringify(h1)}`);
   await shot(page, 'event-bangla-title');
 
   // ── 3. her portfolio: Bangla name and About
@@ -126,6 +126,14 @@ try {
   await page.getByText('আসবাব ডিজাইন করি').waitFor();
   await page.evaluate(() => document.fonts.ready);
   await shot(page, 'portfolio-bangla', true);
+
+  // ── 3b. the landing page carries the licence's backlink
+  const out = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  const lp = await out.newPage();
+  await lp.goto(WEB);
+  await lp.getByRole('link', { name: 'lipighor.com' }).waitFor();
+  await out.close();
+  console.log('landing backlink ok');
 
   // ── 4. the members page and a phone
   await page.goto(`${WEB}/members`);

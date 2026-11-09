@@ -20,6 +20,7 @@ import { ImageViewer } from './ImageViewer';
 import { nn, styleClass, TagEditor } from './Portfolio';
 import { AlertDialog, Win } from './retro';
 import { ErrorNote } from './ui';
+import { bnLang } from '@/lib/lang';
 import { useReadOnly } from './Visitor';
 
 /** "2026 · Industrial designer · Group of two · 3 weeks · Fusion 360, KeyShot" */
@@ -85,7 +86,7 @@ export function ProjectView({ project: p, siblings, style }: { project: Project;
               {idx >= 0 ? `Project ${nn(idx)}` : 'Project'} · <Link href={home}>@{p.handle}</Link>
               {p.draft && <span className="tag">draft, only you see this</span>}
             </p>
-            <h1>{p.title}</h1>
+            <h1 {...bnLang(p.title)}>{p.title}</h1>
             {details && <p className="pj-details ui">{details}</p>}
             {p.summary && <p className="pj-summary">{p.summary}</p>}
             {p.mine && (

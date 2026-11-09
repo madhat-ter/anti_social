@@ -24,6 +24,7 @@ import { NameMarks } from './Marks';
 import { InterestTags } from './Interests';
 import { Win } from './retro';
 import { ErrorNote } from './ui';
+import { bnLang } from '@/lib/lang';
 
 export const nn = (i: number) => String(i + 1).padStart(2, '0');
 /** Classes that give a window the portfolio's look (see "the look" in globals.css). */
@@ -116,7 +117,7 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
       <header className="pf-hero">
         <Avatar seed={member.handle} gender={member.gender} size={112} label={`${member.displayName}'s avatar`} />
         <div className="pf-hero-main">
-          <h1>
+          <h1 {...bnLang(member.displayName)}>
             {member.displayName}
             <NameMarks admin={member.role === 'ops'} verified={member.verified} size=".8em" />
             <BirthdayTag b={member.birthday} />

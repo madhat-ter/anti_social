@@ -19,20 +19,24 @@ const hand = Shantell_Sans({ subsets: ['latin'], variable: '--f-hand', display: 
  */
 const pixel = Tiny5({ weight: '400', subsets: ['latin'], variable: '--f-pixel', display: 'swap' });
 /**
- * Bangla (2026-11-09): Kalpurush by Tanbin Islam Siyam, SIL OFL 1.1 (app/fonts/kalpurush/OFL.txt),
- * served unmodified from here. It covers only the Bengali block, so it sits after every other face
- * in each stack and the browser uses it, and downloads it, only for Bangla characters.
+ * Bangla: Li Golesta Borno (Unicode) by Lipighor, chosen by the owner (2026-11-09). Lipighor's
+ * licence (fonts/golesta-borno/LICENSE-Readme.txt) allows web use only with their emailed
+ * permission and a "Web font: lipighor.com" backlink in the landing page footer (page.tsx); the
+ * files must not be re-uploaded elsewhere. It covers only the Bengali block, so it sits after every
+ * other face in each stack and the browser uses it, and downloads it, only for Bangla characters.
  */
 const bangla = localFont({
-  src: './fonts/kalpurush/Kalpurush.ttf',
-  weight: '400',
+  src: [
+    { path: './fonts/golesta-borno/LiGolestaBornoUnicode-Regular.ttf', weight: '400', style: 'normal' },
+    { path: './fonts/golesta-borno/LiGolestaBornoUnicode-Italic.ttf', weight: '400', style: 'italic' },
+  ],
   variable: '--f-bangla',
   display: 'swap',
   adjustFontFallback: false,
   declarations: [
     { prop: 'unicode-range', value: 'U+0951-0952, U+0964-0965, U+0980-09FE, U+200C-200D, U+20B9, U+25CC' },
-    // Kalpurush draws small for its size; this matches its letters to the English beside them
-    { prop: 'size-adjust', value: '115%' },
+    // Golesta Borno draws a little small for its size; this matches its letters to the English beside them
+    { prop: 'size-adjust', value: '108%' },
   ],
 });
 

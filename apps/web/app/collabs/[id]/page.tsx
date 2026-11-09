@@ -19,6 +19,7 @@ import { usePaged } from '@/lib/hooks';
 import type { Post } from '@/lib/api';
 import { VISITOR_NOTE, useReadOnly } from '@/components/Visitor';
 import { ActionMenu } from '@/components/ActionMenu';
+import { bnLang } from '@/lib/lang';
 
 export default function CollabPage() {
   useTitle('Collab');
@@ -69,7 +70,7 @@ function CollabView({ myHandle }: { myHandle: string }) {
           </div>
         )}
         <header>
-          <h1>{c.title} <StatusTag c={c} /></h1>
+          <h1 {...bnLang(c.title)}>{c.title} <StatusTag c={c} /></h1>
           <InterestTags slugs={c.interests} />
         </header>
         {c.canManage && <HostStrip c={c} />}
