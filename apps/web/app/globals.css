@@ -101,7 +101,10 @@ main:focus { outline: none; }
 }
 .brand::after { content: ''; width: .3em; height: .3em; border-radius: 50%; background: var(--signal); margin-left: .07em; }
 /* the centre of the header: a member's screen-time timer (ScreenTime.tsx fills #top-center) */
-.top-center { flex: 1; display: flex; justify-content: center; min-width: 0; }
+/* pinned to the true centre of the header, whatever sits left and right of it */
+.top-inner { position: relative; }
+.top-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; justify-content: center; pointer-events: none; }
+.top-center > * { pointer-events: auto; }
 .time-pill {
   font: 700 .9rem/1.2 var(--font-ui); font-variant-numeric: tabular-nums; border: 2px solid var(--ink);
   padding: .15rem .6rem; background: var(--paper); color: var(--ink); white-space: nowrap;

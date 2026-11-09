@@ -96,6 +96,13 @@ try {
   await page.waitForTimeout(3200);
   const first = (await pill.innerText()).trim();
   if (!/^0:0[2-9]$/.test(first)) throw new Error(`timer after 3 s reads "${first}"`);
+  const centred = async (p: Page, what: string) => {
+    const b = (await p.getByRole('timer').boundingBox())!;
+    const vw = p.viewportSize()!.width;
+    const off = Math.abs(b.x + b.width / 2 - vw / 2);
+    if (off > 2) throw new Error(`${what}: timer is ${off.toFixed(1)}px off the centre`);
+  };
+  await centred(page, 'desktop');
   await shot(page, 'header-timer');
 
   // ── 2. ten minutes in: the first nudge
@@ -155,6 +162,7 @@ try {
   await ph.goto(WEB);
   await ph.getByText('The quiet is loud').waitFor();
   await ph.getByRole('timer').waitFor();
+  await centred(ph, 'phone');
   await shot(ph, 'phone-timer');
   await setUsed(1797);
   await ph.reload();
