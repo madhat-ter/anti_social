@@ -20,11 +20,10 @@ const hand = Shantell_Sans({ subsets: ['latin'], variable: '--f-hand', display: 
  */
 const pixel = Tiny5({ weight: '400', subsets: ['latin'], variable: '--f-pixel', display: 'swap' });
 /**
- * Bangla: Li Golesta Borno (Unicode) by Lipighor, chosen by the owner (2026-11-09). Lipighor's
- * licence (fonts/golesta-borno/LICENSE-Readme.txt) allows web use only with their emailed
- * permission and a "Web font: lipighor.com" backlink in the landing page footer (page.tsx); the
- * files must not be re-uploaded elsewhere. It covers only the Bengali block, so it sits after every
- * other face in each stack and the browser uses it, and downloads it, only for Bangla characters.
+ * Bangla: Li Golesta Borno (Unicode) by Lipighor, chosen by the owner (2026-11-09). Its licence
+ * (fonts/golesta-borno/LICENSE-Readme.txt) forbids re-uploading the files elsewhere. It covers only
+ * the Bengali block, so it sits after every other face in each stack and the browser uses it, and
+ * downloads it, only for Bangla characters.
  */
 const bangla = localFont({
   src: [

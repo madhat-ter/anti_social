@@ -583,7 +583,6 @@ ul.events { list-style: none; margin: 0; padding: 0; display: flex; flex-directi
 .hero-type .outline { color: transparent; -webkit-text-stroke: 3px var(--ink); margin-top: -.02em; }
 .hero-type .stop { color: var(--signal); -webkit-text-stroke: 0; }
 .hero-sub { font-size: 1.2rem; line-height: 1.5; max-width: 34rem; }
-.landing-foot { grid-area: foot; grid-column: 1 / -1; margin: 0; padding-top: .5rem; font-size: .85rem; }
 .hero-how { font-size: 1rem; line-height: 1.5; max-width: 34rem; color: var(--gray-strong); }
 .seats { display: grid; gap: 1rem; }
 .seat-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: .5rem .35rem; }
@@ -1027,7 +1026,7 @@ input[type=search]::-webkit-search-cancel-button {
   .wrap:has(> .hero) { max-width: 78rem; }
   .hero {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 4rem; row-gap: 2rem; align-items: start;
-    grid-template-areas: "type seats" "sub seats" "alert seats" "how seats" "visit seats" "rules rules" "foot foot";
+    grid-template-areas: "type seats" "sub seats" "alert seats" "how seats" "visit seats" "rules rules";
   }
   .hero-type { grid-area: type; }
   .hero-type > span { font-size: clamp(6rem, 12.5vw, 11.5rem); }

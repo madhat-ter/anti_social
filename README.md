@@ -76,7 +76,7 @@ docs/rfc         Design docs
 
 - **Screen time (done, 2026-11-09; off until an admin switches it on under Admin → Community):** half an hour of looking, then an hour locked out. A timer in the header counts visible time, nudges at 10, 20 and 25 minutes, and at 30 every page becomes a countdown with Sign out; the API refuses everything but the lock screen and signing out meanwhile. Kept per member on the server, so it follows you across devices. Admins see the timer and the nudges but are never locked out. RFC §10.10; `scripts/screenshots-screen-time.ts` walks it.
 
-- **Bangla (done, 2026-11-09):** every Bangla character on the site (posts, names, About, titles, events, collabs) is drawn in Kalpurush (Tanbin Islam Siyam, SIL OFL 1.1, served unmodified from `apps/web/app/fonts/kalpurush/` with its licence). English in the same sentence stays in the site's fonts; the Bangla font only downloads when a page has Bangla. `scripts/screenshots-bangla.ts` checks it with Chrome's own font report.
+- **Bangla (done, 2026-11-09; credit line removed 2026-11-10):** every Bangla character on the site (posts, names, About, titles, events, collabs) is drawn in Golesta Borno (Lipighor, served unmodified from `apps/web/app/fonts/golesta-borno/` with its licence). English in the same sentence stays in the site's fonts; the Bangla font only downloads when a page has Bangla. There is no credit line or backlink on the site (RFC §10.19). `scripts/screenshots-bangla.ts` checks it with Chrome's own font report.
 
 A free test copy runs on Vercel + Render (no domain, fake payments); see [docs/deploy-free.md](docs/deploy-free.md). A real launch (domain, Stripe live keys, image storage) follows [docs/deploy.md](docs/deploy.md).
 

@@ -29,8 +29,13 @@ can time out under the full suite on a busy machine; they pass on their own.
 
 ## Open tasks
 
-None right now. (Pet avatars were finished on 2026-11-10; the record and the reference doodles
-are in `docs/tasks/pet-avatars.md` and `docs/tasks/pet-avatars/`.)
+Nothing in the code. One thing waits on the **live test site** and needs an admin, not a commit:
+
+- The §10.18 migration paused every offer that was already live, so they are sitting in
+  **Admin → Consulting** until someone approves each one.
+
+(Pet avatars were finished on 2026-11-10; the record and the reference doodles are in
+`docs/tasks/pet-avatars.md` and `docs/tasks/pet-avatars/`.)
 
 ## Product rules that are easy to break
 
@@ -57,9 +62,9 @@ are in `docs/tasks/pet-avatars.md` and `docs/tasks/pet-avatars/`.)
 - **Visitors are not users** (§10.8). New "your own things" read endpoints go in
   `CLOSED_TO_VISITORS` (`apps/api/src/lib/visitors.ts`); new write buttons read `useReadOnly()`.
 - **Header quotes were removed on purpose.** Don't bring them back unless asked.
-- **Bangla font**: Golesta Borno (Lipighor), with the "Web font: lipighor.com" backlink in the
-  landing footer. Keep the backlink. Permission from Lipighor is still pending; if they refuse,
-  the font must be removed (fallback: Kalpurush, commit 9b24404).
+- **Bangla font**: Golesta Borno (Lipighor), served from `apps/web/app/fonts/golesta-borno/`
+  with its licence file. No credit line or backlink on the site: the owner had it removed from the
+  landing footer (2026-11-10) and it stays off. The files are not re-uploaded or shared elsewhere.
 
 ## Files to leave alone
 

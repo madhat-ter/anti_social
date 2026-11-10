@@ -127,14 +127,6 @@ try {
   await page.evaluate(() => document.fonts.ready);
   await shot(page, 'portfolio-bangla', true);
 
-  // ── 3b. the landing page carries the licence's backlink
-  const out = await browser.newContext({ viewport: { width: 1280, height: 860 } });
-  const lp = await out.newPage();
-  await lp.goto(WEB);
-  await lp.getByRole('link', { name: 'lipighor.com' }).waitFor();
-  await out.close();
-  console.log('landing backlink ok');
-
   // ── 4. the members page and a phone
   await page.goto(`${WEB}/members`);
   await page.getByText('আনা শ্রেষ্ঠা').first().waitFor();

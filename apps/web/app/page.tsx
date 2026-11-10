@@ -85,10 +85,6 @@ function Landing() {
         <li><b>No algorithm</b><span>One feed, newest first. Likes never move a post. A line shows where you left off, and you will reach the end of it.</span></li>
         <li><b>Show up</b><span>Disappear for 30 days and your seat goes to someone who will.</span></li>
       </ul>
-      {/* the Bangla font's licence asks for this backlink in the landing page footer (fonts/golesta-borno/LICENSE-Readme.txt, rule 6) */}
-      <footer className="landing-foot meta">
-        Web font: <a href="https://lipighor.com" rel="noopener noreferrer" target="_blank">lipighor.com</a>
-      </footer>
     </div>
   );
 }

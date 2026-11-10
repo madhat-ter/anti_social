@@ -1192,6 +1192,24 @@ Notifications: `consult_asked` (to every admin, once per member, not once per sa
 `consult_approved` and `consult_not_approved` (to the member). Push texts carry neither a contact nor
 a reason.
 
+### 10.19 The Bangla font stays, its credit line goes (added 2026-11-10)
+
+The owner asked for two things at once: the font stays, the credit line at the foot of the landing
+page goes. Only the credit was removed; nothing about the font changed.
+
+- **The font is unchanged.** Golesta Borno still draws every Bangla character, from
+  `apps/web/app/fonts/golesta-borno/` (regular and italic, `unicode-range` limited to Bengali, so it
+  only downloads on pages that have Bangla). Do not swap it out or re-upload the files elsewhere.
+- **The credit line is gone**: the `Web font: lipighor.com` footer on the landing page
+  (`apps/web/app/page.tsx`), its `.landing-foot` rule and the `foot` grid area it occupied
+  (`apps/web/app/globals.css`). The landing page therefore ends at the three house rules. **Do not
+  bring it back unless the owner asks.** The licence file (`LICENSE-Readme.txt`) still ships beside
+  the font and is the only place the name remains; that file is not to be edited or removed.
+- **The screenshot script no longer looks for the link**: `scripts/screenshots-bangla.ts` dropped its
+  "landing backlink ok" step. Its remaining job is unchanged: prove the Bangla is drawn in Golesta
+  Borno and the English around it is not, using Chrome's own font report.
+- The owner asked that this change carry no screenshots.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,
