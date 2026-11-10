@@ -103,6 +103,21 @@ describe('Pet Corner (RFC §10.17)', () => {
     expect(r.body).toMatchObject({ error: 'image_invalid', detail: 'A pet post carries one picture.' });
   });
 
+  test('an admin removes a pet post, and it leaves Pet Corner', async () => {
+    const w = await world();
+    const mira = await w.member('mira');
+    const boss = await w.member('boss');
+    await w.t.db.execute(sql`update users set role = 'ops' where handle = 'boss'`);
+    const pet = await createPet(mira, 'Max');
+    const p = await mira.post('/posts', { body: 'A post to remove', petId: pet.id });
+    expect((await boss.post(`/ops/posts/${p.body.id}/remove`, {})).body).toEqual({ removed: true });
+    const corner = await boss.get('/pets');
+    expect(corner.body.items.map((x: { id: string }) => x.id)).not.toContain(p.body.id);
+
+    const q = await mira.post('/posts', { body: 'Another', petId: pet.id });
+    expect((await mira.post(`/ops/posts/${q.body.id}/remove`, {})).status).toBe(404);
+  });
+
   test('deleting a pet deletes its posts and replies', async () => {
     const w = await world();
     const mira = await w.member('mira');

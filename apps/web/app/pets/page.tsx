@@ -5,5 +5,5 @@ import { PetsIndex } from '@/components/Pets';
 
 export default function PetsPage() {
   useTitle('Pet Corner');
-  return <SeatedShell>{() => <PetsIndex />}</SeatedShell>;
+  return <SeatedShell>{(me) => <PetsIndex me={me} />}</SeatedShell>;
 }

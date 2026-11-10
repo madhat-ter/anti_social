@@ -12,7 +12,7 @@ import { Avatar } from './Avatar';
 import { PetAvatar } from './PetAvatar';
 import { Composer } from './Composer';
 import { ErrorNote } from './ui';
-import { Loading, Win } from './retro';
+import { AlertDialog, Loading, Win } from './retro';
 
 const SPECIES: { key: PetSpecies; label: string }[] = [
   { key: 'dog', label: 'Dog' },
@@ -27,13 +27,14 @@ export function PetLabelTag({ label }: { label: PetPost['label'] }) {
 
 /* ─── a card in the feed ─────────────────────────────────────────────────── */
 
-export function PetCard({ post, onChanged, full = false }: {
-  post: PetPost; onChanged?: (p: PetPost) => void; full?: boolean;
+export function PetCard({ post, onChanged, onRemoved, isAdmin = false, full = false }: {
+  post: PetPost; onChanged?: (p: PetPost) => void; onRemoved?: (id: string) => void; isAdmin?: boolean; full?: boolean;
 }) {
   const [liked, setLiked] = useState(post.likedByMe);
   const [count, setCount] = useState(post.likeCount);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
   const href = `/pet/${post.pet.id}`;
   // the rail shows one picture, the pet page up to four; the grid must match what is rendered,
   // or one picture sits in a two-column grid and leaves half the card empty
@@ -47,6 +48,13 @@ export function PetCard({ post, onChanged, full = false }: {
       setLiked(r.likedByMe); setCount(r.likeCount);
       onChanged?.({ ...post, likedByMe: r.likedByMe, likeCount: r.likeCount });
     } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
+  }
+
+  /** RFC §10.17: an admin removes any pet post, like any other post. */
+  async function removeAsAdmin() {
+    setBusy(true); setErr(null);
+    try { await api.opsRemovePost(post.id); onRemoved?.(post.id); }
+    catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
   }
 
   return (
@@ -74,10 +82,22 @@ export function PetCard({ post, onChanged, full = false }: {
           {liked ? '♥' : '♡'} {count !== null ? count : 'Like'}
         </button>
         <Link href={href} className="link-btn">{post.replyCount ? `${post.replyCount} ${post.replyCount === 1 ? 'reply' : 'replies'}` : 'Reply'}</Link>
+        {isAdmin && !post.canDelete && (
+          <button type="button" className="link-btn danger-text" onClick={() => setAsking(true)} disabled={busy}>Remove (admin)</button>
+        )}
         <span className="grow" />
         <time className="meta" dateTime={post.createdAt}>{relativeTime(post.createdAt)}</time>
       </footer>
       {err && <ErrorNote message={err} />}
+      <AlertDialog
+        open={asking}
+        title="Remove pet post"
+        message={<>Remove this post by <strong>{post.pet.name}</strong>? @{post.pet.owner.handle} is told it was removed. <strong>This cannot be undone.</strong></>}
+        confirmLabel="Remove"
+        danger
+        onConfirm={() => { setAsking(false); void removeAsAdmin(); }}
+        onCancel={() => setAsking(false)}
+      />
     </article>
   );
 }
@@ -127,7 +147,12 @@ export function PetCorner({ me }: { me: Me }) {
           </p>
         ) : (
           <ul className="pet-list">
-            {shown.map((p) => <li key={p.id}><PetCard post={p} /></li>)}
+            {shown.map((p) => (
+              <li key={p.id}>
+                <PetCard post={p} isAdmin={me.role === 'ops'}
+                  onRemoved={(id) => { setShown((cur) => cur.filter((x) => x.id !== id)); setPool((cur) => cur?.filter((x) => x.id !== id) ?? null); }} />
+              </li>
+            ))}
           </ul>
         )}
       <Link className="ui" href="/pets">All pets</Link>
@@ -137,7 +162,7 @@ export function PetCorner({ me }: { me: Me }) {
 
 /* ─── the full feed (phones and its own page) ────────────────────────────── */
 
-export function PetsIndex() {
+export function PetsIndex({ me }: { me: Me }) {
   const [items, setItems] = useState<PetPost[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -170,7 +195,12 @@ export function PetsIndex() {
       <ErrorNote message={err} />
       {items.length === 0
         ? <p className="empty">No pets yet. Add one on your profile.</p>
-        : <ul className="pet-grid">{items.map((p) => <li key={p.id}><PetCard post={p} full /></li>)}</ul>}
+        : <ul className="pet-grid">{items.map((p) => (
+          <li key={p.id}>
+            <PetCard post={p} full isAdmin={me.role === 'ops'}
+              onRemoved={(id) => setItems((cur) => cur?.filter((x) => x.id !== id) ?? null)} />
+          </li>
+        ))}</ul>}
       {cursor && <div className="row"><button type="button" className="btn" onClick={() => void loadMore()} disabled={more}>{more ? 'Loading…' : 'More pets'}</button></div>}
     </>
   );
@@ -441,7 +471,9 @@ export function PetPage({ id, me }: { id: string; me: Me }) {
         ? <p className="empty">{mine ? 'Nothing from this pet yet.' : `No updates from ${pet.name} yet.`}</p>
         : <ul className="pet-page-list">{posts.map((p) => (
           <li key={p.id}>
-            <PetCard post={p} full onChanged={(np) => setPosts((cur) => cur?.map((x) => x.id === np.id ? np : x) ?? null)} />
+            <PetCard post={p} full isAdmin={me.role === 'ops'}
+              onRemoved={(id) => setPosts((cur) => cur?.filter((x) => x.id !== id) ?? null)}
+              onChanged={(np) => setPosts((cur) => cur?.map((x) => x.id === np.id ? np : x) ?? null)} />
             <div className="pet-under">
               <PetReplies post={p} onCount={(n) => setPosts((cur) => cur?.map((x) => x.id === p.id ? { ...x, replyCount: n } : x) ?? null)} />
               {mine && (

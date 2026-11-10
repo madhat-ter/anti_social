@@ -1141,7 +1141,8 @@ the owner, every answer as proposed:
   name, "pet of @owner", the label, the words and any picture.
 - **Others can like, reply and report** a pet post. Replies stay inside Pet Corner; five reports
   hide a pet post like any other; the **owner is notified in their own inbox** for replies and
-  likes. A pet post is **never a lurker contribution**.
+  likes. A pet post is **never a lurker contribution**. Admins get **Remove (admin)** on any pet
+  post (the owner is told), as on any other post.
 - **Deleting a pet** removes the pet and all its posts, images and replies, after a confirmation
   that says how many posts will go.
 - **The seats window only disappears from the rail.** The seat chart and count stay on the
