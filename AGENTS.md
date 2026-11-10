@@ -38,6 +38,10 @@ are in `docs/tasks/pet-avatars.md` and `docs/tasks/pet-avatars/`.)
   `prefers-color-scheme`. Every colour must be a CSS variable so `:root[data-theme="dark"]`
   covers it (`apps/web/app/globals.css`). (§10.14)
 - **Sign-in is handle + 6-digit PIN** (§10.13). Passkeys are optional extras.
+- **Consulting is gated twice** (§10.18): the verified badge first, then one admin's approval
+  (`users.consult_approved_at`). Approval sticks across pauses; losing the badge wipes it. Never
+  make `consult_offers.active` alone mean "bookable" — live is `offerLive()` in
+  `apps/api/src/lib/consultations.ts`.
 - **The header is the wordmark only**, plus the phone bell and the screen-time pill. Ask before
   adding anything to `.top`.
 - **Faces are procedural** (`apps/web/src/components/Avatar.tsx`, from handle + gender). Any

@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { NameMarks } from '@/components/Marks';
 import { ActionMenu } from '@/components/ActionMenu';
-import { api, ApiError, errorMessage, type AdminContact, type AdminInterest, type AdminMember, type AdminSettings, type FlagItem, type Me, type OpsConsultation, type OpsConsultationDetail, type Pick, type VisitorPassInfo } from '@/lib/api';
+import { api, ApiError, errorMessage, type AdminContact, type AdminInterest, type AdminMember, type AdminSettings, type ConsultAsk, type FlagItem, type Me, type OpsConsultation, type OpsConsultationDetail, type Pick, type VisitorPassInfo } from '@/lib/api';
+import { minutesLabel, priceLabel } from '@/components/Consult';
 import { minutesLeft } from '@/components/Visitor';
 import { fmtDate, relativeTime, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
@@ -30,6 +31,7 @@ function Admin({ me }: { me: Me }) {
         <Invites />
         <VisitorPasses />
         <Reports />
+        <ConsultAsks />
         <Picks />
         <Members me={me} />
         <Consultations />
@@ -227,6 +229,88 @@ function VisitorPasses() {
   );
 }
 
+/**
+ * RFC §10.18: members who switched their consulting offer on and are waiting for a yes. The badge
+ * is always there (only verified members can ask); the offer is shown in words so the decision
+ * needs one screen and no extra clicking.
+ */
+function ConsultAsks() {
+  const [items, setItems] = useState<ConsultAsk[] | null>(null);
+  const [ask, setAsk] = useState<{ a: ConsultAsk; approved: boolean } | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setErr(null);
+    try { setItems(await api.opsConsultAsks()); } catch (e) { setErr(errorMessage(e)); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  async function decide(a: ConsultAsk, approved: boolean) {
+    setAsk(null); setErr(null); setMsg(null);
+    try {
+      await api.opsDecideConsulting(a.handle, approved);
+      setMsg(approved ? `@${a.handle} can offer consulting. Their offer goes live when they switch it on.` : `@${a.handle}'s consulting is not approved. They are told.`);
+      await load();
+    } catch (e) { setErr(errorMessage(e)); }
+  }
+
+  return (
+    <section className="panel-sec" aria-labelledby="adm-asks">
+      <h2 id="adm-asks">Consulting</h2>
+      <p className="muted">
+        Members who finished setting up an offer and are waiting for a yes. Offering consulting needs the verified badge first, so everyone here has it.
+        Approving lasts: they pause and resume without asking again. A member who loses the badge loses this too.
+      </p>
+      {msg && <p role="status" className="muted">{msg}</p>}
+      <ErrorNote message={err} />
+      {items === null ? (err ? null : <Loading />) : items.length === 0 ? <p className="muted">Nobody is waiting.</p> : (
+        <ul className="list adm-asks">
+          {items.map((a) => (
+            <li key={a.handle}>
+              <Avatar seed={a.handle} gender={a.gender ?? null} size={40} />
+              <span className="adm-member-main">
+                <span>
+                  <Link href={`/u/${a.handle}`} className="name">{a.displayName}</Link>
+                  {' '}<span className="muted handle">@{a.handle}</span>
+                  <NameMarks admin={a.admin} verified={a.verified} />
+                  <span className="tag hot">waiting</span>
+                </span>
+                <span className="muted small">
+                  asked {relativeTime(a.askedAt)} · {minutesLabel(a.minutes)} · {priceLabel(a)}
+                  {!a.active && <> · <strong>their offer is paused</strong></>}
+                </span>
+                {a.description && <span className="adm-body">{a.description}</span>}
+              </span>
+              <span className="row adm-member-actions">
+                <button type="button" className="btn primary" onClick={() => setAsk({ a, approved: true })}>Approve</button>
+                <button type="button" className="btn" onClick={() => setAsk({ a, approved: false })}>Not now</button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <AlertDialog
+        open={ask?.approved === true}
+        title="Approve consulting"
+        message={ask ? <>Let <strong>@{ask.a.handle}</strong> offer consulting? Their offer ({minutesLabel(ask.a.minutes)}, {priceLabel(ask.a)}) goes live as soon as it is switched on. They are told.</> : ''}
+        confirmLabel="Approve"
+        onConfirm={() => ask && void decide(ask.a, true)}
+        onCancel={() => setAsk(null)}
+      />
+      <AlertDialog
+        open={ask?.approved === false}
+        title="Not this time"
+        message={ask ? <>Not approve <strong>@{ask.a.handle}</strong>? Their offer is switched off and they cannot switch it back on until an admin changes this. No reason is given; they are told the decision.</> : ''}
+        confirmLabel="Not this time"
+        danger
+        onConfirm={() => ask && void decide(ask.a, false)}
+        onCancel={() => setAsk(null)}
+      />
+    </section>
+  );
+}
+
 type Ask = { item: FlagItem; resolution: 'restored' | 'removed' } | null;
 const KIND_LABEL: Record<FlagItem['kind'], string> = {
   post: 'Post', project: 'Project', collab: 'Collab', consult_offer: 'Consultation offer', consultation: 'Consultation request',
@@ -385,10 +469,15 @@ function Reports() {
 const STATE_LABEL: Record<string, string> = {
   waitlisted: 'waiting for a seat', flagged_lurker: 'flagged as quiet', archived: 'archived', banned: 'banned',
 };
+/** RFC §10.18: how their consulting stands, in words an admin reads at a glance. */
+const CONSULTING_LABEL: Record<AdminMember['consulting'], string> = {
+  none: '', on: 'on', paused: 'paused', off: 'switched off by an admin',
+  waiting: 'waiting for approval', declined: 'not approved',
+};
 
 type MemberAsk = { kind: 'ban' | 'unban' | 'admin' | 'unadmin' | 'rename' | 'birthday'; m: AdminMember } | null;
-type MemberFilter = 'all' | 'seated' | 'waiting' | 'archived' | 'banned' | 'unverified';
-const FILTERS: [MemberFilter, string][] = [['all', 'Everyone'], ['seated', 'Seated'], ['unverified', 'Not verified'], ['waiting', 'Waiting'], ['archived', 'Archived'], ['banned', 'Banned']];
+type MemberFilter = 'all' | 'seated' | 'waiting' | 'archived' | 'banned' | 'unverified' | 'consulting';
+const FILTERS: [MemberFilter, string][] = [['all', 'Everyone'], ['seated', 'Seated'], ['unverified', 'Not verified'], ['consulting', 'Consulting'], ['waiting', 'Waiting'], ['archived', 'Archived'], ['banned', 'Banned']];
 
 /** Everyone in the room (and the queue, archived and banned), with what an admin can do to each. */
 function Members({ me }: { me: Me }) {
@@ -465,6 +554,16 @@ function Members({ me }: { me: Me }) {
     } catch (e) { setErr(errorMessage(e)); }
   }
 
+  /** RFC §10.18: the same yes and no as the Consulting queue, from the member's own row. */
+  async function decideConsulting(m: AdminMember, approved: boolean) {
+    setErr(null); setMsg(null);
+    try {
+      await api.opsDecideConsulting(m.handle, approved);
+      setMsg(approved ? `@${m.handle} can offer consulting.` : `@${m.handle}'s consulting is not approved. They are told.`);
+      await load();
+    } catch (e) { setErr(errorMessage(e)); }
+  }
+
   /** RFC §10.13: a one-hour code to give the member in person or by phone; they are told; it is logged */
   async function resetPin(m: AdminMember) {
     setErr(null); setMsg(null);
@@ -500,6 +599,7 @@ function Members({ me }: { me: Me }) {
       case 'archived': return m.state === 'archived';
       case 'banned': return m.state === 'banned';
       case 'unverified': return seatedState(m) && !m.verified;
+      case 'consulting': return m.consulting === 'on' || m.consulting === 'waiting';
       default: return true;
     }
   };
@@ -554,7 +654,7 @@ function Members({ me }: { me: Me }) {
                   {' · '}{m.lastSeenAt ? `seen ${relativeTime(m.lastSeenAt)}` : 'never seen'}
                   {' · '}{m.postCount} {m.postCount === 1 ? 'post' : 'posts'}
                   {m.age !== null && <> · age {m.age}</>}
-                  {m.consulting !== 'none' && <> · consulting {m.consulting === 'off' ? 'switched off' : m.consulting}</>}
+                  {m.consulting !== 'none' && <> · consulting {CONSULTING_LABEL[m.consulting]}</>}
                   {m.invitedBy && <> · invited by @{m.invitedBy}</>}
                   {m.verified && <> · verified {fmtDate(m.verified.at)}{m.verified.by && <> by @{m.verified.by}</>}</>}
                   {!m.hasContact && seatedState(m) && <> · no contact details yet</>}
@@ -575,11 +675,14 @@ function Members({ me }: { me: Me }) {
                 {m.hasContact && <button type="button" className="btn" onClick={() => void showContact(m)}>{contacts[m.handle] ? 'Hide contact' : 'Show contact'}</button>}
                 <ActionMenu label={`More actions for @${m.handle}`} items={[
                   seatedState(m) && m.verified && { label: 'Remove verification', onSelect: () => void verify(m, false) },
+                  m.consulting === 'waiting' && { label: 'Approve consulting', onSelect: () => void decideConsulting(m, true) },
+                  m.consulting === 'waiting' && { label: 'Do not approve consulting', onSelect: () => void decideConsulting(m, false) },
+                  m.consulting === 'declined' && { label: 'Approve consulting', onSelect: () => void decideConsulting(m, true) },
                   m.handle !== me.handle && m.state !== 'banned' && { label: 'Reset PIN', onSelect: () => void resetPin(m) },
                   { label: 'Change handle', onSelect: () => setAsk({ kind: 'rename', m }) },
                   { label: 'Change birthday', onSelect: () => setAsk({ kind: 'birthday', m }) },
                   m.consulting === 'off' && { label: 'Allow consulting', onSelect: () => void consulting(m, true) },
-                  m.consulting !== 'none' && m.consulting !== 'off' && { label: 'Switch consulting off', onSelect: () => void consulting(m, false) },
+                  (m.consulting === 'on' || m.consulting === 'paused') && { label: 'Switch consulting off', onSelect: () => void consulting(m, false) },
                   m.state !== 'banned' && m.role === 'ops' && { label: 'Remove admin', onSelect: () => setAsk({ kind: 'unadmin', m }) },
                   m.state !== 'banned' && m.role !== 'ops' && seated(m) && { label: 'Make admin', onSelect: () => setAsk({ kind: 'admin', m }) },
                   m.state !== 'banned' && m.role !== 'ops' && { label: 'Ban', danger: true, onSelect: () => setAsk({ kind: 'ban', m }) },

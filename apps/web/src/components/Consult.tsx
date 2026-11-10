@@ -66,6 +66,13 @@ export function ConsultCard({ c }: { c: Consultation }) {
 
 // ─── The offer editor (on the Consultations page) ───────────────────────────
 
+/** What the editor says after a save: live, waiting for an admin, or paused. */
+function saidFor(o: MyConsultOffer, active: boolean, wasActive: boolean): string {
+  if (active && o.approval === 'waiting') return 'Saved. An admin will look at it; it goes live when they approve it.';
+  if (active) return 'Saved. Your portfolio shows a Book a consultation button.';
+  return wasActive ? 'Paused. Nobody can send a new request.' : 'Saved, not switched on yet.';
+}
+
 export function OfferEditor({ initial, onSaved }: { initial: MyConsultOffer; onSaved: (o: MyConsultOffer) => void }) {
   const id = useId();
   const [d, setD] = useState<ConsultOfferInput>({ ...initial });
@@ -79,19 +86,47 @@ export function OfferEditor({ initial, onSaved }: { initial: MyConsultOffer; onS
     try {
       const o = await api.saveConsultOffer({ ...d, active, priceNote: d.priceNote || null, paymentUrl: d.paymentUrl || null });
       setD({ ...o }); onSaved(o);
-      setSaid(active ? 'Saved. Your portfolio shows a Book a consultation button.' : initial.active ? 'Paused. Nobody can send a new request.' : 'Saved, not switched on yet.');
+      setSaid(saidFor(o, active, initial.active));
     } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
   }
 
+  // RFC §10.18: the badge comes first, and an admin's approval after it. Both are one plain line.
+  if (!initial.verified) {
+    return (
+      <div className="stack card consult-offer-form">
+        <div className="row between">
+          <h2>Your offer</h2>
+          <span className="tag">off</span>
+        </div>
+        <p className="muted">Offering consulting needs the verified badge first. An admin gives it after checking your contact details; ask them in person or by phone.</p>
+      </div>
+    );
+  }
   if (initial.blocked) {
     return <div className="banner" role="status">An admin switched your consulting off. Sessions you already agreed to can still be finished.</div>;
+  }
+  if (initial.approval === 'declined') {
+    return (
+      <div className="stack card consult-offer-form">
+        <div className="row between">
+          <h2>Your offer</h2>
+          <span className="tag">not approved</span>
+        </div>
+        <p className="muted">An admin has not approved your consulting. Ask them directly if you want to talk about it; only an admin can change this.</p>
+      </div>
+    );
   }
   return (
     <form className="stack card consult-offer-form" onSubmit={(e) => { e.preventDefault(); void save(true); }}>
       <div className="row between">
         <h2>Your offer</h2>
-        <span className={`tag${initial.active ? ' on' : ''}`}>{initial.active ? 'on' : initial.exists ? 'paused' : 'off'}</span>
+        <span className={`tag${initial.active ? ' on' : ''}`}>
+          {initial.approval === 'waiting' ? 'waiting for approval' : initial.active ? 'on' : initial.exists ? 'paused' : 'off'}
+        </span>
       </div>
+      {initial.approval === 'waiting' ? (
+        <div className="banner" role="status">Waiting for an admin to approve your consulting. Your details are saved; nobody can book you until they do.</div>
+      ) : !initial.active && <div className="banner" role="status">Approved. Switch your offer on when you are ready to take requests.</div>}
       {initial.hidden && <div className="banner" role="status">Hidden after reports until an admin looks. People cannot book you meanwhile.</div>}
       <p className="muted small">Members who read your portfolio can book a session with you about what you do. You decide on each request, and for each one whether it is free or paid. Anti never handles the money.</p>
 
@@ -132,8 +167,12 @@ export function OfferEditor({ initial, onSaved }: { initial: MyConsultOffer; onS
       <ErrorNote message={err} />
       {said && <p className="muted" role="status">{said}</p>}
       <div className="row">
-        <button className="btn primary" disabled={busy}>{busy ? 'Saving…' : initial.active ? 'Save' : 'Switch on'}</button>
-        {initial.active && <button type="button" className="btn" disabled={busy} onClick={() => void save(false)}>Pause</button>}
+        <button className="btn primary" disabled={busy}>
+          {busy ? 'Saving…' : initial.active ? 'Save' : initial.approval === 'waiting' ? 'Save' : 'Switch on'}
+        </button>
+        {initial.active && <button type="button" className="btn" disabled={busy} onClick={() => void save(false)}>
+          {initial.approval === 'waiting' ? 'Cancel the request' : 'Pause'}
+        </button>}
         {!initial.active && initial.exists && <button type="button" className="btn" disabled={busy} onClick={() => void save(false)}>Save, keep paused</button>}
       </div>
     </form>
@@ -163,7 +202,12 @@ export function ConsultingSection({ handle, viewerAdult }: { handle: string; vie
     return (
       <section className="pf-consult" aria-labelledby="pf-consult-h">
         <h2 id="pf-consult-h" className="pf-sec-h">Consulting</h2>
-        <p className="muted">{o.blocked ? 'An admin switched your consulting off.' : 'Paused: only you can see this.'} <Link href="/consultations?tab=offer">Your offer</Link></p>
+        <p className="muted">
+          {o.blocked ? 'An admin switched your consulting off.'
+            : o.approval === 'waiting' ? 'Waiting for an admin to approve your consulting: only you can see this.'
+            : 'Paused: only you can see this.'}
+          {' '}<Link href="/consultations?tab=offer">Your offer</Link>
+        </p>
       </section>
     );
   }

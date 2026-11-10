@@ -765,7 +765,7 @@ choice, one pair at a time.
   2026-11-09, owner's call): a member consults on what they are in life right now, which the
   portfolio already says; someone who reads it and is interested books. Pausing stops new
   requests; it is live only while active, not blocked by an admin, not hidden after reports, and
-  its owner is a seated adult.
+  its owner is a seated adult who is verified and approved (§10.18).
 - **Request** (`consultations`): what you need help with ≤ 1000, when suits you ≤ 200, your
   contact ≤ 300. At most 3 open with the same consultant, 10 sent a day. States:
   `pending` → `accepted` (Paid: waits for the requester's **"I agree to pay this"**) → `revealed`
@@ -810,8 +810,10 @@ every opening logged).
   `verified_by`), after checking the member however they like (usually through the contact details);
   Admin → Members has Verify / Remove verification and a "Not verified yet (N)" filter. Verifying
   notifies the member (`verified`); taking it back is silent. Admins are not verified
-  automatically. The badge unlocks nothing; it is a mark of trust. A verified member who later
-  changes their contact details keeps the badge, and admins see "contact changed since verified".
+  automatically. The badge unlocks nothing; it is a mark of trust (§10.18 asks for it first, before
+  an admin's separate yes). A verified member who later changes their contact details keeps the
+  badge, and admins see "contact changed since verified". Taking it back also stops their consulting
+  and wipes that approval (§10.18).
 - **Contact details**: every member gives a **cell phone** (7–15 digits, optional leading +, country
   code encouraged) and an **email** (basic shape), as setup step 4. Members who finished setup
   before this are sent back to setup once; the rest is filled in and the birthday cannot change
@@ -1152,6 +1154,44 @@ the owner, every answer as proposed:
 - The owner's profile gains a small row of their pets (avatars linking to each pet page). Pet
   posts do not offer @mentions: mentions name members, not pets.
 
+### 10.18 Consulting needs the badge, then an admin's yes (added 2026-11-10)
+
+Grilled with the owner (three rounds, every answer as proposed). Offering consulting used to be one
+switch. Now it takes two things first: the **verified badge** (§10.7), and after that **one admin's
+approval**. Both are given once.
+
+- **The gate**: switching an offer on needs the badge (`consult_unverified`). With the badge, the
+  first switch-on **saves the offer and puts the member in the admin's queue** — the offer is so
+  stored (the details typed while waiting are kept) but not live, so nobody can book and no
+  "consults" tag appears. Only when an admin says yes does it go live, at once if it is already
+  switched on.
+- **Approved once, in `users`**: `consult_approved_at` / `consult_approved_by`, with
+  `consult_requested_at` (waiting) and `consult_declined_at` (said no). Pausing and resuming after a
+  yes asks nobody again; switching off while waiting takes the request back. An offer is live only
+  while all of §10.6's conditions hold **and** the owner is verified and approved.
+- **Declined**: the offer is switched off, the member is told, no reason is given (as with a
+  declined request), and they cannot ask again — only an admin can change it, from the queue or
+  Members. It adds nothing to the profile: only admins see it, as "not approved".
+- **A member who is not verified** still sees Consultations and **Your offer**, but the form is one
+  plain line in place of the fields: the badge comes first, ask an admin. They keep the form while
+  they are verified but waiting, so they can tidy the details.
+- **Losing the badge** (§10.7, Remove verification) stops consulting and **wipes the approval**: the
+  offer goes off, and giving the badge back does not make them bookable without a fresh decision.
+  The same happens on a ban or deletion, which already close everything (§10.6).
+- **Requests already under way carry on** when approval or the badge goes: only new bookings stop.
+- **Admin → Consulting** lists everyone waiting, oldest first, with name, badge, description, session
+  length, Free or Paid and whether their offer is switched on, and **Approve** / **Not now**. The
+  same two actions are in the Members row menu, and Members has a "Consulting (N)" filter chip and
+  says "waiting for approval" / "not approved" beside the person. Admins get no new role: `/ops/*`
+  is unchanged, and `requireOps` still 404s to members.
+- **Offers that were already live** when this shipped were paused into the queue by the migration
+  (`0031_consult_approval.sql`): every active offer whose owner has no approval is now waiting, so
+  the rule is true from the first minute. Nothing was deleted; each one goes live again on approval.
+
+Notifications: `consult_asked` (to every admin, once per member, not once per save),
+`consult_approved` and `consult_not_approved` (to the member). Push texts carry neither a contact nor
+a reason.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,
@@ -1212,6 +1252,7 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST /consultations/:id/accept\|decline\|agree\|close\|done`, `PUT /consultations/:id/thanks`, `POST /consultations/:id/thanks/hidden` | A, 18+ (the two people) | The request's steps |
 | `POST /consultations/:id/flag`, `POST /members/:handle/consult-offer/flag` | A, 18+ | Reports |
 | `GET /ops/consultations[/:id]`, `POST /ops/consultations/:id/resolve`, `POST /ops/consult-offers/:handle/resolve`, `POST /ops/users/:handle/consulting` | O | Who consulted whom; reported requests in full; switch consulting off/on |
+| `GET /ops/consult-asks`, `POST /ops/users/:handle/consult-approval` | O | Who is waiting for consulting approval; approve or decline it (§10.18) |
 | `POST /events/:id/attendance` | A (host) | Confirm attendees |
 | `GET /notifications`, `POST /notifications/read` | U | In-app inbox |
 | `POST/DELETE /push/subscriptions` | U | Web Push |

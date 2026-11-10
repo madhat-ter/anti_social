@@ -10,7 +10,7 @@ import { Avatar } from '@/components/Avatar';
 import { AlertIcon, Dot } from '@/components/retro';
 
 /** System notices that need action get the warning triangle; good news gets the red dot. */
-const WARNINGS = new Set(['pin_locked', 'pin_blocked', 'pin_reset_code', 'lurker_warning', 'seat_offer_expired', 'payment_refunded', 'event_cancelled', 'post_removed', 'project_removed', 'consult_removed', 'consult_switched_off']);
+const WARNINGS = new Set(['pin_locked', 'pin_blocked', 'pin_reset_code', 'lurker_warning', 'seat_offer_expired', 'payment_refunded', 'event_cancelled', 'post_removed', 'project_removed', 'consult_removed', 'consult_switched_off', 'consult_not_approved']);
 
 export default function NotificationsPage() {
   useTitle('Notifications');
@@ -81,6 +81,9 @@ function describe(n: Notification): string {
   if (n.kind === 'consult_removed') return `An admin closed a consultation${on} after a report.`;
   if (n.kind === 'consult_switched_off') return 'An admin switched your consulting off. Sessions already agreed can still be finished.';
   if (n.kind === 'consult_reported') return 'A consultation request was reported and needs review in Admin.';
+  if (n.kind === 'consult_asked') return `${who} switched their consulting offer on and is waiting for you to approve it.`;
+  if (n.kind === 'consult_approved') return 'An admin approved your consulting. Switch the offer on when you are ready.';
+  if (n.kind === 'consult_not_approved') return 'An admin has not approved your consulting. Ask them directly if you want to talk about it.';
   return n.post ? `${who} interacted with your post` : 'Account update';
 }
 
@@ -127,10 +130,10 @@ function Notifications({ myHandle }: { myHandle: string }) {
       {p.items.length > 0 && (
         <ul className="notifs card">
           {p.items.map((n) => {
-            const href = n.kind === 'flag_threshold' || n.kind === 'made_admin' || n.kind === 'consult_reported' ? '/admin'
+            const href = n.kind === 'flag_threshold' || n.kind === 'made_admin' || n.kind === 'consult_reported' || n.kind === 'consult_asked' ? '/admin'
               : n.kind === 'consult_thanks' ? `/u/${myHandle}`
               : n.consultation ? `/consultations/${n.consultation.id}`
-              : n.kind === 'consult_switched_off' ? '/consultations?tab=offer'
+              : n.kind === 'consult_switched_off' || n.kind === 'consult_approved' || n.kind === 'consult_not_approved' ? '/consultations?tab=offer'
               : n.kind === 'collab_finished' && n.draftId ? `/u/${myHandle}/work/${n.draftId}/edit`
               : n.kind === 'checklist_reminder' ? '/'
               : n.kind.startsWith('pin_') ? '/settings#pin'

@@ -91,8 +91,8 @@ export interface AdminMember {
   invitedBy: string | null; postCount: number;
   /** whole years (admins only) */
   age: number | null;
-  /** consultations: never set up, on, paused, or switched off by an admin */
-  consulting: 'none' | 'on' | 'paused' | 'off';
+  /** consultations: never set up, on, paused, switched off by an admin, waiting for approval, or declined */
+  consulting: 'none' | 'on' | 'paused' | 'off' | 'waiting' | 'declined';
   /** RFC §10.7 */
   verified: { at: string; by: string | null } | null;
   hasContact: boolean;
@@ -390,6 +390,8 @@ export interface CollabSuggestion extends CollabPerson { shared: string[]; match
 // ─── Consultations (RFC §10.6) ──────────────────────────────────────────────
 export type ConsultPricing = 'free' | 'paid';
 export type ConsultStatus = 'pending' | 'accepted' | 'revealed' | 'done' | 'declined' | 'expired' | 'closed';
+/** RFC §10.18: consulting needs the verified badge, then one admin's approval. */
+export type ConsultApproval = 'none' | 'waiting' | 'approved' | 'declined';
 export interface ThanksNote extends CollabPerson { text: string; at: string; hidden: boolean }
 /** What a member (18+) sees on someone's portfolio. Never the contact or the payment link. */
 export interface ConsultOffer {
@@ -398,13 +400,17 @@ export interface ConsultOffer {
   thanks: ThanksNote[]; thanksCount: number;
   mine: boolean; canBook: boolean; canReport: boolean;
   active: boolean; blocked: boolean; hidden: boolean;
+  /** owner only */
+  approval: ConsultApproval;
 }
 export interface MyConsultOffer {
   active: boolean; description: string; minutes: number;
   pricing: ConsultPricing; priceNote: string | null; paymentUrl: string | null; contact: string;
   blocked: boolean; hidden: boolean; allowed: boolean; exists: boolean;
+  /** RFC §10.18: the badge comes first, then an admin's approval */
+  verified: boolean; approval: ConsultApproval;
 }
-export type ConsultOfferInput = Partial<Omit<MyConsultOffer, 'blocked' | 'hidden' | 'allowed' | 'exists'>>;
+export type ConsultOfferInput = Partial<Omit<MyConsultOffer, 'blocked' | 'hidden' | 'allowed' | 'exists' | 'verified' | 'approval'>>;
 export interface Consultation {
   id: string; role: 'consultant' | 'requester';
   consultant: CollabPerson; requester: CollabPerson;
@@ -422,6 +428,13 @@ export interface ConsultRequestInput { need: string; when: string; contact: stri
 export interface OpsConsultation {
   id: string; consultant: CollabPerson; requester: CollabPerson; status: ConsultStatus;
   pricing: ConsultPricing | null; createdAt: string; reported: boolean;
+}
+/** RFC §10.18: a member waiting for a yes on their consulting. */
+export interface ConsultAsk extends CollabPerson {
+  askedAt: string; description: string; minutes: number;
+  pricing: ConsultPricing; priceNote: string | null;
+  /** their offer is saved but paused: approving changes nothing until they switch it on */
+  active: boolean;
 }
 /** Admins, on a reported request only: all of it. */
 export interface OpsConsultationDetail {
@@ -664,6 +677,10 @@ export const api = {
   opsResolveConsultOffer: (handle: string, resolution: 'restored' | 'removed') =>
     post<{ resolution: string }>(`/ops/consult-offers/${encodeURIComponent(handle)}/resolve`, { resolution }),
   opsSetConsulting: (handle: string, on: boolean) => post<{ switchedOn?: true; switchedOff?: true }>(`/ops/users/${encodeURIComponent(handle)}/consulting`, { on }),
+  /** RFC §10.18: who is waiting for a yes, and the yes or no */
+  opsConsultAsks: () => get<ConsultAsk[]>('/ops/consult-asks'),
+  opsDecideConsulting: (handle: string, approved: boolean) =>
+    post<{ handle: string; approved: boolean }>(`/ops/users/${encodeURIComponent(handle)}/consult-approval`, { approved }),
 
   pushConfig: () => get<{ enabled: boolean; publicKey: string | null }>('/push/config'),
   pushSubscribe: (b: { endpoint: string; keys: { p256dh: string; auth: string } }) => post<{ ok: true }>('/push/subscriptions', b),
@@ -764,6 +781,8 @@ const MESSAGES: Record<string, string> = {
   attendance_closed: 'Attendance can be confirmed from the start time until 14 days after.',
   consult_age: 'Consultations are for members 18 and over.',
   consult_blocked: 'An admin switched your consulting off. You can still finish the sessions already agreed.',
+  consult_unverified: 'Offering consulting needs the verified badge first. Ask an admin to verify you.',
+  consult_not_approved: 'An admin has not approved your consulting. Ask them directly if you want to talk about it.',
   consult_open_limit: 'You already have 3 open requests with them. Finish or close one first.',
   own_offer: 'That is your own offer.',
   not_consultant: 'Only the person asked can do that.',

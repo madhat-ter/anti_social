@@ -50,6 +50,14 @@ export const users = pgTable('users', {
   /** verified by an admin who checked the member; the badge shows by their name */
   verifiedAt: tstz('verified_at'),
   verifiedBy: uuid('verified_by').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
+  // ── RFC §10.18: consulting is offered only after the badge, and only once an admin approves
+  /** the member switched their offer on and it is waiting for an admin */
+  consultRequestedAt: tstz('consult_requested_at'),
+  /** an admin approved their consulting; it lasts until they take it back or the badge goes */
+  consultApprovedAt: tstz('consult_approved_at'),
+  consultApprovedBy: uuid('consult_approved_by').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
+  /** an admin said no; only an admin can undo it */
+  consultDeclinedAt: tstz('consult_declined_at'),
   /** RFC §10.11: the newest feed post this member scrolled past to the "caught up" card; only moves forward */
   feedSeenThrough: tstz('feed_seen_through'),
   // ── RFC §10.13: signing in with a handle and a 6-digit PIN (argon2id hash; null until chosen)

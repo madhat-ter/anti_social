@@ -9,7 +9,7 @@ import {
   banUser, flagCollab, flagPost, flagProject, flagQueue, removeCollab, removePost, removeProject, resolveCollabFlags, resolveFlags,
   resolveProjectFlags, userIdByHandle,
 } from '../lib/moderation';
-import { opsConsultation, opsConsultations, resolveConsultationFlags, resolveOfferFlags, switchOff, switchOn } from '../lib/consultations';
+import { consultQueue, decideConsulting, opsConsultation, opsConsultations, resolveConsultationFlags, resolveOfferFlags, switchOff, switchOn } from '../lib/consultations';
 import { adminMembers, getAdminSettings, renameMember, setMemberBirthday, setMemberRole, unbanMember, updateAdminSettings, openMemberContact, setVerified } from '../lib/admin';
 import { UUID_RE } from '../lib/posts';
 import { activePassCount, createPass, listPasses, revokePass } from '../lib/visitors';
@@ -91,6 +91,16 @@ export const moderationRoutes = (deps: Deps) => {
       const u = await userIdByHandle(db, params.handle);
       return body.on ? switchOn(db, u.id) : switchOff(db, u.id, a.user.id);
     }, { body: t.Object({ on: t.Boolean() }) })
+
+    /** RFC §10.18: who switched their offer on and is waiting for a yes; then the decision. */
+    .get('/ops/consult-asks', async ({ auth }) => {
+      requireOps(auth);
+      return consultQueue(db);
+    })
+    .post('/ops/users/:handle/consult-approval', async ({ auth, params, body }) => {
+      const a = requireOps(auth);
+      return decideConsulting(db, params.handle, body.approved, a.user.id);
+    }, { body: t.Object({ approved: t.Boolean() }) })
 
     .get('/ops/flags', async ({ auth }) => {
       requireOps(auth);

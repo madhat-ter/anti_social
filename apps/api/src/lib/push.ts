@@ -116,6 +116,10 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
     case 'consult_done': return m('Session marked done', p.topic ? `On ${p.topic}.` : 'Thanks for taking part.', consultUrl);
     case 'consult_thanks': return m(`@${r.actor ?? 'someone'} said thanks`, 'A thank-you is on your portfolio.', consultUrl);
     case 'consult_closed': return m('A consultation was closed', 'The contacts are hidden again.', consultUrl);
+    // RFC §10.18: consulting needs the badge, then an admin's yes
+    case 'consult_asked': return m(`@${r.actor ?? 'someone'} wants to offer consulting`, 'Their offer is waiting for your approval.', '/admin');
+    case 'consult_approved': return m('Your consulting is approved', 'Switch your offer on, or it stays as you left it.', '/consultations?tab=offer');
+    case 'consult_not_approved': return m('Consulting not approved', 'An admin has not approved your consulting.', '/consultations?tab=offer');
     case 'verified': return m('You are verified', 'The badge now shows by your name.', '/settings');
     default: return null;
   }

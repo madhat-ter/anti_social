@@ -29,6 +29,12 @@ import type { SessionUser } from './sessions';
 export type Person = { handle: string; displayName: string; gender: string | null; admin: boolean; verified: boolean };
 export type ThanksNote = Person & { text: string; at: string; hidden: boolean };
 
+/**
+ * RFC §10.18: offering consulting needs the verified badge, then one admin's approval.
+ * 'waiting' = they switched on and are in the admin's queue.
+ */
+export type ConsultApproval = 'none' | 'waiting' | 'approved' | 'declined';
+
 /** What anyone (18+) sees on a portfolio. */
 export type OfferView = {
   handle: string; description: string; minutes: number;
@@ -39,6 +45,8 @@ export type OfferView = {
   mine: boolean; canBook: boolean; canReport: boolean;
   /** owner only: paused, switched off by an admin, hidden after reports */
   active: boolean; blocked: boolean; hidden: boolean;
+  /** owner only: whether an admin has let them consult (RFC §10.18) */
+  approval: ConsultApproval;
 };
 
 /** The owner's editable offer. */
@@ -50,6 +58,8 @@ export type MyOffer = {
   allowed: boolean;
   /** has been saved at least once */
   exists: boolean;
+  /** RFC §10.18: the badge comes first, then an admin's approval */
+  verified: boolean; approval: ConsultApproval;
 };
 
 export type Consultation = {
@@ -92,9 +102,21 @@ export function requireAdult(user: Pick<SessionUser, 'birthday'>) {
   if (!isAdult(user)) throw new ApiError(403, 'consult_age', `Consultations are for members ${CONSULT_MIN_AGE} and over.`);
 }
 
-/** An offer anyone can book: switched on, not stopped by an admin or reports, a seated adult with a contact. */
+/**
+ * RFC §10.18: an admin's decision on a member's consulting, from the columns. 'approved' also
+ * needs the badge: take it back and the approval goes with it.
+ */
+export const approvalSql = (u: string) => sql`case
+  when ${sql.raw(u)}.consult_approved_at is not null and ${sql.raw(u)}.verified_at is not null then 'approved'
+  when ${sql.raw(u)}.consult_declined_at is not null then 'declined'
+  when ${sql.raw(u)}.consult_requested_at is not null then 'waiting'
+  else 'none' end`;
+
+/** An offer anyone can book: switched on, not stopped by an admin or reports, a seated adult who
+ *  is verified and approved, with a contact. */
 const offerLive = (o: string, u: string) => sql`(${sql.raw(o)}.active and ${sql.raw(o)}.blocked_at is null and ${sql.raw(o)}.hidden_at is null
   and ${sql.raw(o)}.contact <> ''
+  and ${sql.raw(u)}.verified_at is not null and ${sql.raw(u)}.consult_approved_at is not null
   and ${sql.raw(u)}.state in ${SEATED} and ${adultSql(u)})`;
 
 /** For the member list: "Consults" tag and filter. */
@@ -127,23 +149,34 @@ async function notify(db: Db, userId: string, kind: string, payload: Record<stri
 type OfferRow = {
   active: boolean; description: string; minutes: number; pricing: ConsultPricing;
   price_note: string | null; payment_url: string | null; contact: string; blocked: boolean; hidden: boolean;
+  exists: boolean; verified: boolean; approval: ConsultApproval;
 };
 
 export async function getMyOffer(db: Db, me: SessionUser): Promise<MyOffer> {
-  const [o] = await rows<OfferRow>(db, sql`select active, description, minutes, pricing, price_note, payment_url, contact,
-    (blocked_at is not null) as blocked, (hidden_at is not null) as hidden from consult_offers where user_id = ${me.id}::uuid`);
-  if (!o) {
+  const [o] = await rows<OfferRow>(db, sql`select coalesce(o.active, false) as active, coalesce(o.description, '') as description,
+    coalesce(o.minutes, 60) as minutes, coalesce(o.pricing, 'free') as pricing, o.price_note, o.payment_url, coalesce(o.contact, '') as contact,
+    (o.user_id is not null) as exists, (o.blocked_at is not null) as blocked, (o.hidden_at is not null) as hidden,
+    (u.verified_at is not null) as verified, ${approvalSql('u')} as approval
+    from users u left join consult_offers o on o.user_id = u.id where u.id = ${me.id}::uuid`);
+  if (!o) throw new ApiError(404, 'not_found');
+  if (!o.exists) {
     return { active: false, description: '', minutes: 60, pricing: 'free', priceNote: null, paymentUrl: null, contact: '',
-      blocked: false, hidden: false, allowed: isAdult(me), exists: false };
+      blocked: false, hidden: false, allowed: isAdult(me), exists: false,
+      verified: o.verified, approval: o.approval };
   }
   return {
     active: !!o.active, description: o.description, minutes: Number(o.minutes),
     pricing: o.pricing, priceNote: o.price_note, paymentUrl: o.payment_url, contact: o.contact,
     blocked: !!o.blocked, hidden: !!o.hidden, allowed: isAdult(me), exists: true,
+    verified: o.verified, approval: o.approval,
   };
 }
 
-/** Saves the whole offer. Switching it on needs a contact. */
+/**
+ * Saves the whole offer (RFC §10.6, §10.18). Switching it on needs a contact and the verified
+ * badge; until an admin approves, the offer is saved but not live, and the member waits in the
+ * admin's queue. Switching off withdraws a request that is still waiting.
+ */
 export async function saveMyOffer(db: Db, me: SessionUser, body: Record<string, unknown>): Promise<MyOffer> {
   requireAdult(me);
   const cur = await getMyOffer(db, me);
@@ -159,15 +192,33 @@ export async function saveMyOffer(db: Db, me: SessionUser, body: Record<string, 
   const active = has('active') ? body.active === true : cur.active;
   if (active) {
     if (cur.blocked) throw new ApiError(403, 'consult_blocked', 'An admin switched your consulting off.');
+    if (cur.approval === 'declined') {
+      throw new ApiError(403, 'consult_not_approved', 'An admin has not approved your consulting. Ask them directly if you want to talk about it.');
+    }
+    if (!cur.verified) throw new ApiError(403, 'consult_unverified', 'Offering consulting needs the verified badge first.');
     if (!contact) throw bad('Add how people can reach you. Only people you accept ever see it.');
     if (pricing === 'paid' && !priceNote) throw bad('Say what it costs, for example "NPR 2,000 per hour".');
   }
-  await db.execute(sql`
-    insert into consult_offers (user_id, active, description, minutes, pricing, price_note, payment_url, contact, updated_at)
-    values (${me.id}::uuid, ${active}, ${description}, ${minutes}, ${pricing}, ${priceNote}, ${paymentUrl}, ${contact}, now())
-    on conflict (user_id) do update set active = excluded.active, description = excluded.description,
-      minutes = excluded.minutes, pricing = excluded.pricing, price_note = excluded.price_note, payment_url = excluded.payment_url,
-      contact = excluded.contact, updated_at = now()`);
+  await db.transaction(async (txx) => {
+    const tx = txx as unknown as Db;
+    await tx.execute(sql`
+      insert into consult_offers (user_id, active, description, minutes, pricing, price_note, payment_url, contact, updated_at)
+      values (${me.id}::uuid, ${active}, ${description}, ${minutes}, ${pricing}, ${priceNote}, ${paymentUrl}, ${contact}, now())
+      on conflict (user_id) do update set active = excluded.active, description = excluded.description,
+        minutes = excluded.minutes, pricing = excluded.pricing, price_note = excluded.price_note, payment_url = excluded.payment_url,
+        contact = excluded.contact, updated_at = now()`);
+    // RFC §10.18: switching on asks for approval once; switching off takes the request back
+    if (active && cur.approval === 'none') {
+      const asked = await rows(tx, sql`update users set consult_requested_at = now()
+        where id = ${me.id}::uuid and consult_requested_at is null and consult_approved_at is null returning 1`);
+      if (asked.length) {
+        await tx.execute(sql`insert into notifications (user_id, kind, payload)
+          select id, 'consult_asked', ${JSON.stringify({ actorId: me.id })}::jsonb from users where role = 'ops' and state <> 'deleted'`);
+      }
+    } else if (!active && cur.approval === 'waiting') {
+      await tx.execute(sql`update users set consult_requested_at = null where id = ${me.id}::uuid`);
+    }
+  });
   return getMyOffer(db, me);
 }
 
@@ -197,6 +248,8 @@ export async function getOffer(db: Db, viewer: SessionUser, handle: string): Pro
   const [o] = await rows<OfferRow & { user_id: string; handle: string; live: boolean; done: number; thanks_n: number; reported: boolean }>(db, sql`
     select o.user_id, u.handle, o.active, o.description, o.minutes, o.pricing, o.price_note, o.payment_url, o.contact,
       (o.blocked_at is not null) as blocked, (o.hidden_at is not null) as hidden, ${offerLive('o', 'u')} as live,
+      ${approvalSql('u')} as approval,
+      (u.verified_at is not null) as verified,
       (select count(*)::int from consultations c where c.consultant_id = o.user_id and c.status = 'done') as done,
       (select count(*)::int from consultations c where c.consultant_id = o.user_id and c.thanks is not null and not c.thanks_hidden) as thanks_n,
       exists (select 1 from consult_flags f where f.offer_user_id = o.user_id and f.user_id = ${viewer.id}::uuid and f.resolved_at is null) as reported
@@ -211,6 +264,7 @@ export async function getOffer(db: Db, viewer: SessionUser, handle: string): Pro
     thanks: await thanksFor(db, o.user_id, mine, 3), thanksCount: Number(o.thanks_n),
     mine, canBook: !mine && !!o.live, canReport: !mine && !!o.live && !o.reported,
     active: mine ? !!o.active : true, blocked: mine && !!o.blocked, hidden: mine && !!o.hidden,
+    approval: o.approval,
   };
 }
 
@@ -492,6 +546,82 @@ export async function flagOffer(db: Db, me: SessionUser, handle: string, reason:
 }
 
 // ─── Admins ─────────────────────────────────────────────────────────────────
+
+/** RFC §10.18: one member waiting for a yes. What the admin judges: who, the badge, and the offer. */
+export type ConsultAsk = Person & {
+  /** when they asked (oldest first) */
+  askedAt: string;
+  description: string; minutes: number; pricing: ConsultPricing; priceNote: string | null;
+  /** an offer saved but not switched on: approving it changes nothing until they switch on */
+  active: boolean;
+};
+
+/**
+ * RFC §10.18: everyone who switched their offer on and is waiting for an admin. Only verified
+ * members can ask, so the badge in the row is always there; it is shown anyway so the admin sees
+ * what they checked.
+ */
+export async function consultQueue(db: Db): Promise<ConsultAsk[]> {
+  const r = await rows<Record<string, unknown>>(db, sql`
+    select ${PERSON('u')}, ${iso(sql`u.consult_requested_at`)} as asked_at,
+      o.description, o.minutes, o.pricing, o.price_note, o.active
+      from users u join consult_offers o on o.user_id = u.id
+     where u.consult_requested_at is not null and u.consult_approved_at is null and u.consult_declined_at is null
+       and u.state in ${SEATED}
+     order by u.consult_requested_at`);
+  return r.map((x) => ({
+    ...person(x, 'u'), askedAt: String(x.asked_at),
+    description: String(x.description ?? ''), minutes: Number(x.minutes),
+    pricing: x.pricing as ConsultPricing, priceNote: (x.price_note as string | null) ?? null,
+    active: !!x.active,
+  }));
+}
+
+/** The number for the Admin menu, like the report count. */
+export async function consultQueueCount(db: Db): Promise<number> {
+  return Number(await scalar(db, sql`select count(*)::int from users
+    where consult_requested_at is not null and consult_approved_at is null and consult_declined_at is null
+      and state in ${SEATED}`));
+}
+
+/**
+ * RFC §10.18: an admin approves (once per member; it lasts until they take it back) or declines
+ * (the member cannot ask again until an admin changes it). Approving needs the badge. Requests
+ * already under way are left alone: only new bookings depend on this.
+ */
+export async function decideConsulting(db: Db, handle: string, approved: boolean, actorId: string | null) {
+  const [u] = await rows<{ id: string; handle: string; verified: boolean }>(db, sql`
+    select id, handle, (verified_at is not null) as verified from users
+     where lower(handle) = lower(${handle}) and state <> 'deleted'`);
+  if (!u) throw new ApiError(404, 'not_found', `No member @${handle}.`);
+  if (approved && !u.verified) {
+    throw new ApiError(409, 'consult_unverified', `@${u.handle} is not verified. Give the badge first.`);
+  }
+  await db.transaction(async (txx) => {
+    const tx = txx as unknown as Db;
+    if (approved) {
+      await tx.execute(sql`update users set consult_requested_at = null, consult_approved_at = now(),
+        consult_approved_by = ${actorId}::uuid, consult_declined_at = null where id = ${u.id}::uuid`);
+    } else {
+      await tx.execute(sql`update users set consult_requested_at = null, consult_approved_at = null,
+        consult_approved_by = null, consult_declined_at = now() where id = ${u.id}::uuid`);
+      // a declined offer cannot stay switched on: it is switched off, its details are kept
+      await tx.execute(sql`update consult_offers set active = false, updated_at = now() where user_id = ${u.id}::uuid`);
+    }
+    await notify(tx, u.id, approved ? 'consult_approved' : 'consult_not_approved', {});
+  });
+  return { handle: u.handle, approved };
+}
+
+/**
+ * RFC §10.18: taking the badge back stops consulting and wipes the approval, so giving the badge
+ * again does not make them bookable without a fresh decision. Requests already under way carry on.
+ */
+export async function clearConsultApproval(db: Db, userId: string) {
+  await db.execute(sql`update users set consult_requested_at = null, consult_approved_at = null,
+    consult_approved_by = null where id = ${userId}::uuid`);
+  await db.execute(sql`update consult_offers set active = false, updated_at = now() where user_id = ${userId}::uuid and active`);
+}
 
 /**
  * Switches a member's consulting off: the offer stops, and requests not yet under way close

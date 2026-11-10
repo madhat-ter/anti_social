@@ -49,7 +49,9 @@ export function visitorUser(): SessionUser {
     // an adult, so consultation offers (RFC §10.6, 18+) show too: they are part of the place
     birthday: VISITOR_BIRTHDAY,
     birthdayPublic: false, setupDoneAt: now, checklistDismissedAt: now, contactPhoneEnc: null, contactEmailEnc: null,
-    contactUpdatedAt: null, verifiedAt: null, verifiedBy: null, feedSeenThrough: null,
+    contactUpdatedAt: null, verifiedAt: null, verifiedBy: null,
+    consultRequestedAt: null, consultApprovedAt: null, consultApprovedBy: null, consultDeclinedAt: null,
+    feedSeenThrough: null,
     pinHash: null, pinFails: 0, pinLocks: 0, pinLockedUntil: null, pinFailDay: null, pinFailsDay: 0, pinBlockedAt: null,
     theme: 'light',
   };

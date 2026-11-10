@@ -10,6 +10,7 @@ import { ApiError, rethrowDb } from './errors';
 import { checkBirthday, closeAccount } from './account';
 import type { Storage } from './storage';
 import { openContact } from './contact';
+import { clearConsultApproval } from './consultations';
 
 const iso = (col: ReturnType<typeof sql>) => sql`to_char(${col} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 
@@ -19,8 +20,11 @@ export type AdminMember = {
   invitedBy: string | null; postCount: number;
   /** whole years; admins only (members never see an age or a year) */
   age: number | null;
-  /** RFC §10.6: none (never set up), on, paused, or off (an admin switched it off) */
-  consulting: 'none' | 'on' | 'paused' | 'off';
+  /**
+   * RFC §10.6, §10.18: none (never set up), on, paused, off (an admin switched it off),
+   * waiting (asked, in their queue), or declined (an admin said no).
+   */
+  consulting: 'none' | 'on' | 'paused' | 'off' | 'waiting' | 'declined';
   /** RFC §10.7: the badge (who gave it, when); whether contact details were given, and changed since */
   verified: { at: string; by: string | null } | null;
   hasContact: boolean;
@@ -31,7 +35,8 @@ export type AdminMember = {
 export async function adminMembers(db: Db): Promise<AdminMember[]> {
   const r = await rows<{
     handle: string; display_name: string; state: string; role: 'member' | 'ops'; gender: string | null; joined: string;
-    activated: string | null; seen: string | null; inv: string | null; posts: number; age: number | null; consulting: 'none' | 'on' | 'paused' | 'off';
+    activated: string | null; seen: string | null; inv: string | null; posts: number; age: number | null;
+    consulting: 'none' | 'on' | 'paused' | 'off' | 'waiting' | 'declined';
     v_at: string | null; v_by: string | null; has_contact: boolean; changed: boolean;
   }>(db, sql`
     select u.handle, u.display_name, u.state, u.role, u.gender,
@@ -39,7 +44,13 @@ export async function adminMembers(db: Db): Promise<AdminMember[]> {
       inv.handle as inv,
       (select count(*)::int from posts p where p.author_id = u.id and p.deleted_at is null) as posts,
       case when u.birthday is not null then date_part('year', age(current_date, u.birthday))::int end as age,
-      case when o.user_id is null then 'none' when o.blocked_at is not null then 'off' when o.active then 'on' else 'paused' end as consulting,
+      case
+        when o.user_id is null and u.consult_requested_at is null and u.consult_declined_at is null then 'none'
+        when u.consult_requested_at is not null and u.consult_approved_at is null and u.consult_declined_at is null then 'waiting'
+        when u.consult_declined_at is not null then 'declined'
+        when o.blocked_at is not null then 'off'
+        when o.active then 'on'
+        else 'paused' end as consulting,
       ${iso(sql`u.verified_at`)} as v_at, vb.handle as v_by,
       (u.contact_phone_enc is not null and u.contact_email_enc is not null) as has_contact,
       coalesce(u.verified_at is not null and u.contact_updated_at > u.verified_at, false) as changed
@@ -220,6 +231,7 @@ export async function updateAdminSettings(db: Db, input: AdminSettingsInput): Pr
 /**
  * RFC §10.7: an admin verifies a member they checked (the badge shows by their name), or takes it
  * back. Verifying tells the member; taking it back is silent. Admins are not verified automatically.
+ * RFC §10.18: taking the badge back stops their consulting and wipes the approval.
  */
 export async function setVerified(db: Db, handle: string, on: boolean, actorId: string) {
   const t = await findMember(db, handle);
@@ -231,6 +243,7 @@ export async function setVerified(db: Db, handle: string, on: boolean, actorId: 
     }
   } else {
     await db.execute(sql`update users set verified_at = null, verified_by = null where id = ${t.id}::uuid`);
+    await clearConsultApproval(db, t.id);
   }
   return { handle: t.handle, verified: on };
 }
