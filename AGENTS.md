@@ -30,9 +30,8 @@ can time out under the full suite on a busy machine; they pass on their own.
 ## Open tasks
 
 Nothing in the code. One thing waits on the **live test site** and needs an admin, not a commit:
-
-- The §10.18 migration paused every offer that was already live, so they are sitting in
-  **Admin → Consulting** until someone approves each one.
+the §10.18 migration paused every offer that was already live, so they are sitting in
+**Admin → Consulting** until someone approves each one.
 
 (Pet avatars were finished on 2026-11-10; the record and the reference doodles are in
 `docs/tasks/pet-avatars.md` and `docs/tasks/pet-avatars/`.)
