@@ -92,6 +92,8 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
     case 'event_cancelled': return m('Event cancelled', `${ev} was cancelled.`, eventUrl);
     case 'checklist_reminder': return m('Finish your profile', `${p.done ?? 0} of ${p.total ?? 5} done. A few minutes makes this place yours.`, '/');
     case 'pick_remark': return m(`@${r.actor ?? 'someone'} tried your pick`, p.title ? `A remark on "${p.title}".` : 'They left a remark.', '/');
+    // RFC §10.4: an admin took a pick out of the rotation
+    case 'pick_removed': return m('An admin removed your pick', p.title ? `"${p.title}" is no longer in the rotation.` : 'It is no longer in the rotation.', '/');
     case 'collab_request': return m(`@${r.actor ?? 'someone'} wants to join`, collab, collabUrl);
     case 'collab_joined': return m(`@${r.actor ?? 'someone'} joined`, collab, collabUrl);
     case 'collab_accepted': return m('You are on the team', collab, collabUrl);

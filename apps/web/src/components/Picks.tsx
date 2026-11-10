@@ -10,7 +10,7 @@ import { PICK_NO_REPEAT, PICK_ROTATE_MS, SUGGESTION_NOTE_MAX, SUGGESTION_REMARK_
 import { api, errorMessage, type Pick, type PickRemark, type SuggestionKind } from '@/lib/api';
 import { Avatar } from './Avatar';
 import { NameMarks } from './Marks';
-import { Win } from './retro';
+import { AlertDialog, Win } from './retro';
 import { ErrorNote } from './ui';
 import { VISITOR_NOTE, useReadOnly, why } from './Visitor';
 import { bnLang } from '@/lib/lang';
@@ -262,6 +262,7 @@ export function PickWindow({ className }: { className?: string }) {
   const [item, setItem] = useState<Pick | null | undefined>(undefined); // undefined = loading
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [hover, setHover] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -282,6 +283,18 @@ export function PickWindow({ className }: { className?: string }) {
   }, []);
 
   useEffect(() => { void next(); }, [next]);
+
+  /** RFC §10.4: take your own pick out of the rotation (admins do it from Admin → Picks). */
+  async function removeMine() {
+    if (!item) return;
+    setBusy(true); setErr(null);
+    try {
+      await api.deletePick(item.id);
+      seen.current = seen.current.filter((x) => x !== item.id);
+      setItem(undefined);
+      await next();
+    } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
+  }
 
   const paused = hover || editing || asking || !visible;
   useEffect(() => {
@@ -306,8 +319,22 @@ export function PickWindow({ className }: { className?: string }) {
       <ErrorNote message={err} />
       <div className="row between">
         <button type="button" className="btn" onClick={() => void next()} disabled={busy || !item}>Another</button>
-        <button type="button" className="btn primary" onClick={() => setAsking(true)} disabled={readOnly} {...why(readOnly && VISITOR_NOTE)}>+ Suggest</button>
+        <span className="row">
+          {item?.mine && (
+            <button type="button" className="link-btn" onClick={() => setRemoving(true)} disabled={busy}>Remove my pick</button>
+          )}
+          <button type="button" className="btn primary" onClick={() => setAsking(true)} disabled={readOnly} {...why(readOnly && VISITOR_NOTE)}>+ Suggest</button>
+        </span>
       </div>
+      <AlertDialog
+        open={removing}
+        title="Remove your pick"
+        message={<>Remove <strong>{item?.title}</strong> from the rotation? Its votes and remarks go with it.</>}
+        confirmLabel="Remove"
+        danger
+        onConfirm={() => { setRemoving(false); void removeMine(); }}
+        onCancel={() => setRemoving(false)}
+      />
       <SuggestDialog
         open={asking}
         onClose={() => setAsking(false)}

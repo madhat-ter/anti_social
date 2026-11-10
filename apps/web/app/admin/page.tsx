@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { NameMarks } from '@/components/Marks';
 import { ActionMenu } from '@/components/ActionMenu';
-import { api, ApiError, errorMessage, type AdminContact, type AdminInterest, type AdminMember, type AdminSettings, type FlagItem, type Me, type OpsConsultation, type OpsConsultationDetail, type VisitorPassInfo } from '@/lib/api';
+import { api, ApiError, errorMessage, type AdminContact, type AdminInterest, type AdminMember, type AdminSettings, type FlagItem, type Me, type OpsConsultation, type OpsConsultationDetail, type Pick, type VisitorPassInfo } from '@/lib/api';
 import { minutesLeft } from '@/components/Visitor';
 import { fmtDate, relativeTime, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
@@ -30,11 +30,58 @@ function Admin({ me }: { me: Me }) {
         <Invites />
         <VisitorPasses />
         <Reports />
+        <Picks />
         <Members me={me} />
         <Consultations />
         <Community />
       </Win>
     </>
+  );
+}
+
+/** RFC §10.4: every pick in the rotation, and a way to remove any of them. */
+function Picks() {
+  const [items, setItems] = useState<Pick[] | null>(null);
+  const [ask, setAsk] = useState<Pick | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const load = useCallback(() => {
+    api.opsPicks().then((r) => setItems(r.items), (e) => setErr(errorMessage(e)));
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  async function remove(p: Pick) {
+    try { await api.opsRemovePick(p.id); await load(); }
+    catch (e) { setErr(errorMessage(e)); }
+  }
+  return (
+    <section className="panel-sec" aria-labelledby="adm-picks">
+      <h2 id="adm-picks">Picks</h2>
+      <p className="muted small">Everything suggested for the pick window. Removing one takes it out of the rotation for everyone; the author is told.</p>
+      <ErrorNote message={err} />
+      {items === null ? <Loading /> : items.length === 0 ? <p className="muted">No picks yet.</p> : (
+        <ul className="list">
+          {items.map((p) => (
+            <li key={p.id}>
+              <span className="grow">
+                <span className="tag">{p.kind}</span>{' '}
+                <strong>{p.title}</strong>
+                {p.author && <> · <Link href={`/u/${p.author.handle}`}>@{p.author.handle}</Link></>}
+                <span className="muted small"> · score {p.up - p.down} · {p.remarkCount} {p.remarkCount === 1 ? 'remark' : 'remarks'}</span>
+              </span>
+              <button type="button" className="btn" onClick={() => setAsk(p)}>Remove</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <AlertDialog
+        open={ask !== null}
+        title="Remove pick"
+        message={ask ? <>Remove <strong>{ask.title}</strong> from the rotation? {ask.author ? `@${ask.author.handle} is told.` : ''} This cannot be undone.</> : ''}
+        confirmLabel="Remove"
+        danger
+        onConfirm={() => { const p = ask; setAsk(null); if (p) void remove(p); }}
+        onCancel={() => setAsk(null)}
+      />
+    </section>
   );
 }
 

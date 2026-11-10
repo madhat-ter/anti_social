@@ -43,6 +43,7 @@ function describe(n: Notification): string {
   if (n.kind === 'checklist_reminder') return `Finish your profile: ${n.checklist?.done ?? 0} of ${n.checklist?.total ?? 5} done. The checklist is on the feed.`;
   if (n.kind === 'pick_remark') return `${who} left a remark on your pick "${n.pickTitle ?? ''}"`;
   if (n.kind === 'remark_removed') return `An admin removed your remark on "${n.pickTitle ?? 'a pick'}"`;
+  if (n.kind === 'pick_removed') return n.pickTitle ? `An admin removed your pick "${n.pickTitle}".` : 'An admin removed one of your picks.';
   if (n.kind === 'handle_changed') return n.newHandle ? `An admin changed your handle to @${n.newHandle}. Your profile link changed with it.` : 'An admin changed your handle.';
   if (n.kind === 'verified') return 'You are verified. The badge now shows by your name.';
   if (n.kind === 'unbanned') return 'An admin lifted your ban. Welcome back.';

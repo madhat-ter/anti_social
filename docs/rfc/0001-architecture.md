@@ -698,7 +698,10 @@ and skips the last 5 seen. Members who tried a pick vote **good** (+1) or **not 
 to 200 characters. Rotation is weighted: score = 1 + (up - down)/4 clamped to [1/4, 4], drawn with
 `-ln(random)/score`, so nothing disappears. The window shows the tally and the newest remark; **All
 remarks** lists everyone's vote and remark (profiles too). The suggester is notified of remarks, not
-votes. Admins remove remarks (the vote stays, the writer is told). Never a lurker contribution.
+votes. Admins remove remarks (the vote stays, the writer is told). The author removes their own
+pick from the pick window ("Remove my pick", after a confirmation) or from the Picks tab of their
+profile; admins see every pick under **Admin → Picks** and remove any of them, and the author is
+told. Never a lurker contribution.
 
 ### 10.5 Collabs, interests, upgraded events (added 2026-11-08)
 

@@ -584,6 +584,9 @@ export const api = {
     call<{ removed: true }>('DELETE', `/ops/suggestions/${encodeURIComponent(id)}/remarks/${encodeURIComponent(handle)}`),
   suggest: (b: { kind: SuggestionKind; title: string; note?: string | null }) => post<Pick>('/suggestions', b),
   deletePick: (id: string) => call<{ ok: true }>('DELETE', `/suggestions/${encodeURIComponent(id)}`),
+  /** RFC §10.4: admins see every pick and can remove any of them */
+  opsPicks: () => get<{ items: Pick[] }>('/ops/suggestions'),
+  opsRemovePick: (id: string) => call<{ ok: true }>('DELETE', `/ops/suggestions/${encodeURIComponent(id)}`),
   memberPicks: (handle: string) => get<{ items: Pick[] }>(`/members/${encodeURIComponent(handle)}/suggestions`),
   portfolio: (handle: string) => get<Portfolio>(`/members/${encodeURIComponent(handle)}/portfolio`),
   updatePortfolio: (b: PortfolioInput) => call<Portfolio>('PATCH', '/me/portfolio', b),
