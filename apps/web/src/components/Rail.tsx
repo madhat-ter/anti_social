@@ -54,9 +54,10 @@ export function Rail({ me }: { me: Me }) {
     // A window that repeats the page you are on (events on Events, seats on Members) stays away.
     <aside className="rail" aria-label="At a glance">
       {me.visitor && <VisitorWindow expiresAt={me.visitor.expiresAt} />}
+      {/* Pet Corner opens the rail: it is the living part of the column, not something to scroll to */}
+      <PetCorner me={me} />
       {!path.startsWith('/events') && <NextEvents />}
       {shown && <PickWindow />}
-      <PetCorner me={me} />
       {path !== '/members' && <BirthdaysWindow />}
     </aside>
   );

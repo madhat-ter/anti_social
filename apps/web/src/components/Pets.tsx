@@ -35,6 +35,9 @@ export function PetCard({ post, onChanged, full = false }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const href = `/pet/${post.pet.id}`;
+  // the rail shows one picture, the pet page up to four; the grid must match what is rendered,
+  // or one picture sits in a two-column grid and leaves half the card empty
+  const shownImages = post.images.slice(0, full ? 4 : 1);
 
   async function toggleLike() {
     if (busy) return;
@@ -57,9 +60,9 @@ export function PetCard({ post, onChanged, full = false }: {
         <PetLabelTag label={post.label} />
       </header>
       {/* a photo post reads like the feed's photo cards: the picture first, the words under it */}
-      {post.images.length > 0 && (
-        <div className={`pet-imgs n${Math.min(post.images.length, 4)}`}>
-          {post.images.slice(0, full ? 4 : 1).map((img) => (
+      {shownImages.length > 0 && (
+        <div className={`pet-imgs n${shownImages.length}`}>
+          {shownImages.map((img) => (
             // eslint-disable-next-line @next/next/no-img-element
             <img key={img.id} src={img.url} alt="" width={img.width} height={img.height} />
           ))}
