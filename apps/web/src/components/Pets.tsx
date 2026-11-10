@@ -160,6 +160,44 @@ export function PetCorner({ me }: { me: Me }) {
   );
 }
 
+/* ─── the phone feed's Pet Corner stop ───────────────────────────────────── */
+
+/**
+ * RFC §10.17: on phones, one random pet post sits in the feed between posts (the pick window does
+ * the same). The strip's heading goes to Pet Corner; the card goes to the pet's page.
+ */
+export function PetFeedBlock({ me }: { me: Me }) {
+  const [pool, setPool] = useState<PetPost[] | null>(null);
+  const [post, setPost] = useState<PetPost | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api.pets(null, 20).then(
+      (r) => {
+        if (!alive) return;
+        setPool(r.items);
+        setPost(r.items.length ? r.items[Math.floor(Math.random() * r.items.length)]! : null);
+      },
+      () => {},
+    );
+    return () => { alive = false; };
+  }, []);
+
+  const drop = (id: string) => {
+    const left = (pool ?? []).filter((x) => x.id !== id);
+    setPool(left);
+    setPost(left.length ? left[Math.floor(Math.random() * left.length)]! : null);
+  };
+
+  if (!post) return null;
+  return (
+    <Win title="pet_corner" className="feed-pet" bodyClassName="stack">
+      <Link href="/pets" className="ui pet-corner-link">Pet Corner · all pets</Link>
+      <ul className="pet-list"><li><PetCard post={post} isAdmin={me.role === 'ops'} onRemoved={drop} /></li></ul>
+    </Win>
+  );
+}
+
 /* ─── the full feed (phones and its own page) ────────────────────────────── */
 
 export function PetsIndex({ me }: { me: Me }) {

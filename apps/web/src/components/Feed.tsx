@@ -165,12 +165,13 @@ type Row = { kind: 'thread'; at: string; row: FeedThreadRow } | { kind: 'event';
 const itemTime = (x: FeedItem<Post>) => (x.kind === 'post' ? x.post.createdAt : x.posts[0]!.createdAt);
 
 /**
- * The list itself. Day headers as in PostList; `interlude` (the pick window on phones) after the
- * `after`-th post. `mine` is the viewer's handle: your own posts are never new to you, never folded.
+ * The list itself. Day headers as in PostList; `interludes` (the pick window, Pet Corner) are
+ * inserted after their `after`-th post on phones. `mine` is the viewer's handle: your own posts are
+ * never new to you, never folded.
  */
-export function FeedList({ p, visit, mine, readOnly, empty, interlude }: {
+export function FeedList({ p, visit, mine, readOnly, empty, interludes }: {
   p: ReturnType<typeof usePaged<Post>>; visit: FeedVisit | null; mine: string; readOnly: boolean; empty: string;
-  interlude?: { after: number; node: ReactNode };
+  interludes?: { after: number; node: ReactNode }[];
 }) {
   const [older, setOlder] = useState(false);
   const [openFolds, setOpenFolds] = useState<Set<string>>(new Set());
@@ -243,7 +244,12 @@ export function FeedList({ p, visit, mine, readOnly, empty, interlude }: {
 
   const n = items.length;
   const postsDrawn = draw.filter((d) => d.post).length;
-  const interAt = interlude ? Math.min(interlude.after, postsDrawn) : -1;
+  // where each interlude lands; one that asks for more posts than there are falls to the end
+  const interAt = new Map<number, ReactNode[]>();
+  for (const it of interludes ?? []) {
+    const at = Math.min(it.after, postsDrawn);
+    interAt.set(at, [...(interAt.get(at) ?? []), it.node]);
+  }
   let seenPosts = 0;
   let last = '';
   const endCard = (inline: boolean) => visit && (
@@ -257,7 +263,7 @@ export function FeedList({ p, visit, mine, readOnly, empty, interlude }: {
   return (
     <>
       <ListStatus p={p} count={n} empty={empty} />
-      {interlude && n === 0 && !p.loading && !p.error && interlude.node}
+      {n === 0 && !p.loading && !p.error && (interludes ?? []).map((it, i) => <Fragment key={`i${i}`}>{it.node}</Fragment>)}
       {visit && fresh > 0 && !p.loading && (
         <p className="feed-since meta">{fresh} new since {sinceLabel(visit)}</p>
       )}
@@ -272,7 +278,7 @@ export function FeedList({ p, visit, mine, readOnly, empty, interlude }: {
               {visit && reached && older && i === lineAt && endCard(true)}
               {header && <h2 className="day-h">{day}</h2>}
               {d.node}
-              {d.post && seenPosts === interAt && <div className="interlude">{interlude!.node}</div>}
+              {d.post && interAt.get(seenPosts)?.filter((x) => x != null).map((node, j) => <div className="interlude" key={j}>{node}</div>)}
             </Fragment>
           );
         })}

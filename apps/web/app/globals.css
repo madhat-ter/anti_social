@@ -919,7 +919,7 @@ input[type=search]::-webkit-search-cancel-button {
 .pet-face { display: block; background: var(--paper); color: var(--ink); }
 .pet-face.photo { object-fit: cover; }
 .pet-face-link { display: inline-flex; border: 2px solid var(--ink); background: var(--paper); }
-.pet-corner .pet-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .7rem; }
+.pet-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .7rem; }
 .pet-card { border: 2px solid var(--ink); background: var(--paper); box-shadow: var(--shadow-sm); padding: .6rem .65rem; display: flex; flex-direction: column; gap: .45rem; }
 .pet-head { display: flex; align-items: center; gap: .5rem; min-width: 0; }
 .pet-who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
@@ -1265,6 +1265,10 @@ input[type=search]::-webkit-search-cancel-button {
 /* the pick window after the third post, wherever there is no side rail (under 1180px) */
 .interlude { padding: 1rem 0 .25rem; border-bottom: 1.5px solid var(--ink); }
 .interlude .feed-pick { margin: 0; }
+/* the phone feed's Pet Corner stop: one card, under the feed's own frame */
+.interlude .feed-pet { margin: 0; }
+.feed-pet .win-body { padding: .8rem 1rem; }
+.feed-pet .pet-corner-link { font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 899.98px) {
   .nav, .wide-only { display: none; }
   .phone-only { display: block; }
