@@ -95,6 +95,10 @@ export const postRoutes = (deps: Deps) => {
       const petLabel: PetLabel | null = pet
         ? (PET_LABELS.includes(body.petLabel as PetLabel) ? (body.petLabel as PetLabel) : 'everyday')
         : null;
+      // RFC §10.17: a pet post carries one picture
+      if (pet && imageIds.length > 1) {
+        throw new ApiError(400, 'image_invalid', 'A pet post carries one picture.');
+      }
 
       const id = await db.transaction(async (tx) => {
         await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${uid}::text, 0))`);

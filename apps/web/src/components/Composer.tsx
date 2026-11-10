@@ -133,14 +133,16 @@ export function Composer({
   const trimmed = body.trim();
   const over = body.length > POST_MAX;
   const hasImage = atts.some((a) => a.status === 'done');
+  // RFC §10.17: a pet post carries one picture, not a gallery
+  const maxImages = pet ? 1 : IMAGES_MAX;
   const canPost = !busy && !uploading && (trimmed.length > 0 || hasImage) && !over && !readOnly;
 
   function pick(files: FileList | null) {
     if (!files) return;
     setErr(null);
-    const room = IMAGES_MAX - atts.length;
+    const room = maxImages - atts.length;
     const chosen = Array.from(files);
-    if (chosen.length > room) setErr(`You can attach up to ${IMAGES_MAX} images.`);
+    if (chosen.length > room) setErr(pet ? 'A pet post carries one picture.' : `You can attach up to ${maxImages} images.`);
     for (const f of chosen.slice(0, Math.max(room, 0))) {
       if (!f.type.startsWith('image/')) { setErr(`"${f.name}" is not an image.`); continue; }
       if (f.size > IMAGE_MAX_BYTES) { setErr(`"${f.name}" is larger than 5 MB.`); continue; }
@@ -287,11 +289,11 @@ export function Composer({
           type="file"
           accept="image/*"
           multiple
-          disabled={atts.length >= IMAGES_MAX || readOnly}
+          disabled={atts.length >= maxImages || readOnly}
           className="sr-only"
           onChange={(e) => pick(e.target.files)}
         />
-        <label htmlFor={`${id}-file`} className={`btn attach${atts.length >= IMAGES_MAX || readOnly ? ' disabled' : ''}`} aria-disabled={atts.length >= IMAGES_MAX || readOnly} {...why(readOnly ? VISITOR_NOTE : atts.length >= IMAGES_MAX && `Up to ${IMAGES_MAX} pictures`)}>
+        <label htmlFor={`${id}-file`} className={`btn attach${atts.length >= maxImages || readOnly ? ' disabled' : ''}`} aria-disabled={atts.length >= maxImages || readOnly} {...why(readOnly ? VISITOR_NOTE : atts.length >= maxImages && (pet ? 'One picture per pet post' : `Up to ${maxImages} pictures`))}>
           + Image
         </label>
         <span className="grow" />

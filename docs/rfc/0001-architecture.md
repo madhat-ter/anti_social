@@ -1132,8 +1132,7 @@ the owner, every answer as proposed:
   posts. The owner also sees Edit and Delete there.
 - **Posting as a pet happens on the pet's page**, where the composer says "Posting as Max"; the
   main feed composer stays the member's. A pet post carries one label — **Everyday**, **Advice**,
-  **Health** or **Help** — and otherwise follows posts (1500 characters, up to 4 images, 15-minute
-  edit).
+  **Health** or **Help** — and at most **one picture** (1500 characters, 15-minute edit).
 - **Pet Corner** shows the newest pet posts: on wide screens in the right rail (where the seats
   window was), and below 1180px on its own **`/pets`** page. Each card shows the pet's avatar, its
   name, "pet of @owner", the label, the words and any picture.

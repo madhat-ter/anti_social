@@ -93,6 +93,16 @@ describe('Pet Corner (RFC §10.17)', () => {
     expect((await mira.post('/posts', { body: 'Missing', petId: '00000000-0000-0000-0000-000000000000' })).status).toBe(404);
   });
 
+  test('a pet post carries one picture, not a gallery', async () => {
+    const w = await world();
+    const mira = await w.member('mira');
+    const pet = await createPet(mira, 'Max');
+    const two = ['00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002'];
+    const r = await mira.post('/posts', { body: 'Two pictures', petId: pet.id, imageIds: two });
+    expect(r.status).toBe(400);
+    expect(r.body).toMatchObject({ error: 'image_invalid', detail: 'A pet post carries one picture.' });
+  });
+
   test('deleting a pet deletes its posts and replies', async () => {
     const w = await world();
     const mira = await w.member('mira');
