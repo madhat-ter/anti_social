@@ -85,31 +85,49 @@ export function PetCard({ post, onChanged, full = false }: {
 /* ─── the right rail ─────────────────────────────────────────────────────── */
 
 export function PetCorner({ me }: { me: Me }) {
-  const [items, setItems] = useState<PetPost[] | null>(null);
+  const [pool, setPool] = useState<PetPost[] | null>(null);
+  const [shown, setShown] = useState<PetPost[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
+  // RFC §10.17: two cards in the rail, drawn from the newest 20 and reshuffled every minute,
+  // like the pick window. The /pets page keeps the full, newest-first list.
   useEffect(() => {
     let alive = true;
-    const load = () => api.pets(null, 4).then(
-      (r) => { if (alive) setItems(r.items); },
+    let last: string[] = [];
+    const take = (items: PetPost[]): PetPost[] => {
+      if (items.length <= 2) return items;
+      for (let i = 0; i < 8; i++) {
+        const shuffled = [...items].sort(() => Math.random() - 0.5).slice(0, 2);
+        if (shuffled.some((p) => !last.includes(p.id))) return shuffled;
+      }
+      return items.slice(0, 2);
+    };
+    const load = () => api.pets(null, 20).then(
+      (r) => {
+        if (!alive) return;
+        setPool(r.items);
+        const next = take(r.items);
+        last = next.map((p) => p.id);
+        setShown(next);
+      },
       (e) => { if (alive) setErr(errorMessage(e)); },
     );
     load();
-    const t = setInterval(load, 30_000);
+    const t = setInterval(load, 60_000);
     return () => { alive = false; clearInterval(t); };
   }, []);
 
   return (
     <Win title="pet_corner" as="section" bodyClassName="stack pet-corner">
       {err && <ErrorNote message={err} />}
-      {items === null ? <p className="ui muted">Loading…</p>
-        : items.length === 0 ? (
+      {pool === null ? <p className="ui muted">Loading…</p>
+        : pool.length === 0 ? (
           <p className="muted small">
             No pets yet. <Link href={`/u/${me.handle}`}>Add yours on your profile</Link>.
           </p>
         ) : (
           <ul className="pet-list">
-            {items.map((p) => <li key={p.id}><PetCard post={p} /></li>)}
+            {shown.map((p) => <li key={p.id}><PetCard post={p} /></li>)}
           </ul>
         )}
       <Link className="ui" href="/pets">All pets</Link>
