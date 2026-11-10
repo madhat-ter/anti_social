@@ -1138,7 +1138,9 @@ the owner, every answer as proposed:
   **Health** or **Help** — and at most **one picture** (1500 characters, 15-minute edit).
 - **Pet Corner** shows the newest pet posts: on wide screens in the right rail (where the seats
   window was), and below 1180px on its own **`/pets`** page. Each card shows the pet's avatar, its
-  name, "pet of @owner", the label, the words and any picture.
+  name, "pet of @owner", the label, the words and any picture. On phones the feed also gets **one
+  Pet Corner stop**: one random pet post between the 4th and 10th post, once per visit, the way the
+  pick window sits after the third; its heading opens `/pets` and its card opens the pet's page.
 - **Others can like, reply and report** a pet post. Replies stay inside Pet Corner; five reports
   hide a pet post like any other; the **owner is notified in their own inbox** for replies and
   likes. A pet post is **never a lurker contribution**. Admins get **Remove (admin)** on any pet
