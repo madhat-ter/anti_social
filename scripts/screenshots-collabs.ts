@@ -216,8 +216,7 @@ try {
   await shot(zoePage, 'update-thread', true);
 
   await page.goto(collabUrl);
-  await page.getByRole('button', { name: /More actions for this collab/ }).click();
-  await page.getByRole('menuitem', { name: 'Mark finished' }).click();
+  await page.getByRole('button', { name: 'Mark finished' }).click();
   await page.getByText('Marked finished. Well done.').waitFor();
   await ivyPage.goto(`${WEB}/notifications`);
   await ivyPage.getByText(/is finished\. Well done/).waitFor();

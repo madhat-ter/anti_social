@@ -13,6 +13,7 @@ import { PetAvatar } from './PetAvatar';
 import { Composer } from './Composer';
 import { ErrorNote } from './ui';
 import { AlertDialog, Loading, Win } from './retro';
+import { ActionMenu } from './ActionMenu';
 
 const SPECIES: { key: PetSpecies; label: string }[] = [
   { key: 'dog', label: 'Dog' },
@@ -82,16 +83,19 @@ export function PetCard({ post, onChanged, onRemoved, isAdmin = false, full = fa
           {liked ? '♥' : '♡'} {count !== null ? count : 'Like'}
         </button>
         <Link href={href} className="link-btn">{post.replyCount ? `${post.replyCount} ${post.replyCount === 1 ? 'reply' : 'replies'}` : 'Reply'}</Link>
-        {isAdmin && !post.canDelete && (
-          <button type="button" className="link-btn danger-text" onClick={() => setAsking(true)} disabled={busy}>Remove (admin)</button>
-        )}
         <span className="grow" />
         <time className="meta" dateTime={post.createdAt}>{relativeTime(post.createdAt)}</time>
+        {/* RFC §10.20: admin tools sit in the ⋯ menu everywhere, out of the way of reading */}
+        {isAdmin && !post.canDelete && (
+          <ActionMenu label="More actions for this post" items={[
+            { label: 'Remove (admin)', danger: true, disabled: busy, onSelect: () => setAsking(true) },
+          ]} />
+        )}
       </footer>
       {err && <ErrorNote message={err} />}
       <AlertDialog
         open={asking}
-        title="Remove pet post"
+        title="Remove post"
         message={<>Remove this post by <strong>{post.pet.name}</strong>? @{post.pet.owner.handle} is told it was removed. <strong>This cannot be undone.</strong></>}
         confirmLabel="Remove"
         danger
@@ -447,6 +451,8 @@ export function PetPage({ id, me }: { id: string; me: Me }) {
   const [edit, setEdit] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  // RFC §10.20: deleting or reporting one post asks first, as it does everywhere else
+  const [ask, setAsk] = useState<{ post: PetPost; what: 'delete' | 'report' } | null>(null);
   const confirmRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -489,7 +495,7 @@ export function PetPage({ id, me }: { id: string; me: Me }) {
           {mine && (
             <div className="row pet-actions">
               <button type="button" className="btn" onClick={() => setEdit(true)}>Edit</button>
-              <button type="button" className="btn" onClick={() => setConfirm(true)}>Delete</button>
+              <button type="button" className="btn danger" onClick={() => setConfirm(true)}>Delete pet</button>
             </div>
           )}
         </div>
@@ -515,22 +521,46 @@ export function PetPage({ id, me }: { id: string; me: Me }) {
             <div className="pet-under">
               <PetReplies post={p} onCount={(n) => setPosts((cur) => cur?.map((x) => x.id === p.id ? { ...x, replyCount: n } : x) ?? null)} />
               {mine && (
-                <button type="button" className="link-btn" onClick={async () => {
-                  try { await api.deletePost(p.id); setPosts((cur) => cur?.filter((x) => x.id !== p.id) ?? null); }
-                  catch (e) { setErr(errorMessage(e)); }
-                }}>Delete post</button>
+                <button type="button" className="link-btn" onClick={() => setAsk({ post: p, what: 'delete' })}>Delete post</button>
               )}
               {!mine && p.canReport && (
-                <button type="button" className="link-btn" onClick={async () => {
-                  try { await api.flagPost(p.id); setErr('Reported. An admin will look.'); }
-                  catch (e) { setErr(errorMessage(e)); }
-                }}>Report</button>
+                <button type="button" className="link-btn" onClick={() => setAsk({ post: p, what: 'report' })}>Report</button>
               )}
             </div>
           </li>
         ))}</ul>}
 
       <PetDialog open={edit} initial={pet} onClose={() => setEdit(false)} onSaved={setPet} />
+
+      {/* the same two dialogs a member post has (PostCard) */}
+      <AlertDialog
+        open={ask?.what === 'delete'}
+        title="Delete post"
+        message={<>Delete this post? <strong>This cannot be undone.</strong></>}
+        confirmLabel="Delete"
+        danger
+        onConfirm={async () => {
+          const a = ask; setAsk(null);
+          if (!a) return;
+          try { await api.deletePost(a.post.id); setPosts((cur) => cur?.filter((x) => x.id !== a.post.id) ?? null); }
+          catch (e) { setErr(errorMessage(e)); }
+        }}
+        onCancel={() => setAsk(null)}
+      />
+      <AlertDialog
+        open={ask?.what === 'report'}
+        title="Report post"
+        message="Report this post to the moderators. What is wrong with it? (optional)"
+        confirmLabel="Send report"
+        input={{ label: 'Reason', placeholder: 'Spam, harassment, ...', maxLength: 500 }}
+        onConfirm={async (reason) => {
+          const a = ask; setAsk(null);
+          if (!a) return;
+          try { await api.flagPost(a.post.id, reason || undefined); setErr('Reported. Thanks, a moderator will take a look.'); }
+          catch (e) { setErr(errorMessage(e)); }
+        }}
+        onCancel={() => setAsk(null)}
+      />
 
       <dialog ref={confirmRef} className="dlg" aria-labelledby={`${id}-del`}
         onCancel={(e) => { e.preventDefault(); setConfirm(false); }}

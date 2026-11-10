@@ -1210,6 +1210,52 @@ page goes. Only the credit was removed; nothing about the font changed.
   Borno and the English around it is not, using Chrome's own font report.
 - The owner asked that this change carry no screenshots.
 
+### 10.20 Fewer hidden steps, one way of doing things (added 2026-11-11)
+
+The owner asked for every nested button to be found and the site made quicker to get around
+without becoming harder to understand. A map of every menu, tab, dialog and fold showed that
+nothing a member does daily was buried: posting, replying, liking, events and members were already
+one tap away. The problems were **inconsistency** (the same word or button behaving differently
+in different places) and **missing safety steps**. The owner accepted every recommendation ("do all
+the recommended stuff you think best", then "ok run run run" for the follow-ups). The rules:
+
+- **Everyday things are shallow; destructive things stay a step away.** Deleting a project or
+  banning a member may take several clicks; that protects people and is not to be "fixed".
+- **Every delete and every report asks first.** Five did not, and now do: deleting or reporting a
+  pet post (the same two dialogs a member post has, the report with an optional reason), deleting a
+  pick from your profile, forgetting a passkey, and taking someone off a collab team.
+  `scripts/screenshots-nav.ts` clicks each one and checks that a confirm opens and Cancel leaves
+  things as they were.
+- **A menu with one item is a button.** The event page's ⋯ held only "Cancel this event"; it is now a
+  red **Cancel event** button beside Edit (with its confirm).
+- **A host's week-to-week actions are buttons.** On a collab, Stop recruiting / Recruit again / Mark
+  finished sit beside Edit. The ⋯ keeps only Leave, Report, Delete and Remove (admin).
+- **Admin tools always live in the ⋯ menu and confirm once.** Remove (admin) on pet cards and project
+  pages moved into ⋯, as on posts and collabs; reporting a project moved there too, as on a post.
+  (Pick remarks keep their two-step button inside the remarks dialog, now reading "Yes, remove".)
+- **Owners delete where they look.** The project page has **Delete project** beside Edit project,
+  not only inside the editor.
+- **Words say what they do.** "Remove" became *Delete pick*, *Delete my pick*, *Forget this passkey*,
+  *Remove from team*; the pet page's *Delete* became a red *Delete pet*; the invite code's *Hide*
+  became *Done*.
+- **Settings is a normal page.** A seated member keeps the menu, side windows and phone tabs there.
+  Someone not seated (lapsed, paying the stay fee) still gets the page on its own, since they have no
+  rooms to go to. The section row gained *Notifications*, and the foot links to `/feed-rules`.
+- **Each thing has one door on the phone.** Notifications are the header bell only, no longer also
+  in the "You" sheet; the "You" badge now counts only consultations waiting on you. The desktop menu
+  follows the phone's order: Feed, Events, Collabs, …
+- **Admin starts with what waits.** A **Needs you** line at the top counts reports to decide and
+  consulting offers waiting for a yes, each a jump to its section; a row of section links like
+  Settings; and the sections reordered: Reports, Consulting, Members, then the rest. In a member's
+  row a waiting consulting request is a visible **Approve consulting** button. The row's ⋯ is grouped
+  (account, consulting, role) with Ban last, and Ban stays in the menu on purpose.
+- **The post box's @ list is announced properly.** The textarea is a `combobox` (it already set
+  `aria-expanded`, which a plain textarea may not); found by the axe check in the screenshot script.
+
+Left as they are, on purpose: the header (§10.9), the phone tab bar, the inline post box, and the
+differently worded "show more" controls (each says what it reveals). Replies on a pet's page still
+open inline, because that page is a pet's own small thread and not the feed.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,

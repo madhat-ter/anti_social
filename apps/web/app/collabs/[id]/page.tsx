@@ -37,6 +37,7 @@ function CollabView({ myHandle }: { myHandle: string }) {
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState('');
   const [confirm, setConfirm] = useState<null | 'leave' | 'delete' | 'report' | 'remove'>(null);
+  const [kick, setKick] = useState<{ handle: string; name: string } | null>(null);
   const [reported, setReported] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const readOnly = useReadOnly();
@@ -115,11 +116,11 @@ function CollabView({ myHandle }: { myHandle: string }) {
           )}
           {c.my.request === 'declined' && !onTeam && <span className="muted">This one has found its people. Plenty more in Collabs.</span>}
           {c.canManage && <Link className="btn" href={`/collabs/${id}/edit`}>Edit</Link>}
-          {/* one visible action each; everything rarer lives in the menu */}
+          {/* RFC §10.20: what a host does week to week is a button; the menu keeps leaving, reporting and deleting */}
+          {c.canManage && c.status === 'recruiting' && <button type="button" className="btn" disabled={busy} onClick={() => void act(() => api.updateCollab(id, { status: 'closed' }), 'Not recruiting any more.')}>Stop recruiting</button>}
+          {c.canManage && c.status === 'closed' && <button type="button" className="btn" disabled={busy} onClick={() => void act(() => api.updateCollab(id, { status: 'recruiting' }), 'Recruiting again.')}>Recruit again</button>}
+          {c.canManage && c.status !== 'finished' && <button type="button" className="btn" disabled={busy} onClick={() => void act(() => api.updateCollab(id, { status: 'finished' }), 'Marked finished. Well done.')}>Mark finished</button>}
           <ActionMenu label="More actions for this collab" items={[
-            c.canManage && c.status === 'recruiting' && { label: 'Stop recruiting', disabled: busy, onSelect: () => void act(() => api.updateCollab(id, { status: 'closed' }), 'Not recruiting any more.') },
-            c.canManage && c.status === 'closed' && { label: 'Recruit again', disabled: busy, onSelect: () => void act(() => api.updateCollab(id, { status: 'recruiting' }), 'Recruiting again.') },
-            c.canManage && c.status !== 'finished' && { label: 'Mark finished', disabled: busy, onSelect: () => void act(() => api.updateCollab(id, { status: 'finished' }), 'Marked finished. Well done.') },
             onTeam && { label: 'Leave the team', disabled: busy, onSelect: () => setConfirm('leave') },
             c.canReport && !readOnly && { label: reported ? 'Reported' : 'Report', disabled: busy || reported, onSelect: () => setConfirm('report') },
             iAmHost && { label: 'Delete this collab', danger: true, disabled: busy, onSelect: () => setConfirm('delete') },
@@ -158,7 +159,7 @@ function CollabView({ myHandle }: { myHandle: string }) {
                     </button>
                   )}
                   {(iAmHost || p.role === 'member') && (
-                    <button type="button" className="link-btn" disabled={busy} onClick={() => act(() => api.removeFromCollab(id, p.handle))}>Remove</button>
+                    <button type="button" className="link-btn" disabled={busy} onClick={() => setKick({ handle: p.handle, name: p.displayName })}>Remove from team</button>
                   )}
                 </span>
               )}
@@ -194,6 +195,15 @@ function CollabView({ myHandle }: { myHandle: string }) {
           else void act(() => api.leaveCollab(id), 'You left the team.');
         }}
         onCancel={() => setConfirm(null)}
+      />
+      <AlertDialog
+        open={kick !== null}
+        title="Remove from team"
+        message={kick ? `Take ${kick.name} (@${kick.handle}) off the team?` : ''}
+        confirmLabel="Remove"
+        danger
+        onConfirm={() => { const k = kick; setKick(null); if (k) void act(() => api.removeFromCollab(id, k.handle)); }}
+        onCancel={() => setKick(null)}
       />
     </>
   );

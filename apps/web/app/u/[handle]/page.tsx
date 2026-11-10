@@ -11,7 +11,7 @@ import { usePaged, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { PostList } from '@/components/PostList';
 import { ErrorNote } from '@/components/ui';
-import { Loading } from '@/components/retro';
+import { AlertDialog, Loading } from '@/components/retro';
 
 export default function ProfilePage() {
   useTitle('Profile');
@@ -22,24 +22,39 @@ export default function ProfilePage() {
 function MemberPicks({ handle, mine }: { handle: string; mine: boolean }) {
   const [items, setItems] = useState<Pick[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [ask, setAsk] = useState<Pick | null>(null);
   useEffect(() => { api.memberPicks(handle).then((r) => setItems(r.items), (e) => setErr(errorMessage(e))); }, [handle]);
   if (err) return <ErrorNote message={err} />;
   if (!items) return <Loading />;
   if (!items.length) return <p className="empty">{mine ? 'No picks yet. Suggest something from the pick window.' : 'No picks yet.'}</p>;
   return (
+    <>
     <ul className="pick-grid">
       {items.map((p) => (
         <li key={p.id}>
           <PickCard p={p} showAuthor={false} onChange={(np) => setItems((cur) => cur?.map((x) => (x.id === np.id ? np : x)) ?? null)} />
           {mine && (
-            <button type="button" className="link-btn" onClick={async () => {
-              try { await api.deletePick(p.id); setItems((cur) => cur?.filter((x) => x.id !== p.id) ?? null); }
-              catch (e) { setErr(errorMessage(e)); }
-            }}>Remove</button>
+            <button type="button" className="link-btn" onClick={() => setAsk(p)}>Delete pick</button>
           )}
         </li>
       ))}
     </ul>
+      {/* RFC §10.20: the same confirm the pick window asks */}
+      <AlertDialog
+        open={ask !== null}
+        title="Delete pick"
+        message={ask ? <>Delete <strong>{ask.title}</strong>? Its votes and remarks go with it.</> : ''}
+        confirmLabel="Delete"
+        danger
+        onConfirm={async () => {
+          const p = ask; setAsk(null);
+          if (!p) return;
+          try { await api.deletePick(p.id); setItems((cur) => cur?.filter((x) => x.id !== p.id) ?? null); }
+          catch (e) { setErr(errorMessage(e)); }
+        }}
+        onCancel={() => setAsk(null)}
+      />
+    </>
   );
 }
 

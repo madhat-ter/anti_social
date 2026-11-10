@@ -11,9 +11,10 @@ import { applyTheme } from '@/lib/theme';
 import { api, errorMessage, formatMoney, type InviteInfo, type Me, type PasskeyInfo, type PaymentRecord } from '@/lib/api';
 import { fmtDate, useMe, useTitle } from '@/lib/hooks';
 import { CopyButton, ErrorNote } from '@/components/ui';
+import { SeatedShell } from '@/components/Shell';
 import { PayButton } from '@/components/Billing';
 import { PushToggle } from '@/components/PushToggle';
-import { Loading, Win } from '@/components/retro';
+import { AlertDialog, Loading, Win } from '@/components/retro';
 import { ScreenTime } from '@/components/ScreenTime';
 import { Avatar } from '@/components/Avatar';
 
@@ -32,12 +33,10 @@ export default function Settings() {
   if (me.setupNeeded || me.visitor) return <Loading what="Redirecting" />;
   const seated = me.state === 'active' || me.state === 'flagged_lurker';
 
-  return (
-    <ScreenTime me={me}>
-    <div className="stack">
-      <div className="row"><Link href="/" className="ui">Back to the feed</Link></div>
+  const page = (
+    <>
       <h1>Settings</h1>
-      {/* nine sections, one long window: a row of links that stays under the header on wide screens */}
+      {/* one long window: a row of links that stays under the header on wide screens */}
       <nav className="panel-index" aria-label="Sections">
         <a href="#profile">Profile</a>
         <a href="#face">Face</a>
@@ -47,6 +46,7 @@ export default function Settings() {
         {me.contactEnabled && <a href="#contact">Contact</a>}
         <a href="#pin">PIN</a>
         <a href="#pk">Passkeys</a>
+        <a href="#push">Notifications</a>
         {seated && <a href="#inv">Invites</a>}
         <a href="#pay">Payments</a>
         <a href="#dz">Account</a>
@@ -65,6 +65,17 @@ export default function Settings() {
         <Payments me={me} seated={seated} />
         <Danger me={me} onGone={() => { router.push('/'); router.refresh(); }} />
       </Win>
+      <p className="muted small">How the feed is ordered, and why it is not ranked: <Link href="/feed-rules">how the feed works</Link>.</p>
+    </>
+  );
+  // RFC §10.20: a seated member keeps the menu, the side windows and the phone tabs here like on every
+  // other page. Someone not seated (lapsed, paying the stay fee) has no rooms to go to, so they get the page alone.
+  if (seated) return <SeatedShell me={me}>{() => page}</SeatedShell>;
+  return (
+    <ScreenTime me={me}>
+    <div className="stack">
+      <div className="row"><Link href="/" className="ui">Back to the feed</Link></div>
+      {page}
     </div>
     </ScreenTime>
   );
@@ -241,6 +252,7 @@ function Passkeys() {
   const [list, setList] = useState<PasskeyInfo[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [label, setLabel] = useState('');
+  const [ask, setAsk] = useState<PasskeyInfo | null>(null);
   const load = useCallback(async () => {
     try { setList(await api.passkeys()); } catch (e) { setErr(errorMessage(e)); }
   }, []);
@@ -268,10 +280,20 @@ function Passkeys() {
         {list.map((p) => (
           <li key={p.id}>
             <span>{p.deviceLabel || 'Passkey'}<br /><small className="muted">Added {fmtDate(p.createdAt)}{p.lastUsedAt ? `, last used ${fmtDate(p.lastUsedAt)}` : ''}</small></span>
-            <button className="btn danger" onClick={() => remove(p.id)}>Remove</button>
+            <button className="btn danger" onClick={() => setAsk(p)}>Forget this passkey</button>
           </li>
         ))}
       </ul>
+      {/* RFC §10.20: forgetting a passkey asks first; that device then signs in with the PIN */}
+      <AlertDialog
+        open={ask !== null}
+        title="Forget passkey"
+        message={ask ? <>Forget <strong>{ask.deviceLabel || 'this passkey'}</strong>? That device will sign in with your handle and PIN instead.</> : ''}
+        confirmLabel="Forget it"
+        danger
+        onConfirm={() => { const p = ask; setAsk(null); if (p) void remove(p.id); }}
+        onCancel={() => setAsk(null)}
+      />
       <div className="row">
         <input aria-label="Device label" placeholder="Label (optional)" value={label} onChange={(e) => setLabel(e.target.value)} />
         <button className="btn" onClick={add}>Add passkey</button>
@@ -302,7 +324,7 @@ function Invites() {
         <div className="stack" role="status">
           <p className="muted">Copy this code now. It is shown only once. Expires {fmtDate(fresh.expiresAt)}.</p>
           <p className="code">{fresh.code}</p>
-          <div className="row"><CopyButton text={fresh.code} /><button className="btn" onClick={() => setFresh(null)}>Hide</button></div>
+          <div className="row"><CopyButton text={fresh.code} /><button className="btn" onClick={() => setFresh(null)}>Done</button></div>
         </div>
       )}
       <div className="row"><button className="btn primary" onClick={create}>Create invite</button></div>

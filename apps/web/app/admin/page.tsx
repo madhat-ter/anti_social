@@ -27,17 +27,60 @@ function Admin({ me }: { me: Me }) {
   return (
     <>
       <h1>Admin</h1>
+      <NeedsYou />
+      {/* RFC §10.20: what waits on an admin comes first; the same row of section links as Settings */}
+      <nav className="panel-index" aria-label="Sections">
+        <a href="#reports">Reports</a>
+        <a href="#consulting">Consulting</a>
+        <a href="#members">Members</a>
+        <a href="#invites">Invite codes</a>
+        <a href="#visitors">Visitor passes</a>
+        <a href="#picks">Picks</a>
+        <a href="#consultations">Consultations</a>
+        <a href="#community">Community</a>
+      </nav>
       <Win title="Moderator panel" className="panel" bodyClassName="panel-body">
-        <Invites />
-        <VisitorPasses />
         <Reports />
         <ConsultAsks />
-        <Picks />
         <Members me={me} />
+        <Invites />
+        <VisitorPasses />
+        <Picks />
         <Consultations />
         <Community />
       </Win>
     </>
+  );
+}
+
+/** the sections tell this box how many things are left in them, after every load */
+const NEEDS_EVENT = 'anti:admin-needs';
+function tellNeeds(what: 'reports' | 'consulting', n: number) {
+  window.dispatchEvent(new CustomEvent(NEEDS_EVENT, { detail: { what, n } }));
+}
+
+/** RFC §10.20: one line per kind of thing that waits on an admin, each a jump to its section. */
+function NeedsYou() {
+  const [n, setN] = useState<{ reports: number | null; consulting: number | null }>({ reports: null, consulting: null });
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ what: 'reports' | 'consulting'; n: number }>).detail;
+      setN((cur) => ({ ...cur, [d.what]: d.n }));
+    };
+    window.addEventListener(NEEDS_EVENT, on);
+    return () => window.removeEventListener(NEEDS_EVENT, on);
+  }, []);
+  if (n.reports === null || n.consulting === null) return null;
+  const lines = [
+    n.reports > 0 && <a key="r" href="#reports">{n.reports} {n.reports === 1 ? 'report' : 'reports'} to decide</a>,
+    n.consulting > 0 && <a key="c" href="#consulting">{n.consulting} consulting {n.consulting === 1 ? 'offer' : 'offers'} waiting for a yes</a>,
+  ].filter(Boolean);
+  return (
+    <section className={lines.length ? 'banner needs-you' : 'meta needs-you'} aria-label="Needs you" role="status">
+      {lines.length
+        ? <><strong>Needs you:</strong>{' '}{lines.map((l, i) => <span key={i}>{i > 0 && ' · '}{l}</span>)}</>
+        : <>Nothing is waiting on you.</>}
+    </section>
   );
 }
 
@@ -55,7 +98,7 @@ function Picks() {
     catch (e) { setErr(errorMessage(e)); }
   }
   return (
-    <section className="panel-sec" aria-labelledby="adm-picks">
+    <section className="panel-sec" aria-labelledby="adm-picks" id="picks">
       <h2 id="adm-picks">Picks</h2>
       <p className="muted small">Everything suggested for the pick window. Removing one takes it out of the rotation for everyone; the author is told.</p>
       <ErrorNote message={err} />
@@ -99,7 +142,7 @@ function Invites() {
   }
 
   return (
-    <section className="panel-sec" aria-labelledby="adm-inv">
+    <section className="panel-sec" aria-labelledby="adm-inv" id="invites">
       <h2 id="adm-inv">Invite codes</h2>
       <p className="muted">Founder invites: no limit, nobody is listed as the inviter. Each code works once and lasts as many days as set under Community.</p>
       <div className="row">
@@ -170,7 +213,7 @@ function VisitorPasses() {
   const link = made ? `${origin}/visit/${made.code}` : '';
 
   return (
-    <section className="panel-sec" aria-labelledby="adm-visit">
+    <section className="panel-sec" aria-labelledby="adm-visit" id="visitors">
       <h2 id="adm-visit">Visitor passes</h2>
       <p className="muted">
         An hour of looking around for someone who is not a member: everything members see, nothing they can do. Each pass works once,
@@ -242,7 +285,7 @@ function ConsultAsks() {
 
   const load = useCallback(async () => {
     setErr(null);
-    try { setItems(await api.opsConsultAsks()); } catch (e) { setErr(errorMessage(e)); }
+    try { const r = await api.opsConsultAsks(); setItems(r); tellNeeds('consulting', r.length); } catch (e) { setErr(errorMessage(e)); }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -256,7 +299,7 @@ function ConsultAsks() {
   }
 
   return (
-    <section className="panel-sec" aria-labelledby="adm-asks">
+    <section className="panel-sec" aria-labelledby="adm-asks" id="consulting">
       <h2 id="adm-asks">Consulting</h2>
       <p className="muted">
         Members who finished setting up an offer and are waiting for a yes. Offering consulting needs the verified badge first, so everyone here has it.
@@ -343,7 +386,7 @@ function Consultations() {
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { api.opsConsultations().then(setItems, (e) => setErr(errorMessage(e))); }, []);
   return (
-    <section className="panel-sec" aria-labelledby="adm-con">
+    <section className="panel-sec" aria-labelledby="adm-con" id="consultations">
       <h2 id="adm-con">Consultations</h2>
       <p className="muted">Who asked whom, and when. What they asked and their contacts stay between them unless one of them reports it.</p>
       <ErrorNote message={err} />
@@ -370,7 +413,7 @@ function Reports() {
 
   const load = useCallback(async () => {
     setErr(null);
-    try { setItems(await api.opsFlags()); } catch (e) { setErr(errorMessage(e)); }
+    try { const r = await api.opsFlags(); setItems(r); tellNeeds('reports', r.length); } catch (e) { setErr(errorMessage(e)); }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -394,7 +437,7 @@ function Reports() {
     : f.author ? `/u/${f.author}/work/${f.projectId}` : null;
 
   return (
-    <section className="panel-sec" aria-labelledby="adm-rep">
+    <section className="panel-sec" aria-labelledby="adm-rep" id="reports">
       <h2 id="adm-rep">Reports</h2>
       <div className="row between adm-rep-head">
         <p className="muted">Posts, projects, collabs and consultations members reported. Five reports hide one automatically until you decide; a reported consultation request comes straight here.</p>
@@ -671,16 +714,18 @@ function Members({ me }: { me: Me }) {
               {/* one button for the thing most likely needed now; everything else in the row's menu */}
               <span className="row adm-member-actions">
                 {seatedState(m) && !m.verified && <button type="button" className="btn primary" onClick={() => void verify(m, true)}>Verify</button>}
+                {/* RFC §10.20: a consulting request waiting on an admin is the thing to do now, so it is a button */}
+                {m.consulting === 'waiting' && <button type="button" className={m.verified ? 'btn primary' : 'btn'} onClick={() => void decideConsulting(m, true)}>Approve consulting</button>}
                 {m.state === 'banned' && <button type="button" className="btn" onClick={() => setAsk({ kind: 'unban', m })}>Unban</button>}
                 {m.hasContact && <button type="button" className="btn" onClick={() => void showContact(m)}>{contacts[m.handle] ? 'Hide contact' : 'Show contact'}</button>}
+                {/* the menu in groups: their account, their consulting, their role, and Ban last */}
                 <ActionMenu label={`More actions for @${m.handle}`} items={[
                   seatedState(m) && m.verified && { label: 'Remove verification', onSelect: () => void verify(m, false) },
-                  m.consulting === 'waiting' && { label: 'Approve consulting', onSelect: () => void decideConsulting(m, true) },
-                  m.consulting === 'waiting' && { label: 'Do not approve consulting', onSelect: () => void decideConsulting(m, false) },
-                  m.consulting === 'declined' && { label: 'Approve consulting', onSelect: () => void decideConsulting(m, true) },
                   m.handle !== me.handle && m.state !== 'banned' && { label: 'Reset PIN', onSelect: () => void resetPin(m) },
                   { label: 'Change handle', onSelect: () => setAsk({ kind: 'rename', m }) },
                   { label: 'Change birthday', onSelect: () => setAsk({ kind: 'birthday', m }) },
+                  m.consulting === 'waiting' && { label: 'Do not approve consulting', onSelect: () => void decideConsulting(m, false) },
+                  m.consulting === 'declined' && { label: 'Approve consulting', onSelect: () => void decideConsulting(m, true) },
                   m.consulting === 'off' && { label: 'Allow consulting', onSelect: () => void consulting(m, true) },
                   (m.consulting === 'on' || m.consulting === 'paused') && { label: 'Switch consulting off', onSelect: () => void consulting(m, false) },
                   m.state !== 'banned' && m.role === 'ops' && { label: 'Remove admin', onSelect: () => setAsk({ kind: 'unadmin', m }) },
@@ -876,7 +921,7 @@ function Community() {
   );
 
   return (
-    <section className="panel-sec" aria-labelledby="adm-room">
+    <section className="panel-sec" aria-labelledby="adm-room" id="community">
       <h2 id="adm-room">Community</h2>
       {s === null && !err ? <Loading /> : (
         <form className="stack" onSubmit={save}>

@@ -28,7 +28,8 @@ mkdirSync(OUT, { recursive: true });
 for (const f of readdirSync(OUT)) if (f.endsWith('.png')) unlinkSync(join(OUT, f));
 
 const ABOUT = 'I draw for small presses and print zines on an old risograph. Most weeks I am at the market with a sketchbook, drawing the stalls and the people who keep them going. I like slow projects, paper that smells of ink, and anything with a deadline far enough away to do it properly. Ask me about layout, colour separations, or where to find cheap paper in town.';
-const setup = (gender: string) => ({ about: ABOUT, gender, birthday: '1996-04-02' });
+// a phone and an email are part of setup since §10.7
+const setup = (gender: string) => ({ about: ABOUT, gender, birthday: '1996-04-02', phone: '+977 980 000 0000', email: 'member@example.com' });
 
 const t = await createTestDb({ seatCap: 20 });
 const server = createApp({

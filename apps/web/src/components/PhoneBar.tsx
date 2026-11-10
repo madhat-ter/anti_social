@@ -3,7 +3,8 @@
  * The phone shell (under 900px). The menu column of the desktop becomes two things that never
  * scroll away: a bell in the sticky header (notifications) and a bar of five tabs along the
  * bottom: the four rooms and "you". Everything that is a drawer rather than a room (your
- * profile, search, consultations, settings, admin) sits in a sheet that opens from "you".
+ * profile, search, Pet Corner, consultations, settings, admin) sits in a sheet that opens from "you".
+ * Notifications are the bell only, not a second time in the sheet (RFC §10.20).
  * A visitor (RFC §10.8) gets the rooms, and in the fifth tab a grey face with the time left.
  */
 import Link from 'next/link';
@@ -110,9 +111,10 @@ export function PhoneBar({ me, unread, waiting, adult }: { me: Me; unread: numbe
             aria-current={youOn && !open ? 'page' : undefined} onClick={() => setOpen((o) => !o)}>
             <span className="tb-face">
               <Avatar seed={me.handle} gender={me.gender} size={26} />
-              {unread > 0 && <span className="badge" aria-hidden="true">{unread > 99 ? '99+' : unread}</span>}
+              {/* RFC §10.20: unread lives on the bell; this badge counts only what sits behind the sheet */}
+              {adult && waiting > 0 && <span className="badge" aria-hidden="true">{waiting > 99 ? '99+' : waiting}</span>}
             </span>
-            <span className="tb-label">You{unread > 0 && <span className="sr-only">, {unread} unread</span>}</span>
+            <span className="tb-label">You{adult && waiting > 0 && <span className="sr-only">, {waiting} waiting on you</span>}</span>
           </button>
         )}
       </nav>
@@ -138,7 +140,6 @@ export function PhoneBar({ me, unread, waiting, adult }: { me: Me; unread: numbe
                   </span>
                 </Link>
                 <ul className="sheet-list">
-                  <li><Link href="/notifications" aria-current={path === '/notifications' ? 'page' : undefined}>Notifications <Badge n={unread} what="unread" /></Link></li>
                   <li><Link href="/search" aria-current={path === '/search' ? 'page' : undefined}>Search</Link></li>
                   <li><Link href="/pets" aria-current={path.startsWith('/pets') || path.startsWith('/pet/') ? 'page' : undefined}>Pet Corner</Link></li>
                   {adult && <li><Link href="/consultations" aria-current={path.startsWith('/consultations') ? 'page' : undefined}>Consultations <Badge n={waiting} what="waiting on you" /></Link></li>}

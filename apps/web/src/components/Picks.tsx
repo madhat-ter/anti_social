@@ -211,7 +211,7 @@ function RemarksDialog({ open, pickId, title, onClose, onChanged }: {
                   </span>
                   {data.canModerate && r.remark && (
                     confirming === r.handle
-                      ? <button type="button" className="btn danger" onClick={() => void remove(r.handle)}>Remove?</button>
+                      ? <button type="button" className="btn danger" onClick={() => void remove(r.handle)}>Yes, remove</button>
                       : <button type="button" className="link-btn" onClick={() => setConfirming(r.handle)}>Remove (admin)</button>
                   )}
                 </li>
@@ -321,16 +321,16 @@ export function PickWindow({ className }: { className?: string }) {
         <button type="button" className="btn" onClick={() => void next()} disabled={busy || !item}>Another</button>
         <span className="row">
           {item?.mine && (
-            <button type="button" className="link-btn" onClick={() => setRemoving(true)} disabled={busy}>Remove my pick</button>
+            <button type="button" className="link-btn" onClick={() => setRemoving(true)} disabled={busy}>Delete my pick</button>
           )}
           <button type="button" className="btn primary" onClick={() => setAsking(true)} disabled={readOnly} {...why(readOnly && VISITOR_NOTE)}>+ Suggest</button>
         </span>
       </div>
       <AlertDialog
         open={removing}
-        title="Remove your pick"
-        message={<>Remove <strong>{item?.title}</strong> from the rotation? Its votes and remarks go with it.</>}
-        confirmLabel="Remove"
+        title="Delete your pick"
+        message={<>Delete <strong>{item?.title}</strong>? It leaves the rotation, and its votes and remarks go with it.</>}
+        confirmLabel="Delete"
         danger
         onConfirm={() => { setRemoving(false); void removeMine(); }}
         onCancel={() => setRemoving(false)}

@@ -244,9 +244,10 @@ try {
 
   // ── 7. remove a project from its page
   await seef.goto(`${WEB}/u/kai/work/${project.id}`);
-  await seef.getByRole('button', { name: 'Remove (admin)' }).waitFor();
+  await seef.getByRole('button', { name: 'More actions for this project' }).click();
+  await seef.getByRole('menuitem', { name: 'Remove (admin)' }).waitFor();
   await shot(seef, 'project-admin', false);
-  await seef.getByRole('button', { name: 'Remove (admin)' }).click();
+  await seef.getByRole('menuitem', { name: 'Remove (admin)' }).click();
   await seef.locator('dialog[open]').getByRole('button', { name: 'Remove' }).click();
   await seef.waitForURL(`${WEB}/u/kai`);
   if ((await q(`select 1 from projects where id = $1`, [project.id])).rows.length) throw new Error('project still there');

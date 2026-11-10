@@ -19,6 +19,7 @@ import {
 import { ImageViewer } from './ImageViewer';
 import { nn, styleClass, TagEditor } from './Portfolio';
 import { AlertDialog, Win } from './retro';
+import { ActionMenu } from './ActionMenu';
 import { ErrorNote } from './ui';
 import { bnLang } from '@/lib/lang';
 import { useReadOnly } from './Visitor';
@@ -35,7 +36,14 @@ export function ProjectView({ project: p, siblings, style }: { project: Project;
   const [reported, setReported] = useState(false);
   const [reportErr, setReportErr] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const router = useRouter();
+  /** RFC §10.20: the owner deletes from the project page itself, not only from inside the editor */
+  async function deleteMine() {
+    setDeleting(false); setReportErr(null);
+    try { await api.deleteProject(p.id); router.push(`/u/${p.handle}`); }
+    catch (e) { setReportErr(errorMessage(e)); }
+  }
   /** an admin removes someone else's project: it is deleted and the owner is told */
   async function remove() {
     setRemoving(false); setReportErr(null);
@@ -92,16 +100,18 @@ export function ProjectView({ project: p, siblings, style }: { project: Project;
             {p.mine && (
               <div className="row pj-actions">
                 <Link className="btn" href={`${home}/work/${p.id}/edit`}>Edit project</Link>
+                <button type="button" className="btn danger" onClick={() => setDeleting(true)}>Delete project</button>
+                {!p.canReport && <ErrorNote message={reportErr} />}
               </div>
             )}
             {p.canReport && !readOnly && (
               <div className="row pj-actions">
-                {reported
-                  ? <p className="muted small" role="status">Reported. Thanks, a moderator will take a look.</p>
-                  : <button type="button" className="link-btn" onClick={() => setAsking(true)}>Report project</button>}
-                {p.canModerate && (
-                  <button type="button" className="btn danger" onClick={() => setRemoving(true)}>Remove (admin)</button>
-                )}
+                {reported && <p className="muted small" role="status">Reported. Thanks, a moderator will take a look.</p>}
+                {/* RFC §10.20: report and the admin's remove live in the ⋯ menu, as on a post */}
+                <ActionMenu label="More actions for this project" items={[
+                  { label: reported ? 'Reported' : 'Report', disabled: reported, onSelect: () => setAsking(true) },
+                  p.canModerate && { label: 'Remove (admin)', danger: true, onSelect: () => setRemoving(true) },
+                ]} />
                 <ErrorNote message={reportErr} />
               </div>
             )}
@@ -137,6 +147,15 @@ export function ProjectView({ project: p, siblings, style }: { project: Project;
         danger
         onConfirm={() => void remove()}
         onCancel={() => setRemoving(false)}
+      />
+      <AlertDialog
+        open={deleting}
+        title="Delete project"
+        message={<>Delete <strong>{p.title}</strong> and its images? <strong>This cannot be undone.</strong></>}
+        confirmLabel="Delete"
+        danger
+        onConfirm={() => void deleteMine()}
+        onCancel={() => setDeleting(false)}
       />
     </Win>
   );

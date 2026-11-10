@@ -224,7 +224,8 @@ try {
   if (await theo.getByRole('link', { name: 'Edit project' }).count()) throw new Error('visitor sees the edit link');
   await shot(theo, 'project-visitor');
   // a visitor can report a project, like a post
-  await theo.getByRole('button', { name: 'Report project' }).click();
+  await theo.getByRole('button', { name: 'More actions for this project' }).click();
+  await theo.getByRole('menuitem', { name: 'Report' }).click();
   await theo.locator('dialog[open]').waitFor();
   await shot(theo, 'project-report-dialog', false);
   await theo.getByRole('button', { name: 'Cancel' }).click();

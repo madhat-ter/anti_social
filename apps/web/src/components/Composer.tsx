@@ -227,6 +227,10 @@ export function Composer({
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void submit(); }
           }}
           aria-describedby={`${id}-count`}
+          /* a text box with a suggestion list (the @ member list) is a combobox; aria-expanded needs that role */
+          role="combobox"
+          aria-autocomplete="list"
+          aria-haspopup="listbox"
           aria-expanded={!!mention && mentionItems.length > 0}
           aria-controls={`${id}-mentions`}
         />
