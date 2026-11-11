@@ -1378,15 +1378,21 @@ newest on top), shown only once someone has posted one. The Monologue page follo
 Yaps** and the only **+ Record** button. A monologue opens at the usual post page (`/p/<id>`).
 
 **The look.** One cassette shape for every kind, bold ink like the rest of the site, white on black
-in dark mode. The kind sits in the label's SIDE box, the title (two lines at most) on the label
-line in the site's own type, the length in the corner. The cassette **is the card** (owner, after
-seeing the first build): no post box around it, just a small name line above, the tape with the
-site's hard shadow, a slim strip under it (the waveform for jumping around, the time, 1× / 1.5×),
-the note, then Reply and Like. **Tap the cassette to play or pause**; a ▶ sits in its window while
-paused. Playing turns the reels and winds the tape from the left reel to the right one, so the
-cassette is its own progress bar. One tape plays at a time; nothing plays by itself. Straight, never
-tilted. About 430 pixels wide on a computer, full width on a phone, a little bigger on its own page.
+in dark mode. The cassette **is the card and the whole player** (owner, after two looks at the
+build): no post box around it and nothing under it but the note and Reply / Like, with a small name
+line above. Its parts do the work:
+- the **label**: the kind in the SIDE box, the title (two lines at most) in the site's own type,
+  the **time left** in the corner (the full length before it plays, counting down while it does),
+  and under the title the **waveform**: tap it to jump;
+- the **play sign** sits in the bottom part, between the two holes where a real tape's head opening
+  is (▶, ❚❚ while playing); tapping **anywhere** on the cassette plays or pauses;
+- the **two reels turn** while it plays (spokes and a red notch make it plain) and the tape winds
+  from the left reel to the right one;
+- a **speed sticker** in the bottom-right corner steps **1× → 1.5× → 2×**.
 
+It has the site's hard shadow, stays straight (never tilted), is about 430 pixels wide on a
+computer and full width on a phone. One tape plays at a time; nothing plays by itself. On the
+recording screen, Record / Stop is its own button under the cassette.
 **How it is built.** The recording is uploaded first (`POST /monologues/audio`: the server checks
 the file really is audio by its first bytes, the size, and the length the browser measured) and
 waits for its owner; posting is `POST /posts` with `monologue: { audioId, title, kind, mine }`, so

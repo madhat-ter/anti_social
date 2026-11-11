@@ -1,20 +1,21 @@
 'use client';
 /**
- * RFC §10.22: a monologue is drawn as a cassette. Bold ink outlines and a label strip (the kind
- * sits in the SIDE box, the title on the label line, the length in the corner). While it plays the
- * reels turn and the tape winds from the left reel to the right one, so the cassette is its own
- * progress bar; tap the cassette to play or pause, and the thin waveform under it is for jumping
- * around. One tape plays at a time.
- * Every colour is a CSS variable, so dark mode draws it in white on black.
+ * RFC §10.22: a monologue is drawn as a cassette, and the cassette is the whole player (owner,
+ * 2026-11-11). The label holds the kind (the SIDE box), the title, the time left in the corner
+ * (it counts down while it plays) and, under the title, the waveform: tap it to jump. The play
+ * sign sits in the bottom part, where a real tape's head opening is; tapping anywhere on the
+ * cassette plays or pauses. While it plays the two reels turn and the tape winds from the left reel
+ * to the right one. A small sticker in the corner steps the speed 1× → 1.5× → 2×.
+ * One tape plays at a time. Every colour is a CSS variable, so dark mode is white on black.
  */
 import Link from 'next/link';
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { MONOLOGUE_KIND_LABEL, type MonologueKind } from '@anti/shared';
 import { api, type Post } from '@/lib/api';
 import { claimPlayback, clock, onOtherPlay, releasePlayback } from '@/lib/tape';
 
-const HUB = 15;
-const PACK = 40;
+const HUB = 14;
+const PACK = 36;
 /** tape pack radius for the share of tape on that reel (the area, not the radius, is shared) */
 const pack = (share: number) => Math.sqrt(HUB * HUB + (PACK * PACK - HUB * HUB) * Math.max(0, Math.min(1, share)));
 
@@ -32,73 +33,80 @@ function Reel({ cx, cy, r }: { cx: number; cy: number; r: number }) {
     <g>
       <circle className="t-pack" cx={cx} cy={cy} r={r} />
       {r > HUB + 6 && <circle className="t-groove" cx={cx} cy={cy} r={HUB + (r - HUB) * 0.55} />}
+      {/* the hub turns while it plays: three spokes and a red notch make the turning easy to see */}
       <g className="t-hub" style={{ transformOrigin: `${cx}px ${cy}px` }}>
         <circle className="t-hub-ring" cx={cx} cy={cy} r={HUB} />
-        <circle className="t-hub-in" cx={cx} cy={cy} r={7} />
-        {[0, 60, 120, 180, 240, 300].map((a) => (
-          <rect key={a} className="t-tooth" x={cx - 1.6} y={cy - 10.5} width={3.2} height={3.6} transform={`rotate(${a} ${cx} ${cy})`} />
+        {[0, 120, 240].map((a) => (
+          <rect key={a} className="t-spoke" x={cx - 1.8} y={cy - HUB + 1} width={3.6} height={HUB - 5} transform={`rotate(${a} ${cx} ${cy})`} />
         ))}
-        {/* the red notch: you can see the reel turn */}
-        <rect className="t-notch" x={cx - 3} y={cy - HUB + 1.5} width={6} height={3.5} />
+        <circle className="t-hub-in" cx={cx} cy={cy} r={4.5} />
+        <rect className="t-notch" x={cx + HUB - 5} y={cy - 2.5} width={4} height={5} />
       </g>
     </g>
   );
 }
 
-/** The cassette drawing with its label. `progress` 0..1 is how much tape has wound onto the right reel. */
-export function Cassette({ title, kind, length, progress, spinning, rec, big, glyph }: {
+/** viewBox height: the label is tall enough for a title and the waveform under it */
+const H = 222;
+
+/**
+ * The cassette drawing. `progress` 0..1 is how much tape has wound onto the right reel. `sign`
+ * draws the play (or pause) sign in the bottom part; `wave` and `extra` are the player's own
+ * controls, laid on top of the drawing.
+ */
+export function Cassette({ title, kind, length, progress, spinning, rec, big, sign, wave, extra }: {
   title: string; kind: MonologueKind | null; length: string; progress: number; spinning: boolean;
   /** recording: a red dot on the label */
   rec?: boolean;
   big?: boolean;
-  /** a playable tape that is paused shows a play mark in its window */
-  glyph?: boolean;
+  sign?: 'play' | 'pause';
+  wave?: ReactNode;
+  extra?: ReactNode;
 }) {
   const rL = pack(1 - progress);
   const rR = pack(progress);
-  const L = { x: 112, y: 110 };
-  const R = { x: 208, y: 110 };
+  const L = { x: 112, y: 128 };
+  const R = { x: 208, y: 128 };
   return (
-    <span className={`tape${spinning ? ' spinning' : ''}${big ? ' big' : ''}`}>
-      <svg viewBox="0 0 320 200" aria-hidden="true" className="tape-svg">
-        <rect className="t-body" x={3} y={3} width={314} height={194} rx={12} />
-        <rect className="t-rim" x={12} y={12} width={296} height={176} rx={7} />
-        <Screw x={24} y={24} /><Screw x={296} y={24} /><Screw x={24} y={176} /><Screw x={296} y={176} />
-        <rect className="t-label" x={34} y={20} width={252} height={46} rx={3} />
+    <div className={`tape${spinning ? ' spinning' : ''}${big ? ' big' : ''}${sign ? ' playable' : ''}`}>
+      <svg viewBox={`0 0 320 ${H}`} aria-hidden="true" className="tape-svg">
+        <rect className="t-body" x={3} y={3} width={314} height={H - 6} rx={12} />
+        <rect className="t-rim" x={12} y={12} width={296} height={H - 24} rx={7} />
+        <Screw x={24} y={24} /><Screw x={296} y={24} /><Screw x={24} y={H - 24} /><Screw x={296} y={H - 24} />
+        <rect className="t-label" x={34} y={18} width={252} height={66} rx={3} />
         <Reel cx={L.x} cy={L.y} r={rL} />
         <Reel cx={R.x} cy={R.y} r={rR} />
-        <rect className="t-window" x={74} y={76} width={172} height={68} rx={7} />
-        <circle className="t-guide" cx={56} cy={164} r={6} /><circle className="t-guide-in" cx={56} cy={164} r={2} />
-        <circle className="t-guide" cx={264} cy={164} r={6} /><circle className="t-guide-in" cx={264} cy={164} r={2} />
-        <path className="t-head" d="M90 197 L103 154 L217 154 L230 197" />
-        <circle className="t-hole" cx={128} cy={176} r={6} />
-        <circle className="t-hole" cx={192} cy={176} r={6} />
-        <rect className="t-slot" x={146} y={168} width={8} height={8} />
-        <rect className="t-slot" x={166} y={168} width={8} height={8} />
-        <path className="t-tape" d={`M${L.x - rL * 0.7} ${L.y + rL * 0.7} L50 168 L270 168 L${R.x + rR * 0.7} ${R.y + rR * 0.7}`} />
-        {glyph && (
-          <g className="t-glyph">
-            <circle cx={160} cy={110} r={17} />
-            <path d="M154 100 L169 110 L154 120 Z" />
-          </g>
-        )}
+        <rect className="t-window" x={74} y={96} width={172} height={64} rx={7} />
+        <circle className="t-guide" cx={56} cy={184} r={6} /><circle className="t-guide-in" cx={56} cy={184} r={2} />
+        <circle className="t-guide" cx={264} cy={184} r={6} /><circle className="t-guide-in" cx={264} cy={184} r={2} />
+        <path className="t-head" d={`M90 ${H - 3} L103 172 L217 172 L230 ${H - 3}`} />
+        <circle className="t-hole" cx={124} cy={198} r={6} />
+        <circle className="t-hole" cx={196} cy={198} r={6} />
+        {/* the play sign lives where a real tape's head opening is (between the two holes) */}
+        {sign === 'play' && <path className="t-sign" d="M152 188 L172 198 L152 208 Z" />}
+        {sign === 'pause' && <><rect className="t-sign" x={150} y={188} width={7} height={20} /><rect className="t-sign" x={163} y={188} width={7} height={20} /></>}
+        {!sign && <><rect className="t-slot" x={146} y={192} width={10} height={10} /><rect className="t-slot" x={164} y={192} width={10} height={10} /></>}
+        <path className="t-tape" d={`M${L.x - rL * 0.7} ${L.y + rL * 0.7} L50 186 L270 186 L${R.x + rR * 0.7} ${R.y + rR * 0.7}`} />
       </svg>
-      <span className="tape-label">
+      {extra}
+      <div className="tape-label">
         <span className="tape-side">{kind ? MONOLOGUE_KIND_LABEL[kind] : 'Side A'}</span>
         <span className={`tape-title${title ? '' : ' empty'}`} dir="auto">{title || 'Untitled'}</span>
         <span className="tape-len">{rec && <span className="tape-rec" aria-hidden="true" />}{length}</span>
-      </span>
-    </span>
+        <span className="tape-wave-slot">{wave}</span>
+      </div>
+    </div>
   );
 }
 
-/** The waveform strip: played bars in ink, the rest grey. A slider for the keyboard (arrows: 5 s). */
+/** The waveform: played bars in ink, the rest grey. A slider for the keyboard (arrows: 5 s). */
 export function Wave({ peaks, progress, durationMs, onSeek, label }: {
   peaks: number[]; progress: number; durationMs: number; onSeek?: (share: number) => void; label: string;
 }) {
   const played = Math.round(progress * peaks.length);
   const seek = (e: MouseEvent<HTMLDivElement>) => {
     if (!onSeek) return;
+    e.stopPropagation(); // a jump, not a play/pause
     const box = e.currentTarget.getBoundingClientRect();
     onSeek(Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)));
   };
@@ -118,28 +126,30 @@ export function Wave({ peaks, progress, durationMs, onSeek, label }: {
       aria-valuetext={onSeek ? `${clock(progress * durationMs)} of ${clock(durationMs)}` : undefined}
     >
       {peaks.map((v, i) => (
-        <span key={i} className={i < played ? 'on' : undefined} style={{ height: `${Math.max(8, v)}%` }} />
+        <span key={i} className={i < played ? 'on' : undefined} style={{ height: `${Math.max(10, v)}%` }} />
       ))}
     </div>
   );
 }
 
+const SPEEDS = [1, 1.5, 2] as const;
+const speedLabel = (s: number) => `${s}×`;
+
 /**
  * A playable cassette. `id` keeps one tape playing at a time across the page; `who` names the
- * speaker for the phone's lock screen. Listening never needs a sign of life from the visitor:
- * a visitor (RFC §10.8) can play it too.
+ * speaker for the phone's lock screen. A visitor (RFC §10.8) can play it too.
  */
-export function TapePlayer({ id, src, title, kind, durationMs, peaks, who }: {
-  id: string; src: string; title: string; kind: MonologueKind; durationMs: number; peaks: number[]; who?: string;
+export function TapePlayer({ id, src, title, kind, durationMs, peaks, who, big }: {
+  id: string; src: string; title: string; kind: MonologueKind; durationMs: number; peaks: number[]; who?: string; big?: boolean;
 }) {
-  const uid = useId();
   const audio = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [at, setAt] = useState(0);
-  const [fast, setFast] = useState(false);
+  const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1);
   const [failed, setFailed] = useState(false);
   const total = Math.max(1, durationMs);
   const progress = Math.min(1, at / total);
+  const left = Math.max(0, total - at);
 
   useEffect(() => onOtherPlay(id, () => audio.current?.pause()), [id]);
   // leaving the page (or the lock screen of RFC §10.10 taking over) stops the sound
@@ -150,7 +160,7 @@ export function TapePlayer({ id, src, title, kind, durationMs, peaks, who }: {
     if (!a) return;
     if (!a.paused) { a.pause(); return; }
     setFailed(false);
-    a.playbackRate = fast ? 1.5 : 1;
+    a.playbackRate = speed;
     claimPlayback(id);
     try {
       await a.play();
@@ -171,33 +181,34 @@ export function TapePlayer({ id, src, title, kind, durationMs, peaks, who }: {
     setAt(ms);
   }
 
-  function speed() {
-    const next = !fast;
-    setFast(next);
-    if (audio.current) audio.current.playbackRate = next ? 1.5 : 1;
+  function nextSpeed() {
+    const next = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]!;
+    setSpeed(next);
+    if (audio.current) audio.current.playbackRate = next;
   }
 
   return (
     <div className="tape-player">
-      {/* RFC §10.22: the cassette is the player: tap it to play or pause */}
-      <button type="button" className="tape-hit" onClick={() => void toggle()} aria-label={`${playing ? 'Pause' : 'Play'} ${title}`} aria-describedby={`${uid}-t`}>
-        <Cassette title={title} kind={kind} length={clock(durationMs)} progress={progress} spinning={playing} glyph={!playing} />
-      </button>
-      <div className="tape-controls">
-        <div className="tape-track">
-          <Wave peaks={peaks} progress={progress} durationMs={total} onSeek={seek} label={`Position in ${title}`} />
-          <span className="tape-time meta" id={`${uid}-t`}>{clock(at)} / {clock(durationMs)}</span>
-        </div>
-        <button type="button" className="tape-speed" onClick={speed} aria-pressed={fast} aria-label={fast ? 'Speed 1.5 times, press for normal' : 'Normal speed, press for 1.5 times'}>
-          {fast ? '1.5×' : '1×'}
-        </button>
-      </div>
+      <Cassette
+        big={big} title={title} kind={kind} length={clock(left)} progress={progress} spinning={playing}
+        sign={playing ? 'pause' : 'play'}
+        wave={<Wave peaks={peaks} progress={progress} durationMs={total} onSeek={seek} label={`Position in ${title}`} />}
+        extra={<>
+          {/* RFC §10.22: the cassette is the player: tap anywhere on it to play or pause */}
+          <button type="button" className="tape-hit" onClick={() => void toggle()}
+            aria-label={`${playing ? 'Pause' : 'Play'} ${title}, ${clock(left)} left`} />
+          <button type="button" className="tape-speed" onClick={nextSpeed}
+            aria-label={`Speed ${speedLabel(speed)}, press for ${speedLabel(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]!)}`}>
+            {speedLabel(speed)}
+          </button>
+        </>}
+      />
       {failed && <p className="error small" role="alert">This recording would not play here. Try again, or on another browser.</p>}
       <audio
         ref={audio} src={src} preload="none"
         onPlay={() => setPlaying(true)}
         onPause={() => { setPlaying(false); releasePlayback(id); }}
-        onEnded={() => { setPlaying(false); releasePlayback(id); setAt(total); }}
+        onEnded={() => { setPlaying(false); releasePlayback(id); setAt(0); }}
         onTimeUpdate={(e) => setAt(e.currentTarget.currentTime * 1000)}
         onError={() => { if (audio.current?.currentSrc) { setFailed(true); setPlaying(false); releasePlayback(id); } }}
       />

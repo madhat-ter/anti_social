@@ -1703,7 +1703,7 @@ h1 .name-marks { vertical-align: .05em; }
 .t-groove { fill: none; stroke: var(--paper); stroke-width: .8; opacity: .45; }
 .t-hub-ring { fill: var(--paper); stroke: var(--ink); stroke-width: 2.2; }
 .t-hub-in { fill: var(--paper); stroke: var(--ink); stroke-width: 2; }
-.t-tooth { fill: var(--ink); }
+.t-spoke { fill: var(--ink); }
 .t-notch { fill: var(--signal); }
 .t-window { fill: none; stroke: var(--ink); stroke-width: 2.5; }
 .t-guide { fill: var(--paper); stroke: var(--ink); stroke-width: 2; }
@@ -1714,60 +1714,56 @@ h1 .name-marks { vertical-align: .05em; }
 @keyframes tape-spin { to { transform: rotate(360deg); } }
 @keyframes tape-blink { 50% { opacity: .2; } }
 @media (prefers-reduced-motion: no-preference) {
-  .tape.spinning .t-hub { animation: tape-spin 1.8s linear infinite; }
+  .tape.spinning .t-hub { animation: tape-spin 1.3s linear infinite; }
   .tape-rec { animation: tape-blink 1.2s steps(2) infinite; }
 }
+/* the label (x 34, y 18, 252 × 66 of the 320 × 222 drawing): kind, title, time left, and the waveform under the title */
 .tape-label {
-  position: absolute; left: 10.625%; top: 10%; width: 78.75%; height: 23%;
-  display: flex; align-items: center; gap: 2.2cqw; padding: 0 2.6cqw;
+  position: absolute; left: 10.625%; top: 8.11%; width: 78.75%; height: 29.73%; z-index: 2; pointer-events: none;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr);
+  column-gap: 2.2cqw; row-gap: 1.2cqw; align-items: center; padding: 2cqw 2.6cqw 1.8cqw; box-sizing: border-box;
 }
 .tape-side {
-  flex: none; background: var(--ink); color: var(--paper); text-transform: uppercase; letter-spacing: .04em;
-  font: 400 max(.62rem, 2.9cqw)/1 var(--font-ui); padding: .9cqw 1.4cqw;
+  grid-row: 1; flex: none; background: var(--ink); color: var(--paper); text-transform: uppercase; letter-spacing: .04em;
+  font: 400 max(.6rem, 2.8cqw)/1 var(--font-ui); padding: .9cqw 1.4cqw; align-self: start; margin-top: .3cqw;
 }
 /* two lines before it folds: "Monday, the bus, a man with a parrot" should still read as itself */
 .tape-title {
-  flex: 1; min-width: 0; font: 800 max(.74rem, 4cqw)/1.08 var(--font-text); text-transform: uppercase; letter-spacing: .01em;
+  grid-row: 1; min-width: 0; font: 800 max(.7rem, 3.7cqw)/1.06 var(--font-text); text-transform: uppercase; letter-spacing: .01em;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere;
-  border-bottom: 1.5px solid var(--ink); padding-bottom: .4cqw;
 }
 .tape-title.empty { color: var(--gray); }
-.tape-len { flex: none; display: inline-flex; align-items: center; gap: 1cqw; font: 400 max(.7rem, 3.4cqw)/1 var(--font-ui); font-variant-numeric: tabular-nums; }
+/* the time left: the full length before it plays, counting down while it does */
+.tape-len {
+  grid-row: 1; align-self: start; margin-top: .4cqw; display: inline-flex; align-items: center; gap: 1cqw;
+  font: 400 max(.68rem, 3.3cqw)/1 var(--font-ui); font-variant-numeric: tabular-nums;
+}
 .tape-rec { width: max(.5rem, 2.2cqw); height: max(.5rem, 2.2cqw); border-radius: 50%; background: var(--signal); }
-.tape-hit { display: block; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: inherit; cursor: pointer; }
-.tape-hit:focus-visible { outline: 3px solid var(--signal); outline-offset: 4px; }
-.tape-hit:hover .t-glyph circle { fill: var(--signal); }
-.tape { display: block; }
-.tape-label { box-sizing: border-box; }
-.t-glyph circle { fill: var(--paper); stroke: var(--ink); stroke-width: 2.5; }
-.t-glyph path { fill: var(--ink); }
-
-.tape-player { display: flex; flex-direction: column; gap: .7rem; min-width: 0; }
-.post.framed > .tape-player { grid-column: 1 / -1; margin-top: .95rem; }
-/* in a list the tape stays a card's size, so a page of them still reads as a list */
-.post.framed > .tape-player .tape, .post.framed > .tape-player .tape-controls { max-width: 27rem; }
-.post-main > .tape-player { margin: .85rem 0 .3rem; }
-.post.framed.shape-tape > .caption .body { margin-top: .8rem; }
-.tape-controls {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .75rem;
-  width: 100%; max-width: 34rem; margin: 0 auto;
-}
-.tape-play {
-  width: 2.75rem; height: 2.75rem; display: grid; place-items: center; cursor: pointer;
-  background: var(--ink); color: var(--paper); border: 2px solid var(--ink); border-radius: 8px;
-}
-.tape-play:hover { background: var(--signal); border-color: var(--signal); color: var(--signal-ink); }
-.tape-play:focus-visible, .tape-speed:focus-visible, .tape-wave:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
-.tape-track { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
-.tape-wave { display: flex; align-items: center; gap: 1px; height: 2rem; cursor: pointer; }
-.tape-wave span { flex: 1; min-width: 1px; background: var(--gray); opacity: .28; }
+.tape-wave-slot { grid-row: 2; grid-column: 2 / 4; align-self: stretch; min-height: 0; display: flex; border-top: 1.5px solid var(--ink); padding-top: 1cqw; }
+.tape-wave-slot:empty { display: none; }
+.tape-wave { flex: 1; display: flex; align-items: center; gap: 1px; height: 100%; min-height: 1rem; cursor: pointer; pointer-events: auto; }
+.tape-wave span { flex: 1; min-width: 1px; background: var(--gray); opacity: .3; }
 .tape-wave span.on { background: var(--ink); opacity: 1; }
-.tape-time { font-size: .8rem; }
-.tape-speed {
-  font: 400 .9rem/1 var(--font-ui); min-width: 3.3rem; padding: .35rem .6rem; cursor: pointer;
-  border: 2px solid var(--ink); border-radius: 999px; background: var(--paper); color: var(--ink);
+.tape-wave:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
+
+/* the whole cassette is the play button; the label's waveform and the speed sticker sit above it */
+.tape-hit {
+  position: absolute; inset: 0; z-index: 1; padding: 0; border: 0; background: transparent; cursor: pointer;
+  border-radius: 3.75cqw;
 }
-.tape-speed[aria-pressed=true] { background: var(--ink); color: var(--paper); }
+.tape-hit:focus-visible { outline: 3px solid var(--signal); outline-offset: 4px; }
+.t-sign { fill: var(--ink); }
+.tape.playable:hover .t-sign { fill: var(--signal); }
+/* the speed sticker, bottom right of the shell, under the right guide roller: 1× → 1.5× → 2× */
+.tape-speed {
+  position: absolute; right: 11.25%; bottom: 5.9%; z-index: 3; height: 5.2cqw; min-width: 15cqw; padding: 0 1.4cqw;
+  display: grid; place-items: center; cursor: pointer;
+  font: 400 max(.62rem, 3cqw)/1 var(--font-ui); font-variant-numeric: tabular-nums;
+  border: 1.5px solid var(--ink); border-radius: 1cqw; background: var(--paper); color: var(--ink);
+}
+.tape-speed::after { content: ''; position: absolute; inset: -9px -6px; }
+.tape-speed:hover { background: var(--ink); color: var(--paper); }
+.tape-speed:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
 
 /* a profile's shelf: tapes seen from the edge, stacked, newest on top */
 .shelf { display: flex; flex-direction: column; gap: .7rem; align-items: flex-start; }
@@ -1812,7 +1808,7 @@ label.label-row { flex-direction: row; align-items: baseline; gap: .4rem; }
 .post.tape-card > .post-av { grid-row: auto; padding-top: 0; }
 .post.tape-card .post-kind { margin: 0 0 .15rem; }
 .post.tape-card > .tape-player { grid-column: 1 / -1; margin-top: .7rem; }
-.post.tape-card > .tape-player .tape, .post.tape-card > .tape-player .tape-controls { max-width: none; }
+.post.tape-card > .tape-player .tape { max-width: none; }
 .post.tape-card .tape-svg { filter: drop-shadow(5px 5px 0 var(--shadow-c)); }
 .post.tape-card > .caption { grid-column: 1 / -1; }
 .post.tape-card > .caption .body { margin-top: .6rem; font-size: 1.02rem; }

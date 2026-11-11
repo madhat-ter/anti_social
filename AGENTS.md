@@ -64,8 +64,9 @@ Vercel's proxy (a 5-minute recording made on the site is about 2.4 MB).
   requests, invites, updates and, for a collab, its meetups. A host's own Delete only hides it.
 - **Monologues are cassettes** (§10.22): a post carrying a recording (Song / Thought / Yap), 5 min
   max, title + kind required, own work only, sound never editable, delete erases it. The cassette
-  *is* the card (no post box around it); tapping it plays. It lives in the feed, the Monologue tab
-  and a profile's shelf; no play counts, no transcripts. Posting goes through `POST /posts` with
+  *is* the card and the player: tap anywhere on it to play, ▶ in its bottom part, time left in the
+  label corner, waveform under the title, a 1×/1.5×/2× sticker; nothing under it but the note and
+  Reply/Like. It lives in the feed, the Monologue tab and a profile's shelf; no play counts, no transcripts. Posting goes through `POST /posts` with
   `monologue: {…}` so it stays an ordinary post.
 - **Faces are procedural** (`apps/web/src/components/Avatar.tsx`, from handle + gender). Any
   change to its pick lists or roll order redraws every member's face. Ask the owner first; check
