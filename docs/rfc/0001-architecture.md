@@ -1393,6 +1393,15 @@ line above. Its parts do the work:
 It has the site's hard shadow, stays straight (never tilted), is about 430 pixels wide on a
 computer and full width on a phone. One tape plays at a time; nothing plays by itself. On the
 recording screen, Record / Stop is its own button under the cassette.
+
+**On a computer** (owner, 2026-11-11; YouTube's and Spotify's habits): **Space** plays or pauses: the
+tape playing, else the one last played, else the post in focus (J / K), else the first on screen. On
+the cassette Space is always play/pause, even with the speed sticker or waveform focused. **← →**
+jump 5 seconds and **Shift + > / <** go faster or slower, once a tape has been played. The
+keyboard's own **play/pause media key**, headphone buttons and the system's media pop-up work too
+(Media Session API). The ? list shows the keys. The reels **turn even with animations turned off**
+(Windows "Animation effects" off reads as reduced motion), just slower: their turning is how you
+see it is playing, and it only starts when you press play.
 **How it is built.** The recording is uploaded first (`POST /monologues/audio`: the server checks
 the file really is audio by its first bytes, the size, and the length the browser measured) and
 waits for its owner; posting is `POST /posts` with `monologue: { audioId, title, kind, mine }`, so

@@ -1713,8 +1713,14 @@ h1 .name-marks { vertical-align: .05em; }
 .t-tape { fill: none; stroke: var(--ink); stroke-width: 1.4; }
 @keyframes tape-spin { to { transform: rotate(360deg); } }
 @keyframes tape-blink { 50% { opacity: .2; } }
+/* The turning reels are how you see it is playing (owner, 2026-11-11), so they always turn, and
+   only after you press play. With animations turned off (Windows "Animation effects" off =
+   prefers-reduced-motion) they turn slowly, the way the loading spinner does; the blink stays off. */
+.tape.spinning .t-hub { animation: tape-spin 1.3s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .tape.spinning .t-hub { animation-duration: 4s; }
+}
 @media (prefers-reduced-motion: no-preference) {
-  .tape.spinning .t-hub { animation: tape-spin 1.3s linear infinite; }
   .tape-rec { animation: tape-blink 1.2s steps(2) infinite; }
 }
 /* the label (x 34, y 18, 252 × 66 of the 320 × 222 drawing): kind, title, time left, and the waveform under the title */

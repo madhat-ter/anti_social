@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { MONOLOGUE_KIND_LABEL, type MonologueKind } from '@anti/shared';
 import { api, type Post } from '@/lib/api';
-import { claimPlayback, clock, onOtherPlay, releasePlayback } from '@/lib/tape';
+import { claimPlayback, clock, onOtherPlay, registerTape, releasePlayback } from '@/lib/tape';
 
 const HUB = 14;
 const PACK = 36;
@@ -151,6 +151,7 @@ export function TapePlayer({ id, src, title, kind, durationMs, peaks, who, big }
   const progress = Math.min(1, at / total);
   const left = Math.max(0, total - at);
 
+  const box = useRef<HTMLDivElement>(null);
   useEffect(() => onOtherPlay(id, () => audio.current?.pause()), [id]);
   // leaving the page (or the lock screen of RFC §10.10 taking over) stops the sound
   useEffect(() => () => { audio.current?.pause(); releasePlayback(id); }, [id]);
@@ -164,13 +165,63 @@ export function TapePlayer({ id, src, title, kind, durationMs, peaks, who, big }
     claimPlayback(id);
     try {
       await a.play();
-      if ('mediaSession' in navigator && typeof MediaMetadata !== 'undefined') {
-        navigator.mediaSession.metadata = new MediaMetadata({ title, artist: who ?? 'anti', album: MONOLOGUE_KIND_LABEL[kind] });
-      }
+      mediaKeys();
     } catch {
       releasePlayback(id);
       setFailed(true);
     }
+  }
+
+  function seekBy(ms: number) {
+    const a = audio.current;
+    if (!a) return;
+    const next = Math.max(0, Math.min(total, a.currentTime * 1000 + ms));
+    try { a.currentTime = next / 1000; } catch { /* not loaded yet */ }
+    setAt(next);
+  }
+
+  function stepSpeed(dir: 1 | -1) {
+    const i = Math.max(0, Math.min(SPEEDS.length - 1, SPEEDS.indexOf(speed) + dir));
+    const next = SPEEDS[i]!;
+    setSpeed(next);
+    if (audio.current) audio.current.playbackRate = next;
+  }
+
+  /**
+   * The keyboard's own media keys (play/pause, and on some the skip keys), headphone buttons and
+   * the system's media pop-up all reach the tape that is playing, through the Media Session API.
+   */
+  function mediaKeys() {
+    if (!('mediaSession' in navigator)) return;
+    const ms = navigator.mediaSession;
+    if (typeof MediaMetadata !== 'undefined') ms.metadata = new MediaMetadata({ title, artist: who ?? 'anti', album: MONOLOGUE_KIND_LABEL[kind] });
+    const set = (action: MediaSessionAction, h: MediaSessionActionHandler) => { try { ms.setActionHandler(action, h); } catch { /* not in this browser */ } };
+    set('play', () => { if (audio.current?.paused) void ctl.current.toggle(); });
+    set('pause', () => audio.current?.pause());
+    set('stop', () => audio.current?.pause());
+    set('seekbackward', (d) => ctl.current.seekBy(-(d.seekOffset ?? 10) * 1000));
+    set('seekforward', (d) => ctl.current.seekBy((d.seekOffset ?? 10) * 1000));
+    set('seekto', (d) => { if (d.seekTime !== undefined) ctl.current.seekBy(d.seekTime * 1000 - (audio.current?.currentTime ?? 0) * 1000); });
+  }
+
+  // the keyboard (lib/tape.ts) reaches this tape through the latest of these
+  const ctl = useRef({ toggle, seekBy, speed: stepSpeed });
+  ctl.current = { toggle, seekBy, speed: stepSpeed };
+  useEffect(() => registerTape(id, {
+    toggle: () => void ctl.current.toggle(),
+    seekBy: (ms) => ctl.current.seekBy(ms),
+    speed: (dir) => ctl.current.speed(dir),
+    el: () => box.current,
+  }), [id]);
+
+  /** on the cassette itself, Space is always play/pause (not the speed sticker's or the slider's own Space) */
+  function onKey(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === ' ') { e.preventDefault(); if (!e.repeat) void toggle(); return; }
+    if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !(e.target as HTMLElement).matches('[role=slider]')) {
+      e.preventDefault(); seekBy(e.key === 'ArrowRight' ? 5000 : -5000);
+    }
+    if (e.key === '>' || e.key === '<') { e.preventDefault(); stepSpeed(e.key === '>' ? 1 : -1); }
   }
 
   function seek(share: number) {
@@ -188,14 +239,14 @@ export function TapePlayer({ id, src, title, kind, durationMs, peaks, who, big }
   }
 
   return (
-    <div className="tape-player">
+    <div className="tape-player" ref={box} onKeyDown={onKey} onKeyUp={(e) => { if (e.key === ' ') e.preventDefault(); }}>
       <Cassette
         big={big} title={title} kind={kind} length={clock(left)} progress={progress} spinning={playing}
         sign={playing ? 'pause' : 'play'}
         wave={<Wave peaks={peaks} progress={progress} durationMs={total} onSeek={seek} label={`Position in ${title}`} />}
         extra={<>
           {/* RFC §10.22: the cassette is the player: tap anywhere on it to play or pause */}
-          <button type="button" className="tape-hit" onClick={() => void toggle()}
+          <button type="button" className="tape-hit" onClick={() => void toggle()} aria-keyshortcuts="Space"
             aria-label={`${playing ? 'Pause' : 'Play'} ${title}, ${clock(left)} left`} />
           <button type="button" className="tape-speed" onClick={nextSpeed}
             aria-label={`Speed ${speedLabel(speed)}, press for ${speedLabel(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]!)}`}>
@@ -206,10 +257,17 @@ export function TapePlayer({ id, src, title, kind, durationMs, peaks, who, big }
       {failed && <p className="error small" role="alert">This recording would not play here. Try again, or on another browser.</p>}
       <audio
         ref={audio} src={src} preload="none"
-        onPlay={() => setPlaying(true)}
-        onPause={() => { setPlaying(false); releasePlayback(id); }}
+        onPlay={() => { setPlaying(true); if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'; }}
+        onPause={() => { setPlaying(false); releasePlayback(id); if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused'; }}
         onEnded={() => { setPlaying(false); releasePlayback(id); setAt(0); }}
-        onTimeUpdate={(e) => setAt(e.currentTarget.currentTime * 1000)}
+        onTimeUpdate={(e) => {
+          const pos = e.currentTarget.currentTime;
+          setAt(pos * 1000);
+          // the system's media pop-up shows how far along it is (the length is ours: a fresh WebM does not know its own)
+          if (!e.currentTarget.paused && 'mediaSession' in navigator && navigator.mediaSession.setPositionState) {
+            try { navigator.mediaSession.setPositionState({ duration: total / 1000, playbackRate: speed, position: Math.min(pos, total / 1000) }); } catch { /* fine */ }
+          }
+        }}
         onError={() => { if (audio.current?.currentSrc) { setFailed(true); setPlaying(false); releasePlayback(id); } }}
       />
     </div>

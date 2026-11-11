@@ -110,7 +110,8 @@ async function open(viewer: Jar, opts: Parameters<typeof browser.newContext>[0])
   await ctx.addCookies([...viewer].map(([n, value]) => ({ name: n, value, domain: 'localhost', path: '/' })));
   return ctx;
 }
-const DESKTOP = { viewport: { width: 1280, height: 900 } };
+// like the owner's PC: Windows "Animation effects" off, which browsers report as reduced motion
+const DESKTOP = { viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' as const };
 const PHONE = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
 
 let audio = new Uint8Array();
@@ -191,6 +192,39 @@ try {
       await page.waitForTimeout(600);
       await page.screenshot({ path: join(OUT, `${name}.png`), fullPage: name === 'tab-desktop' });
       console.log('saved', name);
+      if (name === 'tab-desktop') {
+        // the keyboard (RFC §10.22): Space plays and pauses the tape on screen; on the cassette,
+        // even with the speed sticker focused, Space is still play/pause; > is faster; → jumps
+        const first = page.locator('.tape-player').first();
+        const hit = first.locator('.tape-hit');
+        await page.locator('h1').first().click(); // focus on nothing in particular
+        await page.keyboard.press('Space');
+        await page.waitForTimeout(700);
+        if (!/^Pause /.test((await hit.getAttribute('aria-label')) ?? '')) throw new Error('Space did not play the tape on screen');
+        const spin = await first.locator('.t-hub').first().evaluate((el) => getComputedStyle(el).animationName);
+        if (spin !== 'tape-spin') throw new Error(`the reels do not turn on a desktop with animations off (${spin})`);
+        console.log('reels turn with animations off: ok');
+        await page.keyboard.press('Space');
+        await page.waitForTimeout(300);
+        if (!/^Play /.test((await hit.getAttribute('aria-label')) ?? '')) throw new Error('Space did not pause it');
+        await first.locator('.tape-speed').click(); // 1× → 1.5×, and the sticker now has focus
+        await page.keyboard.press('Space');
+        await page.waitForTimeout(700);
+        if (!/^Pause /.test((await hit.getAttribute('aria-label')) ?? '')) throw new Error('Space on the speed sticker did not play');
+        if ((await first.locator('.tape-speed').innerText()).trim() !== '1.5×') throw new Error('Space changed the speed');
+        await page.keyboard.press('Shift+Period');
+        if ((await first.locator('.tape-speed').innerText()).trim() !== '2×') throw new Error('> did not go faster');
+        await page.keyboard.press('Shift+Comma');
+        if ((await first.locator('.tape-speed').innerText()).trim() !== '1.5×') throw new Error('< did not go slower');
+        await page.keyboard.press('Space');
+        console.log('keyboard ok: Space, Space on the sticker, > and <');
+        // the shortcut list shows the new keys
+        await page.locator('h1').first().click();
+        await page.keyboard.press('Shift+Slash');
+        await page.getByText('Play or pause a monologue').waitFor({ timeout: 5000 });
+        await page.screenshot({ path: join(OUT, 'shortcuts-desktop.png') });
+        await page.keyboard.press('Escape');
+      }
       if (name === 'tab-phone') {
         // playing: the reels turn and the tape moves across
         await page.getByRole('button', { name: /^Play Songs my grandmother hummed/ }).click();
@@ -241,7 +275,8 @@ try {
       page.on('pageerror', (e) => errors.push(e.message));
       await page.goto(`${WEB}/monologue`);
       await page.getByRole('link', { name: /reply|replies/i }).first().click();
-      await page.getByText('Songs my grandmother hummed').first().waitFor({ timeout: 30_000 });
+      await page.waitForURL(/\/p\//, { timeout: 30_000 });
+      await page.locator('.post.lead.tape-card').waitFor({ timeout: 30_000 });
       await page.waitForTimeout(600);
       await page.screenshot({ path: join(OUT, 'thread-phone.png'), fullPage: true });
       console.log('saved thread-phone');

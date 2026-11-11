@@ -2,6 +2,7 @@
 /**
  * Keyboard shortcuts for wide screens (owner's call, 2026-11-09): N writes a post, / searches,
  * J and K step through posts, Enter opens the one in focus, Esc leaves a text box, ? lists them.
+ * RFC §10.22 adds the monologue keys (lib/tape.ts): Space plays or pauses, ← → jump 5 s, < > speed.
  * Keys do nothing while you type, with Ctrl/Cmd/Alt held, or while a dialog is open (dialogs have
  * their own keys). Rendered under the menu as a small "? Keyboard shortcuts" line, which also
  * opens the list; hidden on phones and touch screens.
@@ -9,6 +10,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useReadOnly } from './Visitor';
+import { tapeKey } from '@/lib/tape';
 
 const KEYS: [string, string][] = [
   ['N', 'Write a post'],
@@ -16,6 +18,9 @@ const KEYS: [string, string][] = [
   ['J', 'Next post'],
   ['K', 'Previous post'],
   ['Enter', 'Open the post in focus'],
+  ['Space', 'Play or pause a monologue: the one playing, else the one on screen'],
+  ['← →', 'Back or forward 5 seconds in it'],
+  ['< >', 'Slower or faster: 1×, 1.5×, 2× (Shift + comma or period)'],
   ['Esc', 'Leave a text box, close a window'],
   ['?', 'This list'],
 ];
@@ -78,6 +83,7 @@ export function Shortcuts() {
       if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
       if (e.key === 'Escape') { if (typing(e.target)) (e.target as HTMLElement).blur(); return; }
       if (typing(e.target) || document.querySelector('dialog[open]')) return;
+      if (tapeKey(e)) return;
       const k = e.key;
       if (k === '?') { e.preventDefault(); setOpen(true); }
       else if (k === 'n' || k === 'N') {
@@ -125,7 +131,7 @@ export function Shortcuts() {
                 <div key={k}><dt><kbd>{k}</kbd></dt><dd>{what}</dd></div>
               ))}
             </dl>
-            <p className="meta">They do nothing while you are typing in a box.</p>
+            <p className="meta">They do nothing while you are typing in a box. Your keyboard&rsquo;s own play/pause key works on a monologue too.</p>
             <div className="row dlg-actions"><button type="button" className="btn default" onClick={() => setOpen(false)}>Close</button></div>
           </div>
         </div>

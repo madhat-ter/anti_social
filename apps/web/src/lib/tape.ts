@@ -7,14 +7,92 @@ import { MONOLOGUE } from '@anti/shared';
 
 const PLAY_EVENT = 'anti:tape-play';
 let playingId: string | null = null;
+/** the tape last played (paused or not): Space goes back to it */
+let lastId: string | null = null;
 
 /** A tape started: every other one stops. */
 export function claimPlayback(id: string) {
   playingId = id;
+  lastId = id;
   window.dispatchEvent(new CustomEvent(PLAY_EVENT, { detail: id }));
 }
 export function releasePlayback(id: string) {
   if (playingId === id) playingId = null;
+}
+
+/** What the keyboard can do to a tape on the page. */
+export type TapeControl = {
+  toggle: () => void;
+  seekBy: (ms: number) => void;
+  /** one step slower (-1) or faster (1) through 1×, 1.5×, 2× */
+  speed: (dir: 1 | -1) => void;
+  el: () => HTMLElement | null;
+};
+const tapes = new Map<string, TapeControl>();
+export function registerTape(id: string, c: TapeControl) {
+  tapes.set(id, c);
+  return () => { if (tapes.get(id) === c) tapes.delete(id); };
+}
+
+const onScreen = (el: HTMLElement | null) => {
+  if (!el) return false;
+  const r = el.getBoundingClientRect();
+  return r.bottom > 40 && r.top < window.innerHeight - 40 && r.width > 0;
+};
+
+/**
+ * The tape a key means: the one playing; else the one last played, if it is still on screen; else
+ * the one in the post that has focus (J / K); else the first one on screen. Null: no tape here.
+ */
+function target(): TapeControl | null {
+  if (playingId && tapes.has(playingId)) return tapes.get(playingId)!;
+  const last = lastId ? tapes.get(lastId) : undefined;
+  if (last && onScreen(last.el())) return last;
+  const post = (document.activeElement as HTMLElement | null)?.closest?.('article.post');
+  if (post) for (const c of tapes.values()) if (post.contains(c.el())) return c;
+  let best: TapeControl | null = null;
+  let top = Infinity;
+  for (const c of tapes.values()) {
+    const el = c.el();
+    if (!onScreen(el)) continue;
+    const t = el!.getBoundingClientRect().top;
+    if (t < top) { top = t; best = c; }
+  }
+  return best;
+}
+
+/** Things that take Space themselves: buttons, links, fields, the waveform slider. */
+const OWNS_KEYS = 'button, a[href], input, textarea, select, summary, [role=slider], [contenteditable=""], [contenteditable=true]';
+
+/**
+ * RFC §10.22, the keyboard on a computer (YouTube's and Spotify's habits): Space plays or pauses,
+ * ← → jump 5 seconds, Shift + > / < go faster or slower. Arrows and speed only once a tape has been
+ * played on this page, so they never steal the keys from anything else. True when it acted.
+ */
+export function tapeKey(e: KeyboardEvent): boolean {
+  const focus = document.activeElement as HTMLElement | null;
+  const owned = !!focus && focus !== document.body && focus.matches(OWNS_KEYS);
+  if (e.key === ' ' || e.code === 'Space') {
+    if (owned) return false; // a focused button (the cassette itself too) or field handles its own Space
+    const t = target();
+    if (!t) return false;
+    e.preventDefault(); // not a page scroll
+    if (!e.repeat) t.toggle();
+    return true;
+  }
+  const active = (playingId && tapes.get(playingId)) || (lastId && tapes.get(lastId)) || null;
+  if (!active || owned) return false;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    e.preventDefault();
+    active.seekBy(e.key === 'ArrowRight' ? 5000 : -5000);
+    return true;
+  }
+  if (e.key === '>' || e.key === '<') {
+    e.preventDefault();
+    active.speed(e.key === '>' ? 1 : -1);
+    return true;
+  }
+  return false;
 }
 /** for the screen timer (RFC §10.10): listening counts even when the tab is in the back */
 export const tapePlaying = () => playingId !== null;
