@@ -1568,6 +1568,8 @@ ul.collabs { list-style: none; margin: 0; padding: 0; display: flex; flex-direct
 .collab-cover { width: 6.5rem; height: 6.5rem; object-fit: cover; border: 1.5px solid var(--ink); display: block; }
 .collab-cover.blank { display: flex; align-items: center; justify-content: center; background: var(--signal);
   font-family: var(--font-text); font-weight: 900; font-stretch: 62%; font-size: 3.4rem; color: var(--ink); }
+/* an event's card shows its date in the cover's place: the month, the big day on the red dot */
+.collab-date { justify-self: center; padding-top: .3rem; }
 .collab-main { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
 .collab-title { font-family: var(--font-text); font-weight: 900; font-stretch: 62%; font-size: 1.8rem; line-height: .95; text-transform: uppercase; }
 .collab-title .tag { font-stretch: 100%; text-transform: none; vertical-align: middle; }
@@ -1596,6 +1598,8 @@ ul.list.collab-requests > li:last-child { border-bottom: 0; }
   .collab-link { grid-template-columns: 4.5rem 1fr; gap: .8rem; }
   .collab-cover { width: 4.5rem; height: 4.5rem; }
   .collab-cover.blank { font-size: 2.6rem; }
+  .collab-date { justify-self: start; }
+  .collab-date::before { width: 2.3rem; height: 2.3rem; left: 1.3rem; top: .95rem; }
   .collab-title { font-size: 1.45rem; }
 }
 /* RFC §10.21: one Collab, three kinds */

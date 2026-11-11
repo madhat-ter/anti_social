@@ -1309,7 +1309,9 @@ setting can be changed later.
 
 **Cards.** One card shape with a small kind label; the second line changes by kind: an event's
 date and "3 spots left" or "Full · join the waitlist"; an activity's "Sundays 7am · 12 in"; a
-project's "Looking for illustrator, printer · 3 of 6".
+project's "Looking for illustrator, printer · 3 of 6". On the left, an event shows its date (the
+month, the big day on the red dot, as the old Events list did); an activity or project shows its
+cover, or its first letter on red without one (owner, 2026-11-11: no letter square for events).
 
 **One join button whose words follow the rules.** Event: *I'm going* / *Ask to come* / *Join the
 waitlist*; Activity: *Join* / *Ask to join*; Project: *Ask to join* (or *Join* when the host made

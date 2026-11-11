@@ -59,13 +59,20 @@ export function CollabItemCard({ item }: { item: CollabPageItem }) {
   const cover = item.type === 'event' ? null : item.cover;
   const host = item.host;
   const interests = item.interests ?? [];
+  const start = item.type === 'event' ? new Date(item.startsAt) : null;
   return (
     <li className={`collab-card kind-${item.type === 'event' ? 'event' : item.kind}`}>
       <Link href={href} className="collab-link">
-        {cover
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img className="collab-cover" src={cover.url} alt="" width={cover.width} height={cover.height} loading="lazy" />
-          : <span className="collab-cover blank" aria-hidden>{title.slice(0, 1).toUpperCase()}</span>}
+        {start
+          // an event shows its date: the month, the day big on the red dot (the owner's call, 2026-11-11)
+          ? <span className="date-chip collab-date" aria-hidden>
+              <span className="m">{start.toLocaleDateString(undefined, { month: 'short' })}</span>
+              <span className="d">{start.getDate()}</span>
+            </span>
+          : cover
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img className="collab-cover" src={cover.url} alt="" width={cover.width} height={cover.height} loading="lazy" />
+            : <span className="collab-cover blank" aria-hidden>{title.slice(0, 1).toUpperCase()}</span>}
         <span className="collab-main">
           <span className="collab-title" {...bnLang(title)}>
             <KindTag kind={item.type === 'event' ? 'event' : item.kind} /> {title}
