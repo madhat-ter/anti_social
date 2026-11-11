@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
 import { rows } from '@anti/db';
+import { setOps } from '../src/lib/moderation';
 import { cleanup, setup } from './client';
 
 afterEach(cleanup);
@@ -287,5 +288,137 @@ describe('event co-hosts and "make it regular" (RFC §10.21)', () => {
     const m = (await ana.post('/events', { ...EVENT, title: 'Meetup', collabId: meetup.id, audience: 'team' })).body;
     await w.t.db.execute(sql`update events set starts_at = now() - interval '1 day' where id = ${m.id}::uuid`);
     expect((await ana.post('/collabs', { ...ACTIVITY, title: 'Nope', fromEventId: m.id })).body.error).toBe('collab_invalid');
+  });
+});
+
+describe('the Collab page data (RFC §10.21)', () => {
+  test('one list of events and collabs, newest started first; kind and interest filters; a cursor', async () => {
+    const w = await world();
+    const ana = await w.member('ana', ['writing', 'music', 'photography']);
+    const ev = (await ana.post('/events', EVENT)).body;
+    const project = (await ana.post('/collabs', { ...PROJECT, title: 'Zine', interests: ['writing'] })).body;
+    const activity = (await ana.post('/collabs', { ...ACTIVITY, title: 'Run club', interests: ['music'] })).body;
+
+    const all = (await ana.get('/collab')).body;
+    expect(all.items.map((x: any) => x.id).sort()).toEqual([ev.id, project.id, activity.id].sort());
+    expect(new Set(all.items.map((x: any) => x.type))).toEqual(new Set(['event', 'collab']));
+    // newest started first
+    const at = all.items.map((x: any) => Date.parse(x.createdAt));
+    expect([...at].sort((a, b) => b - a)).toEqual(at);
+
+    expect((await ana.get('/collab?kind=activity')).body.items.map((x: any) => x.id)).toEqual([activity.id]);
+    expect((await ana.get('/collab?kind=event')).body.items.map((x: any) => x.id)).toEqual([ev.id]);
+    expect((await ana.get('/collab?interest=music')).body.items.map((x: any) => x.id)).toEqual([activity.id]);
+
+    const first = (await ana.get('/collab?limit=2')).body;
+    expect(first.items).toHaveLength(2);
+    expect(first.nextCursor).toBeTruthy();
+    const rest = (await ana.get(`/collab?limit=2&cursor=${encodeURIComponent(first.nextCursor)}`)).body;
+    expect(rest.items).toHaveLength(1);
+    expect(rest.nextCursor).toBeNull();
+    expect(new Set([...first.items, ...rest.items].map((x: any) => x.id)))
+      .toEqual(new Set([ev.id, project.id, activity.id]));
+    // a nonsense cursor just starts over rather than failing
+    expect((await ana.get('/collab?cursor=nope')).status).toBe(200);
+  });
+
+  test('the foot of the list: past events and finished or ended things', async () => {
+    const w = await world();
+    const ana = await w.member('ana', ['writing', 'photography']);
+    const ev = (await ana.post('/events', EVENT)).body;
+    const done = (await ana.post('/collabs', { ...PROJECT, title: 'Done' })).body;
+    const ended = (await ana.post('/collabs', { ...ACTIVITY, title: 'Ended' })).body;
+    await ana.patch(`/collabs/${done.id}`, { status: 'finished' });
+    await ana.patch(`/collabs/${ended.id}`, { status: 'finished' });
+    await w.t.db.execute(sql`update events set starts_at = now() - interval '3 days', ends_at = null where id = ${ev.id}::uuid`);
+
+    const now = (await ana.get('/collab')).body;
+    expect(now.items).toEqual([]);
+    const foot = (await ana.get('/collab?done=1')).body;
+    expect(new Set(foot.items.map((x: any) => x.id))).toEqual(new Set([ev.id, done.id, ended.id]));
+  });
+
+  test('Yours: hosting, in, going, and who waits on you', async () => {
+    const w = await world();
+    const ana = await w.member('ana', ['photography']);
+    const ben = await w.member('ben');
+    const cat = await w.member('cat');
+    const project = (await ana.post('/collabs', { ...PROJECT, title: 'Film' })).body;
+    const ev = (await ana.post('/events', EVENT)).body;
+
+    await ben.post(`/collabs/${project.id}/join`, { note: 'Me.' });
+    await ana.post(`/collabs/${project.id}/requests/ben/accept`);
+    await ben.post(`/events/${ev.id}/rsvp`, {});
+    await cat.post(`/collabs/${project.id}/join`, { note: 'Also me.' });
+
+    const hers = (await ana.get('/me/collab')).body;
+    expect(new Set(hers.hosting.map((x: any) => x.id))).toEqual(new Set([project.id, ev.id]));
+    expect(hers.in).toEqual([]);
+    expect(hers.going).toEqual([]);
+    expect(hers.waiting).toEqual([{ type: 'project', id: project.id, title: 'Film', count: 1 }]);
+
+    const his = (await ben.get('/me/collab')).body;
+    expect(his.in.map((x: any) => x.id)).toEqual([project.id]);
+    expect(his.going.map((x: any) => x.id)).toEqual([ev.id]);
+    expect(his.hosting).toEqual([]);
+    expect(his.waiting).toEqual([]);
+
+    // a question on an event of yours counts too
+    const room = (await ana.post('/events', { ...EVENT, title: 'Talk', joinMode: 'approve' })).body;
+    await cat.post(`/events/${room.id}/request`, { note: 'Can I come?' });
+    const again = (await ana.get('/me/collab')).body;
+    expect(again.waiting).toEqual(expect.arrayContaining([{ type: 'event', id: room.id, title: 'Talk', count: 1 }]));
+  });
+
+  test('a member profile lists the events they host, not the ones they only go to', async () => {
+    const w = await world();
+    const ana = await w.member('ana', ['photography']);
+    const ben = await w.member('ben');
+    const cat = await w.member('cat');
+    const ev = (await ana.post('/events', EVENT)).body;
+    await ben.post(`/events/${ev.id}/rsvp`, {});
+
+    const seen = (await cat.get('/members/ana/events')).body;
+    expect(seen.upcoming.map((x: any) => x.id)).toEqual([ev.id]);
+    expect((await cat.get('/members/ben/events')).body).toEqual({ upcoming: [], past: [] });
+    expect((await cat.get('/members/nobody/events')).status).toBe(404);
+
+    // past events sit in their own list, newest first
+    const old = (await ana.post('/events', { ...EVENT, title: 'Older' })).body;
+    await w.t.db.execute(sql`update events set starts_at = now() - interval '9 days' where id = ${old.id}::uuid`);
+    await w.t.db.execute(sql`update events set starts_at = now() - interval '2 days' where id = ${ev.id}::uuid`);
+    expect((await cat.get('/members/ana/events')).body.past.map((x: any) => x.id)).toEqual([ev.id, old.id]);
+
+    // a team-only meetup stays inside the team
+    const project = (await ana.post('/collabs', PROJECT)).body;
+    const meetup = (await ana.post('/events', { ...EVENT, title: 'Meetup', collabId: project.id, audience: 'team' })).body;
+    const outsider = (await cat.get('/members/ana/events')).body;
+    expect(outsider.upcoming.map((x: any) => x.id)).not.toContain(meetup.id);
+  });
+
+  test('the one-time intro strip: saved to the account, and new members never see it', async () => {
+    const w = await world();
+    const ana = await w.member('ana');
+    expect((await ana.get('/me')).body.collabIntroSeen).toBe(true);
+    // a member from before this rule has no value
+    await w.t.db.execute(sql`update users set collab_intro_seen_at = null where handle = 'ana'`);
+    expect((await ana.get('/me')).body.collabIntroSeen).toBe(false);
+    expect((await ana.post('/me/collab-intro/dismiss', {})).body).toEqual({ seen: true });
+    expect((await ana.get('/me')).body.collabIntroSeen).toBe(true);
+  });
+
+  test('visitors read the Collab list but not their own things', async () => {
+    const w = await world();
+    const boss = await w.member('boss');
+    await setOps(w.t.db, 'boss', true);
+    const ana = await w.member('ana');
+    await ana.post('/collabs', PROJECT);
+    const pass = (await boss.post('/ops/visitor-passes', { label: '' })).body;
+    const v = w.client();
+    expect((await v.post('/visit', { code: pass.code })).status).toBe(200);
+    expect((await v.get('/collab')).status).toBe(200);
+    expect((await v.get('/me/collab')).status).toBe(403);
+    expect((await v.get('/me/collab')).body.error).toBe('visitor_readonly');
+    expect((await v.post('/me/collab-intro/dismiss', {})).status).toBe(403);
   });
 });

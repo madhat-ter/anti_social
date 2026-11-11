@@ -91,6 +91,8 @@ export const meRoutes = (deps: Deps) => {
       // RFC §10.13: members who joined with a passkey are asked to choose a PIN
       pinSet: !!u.pinHash,
       theme: u.theme === 'dark' ? 'dark' as const : 'light' as const,
+      // RFC §10.21: members from before see the one-time "Events and Collabs are one place now" strip
+      collabIntroSeen: u.collabIntroSeenAt !== null,
     };
   }
 
@@ -171,6 +173,13 @@ export const meRoutes = (deps: Deps) => {
       const a = requireSeated(auth);
       await db.update(users).set({ checklistDismissedAt: new Date() }).where(eq(users.id, a.user.id));
       return { dismissed: true };
+    })
+
+    /** RFC §10.21: closing the one-time "Events and Collabs are one place now" strip. */
+    .post('/collab-intro/dismiss', async ({ auth }) => {
+      const a = requireSeated(auth);
+      await db.update(users).set({ collabIntroSeenAt: new Date() }).where(eq(users.id, a.user.id));
+      return { seen: true };
     })
 
     // What the setup page starts from: whatever is already there (an About written earlier).

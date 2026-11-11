@@ -67,6 +67,7 @@ export function visitorProfile(pass: VisitorPass) {
     setupNeeded: false, gender: null, birthday: VISITOR_BIRTHDAY, birthdayPublic: false, contactEnabled: false, contact: null, verifiedAt: null,
     interests: [] as string[],
     pinSet: true,
+    collabIntroSeen: true,
     // RFC §10.14: visitors always see the light pages
     theme: 'light' as const,
     visitor: { expiresAt: pass.expiresAt.toISOString() },

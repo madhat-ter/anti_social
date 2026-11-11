@@ -5,6 +5,7 @@ import {
   listCollabs, memberCollabs, removeFromTeam, setTeamRole, setTeamSlot, suggestPeople, updateCollab, withdrawRequest,
 } from '../lib/collabs';
 import { authPlugin, requireSeated } from '../plugins/auth';
+import { collabPage, memberEvents, myCollab } from '../lib/collab-page';
 
 /** Collabs (RFC §10.5). All the rules live in lib/collabs.ts; these are thin handlers. */
 export const collabRoutes = (deps: Deps) => {
@@ -12,6 +13,27 @@ export const collabRoutes = (deps: Deps) => {
   const handle = t.Object({ id: t.String(), handle: t.String({ maxLength: 40 }) });
   return new Elysia()
     .use(authPlugin(deps))
+
+    /** RFC §10.21: one list of events, activities and projects, newest started first. */
+    .get('/collab', async ({ auth, query }) => {
+      const a = requireSeated(auth);
+      const kind = query.kind === 'event' || query.kind === 'activity' || query.kind === 'project' ? query.kind : 'all';
+      return collabPage(db, a.user.id, {
+        kind, interest: query.interest || undefined, done: query.done === '1', cursor: query.cursor || undefined, limit: query.limit,
+      });
+    }, {
+      query: t.Object({
+        kind: t.Optional(t.String()), interest: t.Optional(t.String({ maxLength: 40 })),
+        done: t.Optional(t.String()), cursor: t.Optional(t.String()), limit: t.Optional(t.String()),
+      }),
+    })
+
+    /** The "Yours" strip: hosting, in, going, and requests waiting on you. Closed to visitors like all of /me. */
+    .get('/me/collab', async ({ auth }) => myCollab(db, requireSeated(auth).user.id))
+
+    .get('/members/:handle/events', async ({ auth, params }) =>
+      memberEvents(db, requireSeated(auth).user.id, params.handle),
+    { params: t.Object({ handle: t.String({ maxLength: 40 }) }) })
 
     .get('/collabs', async ({ auth, query }) => {
       const a = requireSeated(auth);

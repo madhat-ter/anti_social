@@ -51,7 +51,7 @@ export type EventView = {
 };
 
 export type EventRow = {
-  id: string; title: string; description: string; cursor_ts: string; starts_iso: string; ends_iso: string | null;
+  id: string; title: string; description: string; cursor_ts: string; created_iso: string; starts_iso: string; ends_iso: string | null;
   location: string; location_rsvp_only: boolean; capacity: number | null; price_note: string | null;
   external_payment_url: string | null; cancelled_iso: string | null; host_id: string;
   h_handle: string; h_display: string; h_state: string; h_gender: string | null; h_admin: boolean; h_verified: boolean;
@@ -66,7 +66,7 @@ export type EventRow = {
 /** Base SELECT; callers append where/order/limit. One query per page, viewer-specific fields inline. */
 export function eventSelect(viewerId: string): SQL {
   return sql`
-    select e.id, e.title, e.description, e.starts_at::text as cursor_ts,
+    select e.id, e.title, e.description, e.starts_at::text as cursor_ts, ${iso(sql`e.created_at`)} as created_iso,
       ${iso(sql`e.starts_at`)} as starts_iso, ${iso(sql`e.ends_at`)} as ends_iso,
       e.location, e.location_rsvp_only, e.capacity, e.price_note, e.external_payment_url,
       ${iso(sql`e.cancelled_at`)} as cancelled_iso, e.host_id,
