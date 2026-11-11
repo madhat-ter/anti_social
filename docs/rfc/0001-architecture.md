@@ -1418,7 +1418,7 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST /visit`, `POST /visit/leave` | P (rate-limited) | Enter a visitor code (§10.8): the hour starts, cookie set; leave early |
 | `GET/POST /ops/visitor-passes`, `POST /ops/visitor-passes/:id/revoke` | O | Visitor passes: list with states, make one (code shown once), revoke or end a visit |
 
-To members, every `/ops/*` path is a 404. Ops also has a CLI (`bun run ops:mint-invites --count 10`, `bun run ops -- grant <handle>`) that calls the same service code; on hosts without a shell, `BOOTSTRAP_INVITES` and `OPS_HANDLES` do the first-boot equivalents (`OPS_HANDLES` only while no admin exists).
+To members, every `/ops/*` path is a 404. Ops also has a CLI (`bun run ops:mint-invites --count 10`, `bun run ops -- grant <handle>`, `bun run ops -- wipe <handle...> [--yes]` to delete a demo account and its content for real) that calls the same service code; on hosts without a shell, `BOOTSTRAP_INVITES` and `OPS_HANDLES` do the first-boot equivalents (`OPS_HANDLES` only while no admin exists).
 
 ## 12. Scheduled jobs
 
