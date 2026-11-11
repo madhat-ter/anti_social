@@ -5,7 +5,7 @@ hundred-seat network built to give you people instead of a feed, and then send y
 
 - **Length:** about 5 minutes (≈ 700 spoken words at 2.3 words a second, room to breathe).
 - **Format:** 16:9 screen recording of the desktop site, with phone shots dropped in where the phone
-  is the better view (tab bar, cassette, recorder). A 60-second cut is at the end.
+  is the better view (tab bar, cassette, recorder). The one-minute version is `anti-1-minute.md`.
 - **Look:** the site's own: white paper, black ink, one red dot, System-6 windows, the pixel font
   for captions. No stock footage: every shot is a real screen.
 - **Voice:** calm, a little dry, like a friend showing you round. Contractions. No hype words.
@@ -185,21 +185,9 @@ The cursor clicks **Yes, I have an invite**. Cut to the wordmark, **anti.**, and
 
 ---
 
-## The 60-second cut
+## The one-minute version
 
-For a phone, 9:16. Same shots, tighter.
-
-| Time | On screen | Voice |
-| --- | --- | --- |
-| 0:00 | Landing alert: *Delete "Social Life"?* | Every social network wants more of your time. This one would rather you left. |
-| 0:06 | Seats filling | anti. A hundred seats. You need an invite. |
-| 0:11 | Feed scroll, the "new since" line | One feed, newest first. Nothing ranked. |
-| 0:17 | End card | And it ends. *You're caught up. Go outside.* |
-| 0:24 | Cassette playing, reels turning | Say something out loud: a song, a thought, a yap, on tape. |
-| 0:33 | Collab Start, event ticket, *I'm going* | No private messages. Want to talk? Do something together. |
-| 0:42 | Profile portfolio, shelf of tapes | No follower counts. Just what you've made. |
-| 0:49 | Seat grid, one face replaced | Keep your seat by showing up. |
-| 0:55 | Wordmark, red dot | anti. Ask someone inside. Then go outside. |
+Its own script: `anti-1-minute.md`.
 
 ---
 
