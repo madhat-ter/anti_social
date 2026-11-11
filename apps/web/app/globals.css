@@ -1279,7 +1279,8 @@ input[type=search]::-webkit-search-cancel-button {
 
   .tabbar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-    display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px;
+    /* one equal column per tab, however many there are (a fixed count left a black gap after §10.21) */
+    display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px;
     background: var(--ink); border-top: 2px solid var(--ink); padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .tb {
