@@ -156,7 +156,10 @@ export function startScheduler(db: Db, deps: JobDeps, jobs: Job[] = JOBS) {
     const t0 = Date.now();
     try {
       const r = await runJob(db, job, deps);
-      if (r.status === 'ran') console.log(`[job] ${job.name} ran in ${Date.now() - t0}ms`, r.result);
+      // A frequent job that did nothing stays quiet: the 10-second push job used to write six lines
+      // every run, which buried everything else in the host's log (2026-11-12 outage, unreadable).
+      const idle = job.everyMs < HOUR && Object.values(r.status === 'ran' ? r.result : {}).every((v) => v === 0);
+      if (r.status === 'ran' && !idle) console.log(`[job] ${job.name} ran in ${Date.now() - t0}ms`, r.result);
     } catch (e) {
       console.error(`[job] ${job.name} failed`, e);
     } finally {

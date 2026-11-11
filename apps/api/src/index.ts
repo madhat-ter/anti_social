@@ -26,6 +26,20 @@ const push = loadPushSender();
 createApp({ db, cfg, storage, payments, push }).listen(port);
 console.log(`api listening on :${port}` + (payments.kind === 'fake' ? ' (FAKE payments: checkout at /dev/checkout)' : ''));
 
+// Say why the process ends, so the host's log shows a stop or a crash instead of just going quiet.
+const started = Date.now();
+const upFor = () => `${Math.round((Date.now() - started) / 60_000)} min`;
+for (const sig of ['SIGTERM', 'SIGINT'] as const) {
+  process.on(sig, () => {
+    console.log(`api stopping: ${sig} after ${upFor()}`);
+    process.exit(0);
+  });
+}
+process.on('uncaughtException', (e) => {
+  console.error(`api crashed after ${upFor()}:`, e);
+  process.exit(1);
+});
+
 if (process.env.JOBS === 'off') console.log('scheduled jobs disabled (JOBS=off)');
 else startScheduler(db, { storage, payments, push });
 if (!push.publicKey) console.log('web push disabled (set VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY; bun run ops:vapid-keys)');
