@@ -212,3 +212,80 @@ describe('collab kinds (RFC §10.21)', () => {
     expect(activities[0]).toMatchObject({ kind: 'activity', meets: ACTIVITY.meets });
   });
 });
+
+const EVENT = {
+  title: 'Darkroom evening', description: 'Develop a roll together.', location: 'Studio B',
+  startsAt: new Date(Date.now() + 2 * 86_400_000).toISOString(), capacity: 8, interests: ['photography'],
+};
+
+describe('event co-hosts and "make it regular" (RFC §10.21)', () => {
+  test('co-hosts edit, decide and invite, but only the host cancels', async () => {
+    const w = await world();
+    const ana = await w.member('ana', ['photography']);
+    const ben = await w.member('ben');
+    const cat = await w.member('cat');
+    const dee = await w.member('dee');
+    const ev = (await ana.post('/events', EVENT)).body;
+
+    // a co-host must be going
+    expect((await ana.post(`/events/${ev.id}/cohosts`, { handle: 'cat' })).body.error).toBe('not_going');
+    await cat.post(`/events/${ev.id}/rsvp`, {});
+    expect((await ana.post(`/events/${ev.id}/cohosts`, { handle: 'cat' })).body).toMatchObject({
+      canManage: true, cohosts: [expect.objectContaining({ handle: 'cat' })],
+    });
+    expect((await cat.get(`/events/${ev.id}`)).body.canManage).toBe(true);
+
+    // a co-host may edit and invite; a plain member may not
+    expect((await cat.patch(`/events/${ev.id}`, { title: 'Darkroom evening, take two' })).status).toBe(200);
+    const invited = await cat.post(`/events/${ev.id}/invites`, { handle: 'ben' });
+    expect(invited.status).toBe(200);
+    expect(invited.body.invites).toEqual([expect.objectContaining({ handle: 'ben' })]);
+    expect((await dee.post(`/events/${ev.id}/invites`, { handle: 'ben' })).body.error).toBe('not_host');
+    expect((await dee.patch(`/events/${ev.id}`, { title: 'Nope' })).body.error).toBe('not_host');
+
+    // cancelling stays the host's
+    expect((await cat.del(`/events/${ev.id}`)).body.error).toBe('not_host');
+    // and only the host adds or removes co-hosts
+    expect((await cat.post(`/events/${ev.id}/cohosts`, { handle: 'ben' })).body.error).toBe('not_host');
+    const removed = await ana.del(`/events/${ev.id}/cohosts/cat`);
+    expect(removed.body.cohosts).toEqual([]);
+    expect((await cat.get(`/events/${ev.id}`)).body.canManage).toBe(false);
+
+    // a co-host who leaves is no longer a co-host
+    await ana.post(`/events/${ev.id}/cohosts`, { handle: 'cat' });
+    await cat.del(`/events/${ev.id}/rsvp`);
+    expect((await cat.get(`/events/${ev.id}`)).body.canManage).toBe(false);
+  });
+
+  test('make it regular: a past event of yours becomes an activity and invites who came', async () => {
+    const w = await world();
+    const ana = await w.member('ana', ['photography', 'music']);
+    const ben = await w.member('ben');
+    const cat = await w.member('cat');
+    const ev = (await ana.post('/events', EVENT)).body;
+
+    // not before it happened
+    const early = await ana.post('/collabs', { ...ACTIVITY, fromEventId: ev.id });
+    expect(early.status).toBe(409);
+    expect(early.body.error).toBe('event_not_started');
+
+    await ben.post(`/events/${ev.id}/rsvp`, {});
+    await cat.post(`/events/${ev.id}/rsvp`, {});
+    await w.t.db.execute(sql`update events set starts_at = now() - interval '2 days', ends_at = null where id = ${ev.id}::uuid`);
+    // ben came, cat did not
+    expect((await ana.post(`/events/${ev.id}/attendance`, { handles: ['ben'] })).status).toBe(200);
+
+    const made = await ana.post('/collabs', { ...ACTIVITY, title: 'Darkroom club', fromEventId: ev.id });
+    expect(made.status).toBe(200);
+    expect(made.body).toMatchObject({ kind: 'activity', teamCount: 1 });
+    // the host is never invited, and the person who did not come is not either
+    expect(made.body.invites.map((x: any) => x.handle)).toEqual(['ben']);
+
+    // only the host of that event, and never a meetup
+    expect((await ben.post('/collabs', { ...ACTIVITY, title: 'Mine', fromEventId: ev.id })).body.error).toBe('not_host');
+    const meetup = (await ana.post('/collabs', PROJECT)).body;
+    const m = (await ana.post('/events', { ...EVENT, title: 'Meetup', collabId: meetup.id, audience: 'team' })).body;
+    await w.t.db.execute(sql`update events set starts_at = now() - interval '1 day' where id = ${m.id}::uuid`);
+    expect((await ana.post('/collabs', { ...ACTIVITY, title: 'Nope', fromEventId: m.id })).body.error).toBe('collab_invalid');
+  });
+});

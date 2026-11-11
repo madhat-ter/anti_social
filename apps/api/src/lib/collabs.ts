@@ -273,6 +273,25 @@ async function saveCover(tx: Db, id: string, me: string, coverId: unknown): Prom
 
 export async function createCollab(db: Db, storage: Storage, me: string, body: Record<string, unknown>): Promise<Collab> {
   const f = await checkFields(db, body);
+  // RFC §10.21 "Make it regular": a past event of yours becomes an activity, and everyone who came
+  // (or was going, when nobody was confirmed) is invited. Those invites skip the 20-open limit.
+  let fromEvent: { id: string; invitees: string[] } | null = null;
+  if (body.fromEventId !== undefined) {
+    if (typeof body.fromEventId !== 'string' || !UUID_RE.test(body.fromEventId)) throw new ApiError(404, 'not_found');
+    const [e] = await rows<{ id: string; host_id: string; collab_id: string | null; started: boolean }>(db, sql`
+      select id, host_id, collab_id, (now() >= starts_at) as started from events where id = ${body.fromEventId}::uuid`);
+    if (!e) throw new ApiError(404, 'not_found');
+    if (e.host_id !== me) throw new ApiError(403, 'not_host', 'Only the host can make their event regular.');
+    if (e.collab_id) throw bad('A meetup cannot become an activity; make a new one instead.');
+    if (!e.started) throw new ApiError(409, 'event_not_started', 'Make it regular once the event has happened.');
+    const invitees = await rows<{ user_id: string }>(db, sql`
+      select user_id from event_rsvps r
+       where r.event_id = ${e.id}::uuid and r.user_id <> ${me}::uuid
+         and (r.attended_confirmed_at is not null
+              or (r.status = 'going' and not exists (select 1 from event_rsvps c
+                    where c.event_id = ${e.id}::uuid and c.attended_confirmed_at is not null)))`);
+    fromEvent = { id: e.id, invitees: invitees.map((x) => x.user_id) };
+  }
   // RFC §10.21: activities and projects share the one limit
   const hosting = Number(await scalar(db, sql`
     select count(*)::int from collabs c join collab_members m on m.collab_id = c.id and m.user_id = ${me}::uuid and m.role = 'host'
@@ -289,6 +308,12 @@ export async function createCollab(db: Db, storage: Storage, me: string, body: R
     await tx.execute(sql`insert into collab_members (collab_id, user_id, role) values (${c!.id}::uuid, ${me}::uuid, 'host')`);
     await saveInterests(tx, c!.id, f.interests);
     await saveCover(tx, c!.id, me, body.coverId);
+    for (const u of fromEvent?.invitees ?? []) {
+      await tx.execute(sql`insert into collab_invites (collab_id, user_id, invited_by) values (${c!.id}::uuid, ${u}::uuid, ${me}::uuid)
+        on conflict do nothing`);
+      await tx.execute(sql`insert into notifications (user_id, kind, payload)
+        values (${u}::uuid, 'collab_invite', ${JSON.stringify({ collabId: c!.id, title: f.title, actorId: me })}::jsonb)`);
+    }
     return c!.id;
   });
   void storage;

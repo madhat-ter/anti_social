@@ -5,6 +5,7 @@ import { ATTENDANCE_WINDOW_DAYS, EVENT_DEFAULT_HOURS } from '@anti/shared';
 const iso = (col: SQL) => sql`to_char(${col} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 
 export type RsvpStatus = 'going' | 'waitlisted' | 'cancelled';
+export type CoHost = { handle: string; displayName: string; gender: string | null; admin: boolean; verified: boolean };
 export type EventView = {
   id: string;
   title: string;
@@ -23,7 +24,11 @@ export type EventView = {
   externalPaymentUrl: string | null;
   cancelledAt: string | null;
   host: { handle: string; displayName: string; state: string; gender: string | null; admin: boolean; verified: boolean } | null;
+  /** RFC §10.21: the host's co-hosts (they edit, decide requests, invite and mark attendance) */
+  cohosts: CoHost[];
   isHost: boolean;
+  /** host or co-host: may edit, decide requests, invite and mark attendance (cancelling stays the host's) */
+  canManage: boolean;
   my: { status: RsvpStatus; waitlistPosition: number | null; attended: boolean } | null;
   started: boolean;
   /** RSVP / leave allowed (not cancelled, not started). */
@@ -55,6 +60,7 @@ export type EventRow = {
   started: boolean; attendance_open: boolean;
   collab_id: string | null; c_title: string | null; audience: 'anyone' | 'team'; on_team: boolean;
   requirements: string; join_mode: 'open' | 'approve'; interests: string[] | null; my_request: string | null; my_invited: boolean;
+  am_cohost: boolean; cohosts: unknown;
 };
 
 /** Base SELECT; callers append where/order/limit. One query per page, viewer-specific fields inline. */
@@ -81,7 +87,12 @@ export function eventSelect(viewerId: string): SQL {
       e.requirements, e.join_mode,
       array(select ei.interest from event_interests ei where ei.event_id = e.id order by ei.interest) as interests,
       (select q.status from event_requests q where q.event_id = e.id and q.user_id = ${viewerId}::uuid) as my_request,
-      exists (select 1 from event_invites i where i.event_id = e.id and i.user_id = ${viewerId}::uuid and i.status = 'pending') as my_invited
+      exists (select 1 from event_invites i where i.event_id = e.id and i.user_id = ${viewerId}::uuid and i.status = 'pending') as my_invited,
+      exists (select 1 from event_hosts eh where eh.event_id = e.id and eh.user_id = ${viewerId}::uuid) as am_cohost,
+      (select coalesce(jsonb_agg(jsonb_build_object(
+                'handle', cu.handle, 'displayName', cu.display_name, 'gender', cu.gender,
+                'admin', cu.role = 'ops', 'verified', cu.verified_at is not null) order by eh.added_at), '[]'::jsonb)
+         from event_hosts eh join users cu on cu.id = eh.user_id where eh.event_id = e.id) as cohosts
     from events e
     join users h on h.id = e.host_id
     left join collabs c on c.id = e.collab_id and c.deleted_at is null
@@ -90,9 +101,11 @@ export function eventSelect(viewerId: string): SQL {
 
 export function toEvent(r: EventRow, viewerId: string): EventView {
   const isHost = r.host_id === viewerId;
+  const canManage = isHost || !!r.am_cohost;
   const cancelled = !!r.cancelled_iso;
-  const seesLocation = !r.location_rsvp_only || isHost || r.my_status === 'going';
+  const seesLocation = !r.location_rsvp_only || isHost || !!r.am_cohost || r.my_status === 'going';
   const started = !!r.started;
+  const cohosts = typeof r.cohosts === 'string' ? JSON.parse(r.cohosts) as CoHost[] : (r.cohosts as CoHost[] | null) ?? [];
   return {
     id: r.id,
     title: r.title,
@@ -110,17 +123,19 @@ export function toEvent(r: EventRow, viewerId: string): EventView {
     externalPaymentUrl: r.external_payment_url,
     cancelledAt: r.cancelled_iso,
     host: r.h_state === 'deleted' ? null : { handle: r.h_handle, displayName: r.h_display, state: r.h_state, gender: r.h_gender ?? null, admin: !!r.h_admin, verified: !!r.h_verified },
+    cohosts,
     isHost,
+    canManage,
     my: r.my_status
       ? { status: r.my_status, waitlistPosition: r.my_position === null ? null : Number(r.my_position), attended: !!r.my_attended }
       : null,
     started,
     rsvpOpen: !cancelled && !started,
-    canEdit: isHost && !cancelled && !started,
-    canConfirmAttendance: isHost && !cancelled && !!r.attendance_open,
+    canEdit: canManage && !cancelled && !started,
+    canConfirmAttendance: canManage && !cancelled && !!r.attendance_open,
     collab: r.collab_id && r.c_title ? { id: r.collab_id, title: r.c_title } : null,
     audience: r.audience === 'team' ? 'team' : 'anyone',
-    canPostUpdate: !cancelled && (r.collab_id ? !!r.on_team : isHost || r.my_status === 'going'),
+    canPostUpdate: !cancelled && (r.collab_id ? !!r.on_team : canManage || r.my_status === 'going'),
     requirements: r.requirements ?? '',
     joinMode: r.join_mode === 'approve' ? 'approve' : 'open',
     interests: r.interests ?? [],
