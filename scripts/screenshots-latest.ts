@@ -174,8 +174,9 @@ try {
   await go(`/p/${sunset.id}`, 'thread', () => lap.getByRole('heading', { name: 'Thread' }).waitFor({ state: 'attached' }));
   await go('/u/theo', 'profile', () => lap.getByRole('heading', { name: 'Theo Brandt' }).waitFor());
   await go('/members', 'members', () => lap.locator('.seat-chart, .members-list, .member-list').first().waitFor());
-  await go('/events', 'events', () => lap.getByRole('heading', { name: /events/i }).first().waitFor());
-  await go('/collabs', 'collabs', () => lap.getByRole('heading', { name: /collabs/i }).first().waitFor());
+  // RFC §10.21: Events and Collabs are one place now
+  await go('/collab', 'collab', () => lap.getByRole('heading', { name: /collab/i }).first().waitFor());
+  await go('/collab/new', 'collab-start', () => lap.getByText('Activity').first().waitFor());
   await go('/search', 'search', () => lap.locator('input[type=search]').first().waitFor());
   await go('/notifications', 'notifications', () => lap.locator('.notif-link').first().waitFor());
   await go('/settings', 'settings', () => lap.getByRole('heading', { name: /settings/i }).first().waitFor());

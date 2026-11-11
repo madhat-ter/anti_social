@@ -397,8 +397,8 @@ export function PostCard({
       {post.firstPost && <p className="first-post"><span className="tag">First post</span></p>}
       {!post.parentId && ((context === 'all' && (post.collab || post.event)) || (context === 'event' && post.event)) && (
         <p className="muted small post-context">
-          Update{context === 'all' && post.collab && <> in <Link href={`/collabs/${post.collab.id}`}>{post.collab.title}</Link></>}
-          {post.event && <> from <Link href={`/events/${post.event.id}`}>{post.event.title}</Link></>}
+          Update{context === 'all' && post.collab && <> in <Link href={`/collab/${post.collab.id}`}>{post.collab.title}</Link></>}
+          {post.event && <> from <Link href={`/collab/event/${post.event.id}`}>{post.event.title}</Link></>}
         </p>
       )}
       {reported && <p className="muted small" role="status">Reported. Thanks, a moderator will take a look.</p>}

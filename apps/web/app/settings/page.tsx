@@ -190,7 +190,7 @@ function InterestsSec({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
   return (
     <section className="panel-sec" aria-labelledby="interests">
       <h2 id="interests">Interests</h2>
-      <p className="muted small">Pick up to {INTERESTS_MAX} ({picked.length} now). Collabs and events with the same interests find you, and you find them.</p>
+      <p className="muted small">Pick up to {INTERESTS_MAX} ({picked.length} now). Activities, projects and events with the same interests find you, and you find them.</p>
       <InterestPicker value={picked} onChange={(n) => void change(n)} max={INTERESTS_MAX} />
       <ErrorNote message={err} />
     </section>

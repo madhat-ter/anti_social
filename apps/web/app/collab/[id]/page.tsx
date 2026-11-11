@@ -11,7 +11,7 @@ import { AlertDialog, Loading } from '@/components/retro';
 import { Avatar } from '@/components/Avatar';
 import { NameMarks } from '@/components/Marks';
 import { InterestTags } from '@/components/Interests';
-import { StatusTag } from '@/components/Collabs';
+import { collabStatusLabel, joinLabel, collabJoinable } from '@/components/Collab';
 import { Composer } from '@/components/Composer';
 import { PostList } from '@/components/PostList';
 import { eventWhen } from '@/components/Events';
@@ -36,7 +36,8 @@ function CollabView({ myHandle }: { myHandle: string }) {
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState('');
-  const [confirm, setConfirm] = useState<null | 'leave' | 'delete' | 'report' | 'remove'>(null);
+  const [slot, setSlot] = useState('');
+  const [confirm, setConfirm] = useState<null | 'leave' | 'delete' | 'report' | 'remove' | 'end'>(null);
   const [kick, setKick] = useState<{ handle: string; name: string } | null>(null);
   const [reported, setReported] = useState(false);
   const [done, setDone] = useState<string | null>(null);
@@ -54,14 +55,17 @@ function CollabView({ myHandle }: { myHandle: string }) {
     try { await fn(); await load(); if (said) setDone(said); } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
   }
 
-  if (!c) return err ? <><ErrorNote message={err} /><p><Link href="/collabs">Back to collabs</Link></p></> : <Loading />;
+  if (!c) return err ? <><ErrorNote message={err} /><p><Link href="/collab">Back to Collab</Link></p></> : <Loading />;
 
   const onTeam = !!c.my.role;
-  const full = c.teamCount >= c.teamMax;
+  const max = c.teamMax;
+  const teamSet = c.kind === 'project' && (c.status === 'closed' || (c.slots.length > 0 && c.slots.every((s) => s.handle)));
+  const full = (max !== null && c.teamCount >= max) || teamSet;
   const iAmHost = c.my.role === 'host';
+  const join = joinLabel({ ...collabJoinable(c), full });
   return (
     <>
-      <p><Link href="/collabs" className="ui">Back to collabs</Link></p>
+      <p><Link href="/collab" className="ui">Back to Collab</Link></p>
       <article className="stack collab-detail">
         {c.hidden && <div className="banner" role="status">Hidden after reports. Only the team and admins can see it until an admin decides.</div>}
         {c.cover && (
@@ -71,16 +75,47 @@ function CollabView({ myHandle }: { myHandle: string }) {
           </div>
         )}
         <header>
-          <h1 {...bnLang(c.title)}>{c.title} <StatusTag c={c} /></h1>
+          <h1 {...bnLang(c.title)}>{c.title} <span className={`tag collab-status ${c.status}`}>{collabStatusLabel(c)}</span></h1>
           <InterestTags slugs={c.interests} />
         </header>
         {c.canManage && <HostStrip c={c} />}
+        {c.canManage && c.quiet && (
+          <div className="banner quiet-strip" role="status">
+            {c.kind === 'activity' ? 'Quiet for 6 weeks.' : 'Quiet for 3 weeks.'}{' '}
+            {c.kind === 'activity' ? (
+              <>
+                <button type="button" className="btn" disabled={busy} onClick={() => void act(() => api.updateCollab(id, { description: c.description }), 'Still running.')}>Keep it running</button>{' '}
+                <button type="button" className="btn danger" disabled={busy} onClick={() => setConfirm('end')}>End it</button>
+              </>
+            ) : (
+              <>
+                <button type="button" className="btn" disabled={busy} onClick={() => void act(() => api.updateCollab(id, { status: 'finished' }), 'Marked finished. Well done.')}>Mark finished</button>{' '}
+                <button type="button" className="btn" disabled={busy} onClick={() => void act(() => api.updateCollab(id, { description: c.description }), 'Keep going.')}>Keep going</button>{' '}
+                <button type="button" className="btn danger" disabled={busy} onClick={() => setConfirm('delete')}>Delete</button>
+              </>
+            )}
+          </div>
+        )}
         {c.description && <p className="body collab-desc">{c.description}</p>}
         <dl className="facts">
-          {c.roles.length > 0 && <><dt>Looking for</dt><dd>{c.roles.join(', ')}</dd></>}
+          {c.kind === 'activity' && c.meets && <><dt>When we meet</dt><dd>{c.meets}</dd></>}
+          {c.kind === 'project' && c.slots.length > 0 && (
+            <>
+              <dt>Looking for</dt>
+              <dd>
+                <ul className="slots">
+                  {c.slots.map((s) => (
+                    <li key={s.role}>{s.role}: {s.handle ? <Link href={`/u/${s.handle}`}>@{s.handle}</Link> : <span className="muted">open</span>}</li>
+                  ))}
+                </ul>
+              </dd>
+            </>
+          )}
           {c.requirements && <><dt>Needs</dt><dd className="body">{c.requirements}</dd></>}
-          <dt>Team</dt><dd>{c.teamCount} of {c.teamMax} people{full && c.status === 'recruiting' ? ' (full)' : ''}</dd>
-          <dt>Joining</dt><dd>{c.status !== 'recruiting' ? 'Not looking for people right now' : c.joinMode === 'open' ? 'Anyone can join' : 'Ask, and the host decides'}</dd>
+          <dt>Team</dt>
+          <dd>{c.teamCount}{max !== null ? ` of ${max}` : ''} {c.kind === 'activity' ? 'in' : 'people'}{c.kind === 'project' && teamSet ? ' · team set' : ''}</dd>
+          <dt>Joining</dt>
+          <dd>{c.status !== 'recruiting' ? (c.kind === 'activity' ? 'This activity has ended' : 'Not looking for people right now') : c.joinMode === 'open' ? 'Anyone can join' : 'Ask, and the host decides'}</dd>
           {c.host && <><dt>Host</dt><dd><Link href={`/u/${c.host.handle}`}>@{c.host.handle}<NameMarks admin={c.host.admin} verified={c.host.verified} size=".85em" /></Link></dd></>}
           {(c.priceNote || c.paymentUrl) && (
             <>
@@ -103,23 +138,27 @@ function CollabView({ myHandle }: { myHandle: string }) {
           </div>
         )}
         <div className="row">
-          {!onTeam && !c.my.invited && c.status === 'recruiting' && !full && c.my.request === null && (
-            c.joinMode === 'open'
-              ? <button className="btn primary" disabled={busy} onClick={() => act(() => api.joinCollab(id), 'You are on the team.')} {...ro}>Join</button>
-              : !asking && <button className="btn primary" disabled={busy} onClick={() => setAsking(true)} {...ro}>Ask to join</button>
+          {!onTeam && !c.my.invited && join.mode === 'join' && (
+            <button className="btn primary" disabled={busy} onClick={() => act(() => api.joinCollab(id), 'You are on the team.')} {...ro}>{join.text}</button>
           )}
-          {c.my.request === 'pending' && !onTeam && (
+          {!onTeam && !c.my.invited && join.mode === 'ask' && !asking && (
+            <button className="btn primary" disabled={busy} onClick={() => setAsking(true)} {...ro}>{join.text}</button>
+          )}
+          {join.mode === 'asked' && (
             <>
               <span className="muted">You asked to join. The host will decide.</span>
               <button className="btn" disabled={busy} onClick={() => act(() => api.withdrawCollabRequest(id))}>Withdraw</button>
             </>
           )}
-          {c.my.request === 'declined' && !onTeam && <span className="muted">This one has found its people. Plenty more in Collabs.</span>}
-          {c.canManage && <Link className="btn" href={`/collabs/${id}/edit`}>Edit</Link>}
+          {join.mode === 'declined' && <span className="muted">This one has found its people. Plenty more in Collab.</span>}
+          {join.mode === 'full' && !onTeam && <span className="muted">{c.kind === 'project' ? 'The team is set.' : 'This activity is full.'}</span>}
+          {join.mode === 'ended' && !onTeam && <span className="muted">{c.kind === 'activity' ? 'This activity has ended.' : 'This project has finished.'}</span>}
+          {c.canManage && <Link className="btn" href={`/collab/${id}/edit`}>Edit</Link>}
           {/* RFC §10.20: what a host does week to week is a button; the menu keeps leaving, reporting and deleting */}
-          {c.canManage && c.status === 'recruiting' && <button type="button" className="btn" disabled={busy} onClick={() => void act(() => api.updateCollab(id, { status: 'closed' }), 'Not recruiting any more.')}>Stop recruiting</button>}
-          {c.canManage && c.status === 'closed' && <button type="button" className="btn" disabled={busy} onClick={() => void act(() => api.updateCollab(id, { status: 'recruiting' }), 'Recruiting again.')}>Recruit again</button>}
-          {c.canManage && c.status !== 'finished' && <button type="button" className="btn" disabled={busy} onClick={() => void act(() => api.updateCollab(id, { status: 'finished' }), 'Marked finished. Well done.')}>Mark finished</button>}
+          {c.canManage && c.kind === 'project' && c.status === 'recruiting' && <button type="button" className="btn" disabled={busy} onClick={() => void act(() => api.updateCollab(id, { status: 'closed' }), 'Not recruiting any more.')}>Stop recruiting</button>}
+          {c.canManage && c.kind === 'project' && c.status === 'closed' && <button type="button" className="btn" disabled={busy} onClick={() => void act(() => api.updateCollab(id, { status: 'recruiting' }), 'Recruiting again.')}>Recruit again</button>}
+          {c.canManage && c.kind === 'project' && c.status !== 'finished' && <button type="button" className="btn" disabled={busy} onClick={() => void act(() => api.updateCollab(id, { status: 'finished' }), 'Marked finished. Well done.')}>Mark finished</button>}
+          {c.canManage && c.kind === 'activity' && c.status === 'recruiting' && <button type="button" className="btn danger" disabled={busy} onClick={() => setConfirm('end')}>End it</button>}
           <ActionMenu label="More actions for this collab" items={[
             onTeam && { label: 'Leave the team', disabled: busy, onSelect: () => setConfirm('leave') },
             c.canReport && !readOnly && { label: reported ? 'Reported' : 'Report', disabled: busy || reported, onSelect: () => setConfirm('report') },
@@ -128,7 +167,15 @@ function CollabView({ myHandle }: { myHandle: string }) {
           ]} />
         </div>
         {asking && (
-          <form className="stack card" onSubmit={(e) => { e.preventDefault(); void act(() => api.joinCollab(id, note.trim() || undefined), 'Asked. You will get a notification when the host decides.').then(() => setAsking(false)); }}>
+          <form className="stack card" onSubmit={(e) => { e.preventDefault(); void act(() => api.joinCollab(id, note.trim() || undefined, slot || undefined), 'Asked. You will get a notification when the host decides.').then(() => setAsking(false)); }}>
+            {c.kind === 'project' && c.slots.some((s) => !s.handle) && (
+              <label>Which role would you take? (optional)
+                <select value={slot} onChange={(e) => setSlot(e.target.value)}>
+                  <option value="">Any of them</option>
+                  {c.slots.filter((s) => !s.handle).map((s) => <option key={s.role} value={s.role}>{s.role}</option>)}
+                </select>
+              </label>
+            )}
             <label>A note for the host (optional)
               <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={COLLAB_NOTE_MAX} rows={3} placeholder="What you would bring, or why it speaks to you." />
             </label>
@@ -150,6 +197,14 @@ function CollabView({ myHandle }: { myHandle: string }) {
                 <span className="crowd-name">{p.displayName}<NameMarks admin={p.admin} verified={p.verified} size=".85em" /></span>
               </Link>
               {ROLE_LABEL[p.role] && <span className="tag">{ROLE_LABEL[p.role]}</span>}
+              {p.slot && <span className="tag on">{p.slot}</span>}
+              {c.canManage && c.kind === 'project' && p.role !== 'host' && (
+                <select className="slot-pick" aria-label={`Role for @${p.handle}`} value={p.slot ?? ''} disabled={busy}
+                  onChange={(e) => void act(() => api.setCollabSlot(id, p.handle, e.target.value || null))}>
+                  <option value="">No role</option>
+                  {c.slots.map((s) => <option key={s.role} value={s.role}>{s.role}</option>)}
+                </select>
+              )}
               {c.canManage && p.handle.toLowerCase() !== myHandle.toLowerCase() && p.role !== 'host' && (
                 <span className="crowd-actions">
                   {iAmHost && (
@@ -175,23 +230,25 @@ function CollabView({ myHandle }: { myHandle: string }) {
 
       <AlertDialog
         open={confirm !== null}
-        title={confirm === 'delete' ? 'Delete collab' : confirm === 'report' ? 'Report' : confirm === 'remove' ? 'Remove collab' : 'Leave'}
+        title={confirm === 'delete' ? 'Delete collab' : confirm === 'report' ? 'Report' : confirm === 'remove' ? 'Remove collab' : confirm === 'end' ? 'End this activity' : 'Leave'}
         message={confirm === 'delete'
           ? 'Delete this collab for everyone? The team, requests and invites go with it.'
           : confirm === 'report' ? 'Report this collab to the admins? After five reports it is hidden until they look.'
           : confirm === 'remove' ? 'Remove this collab for everyone? The host gets a notification (not who removed it).'
+          : confirm === 'end' ? 'End this activity? The page and its updates stay readable, and nobody can join any more. No portfolio drafts.'
           : iAmHost
             ? 'Leave the team? Your longest-standing co-host becomes host; with no co-host, the collab stops recruiting.'
             : 'Leave the team?'}
-        confirmLabel={confirm === 'delete' ? 'Delete' : confirm === 'report' ? 'Report' : confirm === 'remove' ? 'Remove' : 'Leave'}
+        confirmLabel={confirm === 'delete' ? 'Delete' : confirm === 'report' ? 'Report' : confirm === 'remove' ? 'Remove' : confirm === 'end' ? 'End it' : 'Leave'}
         cancelLabel={confirm === 'leave' ? 'Stay' : 'Cancel'}
         danger={confirm !== 'report'}
         onConfirm={() => {
           const what = confirm;
           setConfirm(null);
-          if (what === 'delete') void act(async () => { await api.deleteCollab(id); router.push('/collabs'); });
-          else if (what === 'remove') void act(async () => { await api.opsRemoveCollab(id); router.push('/collabs'); });
+          if (what === 'delete') void act(async () => { await api.deleteCollab(id); router.push('/collab'); });
+          else if (what === 'remove') void act(async () => { await api.opsRemoveCollab(id); router.push('/collab'); });
           else if (what === 'report') void act(async () => { await api.flagCollab(id); setReported(true); }, 'Reported. Thanks, an admin will take a look.');
+          else if (what === 'end') void act(() => api.updateCollab(id, { status: 'finished' }), 'Ended.');
           else void act(() => api.leaveCollab(id), 'You left the team.');
         }}
         onCancel={() => setConfirm(null)}
@@ -216,7 +273,7 @@ function CollabView({ myHandle }: { myHandle: string }) {
 function HostStrip({ c }: { c: Collab }) {
   const asking = c.requests?.length ?? 0;
   const invited = c.invites?.length ?? 0;
-  const room = c.teamCount < c.teamMax && c.status === 'recruiting';
+  const room = (c.teamMax === null || c.teamCount < c.teamMax) && c.status === 'recruiting';
   return (
     <p className={asking > 0 ? 'banner host-strip' : 'meta host-strip'} role={asking > 0 ? 'status' : undefined}>
       {asking > 0
@@ -248,7 +305,7 @@ function Manage({ c, busy, act }: { c: Collab; busy: boolean; act: (fn: () => Pr
                 </div>
                 {r.note && <p className="body">{r.note}</p>}
                 <div className="row">
-                  <button className="btn primary" disabled={busy || c.teamCount >= c.teamMax} onClick={() => act(() => api.decideCollabRequest(c.id, r.handle, true), `@${r.handle} is on the team.`)}>Accept</button>
+                  <button className="btn primary" disabled={busy || (c.teamMax !== null && c.teamCount >= c.teamMax)} onClick={() => act(() => api.decideCollabRequest(c.id, r.handle, true), `@${r.handle} is on the team.`)}>Accept{r.slot ? ` as ${r.slot}` : ''}</button>
                   <button className="btn" disabled={busy} onClick={() => act(() => api.decideCollabRequest(c.id, r.handle, false))}>Decline</button>
                 </div>
               </li>
@@ -288,13 +345,13 @@ function Meetups({ c, onTeam }: { c: Collab; onTeam: boolean }) {
     <section className="stack">
       <div className="row between">
         <h2 className="section-h">Meetups</h2>
-        {onTeam && c.status !== 'finished' && <Link className="btn" href={`/events/new?collab=${c.id}`}>Plan a meetup</Link>}
+        {onTeam && c.status !== 'finished' && <Link className="btn" href={`/collab/new?collab=${c.id}`}>Plan a meetup</Link>}
       </div>
       {c.meetups.length === 0 ? <p className="muted">No meetups yet. Plan one to work on it together.</p> : (
         <ul className="list meetups">
           {c.meetups.map((m) => (
             <li key={m.id} className={m.past ? 'past' : undefined}>
-              <Link href={`/events/${m.id}`}>{m.title}</Link>
+              <Link href={`/collab/event/${m.id}`}>{m.title}</Link>
               <span className="muted small">
                 {eventWhen(m.startsAt, null)} · {m.goingCount} going
                 {m.audience === 'team' && <span className="tag" title="Only the team can see this one">team only</span>}

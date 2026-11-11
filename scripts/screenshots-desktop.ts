@@ -157,11 +157,11 @@ try {
   await lap.locator('body').click({ position: { x: 5, y: 300 } });
   await lap.keyboard.press('/');
   must(await lap.evaluate(() => document.activeElement?.getAttribute('aria-label')) === 'Find a member', '/ on Members did not go to its own search box');
-  // no window repeats its page: seats on Members, next events on Events
+  // no window repeats its page: seats on Members, coming up on Collab (RFC §10.21)
   must(await lap.locator('.rail .seat-chart').count() === 0, 'the seats window is on the Members page');
-  await lap.goto(`${WEB}/events`);
-  await lap.getByRole('heading', { name: 'Events' }).waitFor();
-  must(await lap.locator('.rail').getByText('next_events').count() === 0, 'the next events window is on the Events page');
+  await lap.goto(`${WEB}/collab`);
+  await lap.getByRole('heading', { name: 'Collab' }).waitFor();
+  must(await lap.locator('.rail').getByText('coming_up').count() === 0, 'the coming up window is on the Collab page');
   await lap.close();
 
   // ── 3. the admin's menu: drawers in their own group, still no scroll on the laptop

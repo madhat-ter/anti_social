@@ -23,15 +23,15 @@ function Edit() {
 
   if (err) return <ErrorNote message={err} />;
   if (!ev) return <Loading />;
-  if (!ev.canEdit) return <p>This event can no longer be edited. <Link href={`/events/${id}`}>Back</Link></p>;
+  if (!ev.canEdit) return <p>This event can no longer be edited. <Link href={`/collab/event/${id}`}>Back</Link></p>;
   return (
     <>
-      <p><Link href={`/events/${id}`}>Back to the event</Link></p>
+      <p><Link href={`/collab/event/${id}`}>Back to the event</Link></p>
       <h1>Edit event</h1>
       <p className="muted">Changing the time or place notifies everyone who RSVP&apos;d.</p>
       <EventForm initial={ev} submitLabel="Save changes" onSubmit={async (b) => {
         await api.updateEvent(id, b);
-        router.push(`/events/${id}`);
+        router.push(`/collab/event/${id}`);
       }} />
     </>
   );

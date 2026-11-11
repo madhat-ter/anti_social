@@ -431,7 +431,7 @@ function Reports() {
 
   const link = (f: FlagItem) => f.kind === 'post'
     ? `/p/${f.postId}`
-    : f.kind === 'collab' ? `/collabs/${f.collabId}`
+    : f.kind === 'collab' ? `/collab/${f.collabId}`
     : f.kind === 'consult_offer' ? `/u/${f.offerHandle}`
     : f.kind === 'consultation' ? null
     : f.author ? `/u/${f.author}/work/${f.projectId}` : null;

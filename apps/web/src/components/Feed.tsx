@@ -112,8 +112,9 @@ function EndCard({ visit, nothingNew, olderToShow, onShowOlder, onSeen }: {
         </p>
         {ev && (
           <p className="meta feed-end-event">
-            <Link href={`/events/${ev.id}`}>{ev.title}</Link>, {eventTime(ev.startsAt, null)}.{' '}
-            {ev.imGoing ? 'You’re going.' : <>{ev.going > 0 ? `${ev.going} going. ` : ''}<Link href={`/events/${ev.id}`}>RSVP</Link></>}
+            {/* RFC §10.21: the feed's end card says the same thing as the Collab page's strip */}
+            Coming up: <Link href={`/collab/event/${ev.id}`}>{ev.title}</Link>, {eventTime(ev.startsAt, null)}.{' '}
+            {ev.imGoing ? 'You’re going.' : <>{ev.going > 0 ? `${ev.going} going. ` : ''}<Link href={`/collab/event/${ev.id}`}>RSVP</Link></>}
           </p>
         )}
         <p className="feed-end-out">Go outside.</p>
@@ -139,7 +140,7 @@ function ThreadLine({ row }: { row: FeedThreadRow }) {
 
 function EventLine({ row }: { row: FeedEventRow }) {
   return (
-    <Link href={`/events/${row.id}`} className="feed-row">
+    <Link href={`/collab/event/${row.id}`} className="feed-row">
       {row.host && <Avatar seed={row.host.handle} gender={row.host.gender} size={28} />}
       <span>
         {row.host ? firstName(row.host.displayName) : 'Someone'} is hosting <b>{row.title}</b>

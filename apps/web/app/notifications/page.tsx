@@ -54,7 +54,7 @@ function describe(n: Notification): string {
   if (n.kind === 'collab_request') return `${who} asked to join ${co}`;
   if (n.kind === 'collab_joined') return `${who} joined ${co}`;
   if (n.kind === 'collab_accepted') return `You are on the team for ${co}. Say hello.`;
-  if (n.kind === 'collab_declined') return `${co} has found its people this time. There are plenty more in Collabs.`;
+  if (n.kind === 'collab_declined') return `${co} has found its people this time. There are plenty more in Collab.`;
   if (n.kind === 'collab_update') return `${who} posted an update in ${co}`;
   if (n.kind === 'collab_meetup') return `${who} planned a meetup for ${co}${n.event ? `: "${n.event.title}"` : ''}`;
   if (n.kind === 'collab_finished') return `${co} is finished. Well done. A draft project is waiting in your portfolio: edit it and publish, or delete it.`;
@@ -62,9 +62,14 @@ function describe(n: Notification): string {
   if (n.kind === 'collab_removed') return n.collabTitle ? `An admin removed your collab "${n.collabTitle}".` : 'An admin removed one of your collabs.';
   if (n.kind === 'event_request') return `${who} asked to come to ${ev}`;
   if (n.kind === 'event_accepted') return `You are in: the host accepted you for ${ev}`;
-  if (n.kind === 'event_declined') return `${ev} is full of people already. There are plenty more in Events.`;
+  if (n.kind === 'event_declined') return `${ev} is full of people already. There are plenty more in Collab.`;
   if (n.kind === 'event_invite') return `${who} invited you to ${ev}`;
   if (n.kind === 'collab_invite') return `${who} invited you to join ${co}`;
+  // RFC §10.21: nothing waits forever
+  const thing = n.collab ? `"${n.collab.title}"` : n.event ? `"${n.event.title}"` : 'it';
+  if (n.kind === 'requests_waiting') return `${n.count ?? 1} ${(n.count ?? 1) === 1 ? 'person is' : 'people are'} waiting to join ${thing}`;
+  if (n.kind === 'request_expired') return `Your request to join ${thing} wasn't answered in time. Nothing was decided either way.`;
+  if (n.kind === 'collab_quiet') return `${thing} has gone quiet. Keep it going, or bring it to a close?`;
   const on = n.consultation?.topic ? ` on ${n.consultation.topic}` : '';
   if (n.kind === 'consult_request') return `${who} asked you for a consultation${on}`;
   if (n.kind === 'consult_accepted') return n.consultation?.pricing === 'paid'
@@ -139,8 +144,8 @@ function Notifications({ myHandle }: { myHandle: string }) {
               : n.kind.startsWith('pin_') ? '/settings#pin'
               : n.kind === 'verified' ? '/settings#contact'
               : n.kind === 'handle_changed' && n.newHandle ? `/u/${n.newHandle}`
-              : n.post ? `/p/${n.post.rootId ?? n.post.id}#${n.post.id}` : n.event ? `/events/${n.event.id}`
-              : n.collab ? `/collabs/${n.collab.id}` : n.kind.startsWith('collab_') ? '/collabs' : null;
+              : n.post ? `/p/${n.post.rootId ?? n.post.id}#${n.post.id}` : n.event ? `/collab/event/${n.event.id}`
+              : n.collab ? `/collab/${n.collab.id}` : n.kind.startsWith('collab_') || n.kind === 'requests_waiting' ? '/collab' : null;
             const body = (
               <>
                 {n.actor

@@ -2,9 +2,9 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { api, errorMessage, type MemberSummary, type CollabSummary, type Pick, type Portfolio, type Post, type ProjectSummary } from '@/lib/api';
+import { api, errorMessage, type AnEvent, type MemberSummary, type CollabSummary, type CollabPageItem, type Pick, type Portfolio, type Post, type ProjectSummary } from '@/lib/api';
 import { PickCard } from '@/components/Picks';
-import { CollabCard } from '@/components/Collabs';
+import { CollabItemCard } from '@/components/Collab';
 import { PortfolioWindow } from '@/components/Portfolio';
 import { ConsultingSection, isAdult } from '@/components/Consult';
 import { usePaged, useTitle } from '@/lib/hooks';
@@ -58,15 +58,28 @@ function MemberPicks({ handle, mine }: { handle: string; mine: boolean }) {
   );
 }
 
-/** The collabs they host or are on. */
+/** RFC §10.21: the activities and projects they are in, and the events they host (never the ones they only go to). */
 function MemberCollabs({ handle, mine }: { handle: string; mine: boolean }) {
-  const [items, setItems] = useState<CollabSummary[] | null>(null);
+  const [collabs, setCollabs] = useState<CollabSummary[] | null>(null);
+  const [events, setEvents] = useState<{ upcoming: AnEvent[]; past: AnEvent[] } | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => { api.memberCollabs(handle).then((r) => setItems(r.items), (e) => setErr(errorMessage(e))); }, [handle]);
+  useEffect(() => {
+    let alive = true;
+    Promise.all([api.memberCollabs(handle), api.memberEvents(handle)]).then(
+      ([c, e]) => { if (alive) { setCollabs(c.items); setEvents(e); } },
+      (e) => { if (alive) setErr(errorMessage(e)); },
+    );
+    return () => { alive = false; };
+  }, [handle]);
   if (err) return <ErrorNote message={err} />;
-  if (!items) return <Loading />;
-  if (!items.length) return <p className="empty">{mine ? <>Not on any collab yet. <Link href="/collabs">Find one</Link>, or start your own.</> : 'Not on any collab yet.'}</p>;
-  return <ul className="collabs">{items.map((c) => <CollabCard key={c.id} c={c} />)}</ul>;
+  if (!collabs || !events) return <Loading />;
+  const items: CollabPageItem[] = [
+    ...events.upcoming.map((e) => ({ type: 'event' as const, createdAt: e.startsAt, ...e })),
+    ...collabs.map((c) => ({ type: 'collab' as const, ...c })),
+    ...events.past.map((e) => ({ type: 'event' as const, createdAt: e.startsAt, ...e })),
+  ];
+  if (!items.length) return <p className="empty">{mine ? <>Not in any collab yet. <Link href="/collab">Find one</Link>, or start your own.</> : 'Not in any collab yet.'}</p>;
+  return <ul className="collabs">{items.map((it) => <CollabItemCard key={`${it.type}:${it.id}`} item={it} />)}</ul>;
 }
 
 /** The portfolio window on top; posts and picks underneath, behind folder tabs. */
@@ -112,7 +125,7 @@ function Profile({ myHandle, adult }: { myHandle: string; adult: boolean }) {
       <div className="tabs pf-tabs" role="tablist">
         {(['posts', 'collabs', 'picks'] as const).map((s) => (
           <button key={s} type="button" role="tab" aria-selected={tab === s} className={tab === s ? 'tab on' : 'tab'} onClick={() => setTab(s)}>
-            {s === 'posts' ? 'Posts' : s === 'collabs' ? 'Collabs' : 'Picks'}
+            {s === 'posts' ? 'Posts' : s === 'collabs' ? 'Collab' : 'Picks'}
           </button>
         ))}
       </div>

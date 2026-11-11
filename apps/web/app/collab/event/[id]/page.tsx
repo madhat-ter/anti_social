@@ -18,6 +18,7 @@ import { AlertDialog, Loading } from '@/components/retro';
 import { Avatar } from '@/components/Avatar';
 import { NameMarks } from '@/components/Marks';
 import { VISITOR_NOTE, useReadOnly, why } from '@/components/Visitor';
+import { ActionMenu } from '@/components/ActionMenu';
 
 export default function EventPage() {
   useTitle('Event');
@@ -46,7 +47,7 @@ function EventView() {
     try { await fn(); await load(); } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
   }
 
-  if (!ev) return err ? <><ErrorNote message={err} /><p><Link href="/events">Back to events</Link></p></> : <Loading />;
+  if (!ev) return err ? <><ErrorNote message={err} /><p><Link href="/collab">Back to Collab</Link></p></> : <Loading />;
 
   const going = ev.my?.status === 'going';
   const waiting = ev.my?.status === 'waitlisted';
@@ -55,7 +56,7 @@ function EventView() {
   const start = new Date(ev.startsAt);
   return (
     <>
-      <p>{ev.collab ? <Link href={`/collabs/${ev.collab.id}`} className="ui">Back to {ev.collab.title}</Link> : <Link href="/events" className="ui">Back to events</Link>}</p>
+      <p>{ev.collab ? <Link href={`/collab/${ev.collab.id}`} className="ui">Back to {ev.collab.title}</Link> : <Link href="/collab" className="ui">Back to Collab</Link>}</p>
       <article className="stack event-detail">
         {ev.cancelledAt && <div className="banner" role="status">This event was cancelled.</div>}
         <header className="event-poster">
@@ -78,8 +79,18 @@ function EventView() {
             {ev.location ?? <span className="muted">Shared with people who are going.</span>}
             {ev.locationRsvpOnly && ev.location && <span className="tag" title="Only the host and people going can see this">private</span>}
           </dd>
-          {ev.collab && <><dt>Meetup for</dt><dd><Link href={`/collabs/${ev.collab.id}`}>{ev.collab.title}</Link></dd></>}
-          {ev.host && <><dt>Host</dt><dd><Link href={`/u/${ev.host.handle}`}>@{ev.host.handle}<NameMarks admin={ev.host.admin} verified={ev.host.verified} size=".85em" /></Link></dd></>}
+          {ev.collab && <><dt>Meetup for</dt><dd><Link href={`/collab/${ev.collab.id}`}>{ev.collab.title}</Link></dd></>}
+          {ev.host && (
+            <>
+              <dt>{ev.cohosts && ev.cohosts.length > 0 ? 'Hosts' : 'Host'}</dt>
+              <dd>
+                <Link href={`/u/${ev.host.handle}`}>@{ev.host.handle}<NameMarks admin={ev.host.admin} verified={ev.host.verified} size=".85em" /></Link>
+                {(ev.cohosts ?? []).map((c) => (
+                  <span key={c.handle}>, <Link href={`/u/${c.handle}`}>@{c.handle}<NameMarks admin={c.admin} verified={c.verified} size=".85em" /></Link></span>
+                ))}
+              </dd>
+            </>
+          )}
           {ev.requirements && <><dt>Bring / know</dt><dd className="body pre">{ev.requirements}</dd></>}
           <dt>Spots</dt><dd>{spotsText(ev)}</dd>
           {ev.joinMode === 'approve' && <><dt>Joining</dt><dd>Ask with a note; the host decides</dd></>}
@@ -112,7 +123,7 @@ function EventView() {
               <button className="btn" disabled={busy} onClick={() => act(() => api.withdrawEventRequest(id))}>Withdraw</button>
             </>
           )}
-          {!ev.isHost && !going && !waiting && ev.request === 'declined' && <span className="muted">This one is full of people already. Plenty more in Events.</span>}
+          {!ev.isHost && !going && !waiting && ev.request === 'declined' && <span className="muted">This one is full of people already. Plenty more in Collab.</span>}
           {!ev.isHost && ev.rsvpOpen && !going && !waiting && !ev.invited && ev.joinMode === 'open' && (
             <button className="btn primary" disabled={busy} onClick={() => act(() => api.rsvp(id))} {...ro}>
               {full ? 'Join the waitlist' : "I'm going"}
@@ -123,9 +134,16 @@ function EventView() {
               {going ? "Can't make it" : 'Leave the waitlist'}
             </button>
           )}
-          {ev.canEdit && <Link className="btn" href={`/events/${id}/edit`}>Edit</Link>}
+          {ev.canEdit && <Link className="btn" href={`/collab/event/${id}/edit`}>Edit</Link>}
+          {/* RFC §10.21: on an event of yours that has happened, one tap to its next life */}
+          {ev.isHost && ev.started && !ev.cancelledAt && (
+            <>
+              <Link className="btn" href={`/collab/new?kind=event&from=${id}`}>Run it again</Link>
+              {!ev.collab && <Link className="btn" href={`/collab/new?kind=activity&from=${id}`}>Make it regular</Link>}
+            </>
+          )}
           {/* RFC §10.20: one action is a button, not a menu with one item in it; the confirm still guards it */}
-          {ev.canEdit && !ev.cancelledAt && (
+          {ev.isHost && !ev.cancelledAt && (
             <button type="button" className="btn danger" disabled={busy} onClick={() => setAskCancel(true)}>Cancel event</button>
           )}
         </div>
@@ -155,29 +173,59 @@ function EventView() {
 
       {ev.canConfirmAttendance
         ? <Attendance ev={ev} onSaved={load} />
-        : <People title={`Going (${ev.goingCount})`} people={ev.going} showAttended={ev.started} />}
+        : (
+          <People
+            title={`Going (${ev.goingCount})`} people={ev.going} showAttended={ev.started}
+            hostHandle={ev.host?.handle ?? null}
+            cohosts={ev.isHost ? (ev.cohosts ?? []) : null}
+            busy={busy}
+            onToggleCohost={(handle, on) => void act(() => (on ? api.addEventCohost(id, handle) : api.removeEventCohost(id, handle)))}
+          />
+        )}
       {ev.waitlist && ev.waitlist.length > 0 && <People title={`Waitlist (${ev.waitlist.length})`} people={ev.waitlist} showAttended={false} />}
-      {ev.isHost && ev.rsvpOpen && <HostPanel ev={ev} busy={busy} act={act} />}
+      {ev.canManage && ev.rsvpOpen && <HostPanel ev={ev} busy={busy} act={act} />}
       <EventUpdates ev={ev} />
     </>
   );
 }
 
-function People({ title, people, showAttended }: { title: string; people: EventDetail['going']; showAttended: boolean }) {
+function People({ title, people, showAttended, hostHandle, cohosts, busy, onToggleCohost }: {
+  title: string; people: EventDetail['going']; showAttended: boolean;
+  /** the host sees who could co-host; others get the plain list */
+  hostHandle?: string | null;
+  cohosts?: EventDetail['cohosts'] | null;
+  busy?: boolean;
+  onToggleCohost?: (handle: string, on: boolean) => void;
+}) {
   return (
     <section className="stack">
       <h2 className="section-h">{title}</h2>
       {people.length === 0 ? <p className="muted">Nobody yet. Be the first.</p> : (
         <ul className="crowd">
-          {people.map((p) => (
-            <li key={p.handle}>
-              <Link href={`/u/${p.handle}`}>
-                <Avatar seed={p.handle} gender={p.gender} size={64} />
-                <span className="crowd-name">{p.displayName}<NameMarks admin={p.admin} verified={p.verified} size=".85em" /></span>
-              </Link>
-              {showAttended && p.attended && <span className="tag on">came</span>}
-            </li>
-          ))}
+          {people.map((p) => {
+            const isCohost = !!cohosts?.some((c) => c.handle === p.handle);
+            return (
+              <li key={p.handle}>
+                <Link href={`/u/${p.handle}`}>
+                  <Avatar seed={p.handle} gender={p.gender} size={64} />
+                  <span className="crowd-name">{p.displayName}<NameMarks admin={p.admin} verified={p.verified} size=".85em" /></span>
+                </Link>
+                {isCohost && <span className="tag on">co-host</span>}
+                {showAttended && p.attended && <span className="tag on">came</span>}
+                {cohosts && hostHandle && p.handle.toLowerCase() !== hostHandle.toLowerCase() && onToggleCohost && (
+                  <ActionMenu
+                    label={`More for @${p.handle}`}
+                    items={[{
+                      label: isCohost ? 'Remove as co-host' : 'Make co-host',
+                      disabled: busy,
+                      danger: isCohost,
+                      onSelect: () => onToggleCohost(p.handle, !isCohost),
+                    }]}
+                  />
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

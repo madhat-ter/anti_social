@@ -150,7 +150,7 @@ try {
   await ph.goto(WEB);
   await ph.getByText('Reminder that the best social network').waitFor();
   const bar = ph.getByRole('navigation', { name: 'Main' });
-  for (const name of ['Feed', 'Events', 'Collabs', 'Members']) await bar.getByRole('link', { name }).waitFor();
+  for (const name of ['Feed', 'Collab', 'Members']) await bar.getByRole('link', { name }).waitFor();
   await bar.getByRole('button', { name: /You/ }).waitFor();
   if (await ph.locator('nav.nav').isVisible()) throw new Error('the desktop menu shows on a phone');
   const bell = ph.getByRole('link', { name: /^Notifications/ });
@@ -211,9 +211,9 @@ try {
   await shot(ph, 'phone-notifications');
 
   // ── 6. the rooms
-  await bar.getByRole('link', { name: 'Events' }).tap();
+  await bar.getByRole('link', { name: 'Collab' }).tap();
   await ph.getByText('Long table dinner').first().waitFor();
-  await shot(ph, 'phone-events');
+  await shot(ph, 'phone-collab');
   await bar.getByRole('link', { name: 'Members' }).tap();
   await ph.getByText(/of 20 seats taken/).waitFor();
   await shot(ph, 'phone-members');
@@ -227,17 +227,17 @@ try {
   await ph.getByText('Inês Moreau').waitFor();
   if (await ph.locator('.seatmap li').count() !== 1) throw new Error('the search did not narrow the list to one');
   await ph.getByLabel('Find a member').fill('');
-  await bar.getByRole('link', { name: 'Collabs' }).tap();
+  await bar.getByRole('link', { name: 'Collab' }).tap();
   await ph.getByText('Zine about the old market').first().waitFor();
-  await shot(ph, 'phone-collabs');
+  await shot(ph, 'phone-collab-list');
   // a drawer page (search): the you tab is lit
   await ph.goto(`${WEB}/search`);
   await ph.getByRole('heading', { name: 'Search' }).waitFor();
   if (!(await bar.locator('.tb-you.on').count())) throw new Error('the you tab is not lit on Search');
-  // the folder tabs on Events must be untouched by the tab bar's styles
-  await bar.getByRole('link', { name: 'Events' }).tap();
-  await ph.waitForURL(/\/events$/);
-  // :visible: Next keeps pages already seen (Collabs, with its own lit tab) in the page, hidden
+  // the kind chips on Collab must be untouched by the tab bar's styles
+  await bar.getByRole('link', { name: 'Collab' }).tap();
+  await ph.waitForURL(/\/collab$/);
+  // :visible: Next keeps pages already seen (the Collab list, with its own lit tab) in the page, hidden
   const folderTab = ph.locator('.tabs .tab.on:visible').first();
   await folderTab.waitFor();
   const fb = await folderTab.boundingBox();
