@@ -734,6 +734,8 @@ handles money). Status: recruiting → closed ("team set") → finished.
   their part, "Team of N", how long it ran) unless their portfolio is full.
 - **Reports**: like posts and projects; 5 open reports hide a collab from everyone but its team and
   admins until ops restore or remove it. Admins remove any collab; the host is told, not by whom.
+  Removing is a wipe, not a hide (§10.21): the collab and everything in it — team, requests,
+  invites, reports, updates and its meetups with their RSVPs — is deleted for good.
 
 **Events** gain the same tools: interests, requirements ("what to bring or know"), **who can come**
 (anyone, or ask with a note and the host accepts: `event_requests`), **invites** with suggestions

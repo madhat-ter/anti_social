@@ -53,7 +53,8 @@ the §10.18 migration paused every offer that was already live, so they are sitt
   adding anything to `.top`.
 - **Collab is one place** (§10.21): three kinds, one Start, one "More options" fold, one join
   button, one card. Events are pages inside it (`/collab/event/<id>`); never add Events or Collabs
-  back as separate tabs, and keep the old addresses forwarding.
+  back as separate tabs, and keep the old addresses forwarding. An admin's **Remove (admin)** on a
+  collab is a wipe: the collab goes with its team, requests, invites, updates and meetups.
 - **Faces are procedural** (`apps/web/src/components/Avatar.tsx`, from handle + gender). Any
   change to its pick lists or roll order redraws every member's face. Ask the owner first; check
   `/dev/faces` after.

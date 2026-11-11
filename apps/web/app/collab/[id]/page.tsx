@@ -234,7 +234,7 @@ function CollabView({ myHandle }: { myHandle: string }) {
         message={confirm === 'delete'
           ? 'Delete this collab for everyone? The team, requests and invites go with it.'
           : confirm === 'report' ? 'Report this collab to the admins? After five reports it is hidden until they look.'
-          : confirm === 'remove' ? 'Remove this collab for everyone? The host gets a notification (not who removed it).'
+          : confirm === 'remove' ? 'Remove this collab for good? Its team, requests, invites, updates and meetups are deleted with it. This cannot be undone. The host is told (not who).'
           : confirm === 'end' ? 'End this activity? The page and its updates stay readable, and nobody can join any more. No portfolio drafts.'
           : iAmHost
             ? 'Leave the team? Your longest-standing co-host becomes host; with no co-host, the collab stops recruiting.'

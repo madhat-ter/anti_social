@@ -90,17 +90,19 @@ export async function flagCollab(db: Db, userId: string, collabId: string, reaso
   });
 }
 
-/** An admin removes a collab (soft delete, its reports closed); the host is told, without who. */
-export async function removeCollab(db: Db, collabId: string, actorId: string | null, resolution = 'removed') {
+/**
+ * An admin removes a collab. RFC §10.21: this is a wipe, not a hiding — the row goes, and with it
+ * the team, requests, invites, reports, updates and every meetup of that collab (with its RSVPs).
+ * The host is told, without who. Image files are left for the daily orphan sweep.
+ */
+export async function removeCollab(db: Db, collabId: string, actorId: string | null) {
   return db.transaction(async (txx) => {
     const tx = txx as unknown as Db;
     const [c] = await rows<{ id: string; title: string; host: string | null }>(tx, sql`
       select c.id, c.title, (select m.user_id from collab_members m where m.collab_id = c.id and m.role = 'host') as host
-        from collabs c where c.id = ${collabId}::uuid and c.deleted_at is null for update`);
+        from collabs c where c.id = ${collabId}::uuid for update`);
     if (!c) throw new ApiError(404, 'not_found');
-    await tx.execute(sql`update collab_flags set resolved_at = now(), resolution = ${resolution}
-      where collab_id = ${c.id}::uuid and resolved_at is null`);
-    await tx.execute(sql`update collabs set deleted_at = now() where id = ${c.id}::uuid`);
+    await tx.execute(sql`delete from collabs where id = ${c.id}::uuid`);
     if (c.host && c.host !== actorId) {
       await tx.execute(sql`insert into notifications(user_id, kind, payload)
         values (${c.host}::uuid, 'collab_removed', ${JSON.stringify({ title: c.title })}::jsonb)`);
@@ -109,7 +111,7 @@ export async function removeCollab(db: Db, collabId: string, actorId: string | n
   });
 }
 
-/** 'restored': unhide, close the reports. 'removed': see removeCollab. */
+/** 'restored': unhide, close the reports. 'removed': see removeCollab (it takes the collab with it). */
 export async function resolveCollabFlags(db: Db, collabId: string, resolution: 'restored' | 'removed') {
   const open = Number(await scalar(db, sql`select count(*)::int from collab_flags where collab_id = ${collabId}::uuid and resolved_at is null`));
   if (!open) throw new ApiError(409, 'no_open_flags', 'This collab has no open reports.');

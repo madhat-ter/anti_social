@@ -427,6 +427,42 @@ describe('the Collab page data (RFC §10.21)', () => {
 
 const sweep = JOBS.find((j) => j.name === 'collab_sweep')!;
 
+describe('an admin removes a collab (RFC §10.21)', () => {
+  test('Remove (admin) wipes the collab and everything in it; the host is told', async () => {
+    const w = await world();
+    const boss = await w.member('boss');
+    await setOps(w.t.db, 'boss', true);
+    const ana = await w.member('ana', ['writing']);
+    const ben = await w.member('ben');
+    const c = (await ana.post('/collabs', { ...PROJECT, joinMode: 'open', teamMax: 3 })).body;
+    await ben.post(`/collabs/${c.id}/join`, {});
+    const meetup = (await ana.post('/events', { ...EVENT, title: 'Work night', collabId: c.id, audience: 'team' })).body;
+    await ben.post(`/events/${meetup.id}/rsvp`, {});
+    await ana.post('/posts', { body: 'An update from the team.', collabId: c.id });
+
+    expect((await boss.post(`/ops/collabs/${c.id}/remove`, {})).body).toEqual({ removed: true });
+
+    const count = async (q: ReturnType<typeof sql>) => Number((await rows<{ n: number }>(w.t.db, q))[0]!.n);
+    expect(await count(sql`select count(*)::int as n from collabs where id = ${c.id}::uuid`)).toBe(0);
+    expect(await count(sql`select count(*)::int as n from collab_members where collab_id = ${c.id}::uuid`)).toBe(0);
+    expect(await count(sql`select count(*)::int as n from events where collab_id = ${c.id}::uuid`)).toBe(0);
+    expect(await count(sql`select count(*)::int as n from posts where collab_id = ${c.id}::uuid`)).toBe(0);
+    const n = (await ana.get('/notifications')).body.items.find((x: any) => x.kind === 'collab_removed');
+    expect(n.collabTitle).toBe(PROJECT.title);
+    expect((await ana.get(`/collabs/${c.id}`)).status).toBe(404);
+  });
+
+  test("the host's own Delete still only hides it, and can be done without an admin", async () => {
+    const w = await world();
+    const ana = await w.member('ana', ['writing']);
+    const c = (await ana.post('/collabs', PROJECT)).body;
+    expect((await ana.del(`/collabs/${c.id}`)).status).toBe(200);
+    const [row] = await rows<{ deleted: boolean }>(w.t.db, sql`select (deleted_at is not null) as deleted from collabs where id = ${c.id}::uuid`);
+    expect(row!.deleted).toBe(true);
+    expect((await ana.get(`/collabs/${c.id}`)).status).toBe(404);
+  });
+});
+
 describe('the sweep: nothing waits forever (RFC §10.21)', () => {
   const run = (w: Awaited<ReturnType<typeof world>>) => runJob(w.t.db, sweep, { storage: w.storage, payments: w.payments });
 
