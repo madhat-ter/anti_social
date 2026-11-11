@@ -113,6 +113,7 @@ async function open(viewer: Jar, opts: Parameters<typeof browser.newContext>[0])
 const DESKTOP = { viewport: { width: 1280, height: 900 } };
 const PHONE = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
 
+let audio = new Uint8Array();
 try {
   const sneho = await member('sneho', 'Sneho', 'woman');
   const mira = await member('mira', 'Mira Gurung', 'woman');
@@ -121,7 +122,7 @@ try {
 
   await call(ben, 'POST', '/posts', { body: 'The tea stall by the bridge reopened. Same chipped cups, same radio.' });
   if (!BEFORE) {
-    const audio = await seedAudio();
+    audio = await seedAudio();
     await tape(mira, audio, 'Songs my grandmother hummed', 'song', 6_000, 1, 'Recorded on the roof at 6am. The birds are not mine.');
     await tape(ana, audio, 'Why I stopped keeping a to-do list', 'thought', 252_000, 2);
     await tape(ben, audio, 'Monday, the bus, a man with a parrot', 'yap', 74_000, 3);
@@ -217,6 +218,19 @@ try {
       await page.waitForTimeout(600);
       await page.screenshot({ path: join(OUT, 'record-3-review.png'), fullPage: true });
       console.log('saved record-*');
+      // before posting, both a fresh recording and an uploaded file must play (they are blob: URLs)
+      const playsBeforePosting = async (what: string) => {
+        await page.getByRole('button', { name: /^Play / }).click();
+        await page.waitForTimeout(1800);
+        if (await page.getByText('would not play here').isVisible()) throw new Error(`${what} did not play before posting`);
+        await page.getByRole('button', { name: /^Pause / }).click();
+      };
+      await playsBeforePosting('the recording');
+      await page.locator('input[type=file]').setInputFiles({ name: 'song.webm', mimeType: 'audio/webm', buffer: Buffer.from(audio) });
+      await page.getByText(/0:0[5-7] recorded/).waitFor({ timeout: 15_000 });
+      await playsBeforePosting('the uploaded file');
+      await page.screenshot({ path: join(OUT, 'record-4-uploaded.png'), fullPage: true });
+      console.log('saved record-4-uploaded (plays before posting)');
       await ctx.close();
     }
 
