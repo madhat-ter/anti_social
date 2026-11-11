@@ -1,0 +1,56 @@
+# Watches the live test site. When the API has no live deploy (Render answers 502 with
+# X-Render-Routing: no-deploy, see docs/deploy-free.md), it asks Render to deploy the latest
+# commit again. Two bad checks in a row are needed, so a brief deploy in progress is not
+# treated as an outage. Needs the repo secret RENDER_DEPLOY_HOOK (Render → anti-api →
+# Settings → Deploy Hook). Without it the job only reports; it never fails the repo.
+name: uptime-watch
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    env:
+      HEALTH_URL: https://anti-social-opal.vercel.app/api/health
+    steps:
+      - name: Check the API through the web app
+        id: check
+        run: |
+          check() {
+            curl -s -o /dev/null -D /tmp/headers.txt --max-time 30 "$HEALTH_URL" || true
+            code=$(head -n1 /tmp/headers.txt | awk '{print $2}')
+            routing=$(grep -i '^x-render-routing:' /tmp/headers.txt | tr -d '\r' | awk '{print $2}')
+            echo "status=$code routing=$routing"
+            if [ "$code" = "502" ] && [ "$routing" = "no-deploy" ]; then return 1; fi
+            return 0
+          }
+          if check; then
+            echo "up"
+            echo "down=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "looks down; waiting 90 s and checking again"
+            sleep 90
+            if check; then
+              echo "back up on the second check"
+              echo "down=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "down=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Ask Render to deploy again
+        if: steps.check.outputs.down == 'true'
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$DEPLOY_HOOK" ]; then
+            echo "API is down, but RENDER_DEPLOY_HOOK is not set. Add it in GitHub → Settings → Secrets."
+            exit 0
+          fi
+          curl -s -X POST "$DEPLOY_HOOK" -o /dev/null -w "deploy hook answered %{http_code}\n"
