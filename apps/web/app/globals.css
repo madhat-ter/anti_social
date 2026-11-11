@@ -682,13 +682,74 @@ ul.events { list-style: none; margin: 0; padding: 0; display: flex; flex-directi
 .code-input { font: 700 1.15rem/1.4 var(--font-ui); letter-spacing: .08em; }
 
 /* ─── event detail ─────────────────────────────────────────────────────── */
-.event-poster { display: grid; grid-template-columns: 6.5rem 1fr; gap: 1.25rem; align-items: start;
-  padding-bottom: 1.25rem; border-bottom: 3px solid var(--ink); }
-.event-poster .date-chip .d { font-size: 4.6rem; }
-.event-poster .date-chip::before { width: 3.7rem; height: 3.7rem; left: 2.3rem; top: 1.2rem; }
-.event-poster h1 { font-size: clamp(2.6rem, 9vw, 4.5rem); }
-.event-poster .tag { margin-left: 0; }
-.event-desc { font-size: 1.15rem; max-width: 60ch; }
+/*
+ * The ticket: an admission stub torn along a dashed line (two notches bitten out of the edge), a
+ * newspaper headline with a double rule over it, one red rubber stamp, the facts in boxed columns.
+ * From the ink-journal sheets the owner saved (2026-11-11): one red accent on black line work.
+ */
+.ticket {
+  --notch: 1.4rem;
+  position: relative; display: grid; grid-template-columns: 7.25rem minmax(0, 1fr);
+  border: 2px solid var(--ink); background: var(--paper); box-shadow: var(--shadow);
+}
+.ticket-stub {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: .9rem;
+  padding: 1.2rem .5rem 1rem; border-right: 2px dashed var(--ink); text-align: center;
+}
+.ticket-stub::before, .ticket-stub::after {
+  content: ''; position: absolute; width: var(--notch); height: var(--notch); border-radius: 50%;
+  background: var(--paper); border: 2px solid var(--ink); right: calc(var(--notch) / -2 - 1px);
+}
+.ticket-stub::before { top: calc(var(--notch) / -2 - 2px); clip-path: inset(50% 0 0 0); }
+.ticket-stub::after { bottom: calc(var(--notch) / -2 - 2px); clip-path: inset(0 0 50% 0); }
+.ts-date { display: flex; flex-direction: column; align-items: center; }
+.ts-wd, .ts-time, .ts-admit { font: 400 .85rem/1.2 var(--font-ui); text-transform: lowercase; }
+.ts-day {
+  position: relative; isolation: isolate; margin: .1rem 0 .05rem;
+  font: 900 5rem/.85 var(--font-text); font-stretch: 62%; font-variant-numeric: tabular-nums;
+}
+.ts-day::before {
+  content: ''; position: absolute; z-index: -1; width: 3.5rem; height: 3.5rem; border-radius: 50%;
+  background: var(--signal); right: -1.1rem; top: .55rem;
+}
+.ts-m { font: 900 1.55rem/1 var(--font-text); font-stretch: 62%; text-transform: uppercase; }
+.ts-time { padding: .15rem .45rem; border: 1.5px solid var(--ink); }
+.ts-code { display: flex; flex-direction: column; align-items: center; gap: .25rem; width: 100%; margin-top: auto; }
+.ts-bars { display: block; width: 4.6rem; height: 1.6rem; color: var(--ink); }
+.ts-admit { font-size: .72rem; letter-spacing: .12em; }
+
+.ticket-body { display: flex; flex-direction: column; gap: .8rem; padding: 1rem 1.4rem 0; min-width: 0; }
+.ticket-kicker {
+  display: flex; align-items: center; justify-content: space-between; gap: .75rem; min-height: 2rem;
+  padding-bottom: .45rem; margin-bottom: .65rem; border-bottom: 5px double var(--ink);
+}
+.ticket-kind { font: 400 .9rem var(--font-ui); }
+.ticket-body h1 { font-size: clamp(2.5rem, 6.2vw, 4.4rem); line-height: .88; margin: 0 0 .5rem; overflow-wrap: anywhere; }
+.ticket-deck { font-size: 1.15rem; max-width: 60ch; }
+/* a long description opens like a newspaper column: a drop capital (not for Bangla, whose letters join) */
+.ticket-deck.drop:not([lang=bn])::first-letter {
+  float: left; font: 900 3.6rem/.8 var(--font-text); font-stretch: 62%; text-transform: uppercase;
+  margin: .3rem .4rem 0 0;
+}
+.ticket-stamp {
+  flex: none; font: 900 1.1rem/1 var(--font-text); font-stretch: 62%; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--signal-text); border: 2.5px solid currentColor; outline: 1.5px solid currentColor; outline-offset: 2px;
+  padding: .3rem .6rem .25rem; transform: rotate(-6deg); white-space: nowrap;
+}
+.ticket.is-cancelled h1, .ticket.is-cancelled .ticket-deck { color: var(--gray); }
+.ticket-stamp.big {
+  position: absolute; z-index: 1; left: 55%; top: 34%; transform: translate(-50%, -50%) rotate(-10deg);
+  font-size: clamp(2rem, 7vw, 3.6rem); border-width: 4px; outline-width: 2px; outline-offset: 4px; pointer-events: none;
+}
+.ticket-facts {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr)); margin: .2rem 0 -1.5px;
+  border-top: 2px solid var(--ink);
+}
+.ticket-facts > div { padding: .6rem 1rem .7rem 0; border-bottom: 1.5px solid var(--ink); min-width: 0; }
+.ticket-facts > div.wide { grid-column: 1 / -1; }
+.ticket-facts dt { font: 400 .8rem/1.3 var(--font-ui); color: var(--gray-strong); text-transform: lowercase; }
+.ticket-facts dd { margin: .15rem 0 0; overflow-wrap: anywhere; }
+.ticket-facts .tag { margin-left: .4rem; }
 .facts { display: grid; grid-template-columns: 6.5rem 1fr; margin: 0; border-top: 1.5px solid var(--ink); }
 .facts dt, .facts dd { margin: 0; padding: .6rem 0; border-bottom: 1.5px solid var(--ink); }
 .facts dt { font: 700 .95rem/1.55 var(--font-ui); }
@@ -1333,10 +1394,28 @@ input[type=search]::-webkit-search-cancel-button {
   .steps li:not(.on) .steps-label { display: none; }
   .you { flex-direction: column; align-items: center; }
   .you .stack.grow { width: 100%; }
-  .event-poster { grid-template-columns: 4.75rem 1fr; }
-  .event-poster .date-chip .d { font-size: 3.4rem; }
-  .event-poster .date-chip::before { width: 2.8rem; height: 2.8rem; left: 1.7rem; top: .9rem; }
   .facts { grid-template-columns: 5rem 1fr; }
+  /* on a phone the stub sits across the top and tears off along a dashed line under it */
+  .ticket { grid-template-columns: minmax(0, 1fr); box-shadow: var(--shadow-sm); }
+  .ticket-stub {
+    flex-direction: row; justify-content: space-between; align-items: center; gap: .75rem;
+    padding: .75rem 1rem .8rem; border-right: 0; border-bottom: 2px dashed var(--ink);
+  }
+  .ticket-stub::before, .ticket-stub::after { top: auto; bottom: calc(var(--notch) / -2 - 1px); right: auto; }
+  .ticket-stub::before { left: calc(var(--notch) / -2 - 2px); clip-path: inset(0 0 0 50%); }
+  .ticket-stub::after { right: calc(var(--notch) / -2 - 2px); clip-path: inset(0 50% 0 0); }
+  .ts-date { flex-direction: row; align-items: baseline; gap: .45rem; }
+  .ts-day { margin-right: .7rem; }
+  .ts-day { font-size: 3.4rem; }
+  .ts-day::before { width: 2.5rem; height: 2.5rem; right: -.8rem; top: .35rem; }
+  .ts-m { font-size: 1.35rem; }
+  .ts-code { width: auto; margin: 0; }
+  .ts-bars { width: 3.6rem; height: 1.3rem; }
+  .ticket-body { padding: .85rem 1rem 0; gap: .7rem; }
+  .ticket-body h1 { font-size: clamp(2.2rem, 11vw, 3rem); }
+  .ticket-deck { font-size: 1.05rem; }
+  .ticket-facts { grid-template-columns: 1fr 1fr; }
+  .ticket-facts > div { padding-right: .6rem; }
 
   .risk-meter { grid-template-columns: 1fr auto; }
   .risk-meter > .ui:first-child { grid-column: 1 / -1; }

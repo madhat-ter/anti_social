@@ -13,7 +13,7 @@ import type { CollabSuggestion } from '@/lib/api';
 import { fmtDate, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { ErrorNote } from '@/components/ui';
-import { eventWhen, MyStatus, spotsText } from '@/components/Events';
+import { eventWhen, spotsText } from '@/components/Events';
 import { AlertDialog, Loading } from '@/components/retro';
 import { Avatar } from '@/components/Avatar';
 import { NameMarks } from '@/components/Marks';
@@ -60,52 +60,71 @@ function EventView() {
     <>
       <p>{ev.collab ? <Link href={`/collab/${ev.collab.id}`} className="ui">Back to {ev.collab.title}</Link> : <Link href="/collab" className="ui">Back to Collab</Link>}</p>
       <article className="stack event-detail">
-        {ev.cancelledAt && <div className="banner" role="status">This event was cancelled.</div>}
-        <header className="event-poster">
-          <span className="date-chip" aria-hidden>
-            <span className="m">{start.toLocaleDateString(undefined, { month: 'short' })}</span>
-            <span className="d">{start.getDate()}</span>
-          </span>
-          <div>
-            <h1 {...bnLang(ev.title)}>{ev.title}</h1>
-            <MyStatus e={ev} />
-            {ev.audience === 'team' && <span className="tag" title="Only the collab's team can see this">team only</span>}
-            <InterestTags slugs={ev.interests} />
+        {/* the top of an event is an ink ticket: a stub with the date, a headline, a stamp, the facts in columns */}
+        <div className={`ticket${ev.cancelledAt ? ' is-cancelled' : ''}`}>
+          <div className="ticket-stub" aria-hidden>
+            <span className="ts-date">
+              <span className="ts-wd">{start.toLocaleDateString(undefined, { weekday: 'short' })}</span>
+              <span className="ts-day">{start.getDate()}</span>
+              <span className="ts-m">{start.toLocaleDateString(undefined, { month: 'short' })}</span>
+            </span>
+            <span className="ts-time">{start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</span>
+            <span className="ts-code">
+              <Barcode seed={ev.id} />
+              <span className="ts-admit">admit one</span>
+            </span>
           </div>
-        </header>
-        {ev.description && <p className="body event-desc">{ev.description}</p>}
-        <dl className="facts">
-          <dt>When</dt><dd>{eventWhen(ev.startsAt, ev.endsAt)}</dd>
-          <dt>Where</dt>
-          <dd>
-            {ev.location ?? <span className="muted">Shared with people who are going.</span>}
-            {ev.locationRsvpOnly && ev.location && <span className="tag" title="Only the host and people going can see this">private</span>}
-          </dd>
-          {ev.collab && <><dt>Meetup for</dt><dd><Link href={`/collab/${ev.collab.id}`}>{ev.collab.title}</Link></dd></>}
-          {ev.host && (
-            <>
-              <dt>{ev.cohosts && ev.cohosts.length > 0 ? 'Hosts' : 'Host'}</dt>
-              <dd>
-                <Link href={`/u/${ev.host.handle}`}>@{ev.host.handle}<NameMarks admin={ev.host.admin} verified={ev.host.verified} size=".85em" /></Link>
-                {(ev.cohosts ?? []).map((c) => (
-                  <span key={c.handle}>, <Link href={`/u/${c.handle}`}>@{c.handle}<NameMarks admin={c.admin} verified={c.verified} size=".85em" /></Link></span>
-                ))}
-              </dd>
-            </>
-          )}
-          {ev.requirements && <><dt>Bring / know</dt><dd className="body pre">{ev.requirements}</dd></>}
-          <dt>Spots</dt><dd>{spotsText(ev)}</dd>
-          {ev.joinMode === 'approve' && <><dt>Joining</dt><dd>Ask with a note; the host decides</dd></>}
-          {(ev.priceNote || ev.externalPaymentUrl) && (
-            <>
-              <dt>Cost</dt>
-              <dd>
-                {ev.priceNote}{ev.priceNote && ev.externalPaymentUrl ? '. ' : ''}
-                {ev.externalPaymentUrl && <><a href={ev.externalPaymentUrl} target="_blank" rel="noopener noreferrer nofollow">Payment link</a> (paid to the host, not anti)</>}
-              </dd>
-            </>
-          )}
-        </dl>
+          <div className="ticket-body">
+            <header>
+              <div className="ticket-kicker">
+                <span className="ticket-kind">
+                  {ev.collab ? 'Meetup' : 'Event'}
+                  {ev.audience === 'team' && <span className="tag" title="Only the collab's team can see this">team only</span>}
+                </span>
+                <TicketStamp ev={ev} />
+              </div>
+              <h1 {...bnLang(ev.title)}>{ev.title}</h1>
+              <InterestTags slugs={ev.interests} />
+            </header>
+            {ev.description && (
+              <p className={`body ticket-deck${ev.description.length > 110 ? ' drop' : ''}`} {...bnLang(ev.description)}>{ev.description}</p>
+            )}
+            <dl className="ticket-facts">
+              <div><dt>When</dt><dd>{eventWhen(ev.startsAt, ev.endsAt)}</dd></div>
+              <div>
+                <dt>Where</dt>
+                <dd>
+                  {ev.location ?? <span className="muted">Shared with people who are going.</span>}
+                  {ev.locationRsvpOnly && ev.location && <span className="tag" title="Only the host and people going can see this">private</span>}
+                </dd>
+              </div>
+              {ev.collab && <div><dt>Meetup for</dt><dd><Link href={`/collab/${ev.collab.id}`}>{ev.collab.title}</Link></dd></div>}
+              {ev.host && (
+                <div>
+                  <dt>{ev.cohosts && ev.cohosts.length > 0 ? 'Hosts' : 'Host'}</dt>
+                  <dd>
+                    <Link href={`/u/${ev.host.handle}`}>@{ev.host.handle}<NameMarks admin={ev.host.admin} verified={ev.host.verified} size=".85em" /></Link>
+                    {(ev.cohosts ?? []).map((c) => (
+                      <span key={c.handle}>, <Link href={`/u/${c.handle}`}>@{c.handle}<NameMarks admin={c.admin} verified={c.verified} size=".85em" /></Link></span>
+                    ))}
+                  </dd>
+                </div>
+              )}
+              <div><dt>Spots</dt><dd>{spotsText(ev)}</dd></div>
+              {ev.joinMode === 'approve' && <div><dt>Joining</dt><dd>Ask with a note; the host decides</dd></div>}
+              {(ev.priceNote || ev.externalPaymentUrl) && (
+                <div>
+                  <dt>Cost</dt>
+                  <dd>
+                    {ev.priceNote}{ev.priceNote && ev.externalPaymentUrl ? '. ' : ''}
+                    {ev.externalPaymentUrl && <><a href={ev.externalPaymentUrl} target="_blank" rel="noopener noreferrer nofollow">Payment link</a> (paid to the host, not anti)</>}
+                  </dd>
+                </div>
+              )}
+              {ev.requirements && <div className="wide"><dt>Bring / know</dt><dd className="body pre">{ev.requirements}</dd></div>}
+            </dl>
+          </div>
+        </div>
 
         <ErrorNote message={err} />
         {ev.invited && !going && !waiting && ev.rsvpOpen && (
@@ -206,6 +225,36 @@ function EventView() {
       {ev.canManage && ev.rsvpOpen && <HostPanel ev={ev} busy={busy} act={act} />}
       <EventUpdates ev={ev} />
     </>
+  );
+}
+
+/** Your place at this event, inked on the ticket like a rubber stamp (the same words the cards' tag uses). */
+function TicketStamp({ ev }: { ev: EventDetail }) {
+  let word: string | null = null;
+  if (ev.cancelledAt) word = 'Cancelled';
+  else if (ev.isHost) word = 'Hosting';
+  else if (ev.my?.status === 'going') word = ev.my.attended ? 'Attended' : 'Going';
+  else if (ev.my?.status === 'waitlisted') word = `Waitlist #${ev.my.waitlistPosition}`;
+  if (!word) return null;
+  return <span className={`ticket-stamp${ev.cancelledAt ? ' big' : ''}`}>{word}</span>;
+}
+
+/** A made-up barcode, the same for the same event every time (drawn from its id). Decoration only. */
+function Barcode({ seed }: { seed: string }) {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+  const bars: { x: number; w: number }[] = [];
+  let x = 0;
+  for (let i = 0; i < 34; i++) {
+    h = Math.imul(h ^ (h >>> 13), 0x5bd1e995);
+    const w = 1 + ((h >>> 3) & 3) % 3;
+    bars.push({ x, w });
+    x += w + 1 + ((h >>> 7) & 1);
+  }
+  return (
+    <svg className="ts-bars" viewBox={`0 0 ${x} 20`} preserveAspectRatio="none" focusable="false">
+      {bars.map((b) => <rect key={b.x} x={b.x} y={0} width={b.w} height={20} fill="currentColor" />)}
+    </svg>
   );
 }
 
