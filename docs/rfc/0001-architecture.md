@@ -874,7 +874,8 @@ five commits. The rules it left behind, for anything added later:
 
 - **Phones (under 900px) have a different shell** (`PhoneBar.tsx`). The menu column becomes a bell
   with the unread count in the sticky header (the clock is desktop-only) and five tabs along the
-  bottom: Feed, Events, Collabs, Members, *you* (your face, with the unread badge). Drawers (your
+  bottom: Feed, Events, Collabs, Members, *you* (your face, with the unread badge). (Four since
+  §10.21: Feed, Collab, Members, You.) Drawers (your
   profile, Search, Consultations, Settings, Admin) open in a sheet from the fifth tab. A visitor
   gets a grey face with the minutes left instead. Settings and setup are standalone pages with no
   shell, and stay that way. The first screen is posts: the feed composer is one line until tapped
@@ -1255,6 +1256,80 @@ the recommended stuff you think best", then "ok run run run" for the follow-ups)
 Left as they are, on purpose: the header (§10.9), the phone tab bar, the inline post box, and the
 differently worded "show more" controls (each says what it reveals). Replies on a pet's page still
 open inline, because that page is a pet's own small thread and not the feed.
+
+### 10.21 One Collab: events, activities, projects (added 2026-11-11)
+
+Grilled with the owner (Q1–Q30, every recommendation accepted) after research into Meetup, Luma,
+Partiful, Heylo, Discord, Strava, Mighty Networks and form-design studies (NN/g, Baymard). Events
+and Collabs stop being two places. **Collab** is one section holding three kinds; the build plan
+for it is `docs/tasks/collab-merge.md`. This section replaces the "separate pages" parts of §10.5
+and the Events/Collabs tabs of §10.9; everything else in §10.5 still holds.
+
+**The three kinds** (each shown with its one-line example wherever someone chooses):
+- **Event**: happens once, at a time and a place (*a picnic on Saturday*). RSVP, a size limit and
+  a waitlist, as before.
+- **Activity**: keeps going, no end (*a Sunday run club*). People join the group. It has a plain
+  **"When we meet"** line ("Sundays 7am, by the lake") and no repeating-event schedule: when a
+  date needs sign-ups or a headcount, someone on the team taps **Plan a meetup** for that one
+  date. No size limit unless the host sets one. Joining is **open** by default. States:
+  **Running → Ended**; ending keeps the page and updates readable and closes joining. No
+  portfolio draft.
+- **Project**: has a finish (*making a zine together*). Team of 2–20, roles to fill, **ask to
+  join** by default. Recruiting → Team set → Finished; finishing gives the team portfolio drafts,
+  only for people on the team at the finish (unchanged).
+
+Every collab that existed before became a **Project**; the host can switch it. Activity ↔ Project
+can switch in Edit, except that an activity with more than 20 people can't become a project (Edit
+says why: a project team holds up to 20). An Event never switches kind.
+
+**Where it lives.** The phone bar is **Feed, Collab, Members, You** (four tabs; the freed slot
+stays empty, since a tab bar is for places, not actions); the desktop menu matches. The Collab
+page, top to bottom:
+1. **Yours**: what you host, what you're in, what you're going to, and requests waiting on you.
+   Shown only when there is something in it.
+2. **Coming up**: the next dated events, soonest first, including meetups open to anyone.
+3. **For you**: recruiting activities and projects that share your interests.
+4. One row of chips, **All · Events · Activities · Projects**, plus the interest filter, over one
+   list of cards. Past events and finished or ended things sit behind a link at its foot.
+
+Old `/events…` and `/collabs…` addresses forward permanently to the new pages. The first time each
+member from before opens Collab, a strip says "Events and Collabs are one place now"; closing it
+is saved to the account.
+
+**Starting something.** One **+ Start** button on the Collab page: three choices, then one short
+page. Only the basics show (Event: title, when, where, a few words; Activity: title, when you
+meet, a few words, interests; Project: title, what it is, who you're looking for, interests).
+Everything else is behind **one** "More options" fold, never a fold inside a fold, and every
+setting can be changed later.
+
+**Cards.** One card shape with a small kind label; the second line changes by kind: an event's
+date and "3 spots left" or "Full · join the waitlist"; an activity's "Sundays 7am · 12 in"; a
+project's "Looking for illustrator, printer · 3 of 6".
+
+**One join button whose words follow the rules.** Event: *I'm going* / *Ask to come* / *Join the
+waitlist*; Activity: *Join* / *Ask to join*; Project: *Ask to join* (or *Join* when the host made
+it open). Once you are in it reads **You're in ✓**, and tapping it offers *Leave*.
+
+**Project roles are slots.** "Looking for illustrator, printer" are slots; asking to join you may
+tap the one you'd take; the page shows "illustrator: @handle". When every slot is filled or the
+team is full, the project shows **Team set** by itself; the host can still reopen it.
+
+**Events gain co-hosts**: they edit, accept requests, invite and mark attendance (cancelling stays
+with the host). On an event of yours that has happened: **Run it again** (a new event filled in,
+only the date to set) and **Make it regular** (a new Activity filled in from the event, inviting
+everyone who came).
+
+**Nothing waits forever.** A request to join (any kind) unanswered for 3 days reminds whoever
+decides; at 7 days it closes and the person is told it wasn't answered in time, not that they were
+declined. A project with nothing new for 3 weeks asks its host once: "Finish it, keep going, or
+close?"; an activity after 6 weeks: "Keep it running, or end it?".
+
+**Unchanged:** the posting rule (hosting an event with an attendee and going count; being on a
+team does not, posting updates does), meetups (team only by default, or anyone, which then shows
+in Coming up), updates threads, invites skipping the ask, reports, interests. The profile tab reads
+**Collab** and lists the activities and projects someone is in and the events they host, never the
+events they are only going to. A host runs at most 3 open activities and projects together; events
+are not counted.
 
 ## 11. API surface (Elysia)
 

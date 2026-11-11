@@ -29,7 +29,11 @@ can time out under the full suite on a busy machine; they pass on their own.
 
 ## Open tasks
 
-Nothing in the code. One thing waits on the **live test site** and needs an admin, not a commit:
+- **One Collab (RFC §10.21)**: decided, not built. Merge Events and Collabs into one Collab
+  section (event / activity / project). The full build plan is `docs/tasks/collab-merge.md`;
+  follow it as written.
+
+One thing waits on the **live test site** and needs an admin, not a commit:
 the §10.18 migration paused every offer that was already live, so they are sitting in
 **Admin → Consulting** until someone approves each one.
 
