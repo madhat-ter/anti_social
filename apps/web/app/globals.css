@@ -1518,6 +1518,23 @@ ul.list.collab-requests > li:last-child { border-bottom: 0; }
   .collab-cover.blank { font-size: 2.6rem; }
   .collab-title { font-size: 1.45rem; }
 }
+/* RFC §10.21: one Collab, three kinds */
+ul.collabs { gap: 0; }
+.tag.kind { font-stretch: 100%; text-transform: lowercase; letter-spacing: 0; background: var(--paper); color: var(--ink); border-color: var(--ink); }
+.tag.kind-event { background: var(--ink); color: var(--paper); }
+.tag.kind-activity { background: var(--signal); color: var(--signal-ink); border-color: var(--ink); }
+.collab-card .collab-main .meta { font-family: var(--font-text); font-size: .92rem; color: var(--gray-strong); }
+.yours .collabs { border-top-width: 1.5px; }
+.waiting-chips { list-style: none; padding: 0; margin: 0; }
+.start-choices { list-style: none; padding: 0; margin: 1rem 0 0; display: flex; flex-direction: column; gap: .75rem; }
+.start-choice { display: flex; flex-direction: column; gap: .1rem; padding: 1.1rem 1rem; border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--ink); background: var(--paper); color: var(--ink); text-decoration: none; }
+.start-choice:hover { background: var(--signal); }
+.start-choice-title { font-family: var(--font-ui); font-size: 1.3rem; text-transform: uppercase; }
+.start-choice-line { font-family: var(--font-text); }
+.slots { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .1rem; }
+.slot-pick { width: auto; font-size: .85rem; padding: .1rem .3rem; }
+.quiet-strip { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
 .post-context { margin: -.15rem 0 .35rem; font-family: var(--font-text); color: var(--gray-strong); }
 .composer-meetup { margin: .5rem 0 0; }
 ul.list.meetups li { flex-wrap: wrap; }

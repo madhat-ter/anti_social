@@ -125,9 +125,8 @@ function NavBar({ me }: { me: Me }) {
   // the rooms first; your drawers (Notifications, Settings, Admin) as a group at the bottom of the menu window
   const items: { href: string; label: string; match: (p: string) => boolean; badge?: number; cls?: string }[] = [
     { href: '/', label: 'Feed', match: (p) => p === '/' || p.startsWith('/p/') },
-    // the same order as the phone's tabs (RFC §10.20)
-    { href: '/events', label: 'Events', match: (p) => p.startsWith('/events') },
-    { href: '/collabs', label: 'Collabs', match: (p) => p.startsWith('/collabs') },
+    // the same order as the phone's tabs (RFC §10.20); Events and Collabs are one place (§10.21)
+    { href: '/collab', label: 'Collab', match: (p) => p.startsWith('/collab') },
     ...(adult ? [{ href: '/consultations', label: 'Consultations', match: (p: string) => p.startsWith('/consultations'), badge: waiting }] : []),
     { href: '/members', label: 'Members', match: (p) => p === '/members' },
     { href: '/search', label: 'Search', match: (p) => p === '/search' },

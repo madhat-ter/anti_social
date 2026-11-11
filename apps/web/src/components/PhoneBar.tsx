@@ -18,8 +18,8 @@ import { VisitorWindow, isVisitor, minutesLeft, useNow } from './Visitor';
 type Room = { href: string; label: string; icon: IconName; match: (p: string) => boolean };
 const ROOMS: Room[] = [
   { href: '/', label: 'Feed', icon: 'feed', match: (p) => p === '/' || p.startsWith('/p/') },
-  { href: '/events', label: 'Events', icon: 'events', match: (p) => p.startsWith('/events') },
-  { href: '/collabs', label: 'Collabs', icon: 'collabs', match: (p) => p.startsWith('/collabs') },
+  // RFC §10.21: events, activities and projects are one place
+  { href: '/collab', label: 'Collab', icon: 'collabs', match: (p) => p.startsWith('/collab') },
   { href: '/members', label: 'Members', icon: 'members', match: (p) => p === '/members' },
 ];
 /** pages that live behind "you" */

@@ -40,6 +40,8 @@ export interface Me {
   theme?: 'light' | 'dark';
   /** RFC §10.8: set when "you" are a visitor on an admin's pass: an hour of reading, nothing else */
   visitor?: { expiresAt: string };
+  /** RFC §10.21: the one-time "Events and Collabs are one place now" strip was closed */
+  collabIntroSeen?: boolean;
 }
 
 /** RFC §10.10: a member's half hour on the site. */
@@ -302,6 +304,8 @@ export interface Notification {
   pickTitle?: string | null;
   /** checklist_reminder: how far along "Finish your profile" is */
   checklist?: { done: number; total: number } | null;
+  /** requests_waiting: how many people are waiting to join that one thing */
+  count?: number | null;
   /** collab_*: the collab */
   collab?: { id: string; title: string } | null;
   /** collab_removed: its title */
@@ -338,6 +342,9 @@ export interface AnEvent {
   goingCount: number; waitlistCount: number; attendedCount: number;
   priceNote: string | null; externalPaymentUrl: string | null; cancelledAt: string | null;
   host: (CollabPerson & { state: UserState }) | null; isHost: boolean;
+  /** RFC §10.21: co-hosts edit, decide, invite and mark attendance; only the host cancels */
+  cohosts?: CollabPerson[];
+  canManage?: boolean;
   my: { status: RsvpStatus; waitlistPosition: number | null; attended: boolean } | null;
   started: boolean; rsvpOpen: boolean; canEdit: boolean; canConfirmAttendance: boolean;
   collab: { id: string; title: string } | null; audience: 'anyone' | 'team'; canPostUpdate: boolean;
@@ -362,30 +369,47 @@ export interface AdminInterest {
 }
 export type CollabStatus = 'recruiting' | 'closed' | 'finished';
 export type CollabRole = 'host' | 'cohost' | 'member';
+/** RFC §10.21: the three kinds of thing in one place (`event` lives in its own table) */
+export type CollabKind = 'event' | 'activity' | 'project';
 /** Anyone the API names: the OG mark (`admin`) and the verified badge go right after the name (RFC §10.7). */
 export interface CollabPerson { handle: string; displayName: string; gender?: Gender | null; admin?: boolean; verified?: boolean }
 export interface CollabSummary {
-  id: string; title: string; status: CollabStatus; joinMode: 'open' | 'approve';
-  interests: string[]; roles: string[]; teamCount: number; teamMax: number;
+  id: string; title: string; kind: 'activity' | 'project'; meets: string;
+  status: CollabStatus; joinMode: 'open' | 'approve';
+  interests: string[]; roles: string[]; teamCount: number; teamMax: number | null;
   host: CollabPerson | null; cover: { url: string; width: number; height: number } | null;
   match: number; my: { role: CollabRole | null; request: 'pending' | 'declined' | null; invited: boolean };
   createdAt: string;
 }
 export interface Collab extends CollabSummary {
   description: string; requirements: string; priceNote: string | null; paymentUrl: string | null;
-  team: (CollabPerson & { role: CollabRole; joinedAt: string })[];
+  /** the roles and who holds each one (a project's slots) */
+  slots: { role: string; handle: string | null }[];
+  team: (CollabPerson & { role: CollabRole; slot: string | null; joinedAt: string })[];
   canManage: boolean;
-  requests: (CollabPerson & { note: string | null; at: string })[] | null;
+  requests: (CollabPerson & { note: string | null; slot: string | null; at: string })[] | null;
   invites: CollabPerson[] | null;
   meetups: { id: string; title: string; startsAt: string; audience: 'anyone' | 'team'; goingCount: number; past: boolean }[];
   hidden: boolean; canReport: boolean; canModerate: boolean;
+  /** RFC §10.21: the quiet nudge is still unanswered */
+  quiet: boolean;
 }
 export interface CollabInput {
-  title: string; description: string; requirements: string; roles: string[]; teamMax: number;
+  kind?: 'activity' | 'project';
+  title: string; description: string; requirements: string; roles: string[]; teamMax: number | null;
+  meets?: string;
   joinMode: 'open' | 'approve'; priceNote: string | null; paymentUrl: string | null; interests: string[];
   coverId?: string | null; status?: CollabStatus;
+  /** "Make it regular": invites everyone who came to this past event */
+  fromEventId?: string;
 }
 export interface CollabSuggestion extends CollabPerson { shared: string[]; match: number }
+/** One row of the Collab page: an event or a collab, with when it was started. */
+export type CollabPageItem =
+  | ({ type: 'event'; createdAt: string } & AnEvent)
+  | ({ type: 'collab' } & CollabSummary);
+export interface WaitingOn { type: CollabKind; id: string; title: string; count: number }
+export interface MyCollab { hosting: CollabPageItem[]; in: CollabPageItem[]; going: CollabPageItem[]; waiting: WaitingOn[] }
 
 // ─── Consultations (RFC §10.6) ──────────────────────────────────────────────
 export type ConsultPricing = 'free' | 'paid';
@@ -583,6 +607,20 @@ export const api = {
   /** RFC §10.17: Pet Corner — the newest pet posts; a pet's page; your own pets */
   pets: (cursor?: string | null, limit = 20) => get<Page<PetPost>>(`/pets${qs({ cursor, limit })}`),
   myPets: () => get<{ items: Pet[] }>('/pets/mine'),
+  // RFC §10.21: one Collab place
+  collabPage: (p: { kind?: 'all' | CollabKind; interest?: string | null; done?: boolean; cursor?: string | null; limit?: number } = {}) =>
+    get<Page<CollabPageItem>>(`/collab${qs({
+      kind: !p.kind || p.kind === 'all' ? undefined : p.kind, interest: p.interest, done: p.done ? 1 : undefined,
+      cursor: p.cursor, limit: p.limit,
+    })}`),
+  myCollab: () => get<MyCollab>('/me/collab'),
+  memberEvents: (handle: string) => get<{ upcoming: AnEvent[]; past: AnEvent[] }>(`/members/${encodeURIComponent(handle)}/events`),
+  dismissCollabIntro: () => post<{ seen: true }>('/me/collab-intro/dismiss', {}),
+  setCollabSlot: (id: string, handle: string, slot: string | null) =>
+    post<Collab>(`/collabs/${encodeURIComponent(id)}/members/${encodeURIComponent(handle)}/slot`, { slot }),
+  addEventCohost: (id: string, handle: string) => post<EventDetail>(`/events/${encodeURIComponent(id)}/cohosts`, { handle }),
+  removeEventCohost: (id: string, handle: string) =>
+    call<EventDetail>('DELETE', `/events/${encodeURIComponent(id)}/cohosts/${encodeURIComponent(handle)}`),
   pet: (id: string) => get<{ pet: Pet; posts: PetPost[] }>(`/pets/${encodeURIComponent(id)}`),
   createPet: (b: { name: string; species: PetSpecies; avatarVariant?: number; avatarId?: string }) => post<Pet>('/pets', b),
   updatePet: (id: string, b: { name?: string; species?: PetSpecies; avatarVariant?: number; avatarId?: string; removeAvatar?: boolean }) =>
@@ -637,7 +675,10 @@ export const api = {
   createCollab: (b: CollabInput) => post<Collab>('/collabs', b),
   updateCollab: (id: string, b: Partial<CollabInput>) => call<Collab>('PATCH', `/collabs/${encodeURIComponent(id)}`, b),
   deleteCollab: (id: string) => call<{ ok: true }>('DELETE', `/collabs/${encodeURIComponent(id)}`),
-  joinCollab: (id: string, note?: string) => post<{ joined?: true; requested?: true }>(`/collabs/${encodeURIComponent(id)}/join`, note ? { note } : {}),
+  joinCollab: (id: string, note?: string, slot?: string) =>
+    post<{ joined?: true; requested?: true }>(`/collabs/${encodeURIComponent(id)}/join`, {
+      ...(note ? { note } : {}), ...(slot ? { slot } : {}),
+    }),
   withdrawCollabRequest: (id: string) => call<{ ok: true }>('DELETE', `/collabs/${encodeURIComponent(id)}/request`),
   decideCollabRequest: (id: string, handle: string, accept: boolean) =>
     post<Collab>(`/collabs/${encodeURIComponent(id)}/requests/${encodeURIComponent(handle)}/${accept ? 'accept' : 'decline'}`, {}),
