@@ -33,10 +33,20 @@ function Start() {
   const [from, setFrom] = useState<AnEvent | null>(null);
   const [audience, setAudience] = useState<'team' | 'anyone'>('team');
 
+  // The choices below change `?kind=` without reloading the page, and Back takes it away again,
+  // so the kind is re-read on every history change, not only on first load.
+  useEffect(() => {
+    const readKind = () => {
+      const k = new URLSearchParams(window.location.search).get('kind');
+      setKind(k === 'event' || k === 'activity' || k === 'project' ? k : null);
+    };
+    readKind();
+    window.addEventListener('popstate', readKind);
+    return () => window.removeEventListener('popstate', readKind);
+  }, []);
+
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
-    const k = q.get('kind');
-    if (k === 'event' || k === 'activity' || k === 'project') setKind(k);
     const meetupId = q.get('collab');
     if (meetupId) api.collab(meetupId).then((c) => { if (c.my.role) setMeetup(c); }, () => {});
     const fromId = q.get('from');
@@ -52,7 +62,12 @@ function Start() {
         <ul className="start-choices">
           {CHOICES.map((c) => (
             <li key={c.kind}>
-              <Link href={`/collab/new?kind=${c.kind}`} className="start-choice">
+              <Link href={`/collab/new?kind=${c.kind}`} className="start-choice" onClick={(e) => {
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; // new tab: let it load
+                e.preventDefault();
+                window.history.pushState(null, '', `/collab/new?kind=${c.kind}`);
+                setKind(c.kind);
+              }}>
                 <span className="start-choice-title">{c.title}</span>
                 <span className="start-choice-line">{c.line} <span className="muted">{c.example}</span></span>
               </Link>
