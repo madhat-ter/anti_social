@@ -1,5 +1,5 @@
-import type { Gender } from '@anti/shared';
-export type { Gender };
+import type { Gender, MonologueKind } from '@anti/shared';
+export type { Gender, MonologueKind };
 
 export type UserState = 'waitlisted' | 'active' | 'flagged_lurker' | 'archived' | 'banned' | 'deleted';
 
@@ -158,6 +158,8 @@ export interface Post {
   /** replies only: the post at the top of the thread (RFC §10.12, "Replied to Mina's post: …") */
   replyTo?: { rootId: string; author: { handle: string; displayName: string } | null; snippet: string } | null;
   images: Image[];
+  /** RFC §10.22: set when the post is a monologue (drawn as a cassette); the body is its note */
+  monologue?: Monologue | null;
   /** RFC §10.16: @handles in the body that belong to a seated member (lowercased) */
   mentions?: string[];
   canEdit: boolean;
@@ -167,6 +169,12 @@ export interface Post {
   canModerate: boolean;
   /** hidden after reports: only admins reviewing it ever see such a post */
   hidden?: boolean;
+}
+/** RFC §10.22: a monologue's recording */
+export interface Monologue {
+  title: string; kind: MonologueKind; durationMs: number;
+  /** the waveform: MONOLOGUE.peaks bars, 0..100 */
+  peaks: number[]; url: string; source: 'recorded' | 'uploaded';
 }
 export type SuggestionKind = 'movie' | 'book' | 'place' | 'food';
 /** RFC §10.17: a pet is a content identity owned by one member; not an account. */
@@ -601,9 +609,29 @@ export const api = {
     get<Page<Post> & { visit?: FeedVisit }>(`/feed${qs({ cursor, limit, visit: v.visit ? 1 : undefined, since: v.since })}`),
   caughtUp: (through: string, visitId?: number | null) =>
     post<{ seenThrough: string | null }>('/feed/caught-up', visitId == null ? { through } : { through, visitId }),
-  createPost: (b: { body: string; parentId?: string; imageIds?: string[]; collabId?: string; eventId?: string; petId?: string; petLabel?: PetLabel }) => post<Post>('/posts', b),
+  createPost: (b: {
+    body: string; parentId?: string; imageIds?: string[]; collabId?: string; eventId?: string; petId?: string; petLabel?: PetLabel;
+    /** RFC §10.22: post an uploaded recording as a monologue */
+    monologue?: { audioId: string; title: string; kind: MonologueKind; mine: true };
+  }) => post<Post>('/posts', b),
   thread: (id: string) => get<Thread>(`/posts/${encodeURIComponent(id)}`),
-  editPost: (id: string, body: string) => call<Post>('PATCH', `/posts/${encodeURIComponent(id)}`, { body }),
+  /** a monologue's title and kind can change in the same window as its note */
+  editPost: (id: string, body: string, mono?: { title: string; kind: MonologueKind }) =>
+    call<Post>('PATCH', `/posts/${encodeURIComponent(id)}`, mono ? { body, ...mono } : { body }),
+  /** RFC §10.22: the Monologue page (feed rules, its own line), one kind or all */
+  monologues: (cursor?: string | null, limit = 20, o: { kind?: MonologueKind | null; visit?: boolean; since?: string } = {}) =>
+    get<Page<Post> & { visit?: FeedVisit }>(`/monologues${qs({ cursor, limit, kind: o.kind ?? undefined, visit: o.visit ? 1 : undefined, since: o.since })}`),
+  monologuesCaughtUp: (through: string) => post<{ ok: true }>('/monologues/caught-up', { through }),
+  memberMonologues: (handle: string) => get<Page<Post>>(`/members/${encodeURIComponent(handle)}/monologues`),
+  /** the sound first; it waits (for this member only) until it is posted */
+  uploadAudio: (file: Blob, name: string, durationMs: number, peaks: number[], source: 'recorded' | 'uploaded') => {
+    const fd = new FormData();
+    fd.append('file', file, name);
+    fd.append('durationMs', String(durationMs));
+    fd.append('peaks', JSON.stringify(peaks));
+    fd.append('source', source);
+    return call<{ id: string; url: string; durationMs: number; peaks: number[] }>('POST', '/monologues/audio', fd);
+  },
   deletePost: (id: string) => call<{ ok: true }>('DELETE', `/posts/${encodeURIComponent(id)}`),
   like: (id: string) => post<{ likeCount: number | null; likedByMe: boolean }>(`/posts/${encodeURIComponent(id)}/like`, {}),
   flagPost: (id: string, reason?: string) => post<{ flagged: true }>(`/posts/${encodeURIComponent(id)}/flag`, reason ? { reason } : {}),

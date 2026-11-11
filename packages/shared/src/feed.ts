@@ -14,8 +14,10 @@ export type Foldable = {
  * 'short' (a few words, set large as a note) or 'text' (everything else, folded past
  * `FEED.clampLines` lines). Pure, so the app and the tests agree.
  */
-export type PostShape = 'photo' | 'short' | 'text';
-export function postShape(body: string, imageCount: number): PostShape {
+export type PostShape = 'tape' | 'photo' | 'short' | 'text';
+/** `tape`: the post is a monologue (RFC §10.22): the cassette leads, the words are its note. */
+export function postShape(body: string, imageCount: number, tape = false): PostShape {
+  if (tape) return 'tape';
   if (imageCount > 0) return 'photo';
   const t = body.trim();
   if (t.length <= FEED.shortMaxChars && t.split('\n').length <= FEED.shortMaxLines) return 'short';

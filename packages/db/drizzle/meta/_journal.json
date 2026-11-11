@@ -232,6 +232,13 @@
       "when": 1794236000000,
       "tag": "0032_collab_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794240000000,
+      "tag": "0033_monologues",
+      "breakpoints": true
     }
   ]
 }

@@ -20,52 +20,53 @@ import { Win } from './retro';
 
 type Stored = { since: string; capped: boolean; visitId: number | null; at: number };
 const GAP_MS = FEED.visitGapMinutes * 60_000;
-const keyFor = (handle: string) => `anti:feed-visit:${handle}`;
+/** RFC §10.22: the Monologue page keeps its own line, so its visit is stored apart (scope) */
+const keyFor = (handle: string, scope = 'feed') => `anti:${scope === 'feed' ? 'feed' : scope}-visit:${handle}`;
 
-function read(handle: string): Stored | null {
+function read(handle: string, scope?: string): Stored | null {
   try {
-    const raw = sessionStorage.getItem(keyFor(handle));
+    const raw = sessionStorage.getItem(keyFor(handle, scope));
     return raw ? (JSON.parse(raw) as Stored) : null;
   } catch { return null; }
 }
-function write(handle: string, s: Stored) {
-  try { sessionStorage.setItem(keyFor(handle), JSON.stringify(s)); } catch { /* private mode: the visit just restarts */ }
+function write(handle: string, s: Stored, scope?: string) {
+  try { sessionStorage.setItem(keyFor(handle, scope), JSON.stringify(s)); } catch { /* private mode: the visit just restarts */ }
 }
 
 /**
  * One visit per tab: a new one starts when the feed opens after half an hour with no feed
  * activity; until then a reload keeps the same line, so nothing you have not read is skipped.
  */
-export function useFeedVisit(handle: string) {
+export function useFeedVisit(handle: string, scope = 'feed') {
   const [visit, setVisit] = useState<FeedVisit | null>(null);
   const stored = useRef<Stored | null>(null);
 
   /** what the first page asks for: resume a live visit, or start one */
   const params = useCallback((): { visit?: boolean; since?: string } => {
-    const s = read(handle);
+    const s = read(handle, scope);
     stored.current = s;
     return s && Date.now() - s.at < GAP_MS ? { since: s.since } : { visit: true };
-  }, [handle]);
+  }, [handle, scope]);
 
   const got = useCallback((v: FeedVisit) => {
     const visitId = v.visitId ?? stored.current?.visitId ?? null;
     const s: Stored = { since: v.since, capped: v.capped, visitId, at: Date.now() };
     stored.current = s;
-    write(handle, s);
+    write(handle, s, scope);
     setVisit({ ...v, visitId });
-  }, [handle]);
+  }, [handle, scope]);
 
   // reading the feed keeps the visit alive
   useEffect(() => {
     const touch = () => {
       if (document.visibilityState !== 'visible' || !stored.current) return;
       stored.current = { ...stored.current, at: Date.now() };
-      write(handle, stored.current);
+      write(handle, stored.current, scope);
     };
     const t = setInterval(touch, 60_000);
     window.addEventListener('scroll', touch, { passive: true });
     return () => { clearInterval(t); window.removeEventListener('scroll', touch); };
-  }, [handle]);
+  }, [handle, scope]);
 
   return { visit, params, got };
 }
@@ -85,8 +86,9 @@ const localDay = (iso: string) => new Date(iso).toDateString();
 const firstName = (s: string) => s.split(/\s+/)[0] || s;
 
 /** The card at the line. Once it has been on screen, everything above it counts as read. */
-function EndCard({ visit, nothingNew, olderToShow, onShowOlder, onSeen }: {
+function EndCard({ visit, nothingNew, olderToShow, onShowOlder, onSeen, what }: {
   visit: FeedVisit; nothingNew: boolean; olderToShow: boolean; onShowOlder: () => void; onSeen: () => void;
+  what: 'feed' | 'monologues';
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const seen = useRef(false);
@@ -106,9 +108,13 @@ function EndCard({ visit, nothingNew, olderToShow, onShowOlder, onSeen }: {
       <Win title="The end" as="div" bodyClassName="feed-end-body">
         <p className="feed-end-head">{nothingNew ? 'Nothing new.' : 'You’re caught up.'}</p>
         <p className="meta">
-          {nothingNew
-            ? <>Nothing new since {when}. That&rsquo;s the whole feed.</>
-            : <>That&rsquo;s everything since {when}.</>}
+          {what === 'monologues'
+            ? nothingNew
+              ? <>No new monologues since {when}.</>
+              : <>That&rsquo;s every monologue since {when}.</>
+            : nothingNew
+              ? <>Nothing new since {when}. That&rsquo;s the whole feed.</>
+              : <>That&rsquo;s everything since {when}.</>}
         </p>
         {ev && (
           <p className="meta feed-end-event">
@@ -118,8 +124,8 @@ function EndCard({ visit, nothingNew, olderToShow, onShowOlder, onSeen }: {
           </p>
         )}
         <p className="feed-end-out">Go outside.</p>
-        {olderToShow && <button type="button" className="btn" onClick={onShowOlder}>Show older posts</button>}
-        <Link href="/feed-rules" className="small">How the feed works</Link>
+        {olderToShow && <button type="button" className="btn" onClick={onShowOlder}>{what === 'monologues' ? 'Show older monologues' : 'Show older posts'}</button>}
+        {what === 'feed' && <Link href="/feed-rules" className="small">How the feed works</Link>}
       </Win>
     </div>
   );
@@ -170,9 +176,13 @@ const itemTime = (x: FeedItem<Post>) => (x.kind === 'post' ? x.post.createdAt : 
  * inserted after their `after`-th post on phones. `mine` is the viewer's handle: your own posts are
  * never new to you, never folded.
  */
-export function FeedList({ p, visit, mine, readOnly, empty, interludes }: {
+export function FeedList({ p, visit, mine, readOnly, empty, interludes, what = 'feed', caughtUp }: {
   p: ReturnType<typeof usePaged<Post>>; visit: FeedVisit | null; mine: string; readOnly: boolean; empty: string;
   interludes?: { after: number; node: ReactNode }[];
+  /** RFC §10.22: the same list on the Monologue page (its own words, its own line) */
+  what?: 'feed' | 'monologues';
+  /** where reaching the end is recorded; the feed's own by default */
+  caughtUp?: (through: string, visitId: number | null) => Promise<unknown>;
 }) {
   const [older, setOlder] = useState(false);
   const [openFolds, setOpenFolds] = useState<Set<string>>(new Set());
@@ -190,8 +200,8 @@ export function FeedList({ p, visit, mine, readOnly, empty, interludes }: {
   const onSeen = useCallback(() => {
     if (readOnly || !visit || !newest || caught.current === newest) return;
     caught.current = newest;
-    api.caughtUp(newest, visit.visitId).catch(() => { caught.current = null; });
-  }, [readOnly, visit, newest]);
+    (caughtUp ?? api.caughtUp)(newest, visit.visitId).catch(() => { caught.current = null; });
+  }, [readOnly, visit, newest, caughtUp]);
 
   const toggle = (key: string) => setOpenFolds((cur) => {
     const next = new Set(cur);
@@ -255,7 +265,7 @@ export function FeedList({ p, visit, mine, readOnly, empty, interludes }: {
   let last = '';
   const endCard = (inline: boolean) => visit && (
     <EndCard
-      visit={visit} nothingNew={above.length === 0}
+      visit={visit} nothingNew={above.length === 0} what={what}
       olderToShow={!inline && (below.length > 0 || p.hasMore)}
       onShowOlder={() => setOlder(true)} onSeen={onSeen}
     />

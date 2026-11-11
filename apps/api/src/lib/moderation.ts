@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { rows, scalar, type Db } from '@anti/db';
 import { ApiError, rethrowDb } from './errors';
 import type { Storage } from './storage';
+import { dropAudio } from './monologues';
 
 /** RFC §3: this many distinct members flagging a post hides it until ops review. */
 export const FLAG_HIDE_THRESHOLD = 5;
@@ -252,7 +253,8 @@ async function moderatorDeletePost(tx: Db, p: { id: string; author_id: string | 
       values (${p.author_id}::uuid, 'post_removed', ${JSON.stringify({ postId: p.id })}::jsonb)`);
   }
   const gone = await rows<{ r2_key: string }>(tx, sql`delete from post_images where post_id = ${p.id}::uuid returning r2_key`);
-  return gone.map((g) => g.r2_key);
+  // RFC §10.22: a removed monologue's sound is erased too
+  return [...gone.map((g) => g.r2_key), ...(await dropAudio(tx, [p.id]))];
 }
 
 /** 'restored': unhide, close the reports. 'removed': see moderatorDeleteProject. */

@@ -12,6 +12,7 @@ import { RULES } from '@anti/shared';
 import { api, type Me, type ScreenState } from '@/lib/api';
 import { AlertDialog, Win } from './retro';
 import { isVisitor } from './Visitor';
+import { tapePlaying } from '@/lib/tape';
 
 const BEAT_S = 30;
 const NUDGES: { at: number; title: string; text: string; button: string }[] = [
@@ -67,12 +68,13 @@ function Timed({ me, children }: { me: Me; children: ReactNode }) {
     if (!state || !state.enabled || locked) return;
     const t = setInterval(() => {
       setNow(Date.now());
-      if (document.visibilityState !== 'visible') return;
+      // RFC §10.22: listening to a monologue counts like reading, even with the screen off
+      if (document.visibilityState !== 'visible' && !tapePlaying()) return;
       extraRef.current += 1;
       setExtra(extraRef.current);
       if (extraRef.current >= BEAT_S || (!exempt && state.usedSeconds + extraRef.current >= limit)) void beat();
     }, 1000);
-    const onHide = () => { if (document.visibilityState === 'hidden') void beat(); };
+    const onHide = () => { if (document.visibilityState === 'hidden' && !tapePlaying()) void beat(); };
     document.addEventListener('visibilitychange', onHide);
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', onHide); };
   }, [state, locked, limit, exempt, beat]);

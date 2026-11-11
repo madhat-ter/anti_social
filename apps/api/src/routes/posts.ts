@@ -16,6 +16,7 @@ import { hit } from '../lib/ratelimit';
 import { notifyUpdate, updatePlace } from '../lib/updates';
 import { addMentions, mentionIds, mentionsIn, notifyMentions, removeMentions, resolveMentionUsers } from '../lib/mentions';
 import { ownedPet, PET_LABELS, type PetLabel } from '../lib/pets';
+import { checkKind, checkTitle, dropAudio } from '../lib/monologues';
 import { authPlugin, requireSeated } from '../plugins/auth';
 
 const MAX_PENDING_UPLOADS = 20;
@@ -79,7 +80,16 @@ export const postRoutes = (deps: Deps) => {
       if (imageIds.length > POST_MAX_IMAGES || imageIds.some((i) => !UUID_RE.test(i))) {
         throw new ApiError(400, 'image_invalid', `Up to ${POST_MAX_IMAGES} valid images per post.`);
       }
-      const text = cleanBody(body.body, imageIds.length > 0);
+      // RFC §10.22: a monologue is its recording; the words are an optional note under it
+      const mono = body.monologue;
+      if (mono && !UUID_RE.test(mono.audioId)) throw new ApiError(400, 'audio_invalid', 'That recording is not available.');
+      if (mono && (body.parentId || body.collabId || body.eventId || body.petId || imageIds.length)) {
+        throw new ApiError(400, 'bad_request', 'A monologue stands on its own: no pictures, not a reply, not in a collab or event, not as a pet.');
+      }
+      if (mono && mono.mine !== true) throw new ApiError(400, 'not_yours', 'Only post what is yours to share.');
+      const monoTitle = mono ? checkTitle(mono.title) : null;
+      const monoKind = mono ? checkKind(mono.kind) : null;
+      const text = cleanBody(body.body, imageIds.length > 0 || !!mono);
       if (body.parentId !== undefined && !UUID_RE.test(body.parentId)) throw new ApiError(404, 'parent_not_found');
       if (body.parentId && (body.collabId || body.eventId)) throw new ApiError(400, 'bad_request', 'Replies follow their thread.');
       // an update for a collab and/or an event page (RFC §10.5): checked before the transaction
@@ -133,6 +143,13 @@ export const postRoutes = (deps: Deps) => {
             returning id`));
           if (attached.length !== 1) throw new ApiError(400, 'image_invalid', 'One of the images is not available.');
         }
+        if (mono) {
+          const attached = rowsOf<{ id: string }>(await tx.execute(sql`
+            update monologues set post_id = ${postId}::uuid, title = ${monoTitle}, kind = ${monoKind}
+            where id = ${mono.audioId}::uuid and uploader_id = ${uid}::uuid and post_id is null
+            returning id`));
+          if (attached.length !== 1) throw new ApiError(400, 'audio_invalid', 'That recording is not available.');
+        }
 
         // Replying to your own post does not count toward the lurker rule (RFC §13): otherwise one
         // post plus a self-reply clears a flag. Replies to anyone else (in any thread) do count.
@@ -179,6 +196,9 @@ export const postRoutes = (deps: Deps) => {
         body: t.Optional(t.String()), parentId: t.Optional(t.String()), imageIds: t.Optional(t.Array(t.String())),
         collabId: t.Optional(t.String()), eventId: t.Optional(t.String()),
         petId: t.Optional(t.String()), petLabel: t.Optional(t.String({ maxLength: 20 })),
+        monologue: t.Optional(t.Object({
+          audioId: t.String(), title: t.String({ maxLength: 400 }), kind: t.String({ maxLength: 20 }), mine: t.Boolean(),
+        })),
       }),
     })
 
@@ -210,8 +230,15 @@ export const postRoutes = (deps: Deps) => {
       if (Date.now() - p.created_ms > EDIT_WINDOW_MINUTES * 60_000) {
         throw new ApiError(409, 'edit_window_closed', `Posts can be edited for ${EDIT_WINDOW_MINUTES} minutes.`);
       }
-      const [img] = await rows<{ n: number }>(db, sql`select count(*)::int as n from post_images where post_id = ${p.id}::uuid`);
-      const text = cleanBody(body.body, (img?.n ?? 0) > 0);
+      const [img] = await rows<{ n: number; mono: boolean }>(db, sql`
+        select (select count(*)::int from post_images where post_id = ${p.id}::uuid) as n,
+               exists(select 1 from monologues where post_id = ${p.id}::uuid) as mono`);
+      // RFC §10.22: a monologue's title and kind can change in the same window; never its sound
+      const mono = !!img?.mono;
+      if (!mono && (body.title !== undefined || body.kind !== undefined)) throw new ApiError(400, 'bad_request', 'Only a monologue has a title.');
+      const monoTitle = mono && body.title !== undefined ? checkTitle(body.title) : null;
+      const monoKind = mono && body.kind !== undefined ? checkKind(body.kind) : null;
+      const text = cleanBody(body.body, (img?.n ?? 0) > 0 || mono);
       // RFC §10.16: an edit notifies only the people newly mentioned; removals just drop the link.
       const next = await resolveMentionUsers(db, mentionsIn(text), uid);
       const before = await mentionIds(db, p.id);
@@ -223,6 +250,10 @@ export const postRoutes = (deps: Deps) => {
         : [];
       await db.transaction(async (tx) => {
         await tx.execute(sql`update posts set body = ${text}, edited_at = now() where id = ${p.id}::uuid`);
+        if (monoTitle !== null || monoKind !== null) {
+          await tx.execute(sql`update monologues set title = coalesce(${monoTitle}, title), kind = coalesce(${monoKind}, kind)
+                                where post_id = ${p.id}::uuid`);
+        }
         const t = tx as unknown as Db;
         await removeMentions(t, p.id, removed);
         await addMentions(t, p.id, added);
@@ -231,7 +262,7 @@ export const postRoutes = (deps: Deps) => {
         });
       });
       return (await getPost(db, uid, p.id))!;
-    }, { body: t.Object({ body: t.String() }) })
+    }, { body: t.Object({ body: t.String(), title: t.Optional(t.String({ maxLength: 400 })), kind: t.Optional(t.String({ maxLength: 20 })) }) })
 
     .delete('/posts/:id', async ({ auth, params }) => {
       const a = requireSeated(auth);
@@ -244,7 +275,8 @@ export const postRoutes = (deps: Deps) => {
         const gone = rowsOf<{ r2_key: string }>(await tx.execute(
           sql`delete from post_images where post_id = ${p.id}::uuid returning r2_key`));
         await tx.execute(sql`delete from contributions where ref_id = ${p.id}::uuid and kind in ('post', 'reply')`);
-        return gone.map((g) => g.r2_key);
+        // RFC §10.22: deleting a monologue erases its sound, not just hides it
+        return [...gone.map((g) => g.r2_key), ...(await dropAudio(tx as unknown as Db, [p.id]))];
       });
       await removeImages(keys);
       return { ok: true };
@@ -321,16 +353,43 @@ export const postRoutes = (deps: Deps) => {
       }
     }, { body: t.Object({ file: t.Any() }) })
 
-    .get('/media/:key', async ({ auth, params }) => {
+    .get('/media/:key', async ({ auth, params, request }) => {
       requireSeated(auth);
       if (!isValidKey(params.key)) throw new ApiError(404, 'not_found');
       const f = await storage.get(params.key);
       if (!f) throw new ApiError(404, 'not_found');
-      return new Response(f.bytes as BodyInit, {
-        headers: { 'content-type': f.contentType, 'cache-control': 'private, max-age=31536000, immutable' },
-      });
+      return mediaResponse(f.bytes, f.contentType, request.headers.get('range'));
     });
 };
+
+const CACHE = 'private, max-age=31536000, immutable';
+
+/**
+ * A stored file, whole or (for the monologues' players: Safari will not play audio without it)
+ * the byte range asked for. One range only; anything odd gets the whole file.
+ */
+export function mediaResponse(bytes: Uint8Array, contentType: string, range: string | null): Response {
+  const size = bytes.byteLength;
+  const m = range?.match(/^bytes=(\d*)-(\d*)$/);
+  if (m && (m[1] || m[2])) {
+    let start: number; let end: number;
+    if (m[1]) { start = Number(m[1]); end = m[2] ? Math.min(Number(m[2]), size - 1) : size - 1; }
+    else { const n = Math.min(Number(m[2]), size); start = size - n; end = size - 1; }
+    if (start > end || start >= size) {
+      return new Response(null, { status: 416, headers: { 'content-range': `bytes */${size}`, 'accept-ranges': 'bytes' } });
+    }
+    return new Response(bytes.subarray(start, end + 1) as BodyInit, {
+      status: 206,
+      headers: {
+        'content-type': contentType, 'cache-control': CACHE, 'accept-ranges': 'bytes',
+        'content-range': `bytes ${start}-${end}/${size}`, 'content-length': String(end - start + 1),
+      },
+    });
+  }
+  return new Response(bytes as BodyInit, {
+    headers: { 'content-type': contentType, 'cache-control': CACHE, 'accept-ranges': 'bytes', 'content-length': String(size) },
+  });
+}
 
 async function likeCount(db: Db, postId: string): Promise<number> {
   const [r] = await rows<{ n: number }>(db, sql`select count(*)::int as n from likes where post_id = ${postId}::uuid`);

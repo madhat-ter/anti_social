@@ -36,6 +36,12 @@ One thing waits on the **live test site** and needs an admin, not a commit:
 the §10.18 migration paused every offer that was already live, so they are sitting in
 **Admin → Consulting** until someone approves each one.
 
+Monologues (§10.22) keep their recordings in the database for now, like images. When the owner
+makes a Cloudflare R2 bucket, set `STORAGE=r2` and `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
+`R2_SECRET_ACCESS_KEY`, `R2_BUCKET` on Render (never in chat); old files keep being read from the
+database. Also worth checking on the live site: that an uploaded song over ~4 MB gets through
+Vercel's proxy (a 5-minute recording made on the site is about 2.4 MB).
+
 (Pet avatars were finished on 2026-11-10; the record and the reference doodles are in
 `docs/tasks/pet-avatars.md` and `docs/tasks/pet-avatars/`.)
 
@@ -56,6 +62,11 @@ the §10.18 migration paused every offer that was already live, so they are sitt
   back as separate tabs, and keep the old addresses forwarding. An admin's **Remove** — in Admin →
   Collab, or in the collab's / event's ⋯ menu — is a wipe: the thing goes with its team or RSVPs,
   requests, invites, updates and, for a collab, its meetups. A host's own Delete only hides it.
+- **Monologues are cassettes** (§10.22): a post carrying a recording (Song / Thought / Yap), 5 min
+  max, title + kind required, own work only, sound never editable, delete erases it. The cassette
+  *is* the card (no post box around it); tapping it plays. It lives in the feed, the Monologue tab
+  and a profile's shelf; no play counts, no transcripts. Posting goes through `POST /posts` with
+  `monologue: {…}` so it stays an ordinary post.
 - **Faces are procedural** (`apps/web/src/components/Avatar.tsx`, from handle + gender). Any
   change to its pick lists or roll order redraws every member's face. Ask the owner first; check
   `/dev/faces` after.

@@ -9,6 +9,11 @@ describe('postShape', () => {
     expect(postShape('x'.repeat(1200), 2)).toBe('photo');
   });
 
+  test('a monologue is a tape, whatever its note says (RFC §10.22)', () => {
+    expect(postShape('', 0, true)).toBe('tape');
+    expect(postShape('x'.repeat(1200), 0, true)).toBe('tape');
+  });
+
   test('a few words with no image is a short note', () => {
     expect(postShape('Good morning.', 0)).toBe('short');
     expect(postShape('x'.repeat(FEED.shortMaxChars), 0)).toBe('short');

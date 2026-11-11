@@ -101,7 +101,10 @@ export const socialRoutes = (deps: Deps) => {
       const prefix = `${like}%`;
       const [postPage, memberRows] = await Promise.all([
         listPosts(db, a.user.id, sql`p.deleted_at is null and p.hidden_at is null and p.pet_id is null
-          and p.search @@ websearch_to_tsquery('simple', ${q})`, { limit: '20' }),
+          and (p.search @@ websearch_to_tsquery('simple', ${q})
+               -- RFC §10.22: a monologue is found by its title too
+               or exists (select 1 from monologues mo3 where mo3.post_id = p.id
+                            and to_tsvector('simple', mo3.title) @@ websearch_to_tsquery('simple', ${q})))`, { limit: '20' }),
         rows<MemberRow>(db, sql`
           ${memberSelect}
           where u.state in ${SEATED}
@@ -174,7 +177,9 @@ export const socialRoutes = (deps: Deps) => {
           to_char(n.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_iso,
           to_char(n.read_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as read_iso,
           u.handle as a_handle, u.display_name as a_display, u.gender as a_gender,
-          p.id as p_id, coalesce(p.root_id, p.id) as p_root, p.body as p_body, (p.deleted_at is not null) as p_deleted,
+          p.id as p_id, coalesce(p.root_id, p.id) as p_root,
+          -- RFC §10.22: a monologue with no note is named by its title
+          coalesce(nullif(p.body, ''), (select mo.title from monologues mo where mo.post_id = p.id), p.body) as p_body, (p.deleted_at is not null) as p_deleted,
           ev.id as e_id, ev.title as e_title,
           n.payload->>'to' as x_to, n.payload->>'title' as x_title, n.payload->>'done' as x_done, n.payload->>'total' as x_total,
           co.id as c_id, coalesce(co.title, n.payload->>'title') as c_title, n.payload->>'projectId' as x_project,

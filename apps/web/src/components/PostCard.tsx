@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { FEED, postShape } from '@anti/shared';
+import { FEED, MONOLOGUE, MONOLOGUE_KINDS, MONOLOGUE_KIND_LABEL, postShape, type MonologueKind } from '@anti/shared';
 import { api, errorMessage, EDIT_WINDOW_MS, POST_MAX, type Post } from '@/lib/api';
 import { fmtDate, relativeTime } from '@/lib/hooks';
 import { ErrorNote } from './ui';
@@ -11,6 +11,7 @@ import { NameMarks } from './Marks';
 import { AlertDialog, Dot } from './retro';
 import { ImageViewer } from './ImageViewer';
 import { VISITOR_NOTE, useReadOnly, why } from './Visitor';
+import { TapePlayer } from './Tape';
 
 const URL_RE = /https?:\/\/[^\s<>"]+/g;
 /** RFC §10.16: @handles are linked only when the saved post says that member was mentioned. */
@@ -112,6 +113,9 @@ export function PostCard({
   const readOnly = useReadOnly();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(post.body);
+  /** RFC §10.22: a monologue's title and kind are edited with its note */
+  const [draftTitle, setDraftTitle] = useState(post.monologue?.title ?? '');
+  const [draftKind, setDraftKind] = useState<MonologueKind>(post.monologue?.kind ?? 'thought');
   const [menu, setMenu] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -128,7 +132,8 @@ export function PostCard({
   const [opened, setOpened] = useState(false);
   const [overflows, setOverflows] = useState(false);
   const bodyRef = useRef<HTMLParagraphElement>(null);
-  const shape = framed ? postShape(post.body, post.images.length) : null;
+  const mono = post.monologue ?? null;
+  const shape = framed ? postShape(post.body, post.images.length, !!mono) : null;
   const clamp = !!framed && shape !== 'short' && !editing && !opened && !post.deleted;
 
   useEffect(() => {
@@ -155,8 +160,11 @@ export function PostCard({
   /** a reply outside its thread: it carries a line saying what it answers */
   const listReply = !variant && !!post.parentId;
   const compact = variant === 'reply' || listReply;
-  const cls = `post${highlight ? ' highlight' : ''}${variant === 'lead' ? ' lead' : ''}${compact ? ' compact' : ''}${listReply ? ' list-reply' : ''}${framed ? ` framed shape-${shape}` : ''}`;
-  const face = compact ? 36 : 52;
+  /** RFC §10.22: wherever it shows (a list, search, its own page), a monologue is the cassette itself, not a box holding one */
+  const asTape = !!mono;
+  const out = !!framed || asTape;
+  const cls = `post${asTape ? ' tape-card' : ''}${highlight ? ' highlight' : ''}${variant === 'lead' ? ' lead' : ''}${compact ? ' compact' : ''}${listReply ? ' list-reply' : ''}${framed ? ` framed shape-${shape}` : ''}`;
+  const face = compact || asTape ? 36 : 52;
 
   if (post.deleted) {
     return (
@@ -192,10 +200,11 @@ export function PostCard({
 
   async function saveEdit() {
     const body = draft.trim();
-    if (!body || body.length > POST_MAX) return;
+    if ((!body && !mono) || body.length > POST_MAX) return;
+    if (mono && (!draftTitle.trim() || draftTitle.length > MONOLOGUE.titleMax)) return;
     setBusy(true); setErr(null);
     try {
-      onChange(await api.editPost(post.id, body));
+      onChange(await api.editPost(post.id, body, mono ? { title: draftTitle.trim(), kind: draftKind } : undefined));
       setEditing(false);
     } catch (e) {
       setErr(errorMessage(e));
@@ -209,7 +218,7 @@ export function PostCard({
     setErr(null);
     try {
       await api.deletePost(post.id);
-      onChange({ ...post, deleted: true, body: '', images: [] });
+      onChange({ ...post, deleted: true, body: '', images: [], monologue: null });
     } catch (e) {
       setErr(errorMessage(e));
     }
@@ -221,7 +230,7 @@ export function PostCard({
     setErr(null);
     try {
       await api.opsRemovePost(post.id);
-      onChange({ ...post, deleted: true, body: '', images: [] });
+      onChange({ ...post, deleted: true, body: '', images: [], monologue: null });
     } catch (e) {
       setErr(errorMessage(e));
     }
@@ -247,9 +256,24 @@ export function PostCard({
   /** a photo post in a framed list: the picture first at full width, the words under it */
   const photoLed = shape === 'photo';
 
+  const editMono = mono && (
+    <>
+      <label className="field">Title
+        <input value={draftTitle} maxLength={MONOLOGUE.titleMax} onChange={(e) => setDraftTitle(e.target.value)} />
+      </label>
+      <div className="row chips" role="radiogroup" aria-label="Kind">
+        {MONOLOGUE_KINDS.map((k) => (
+          <button key={k} type="button" role="radio" aria-checked={draftKind === k} className={`chip${draftKind === k ? ' on' : ''}`} onClick={() => setDraftKind(k)}>
+            {MONOLOGUE_KIND_LABEL[k]}
+          </button>
+        ))}
+      </div>
+    </>
+  );
   const bodyNode = editing ? (
     <div className="stack">
-      <label htmlFor={`${uid}-edit`} className="sr-only">Edit post</label>
+      {editMono}
+      <label htmlFor={`${uid}-edit`} className="sr-only">{mono ? 'Edit the note' : 'Edit post'}</label>
       <textarea
         id={`${uid}-edit`}
         value={draft}
@@ -262,7 +286,7 @@ export function PostCard({
         }}
       />
       <div className="row">
-        <button type="button" className="btn primary" disabled={busy || !draft.trim() || draft.length > POST_MAX} onClick={saveEdit}>
+        <button type="button" className="btn primary" disabled={busy || (!draft.trim() && !mono) || draft.length > POST_MAX || (!!mono && !draftTitle.trim())} onClick={saveEdit}>
           {busy ? 'Saving...' : 'Save'}
         </button>
         <button type="button" className="btn" onClick={() => { setEditing(false); setErr(null); }}>Cancel</button>
@@ -271,7 +295,7 @@ export function PostCard({
         <span className={`counter${draft.length > POST_MAX ? ' over' : ''}`}>{draft.length}/{POST_MAX}</span>
       </div>
     </div>
-  ) : photoLed && !post.body.trim() ? null : (
+  ) : (photoLed || mono) && !post.body.trim() ? null : (
     <>
       <p
         ref={bodyRef} id={`${uid}-b`} tabIndex={-1}
@@ -309,6 +333,14 @@ export function PostCard({
         </a>
       ))}
     </div>
+  );
+
+  /** RFC §10.22: the cassette leads a monologue; its words sit under it like a caption */
+  const tapeNode = mono && (
+    <TapePlayer
+      id={post.id} src={mono.url} title={editing ? draftTitle || mono.title : mono.title} kind={editing ? draftKind : mono.kind}
+      durationMs={mono.durationMs} peaks={mono.peaks} who={post.author?.displayName}
+    />
   );
 
   const footNode = (
@@ -354,7 +386,7 @@ export function PostCard({
         <span className="post-av"><Avatar seed={null} size={face} /></span>
       )}
       <div className="post-main">
-      {variant === 'lead' && <p className="post-kind"><span className="tag">Post</span></p>}
+      {variant === 'lead' && <p className="post-kind"><span className="tag">{mono ? 'Monologue' : 'Post'}</span></p>}
       <header className="post-head">
         <span id={`${uid}-h`}><AuthorLine post={post} /></span>
         <span className="muted dot" aria-hidden="true">·</span>
@@ -377,7 +409,7 @@ export function PostCard({
             {menu && (
               <div className="menu-pop" role="menu">
                 {post.canEdit && (
-                  <button type="button" role="menuitem" onClick={() => { setMenu(false); setDraft(post.body); setEditing(true); }}>Edit</button>
+                  <button type="button" role="menuitem" onClick={() => { setMenu(false); setDraft(post.body); setDraftTitle(mono?.title ?? ''); setDraftKind(mono?.kind ?? 'thought'); setEditing(true); }}>Edit</button>
                 )}
                 {post.canDelete && (
                   <button type="button" role="menuitem" className="danger-text" onClick={() => { setMenu(false); setAsk('delete'); }}>Delete</button>
@@ -406,15 +438,18 @@ export function PostCard({
         <p className="muted replying">replying to <Link href={`/u/${replyingTo}`}>@{replyingTo}</Link></p>
       )}
 
-      {!photoLed && bodyNode}
-      {!framed && imgsNode}
-      {!framed && footNode}
-      {!framed && errNode}
+      {!asTape && tapeNode}
+      {!photoLed && !asTape && bodyNode}
+      {!out && imgsNode}
+      {!out && footNode}
+      {!out && errNode}
       </div>
+      {asTape && tapeNode}
+      {asTape && bodyNode && <div className="caption">{bodyNode}</div>}
       {photoLed && imgsNode}
       {photoLed && bodyNode && <div className="caption">{bodyNode}</div>}
-      {framed && errNode}
-      {framed && footNode}
+      {out && errNode}
+      {out && footNode}
 
       {post.images.length > 0 && (
         <ImageViewer
@@ -428,7 +463,9 @@ export function PostCard({
       <AlertDialog
         open={ask === 'delete'}
         title="Delete post"
-        message={<>Delete this post? Replies stay, the post becomes a tombstone. <strong>This cannot be undone.</strong></>}
+        message={mono
+          ? <>Delete this monologue? The recording is erased for good; replies stay. <strong>This cannot be undone.</strong></>
+          : <>Delete this post? Replies stay, the post becomes a tombstone. <strong>This cannot be undone.</strong></>}
         confirmLabel="Delete"
         danger
         onConfirm={() => void remove()}

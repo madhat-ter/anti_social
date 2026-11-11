@@ -53,6 +53,7 @@ export function visitorUser(): SessionUser {
     consultRequestedAt: null, consultApprovedAt: null, consultApprovedBy: null, consultDeclinedAt: null,
     feedSeenThrough: null,
     collabIntroSeenAt: now,
+    monologuesSeenThrough: null,
     pinHash: null, pinFails: 0, pinLocks: 0, pinLockedUntil: null, pinFailDay: null, pinFailsDay: 0, pinBlockedAt: null,
     theme: 'light',
   };

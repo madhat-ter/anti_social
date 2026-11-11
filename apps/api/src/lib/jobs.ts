@@ -111,6 +111,12 @@ export const JOBS: Job[] = [
         delete from post_images
          where post_id is null and created_at < now() - make_interval(hours => ${ORPHAN_UPLOAD_HOURS})
         returning r2_key`);
+      // RFC §10.22: recordings that were never posted (re-recorded, or the page was closed)
+      const sounds = await rows<{ r2_key: string }>(tx, sql`
+        delete from monologues
+         where post_id is null and created_at < now() - make_interval(hours => ${ORPHAN_UPLOAD_HOURS})
+        returning audio_key as r2_key`);
+      orphans.push(...sounds);
       // Blobs are removed after the rows; a failed blob delete leaves an unreferenced file, never a dangling row.
       for (const o of orphans) await storage.delete(o.r2_key).catch((e) => console.error('orphan delete failed', o.r2_key, e));
       const limits = await rows<{ n: number }>(tx, sql`

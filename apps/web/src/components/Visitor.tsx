@@ -35,7 +35,7 @@ export const useReadOnly = () => useContext(ReadOnly);
 export const isVisitor = (me: Me | null | undefined): me is Me & { visitor: { expiresAt: string } } => !!me?.visitor;
 
 /** Pages a visitor has no business on: their own things, the inbox, writing and editing. */
-const MEMBERS_ONLY = /^\/(settings|setup|notifications|consultations|admin|collab\/new)|\/(edit|consult|work\/new)$/;
+const MEMBERS_ONLY = /^\/(settings|setup|notifications|consultations|admin|collab\/new|monologue\/new)|\/(edit|consult|work\/new)$/;
 export const membersOnlyPath = (path: string) => MEMBERS_ONLY.test(path);
 
 /** Re-renders every `ms` so the countdown keeps up. */

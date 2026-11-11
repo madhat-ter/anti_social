@@ -75,6 +75,8 @@ export const users = pgTable('users', {
   theme: text('theme').notNull().default('light'),
   /** RFC §10.21: when the member closed the one-time "Events and Collabs are one place now" strip */
   collabIntroSeenAt: tstz('collab_intro_seen_at').defaultNow(),
+  /** RFC §10.22: the Monologue page's own "new since" line (the feed's is feedSeenThrough) */
+  monologuesSeenThrough: tstz('monologues_seen_through'),
 }, (t) => [
   check('users_theme', sql`${t.theme} in ('light', 'dark')`),
   index('users_state_idx').on(t.state),
@@ -288,6 +290,35 @@ export const postImages = pgTable('post_images', {
   check('post_images_position', sql`${t.position} between 0 and 3`),
   index('post_images_post').on(t.postId),
   index('post_images_uploader').on(t.uploaderId),
+]);
+
+/**
+ * RFC §10.22: a monologue's recording. Uploaded first (post_id null while it waits), then posted:
+ * the post holds the note, likes and replies; this row holds the sound, its title and its kind.
+ */
+export const monologues = pgTable('monologues', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  postId: uuid('post_id').unique().references(() => posts.id, { onDelete: 'cascade' }),
+  uploaderId: uuid('uploader_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  audioKey: text('audio_key').notNull(),
+  contentType: text('content_type').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  durationMs: integer('duration_ms').notNull(),
+  /** the waveform: MONOLOGUE.peaks numbers, each 0..100 */
+  peaks: jsonb('peaks').notNull(),
+  /** 'recorded' on the site, or 'uploaded' as a file */
+  source: text('source').notNull(),
+  /** set when it is posted */
+  title: text('title'),
+  kind: text('kind'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+}, (t) => [
+  check('monologues_duration', sql`${t.durationMs} between 1000 and 301000`),
+  check('monologues_kind', sql`${t.kind} is null or ${t.kind} in ('song', 'thought', 'yap')`),
+  check('monologues_title_len', sql`${t.title} is null or char_length(${t.title}) between 1 and 80`),
+  check('monologues_source', sql`${t.source} in ('recorded', 'uploaded')`),
+  check('monologues_posted', sql`${t.postId} is null or (${t.title} is not null and ${t.kind} is not null)`),
+  index('monologues_uploader').on(t.uploaderId),
 ]);
 
 export const likes = pgTable('likes', {

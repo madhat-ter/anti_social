@@ -45,8 +45,16 @@ export async function closeAccount(db: Db, storage: Storage, userId: string, rea
       delete from project_images where project_id in (select id from projects where user_id = ${userId}::uuid) returning r2_key as k`);
     await tx.execute(sql`delete from projects where user_id = ${userId}::uuid`);
     const cover = await rows<{ k: string | null }>(tx, sql`delete from portfolios where user_id = ${userId}::uuid returning cover_key as k`);
+    // RFC §10.22: a voice is the person: their monologues leave with them (sound erased, posts
+    // deleted like an author delete, so replies to them still read), and waiting recordings too
+    await tx.execute(sql`
+      update posts set deleted_at = now(), body = ''
+       where author_id = ${userId}::uuid and deleted_at is null
+         and exists (select 1 from monologues m where m.post_id = posts.id)`);
+    await tx.execute(sql`delete from contributions where user_id = ${userId}::uuid and ref_id in (select post_id from monologues where uploader_id = ${userId}::uuid and post_id is not null)`);
+    const sounds = await rows<{ k: string }>(tx, sql`delete from monologues where uploader_id = ${userId}::uuid returning audio_key as k`);
     await tx.execute(sql`select delete_account(${userId}::uuid, ${reason}, ${actorId}::uuid)`);
-    return [...imgs.map((r) => r.k), ...cover.map((r) => r.k).filter((k): k is string => !!k)];
+    return [...imgs.map((r) => r.k), ...cover.map((r) => r.k).filter((k): k is string => !!k), ...sounds.map((r) => r.k)];
   });
   await Promise.all(keys.map((k) => storage.delete(k).catch((e) => console.error('storage delete failed', k, e))));
 }

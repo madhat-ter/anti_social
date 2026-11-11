@@ -1288,7 +1288,7 @@ can switch in Edit, except that an activity with more than 20 people can't becom
 says why: a project team holds up to 20). An Event never switches kind.
 
 **Where it lives.** The phone bar is **Feed, Collab, Members, You** (four tabs; the freed slot
-stays empty, since a tab bar is for places, not actions); the desktop menu matches. The Collab
+stays empty, since a tab bar is for places, not actions; §10.22 fills it with Monologue, a place); the desktop menu matches. The Collab
 page, top to bottom:
 1. **Yours**: what you host, what you're in, what you're going to, and requests waiting on you.
    Shown only when there is something in it.
@@ -1344,6 +1344,56 @@ its own page's ⋯ menu. Remove is a wipe, not a hide: the thing goes with its t
 requests, invites, updates and, for a collab, its meetups. The host is told, without who. The host's
 own **Delete** stays a hide, so a host cannot wipe a team by accident.
 
+### 10.22 Monologues: a recording, drawn as a cassette (added 2026-11-11)
+
+Grilled with the owner in four rounds (research first: Clubhouse and Airchat, listening vs reading,
+NPR's *This I Believe*, browser recording, R2, cover-song law). A **monologue** is a post that is a
+recording: a **Song**, a **Thought** or a **Yap**. The point is to say one thing well, so the
+format does the work: a title, a kind, five minutes, listen back before posting.
+
+**The rules.**
+- Any seated member can post one; **no limit on how many** (owner's call; the hourly posting cap of
+  every post still applies). Never as a pet, never inside a collab or event, never as a reply.
+- At most **5 minutes**, recorded on the site or uploaded as a file (MP3, M4A, OGG or WebM, up to
+  15 MB). A **title** (up to 80 characters) and a **kind** are required; a written **note** is
+  optional and works like any post body (mentions, links, the 15-minute edit window).
+- Before posting: listen back, re-record as often as you like. Posting means ticking **"This is
+  mine to share: my own words, or my own song."** Own work only: small sites have no blanket music
+  licence, so covers are not allowed; admins remove what breaks it.
+- Once posted the **sound can't be changed**, only deleted. Title, kind and note can be edited in
+  the usual window. Deleting it, an admin removing it, or the member closing their account **erases
+  the recording** (not just hides it). Recordings never posted are swept after a day.
+- **Written replies only** for now. Likes, replies and mentions notify as on any post; a new
+  monologue notifies nobody. **No play counts**, anywhere (§10.11). It counts as a post for the
+  lurker rule. Search finds it by title and note. No transcripts (they need a paid service).
+- **Visitors** (§10.8) can listen; they can't post, like or reply.
+- **Screen time** (§10.10): listening counts as time on the site, even with the screen off, and the
+  sound stops when the lock comes.
+
+**Where it lives.** In the **feed**, newest first like everything else; on its own tab,
+**Monologue**, which fills the phone bar's empty fifth slot (Feed · Collab · Monologue · Members ·
+You; the desktop menu matches); and on a profile, a **shelf of tape spines** (kind, title, length,
+newest on top), shown only once someone has posted one. The Monologue page follows the feed's rules
+(newest first, a "new since" line of its own, an end card), with chips **All · Songs · Thoughts ·
+Yaps** and the only **+ Record** button. A monologue opens at the usual post page (`/p/<id>`).
+
+**The look.** One cassette shape for every kind, bold ink like the rest of the site, white on black
+in dark mode. The kind sits in the label's SIDE box, the title (two lines at most) on the label
+line in the site's own type, the length in the corner. The cassette **is the card** (owner, after
+seeing the first build): no post box around it, just a small name line above, the tape with the
+site's hard shadow, a slim strip under it (the waveform for jumping around, the time, 1× / 1.5×),
+the note, then Reply and Like. **Tap the cassette to play or pause**; a ▶ sits in its window while
+paused. Playing turns the reels and winds the tape from the left reel to the right one, so the
+cassette is its own progress bar. One tape plays at a time; nothing plays by itself. Straight, never
+tilted. About 430 pixels wide on a computer, full width on a phone, a little bigger on its own page.
+
+**How it is built.** The recording is uploaded first (`POST /monologues/audio`: the server checks
+the file really is audio by its first bytes, the size, and the length the browser measured) and
+waits for its owner; posting is `POST /posts` with `monologue: { audioId, title, kind, mine }`, so
+likes, replies, mentions, reports and the lurker rule are the ordinary post code. Table
+`monologues` (migration 0033). Media answers byte-range requests, which Safari needs to play audio.
+`STORAGE=r2` puts new files in Cloudflare R2 and still reads what the database holds; until the
+owner sets R2 up, recordings live in the database like images do.
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,

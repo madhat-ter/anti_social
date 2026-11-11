@@ -16,6 +16,8 @@ export const birthdayCols = (u: string, prefix: string) => sql.raw(
 export const toBirthday = (m: unknown, d: unknown): Birthday | null =>
   (m === null || m === undefined || d === null || d === undefined ? null : { month: Number(m), day: Number(d) });
 export type Image = { id: string; url: string; width: number; height: number };
+/** RFC §10.22: the recording a monologue post carries */
+export type Monologue = { title: string; kind: string; durationMs: number; peaks: number[]; url: string; source: string };
 export type Post = {
   id: string; body: string; createdAt: string; editedAt: string | null; deleted: boolean;
   author: Author | null; parentId: string | null; rootId: string | null;
@@ -23,6 +25,8 @@ export type Post = {
   /** only the author ever gets the number (RFC §10.11): for everyone else it is null */
   likeCount: number | null;
   likedByMe: boolean; images: Image[];
+  /** RFC §10.22: set when the post is a monologue (a cassette) */
+  monologue: Monologue | null;
   /** RFC §10.16: @handles in the body that belong to a seated member (lowercased) */
   mentions: string[];
   /** the author's first post on the feed (not counting collab or event updates) */
@@ -116,6 +120,7 @@ export function postSelect(viewerId: string): SQL {
       -- a reply says what it answers when it shows outside its thread (profile lists, search)
       ru.handle as ra_handle, ru.display_name as ra_display, (ru.state = 'deleted') as ra_gone,
       case when rp.deleted_at is null and rp.hidden_at is null then left(rp.body, 80) else '' end as r_snippet,
+      mo.title as mo_title, mo.kind as mo_kind, mo.duration_ms as mo_ms, mo.peaks as mo_peaks, mo.audio_key as mo_key, mo.source as mo_source,
       pc.id as pc_id, pc.title as pc_title, pe.id as pe_id, pe.title as pe_title,
       (pe.audience = 'anyone' or exists(select 1 from collab_members m where m.collab_id = pe.collab_id and m.user_id = ${viewerId}::uuid)) as pe_visible
     from posts p
@@ -123,7 +128,8 @@ export function postSelect(viewerId: string): SQL {
     left join posts rp on rp.id = p.root_id
     left join users ru on ru.id = rp.author_id
     left join collabs pc on pc.id = p.collab_id and pc.deleted_at is null
-    left join events pe on pe.id = p.event_id`;
+    left join events pe on pe.id = p.event_id
+    left join monologues mo on mo.post_id = p.id`;
 }
 
 export type PostRow = {
@@ -137,6 +143,7 @@ export type PostRow = {
   images: Array<{ id: string; key: string; width: number; height: number }> | string;
   mentions?: string[] | string | null;
   pc_id?: string | null; pc_title?: string | null; pe_id?: string | null; pe_title?: string | null; pe_visible?: boolean | null;
+  mo_title?: string | null; mo_kind?: string | null; mo_ms?: number | null; mo_peaks?: number[] | string | null; mo_key?: string | null; mo_source?: string | null;
 };
 
 export function toPost(r: PostRow, viewerId: string): Post {
@@ -170,6 +177,11 @@ export function toPost(r: PostRow, viewerId: string): Post {
       }
       : null,
     images: deleted ? [] : imgs.map((i) => ({ id: i.id, url: mediaUrl(i.key), width: i.width, height: i.height })),
+    monologue: !deleted && r.mo_key && r.mo_title ? {
+      title: r.mo_title, kind: r.mo_kind ?? 'yap', durationMs: Number(r.mo_ms ?? 0),
+      peaks: typeof r.mo_peaks === 'string' ? (JSON.parse(r.mo_peaks) as number[]) : (r.mo_peaks ?? []),
+      url: mediaUrl(r.mo_key), source: r.mo_source ?? 'recorded',
+    } : null,
     // RFC §10.16: handles that belong to a seated member, so the body can link them
     mentions: deleted ? [] : (typeof r.mentions === 'string' ? (JSON.parse(r.mentions) as string[]) : (r.mentions ?? [])),
     canEdit: mine && !deleted && withinWindow,

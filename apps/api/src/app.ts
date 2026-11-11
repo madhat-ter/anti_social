@@ -21,6 +21,7 @@ import { consultationRoutes } from './routes/consultations';
 import { visitRoutes } from './routes/visit';
 import { screenTimeRoutes } from './routes/screen-time';
 import { petRoutes } from './routes/pets';
+import { monologueRoutes } from './routes/monologues';
 import { VISITOR_COOKIE, openPath } from './lib/visitors';
 
 export function createApp(deps: Deps) {
@@ -83,6 +84,7 @@ export function createApp(deps: Deps) {
     .use(postRoutes(deps))
     .use(socialRoutes(deps))
     .use(petRoutes(deps))
+    .use(monologueRoutes(deps))
     .use(paymentRoutes(deps))
     .use(eventRoutes(deps))
     .use(moderationRoutes(deps))

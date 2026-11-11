@@ -223,6 +223,27 @@ export const PAGE_MAX_LIMIT = 50;
 export const SEARCH_QUERY_MAX = 100;
 
 /**
+ * RFC §10.22, monologues: a post that is a recording (a song, a thought, a yap) drawn as a
+ * cassette. Five minutes at most, recorded on the site or uploaded; no limit on how many.
+ */
+export const MONOLOGUE = {
+  /** the longest recording, recorded or uploaded */
+  maxSeconds: 300,
+  /** the shortest worth posting */
+  minSeconds: 1,
+  /** an uploaded file (a song made elsewhere) */
+  maxBytes: 15 * 1024 * 1024,
+  titleMax: 80,
+  /** the waveform under the cassette: this many bars, each 0..100 */
+  peaks: 96,
+  /** recordings waiting to be posted, per member */
+  maxPending: 5,
+} as const;
+export const MONOLOGUE_KINDS = ['song', 'thought', 'yap'] as const;
+export type MonologueKind = (typeof MONOLOGUE_KINDS)[number];
+export const MONOLOGUE_KIND_LABEL: Record<MonologueKind, string> = { song: 'Song', thought: 'Thought', yap: 'Yap' };
+
+/**
  * RFC §10.11, the feed: newest first, never ranked. These numbers drive the display rules on top
  * of it, and live here (not in `settings`) because the browser's fold must use the same ones as
  * the server. First guesses tied to anti's other rules; tune them from the feed_visits numbers.

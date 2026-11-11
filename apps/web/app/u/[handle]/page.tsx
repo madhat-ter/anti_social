@@ -6,6 +6,7 @@ import { api, errorMessage, type AnEvent, type MemberSummary, type CollabSummary
 import { PickCard } from '@/components/Picks';
 import { CollabItemCard } from '@/components/Collab';
 import { PortfolioWindow } from '@/components/Portfolio';
+import { MonologueShelf } from '@/components/Tape';
 import { ConsultingSection, isAdult } from '@/components/Consult';
 import { usePaged, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
@@ -122,6 +123,8 @@ function Profile({ myHandle, adult }: { myHandle: string; adult: boolean }) {
         onPets={(pets) => setMember((cur) => cur ? { ...cur, pets } : cur)}
         consulting={<ConsultingSection handle={member.handle} viewerAdult={adult} />} />
       <ErrorNote message={orderErr} />
+      {/* RFC §10.22: their tapes, only once there is one */}
+      <MonologueShelf handle={member.handle} />
       <div className="tabs pf-tabs" role="tablist">
         {(['posts', 'collabs', 'picks'] as const).map((s) => (
           <button key={s} type="button" role="tab" aria-selected={tab === s} className={tab === s ? 'tab on' : 'tab'} onClick={() => setTab(s)}>

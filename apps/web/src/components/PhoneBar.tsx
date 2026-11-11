@@ -2,7 +2,7 @@
 /**
  * The phone shell (under 900px). The menu column of the desktop becomes two things that never
  * scroll away: a bell in the sticky header (notifications) and a bar of five tabs along the
- * bottom: the four rooms and "you". Everything that is a drawer rather than a room (your
+ * bottom: the four rooms (Feed, Collab, Monologue, Members) and "you". Everything that is a drawer rather than a room (your
  * profile, search, Pet Corner, consultations, settings, admin) sits in a sheet that opens from "you".
  * Notifications are the bell only, not a second time in the sheet (RFC §10.20).
  * A visitor (RFC §10.8) gets the rooms, and in the fifth tab a grey face with the time left.
@@ -20,12 +20,14 @@ const ROOMS: Room[] = [
   { href: '/', label: 'Feed', icon: 'feed', match: (p) => p === '/' || p.startsWith('/p/') },
   // RFC §10.21: events, activities and projects are one place
   { href: '/collab', label: 'Collab', icon: 'collabs', match: (p) => p.startsWith('/collab') },
+  // RFC §10.22: monologues fill the fifth slot
+  { href: '/monologue', label: 'Monologue', icon: 'tape', match: (p) => p.startsWith('/monologue') },
   { href: '/members', label: 'Members', icon: 'members', match: (p) => p === '/members' },
 ];
 /** pages that live behind "you" */
 const YOURS = /^\/(notifications|search|settings|admin|consultations)/;
 
-type IconName = 'feed' | 'events' | 'collabs' | 'members' | 'bell';
+type IconName = 'feed' | 'events' | 'collabs' | 'members' | 'bell' | 'tape';
 /** 1-bit tab icons, drawn to match the alert triangle and the pick icons. */
 export function TabIcon({ name, size = 22 }: { name: IconName; size?: number }) {
   // the fill follows --icon-fill so a lit (ink) tab can flip it to ink and keep the lines visible
@@ -50,6 +52,12 @@ export function TabIcon({ name, size = 22 }: { name: IconName; size?: number }) 
         <rect x="13" y="4" width="8" height="8" {...s} fill="currentColor" />
         <rect x="3" y="14" width="8" height="8" {...s} />
         <rect x="13" y="14" width="8" height="8" {...s} />
+      </>)}
+      {name === 'tape' && (<>
+        <rect x="2" y="5" width="20" height="14" rx="1.5" {...s} />
+        <circle cx="8" cy="11" r="2.2" {...s} />
+        <circle cx="16" cy="11" r="2.2" {...s} />
+        <path d="M7 19l1.6-3.2h6.8L17 19" {...s} />
       </>)}
       {name === 'bell' && (<>
         <path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4l2-2Z" {...s} />

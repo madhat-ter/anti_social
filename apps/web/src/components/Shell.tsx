@@ -127,6 +127,8 @@ function NavBar({ me }: { me: Me }) {
     { href: '/', label: 'Feed', match: (p) => p === '/' || p.startsWith('/p/') },
     // the same order as the phone's tabs (RFC §10.20); Events and Collabs are one place (§10.21)
     { href: '/collab', label: 'Collab', match: (p) => p.startsWith('/collab') },
+    // RFC §10.22
+    { href: '/monologue', label: 'Monologue', match: (p) => p.startsWith('/monologue') },
     ...(adult ? [{ href: '/consultations', label: 'Consultations', match: (p: string) => p.startsWith('/consultations'), badge: waiting }] : []),
     { href: '/members', label: 'Members', match: (p) => p === '/members' },
     { href: '/search', label: 'Search', match: (p) => p === '/search' },
