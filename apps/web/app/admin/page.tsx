@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { NameMarks } from '@/components/Marks';
 import { ActionMenu } from '@/components/ActionMenu';
-import { api, ApiError, errorMessage, type AdminContact, type AdminInterest, type AdminMember, type AdminSettings, type ConsultAsk, type FlagItem, type Me, type OpsConsultation, type OpsConsultationDetail, type Pick, type VisitorPassInfo } from '@/lib/api';
+import { api, ApiError, errorMessage, type AdminCollabItem, type AdminContact, type AdminInterest, type AdminMember, type AdminSettings, type ConsultAsk, type FlagItem, type Me, type OpsConsultation, type OpsConsultationDetail, type Pick, type VisitorPassInfo } from '@/lib/api';
 import { minutesLabel, priceLabel } from '@/components/Consult';
 import { minutesLeft } from '@/components/Visitor';
 import { fmtDate, relativeTime, useTitle } from '@/lib/hooks';
@@ -33,6 +33,7 @@ function Admin({ me }: { me: Me }) {
         <a href="#reports">Reports</a>
         <a href="#consulting">Consulting</a>
         <a href="#members">Members</a>
+        <a href="#collab">Collab</a>
         <a href="#invites">Invite codes</a>
         <a href="#visitors">Visitor passes</a>
         <a href="#picks">Picks</a>
@@ -43,6 +44,7 @@ function Admin({ me }: { me: Me }) {
         <Reports />
         <ConsultAsks />
         <Members me={me} />
+        <CollabAdmin />
         <Invites />
         <VisitorPasses />
         <Picks />
@@ -124,6 +126,69 @@ function Picks() {
         confirmLabel="Remove"
         danger
         onConfirm={() => { const p = ask; setAsk(null); if (p) void remove(p); }}
+        onCancel={() => setAsk(null)}
+      />
+    </section>
+  );
+}
+
+/**
+ * RFC §10.21: every event, activity and project in one list, with the admin's wipe. This is the
+ * place to reach for Remove — including events, which have no other admin door.
+ */
+function CollabAdmin() {
+  const [items, setItems] = useState<AdminCollabItem[] | null>(null);
+  const [ask, setAsk] = useState<AdminCollabItem | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => {
+    api.opsCollab().then((r) => setItems(r.items), (e) => setErr(errorMessage(e)));
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  async function remove(it: AdminCollabItem) {
+    setBusy(true);
+    setErr(null);
+    try {
+      if (it.type === 'event') await api.opsRemoveEvent(it.id);
+      else await api.opsRemoveCollab(it.id);
+      await load();
+    } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
+  }
+  const WORD: Record<AdminCollabItem['type'], string> = { event: 'event', activity: 'activity', project: 'project' };
+  return (
+    <section className="panel-sec" aria-labelledby="adm-collab" id="collab">
+      <h2 id="adm-collab">Collab</h2>
+      <p className="muted small">
+        Every event, activity and project, including hidden ones and team-only meetups. Removing one deletes it
+        for good — its team, requests, invites, updates and meetups go with it — and the host is told, not who.
+      </p>
+      <ErrorNote message={err} />
+      {items === null ? <Loading /> : items.length === 0 ? <p className="muted">Nothing in Collab yet.</p> : (
+        <ul className="list adm-collab">
+          {items.map((it) => (
+            <li key={`${it.type}:${it.id}`}>
+              <span className="grow">
+                <span className="tag">{WORD[it.type]}</span>{' '}
+                <Link href={it.type === 'event' ? `/collab/event/${it.id}` : `/collab/${it.id}`}><strong>{it.title}</strong></Link>
+                {it.host && <> · <Link href={`/u/${it.host}`}>@{it.host}</Link></>}
+                <span className="muted small">
+                  {it.startsAt ? ` · ${fmtDate(it.startsAt)}` : ''}
+                  {it.status ? ` · ${it.status}` : ''}
+                  {it.flagged ? ' · flagged' : ''}
+                </span>
+              </span>
+              <button type="button" className="btn danger" disabled={busy} onClick={() => setAsk(it)}>Remove</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <AlertDialog
+        open={ask !== null}
+        title={ask ? `Remove ${WORD[ask.type]}` : 'Remove'}
+        message={ask ? <>Remove <strong>{ask.title}</strong> for good? Its team, requests, invites, updates and meetups are deleted with it. This cannot be undone.{ask.host ? ` @${ask.host} is told (not who).` : ''}</> : ''}
+        confirmLabel="Remove"
+        danger
+        onConfirm={() => { const it = ask; setAsk(null); if (it) void remove(it); }}
         onCancel={() => setAsk(null)}
       />
     </section>

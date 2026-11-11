@@ -111,6 +111,23 @@ export async function removeCollab(db: Db, collabId: string, actorId: string | n
   });
 }
 
+/** An admin removes any event (a meetup too): the row goes with its RSVPs, requests, invites,
+ *  co-hosts and update posts. The host is told, without who. */
+export async function removeEvent(db: Db, eventId: string, actorId: string | null) {
+  return db.transaction(async (txx) => {
+    const tx = txx as unknown as Db;
+    const [e] = await rows<{ id: string; title: string; host_id: string }>(tx, sql`
+      select id, title, host_id from events where id = ${eventId}::uuid for update`);
+    if (!e) throw new ApiError(404, 'not_found');
+    await tx.execute(sql`delete from events where id = ${e.id}::uuid`);
+    if (e.host_id !== actorId) {
+      await tx.execute(sql`insert into notifications(user_id, kind, payload)
+        values (${e.host_id}::uuid, 'event_removed', ${JSON.stringify({ title: e.title })}::jsonb)`);
+    }
+    return { removed: true as const };
+  });
+}
+
 /** 'restored': unhide, close the reports. 'removed': see removeCollab (it takes the collab with it). */
 export async function resolveCollabFlags(db: Db, collabId: string, resolution: 'restored' | 'removed') {
   const open = Number(await scalar(db, sql`select count(*)::int from collab_flags where collab_id = ${collabId}::uuid and resolved_at is null`));

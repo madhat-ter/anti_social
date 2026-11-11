@@ -76,7 +76,50 @@ function decodeOrNull(cursor: string) {
   }
 }
 
-/** RFC §10.21 "Yours": what you host, what you are in, what you are going to, who waits on you. */
+/** One row of the admin's Collab list: every event, activity and project, newest started first. */
+export type AdminCollabItem = {
+  type: 'event' | 'activity' | 'project';
+  id: string; title: string; host: string | null;
+  createdAt: string;
+  /** events only */
+  startsAt: string | null;
+  /** collabs only: recruiting | closed | finished */
+  status: string | null;
+  /** a cancelled event, or a collab hidden after reports */
+  flagged: boolean;
+};
+
+/**
+ * RFC §10.21: an admin's own list of everything in Collab, including what is hidden after reports,
+ * cancelled events and team-only meetups — the place to reach for Remove when something has to go.
+ */
+export async function adminCollab(db: Db): Promise<AdminCollabItem[]> {
+  const ts = (col: string) => sql.raw(`to_char(${col} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`);
+  const found = await rows<{
+    type: 'event' | 'activity' | 'project'; id: string; title: string; host: string | null;
+    created_iso: string; starts_iso: string | null; status: string | null; flagged: boolean;
+  }>(db, sql`
+    select 'event' as type, e.id, e.title, u.handle as host,
+           ${ts('e.created_at')} as created_iso, ${ts('e.starts_at')} as starts_iso,
+           null::text as status, (e.cancelled_at is not null) as flagged
+      from events e join users u on u.id = e.host_id
+     union all
+    select c.kind as type, c.id, c.title, h.handle as host,
+           ${ts('c.created_at')} as created_iso, null::text as starts_iso, c.status,
+           (c.hidden_at is not null) as flagged
+      from collabs c
+      left join collab_members hm on hm.collab_id = c.id and hm.role = 'host'
+      left join users h on h.id = hm.user_id
+     where c.deleted_at is null
+     order by created_iso desc, title limit 300`);
+  return found.map((r) => ({
+    type: r.type, id: r.id, title: r.title, host: r.host, createdAt: r.created_iso,
+    startsAt: r.starts_iso, status: r.status, flagged: !!r.flagged,
+  }));
+}
+
+/** "Yours" strip... */
+
 export async function myCollab(db: Db, me: string) {
   const hosted = await rows<EventRow>(db, sql`
     ${eventSelect(me)}

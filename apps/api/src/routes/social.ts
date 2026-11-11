@@ -200,6 +200,7 @@ export const socialRoutes = (deps: Deps) => {
           collab: r.c_id ? { id: r.c_id, title: r.c_title ?? '' } : null,
           draftId: r.kind === 'collab_finished' ? r.x_project : null,
           collabTitle: r.kind === 'collab_removed' ? r.x_title : null,
+          eventTitle: r.kind === 'event_removed' ? r.x_title : null,
           newHandle: r.kind === 'handle_changed' ? r.x_to : null,
           projectTitle: r.kind === 'project_removed' ? r.x_title : null,
           pickTitle: r.kind === 'pick_remark' || r.kind === 'remark_removed' || r.kind === 'pick_removed' ? r.x_title : null,

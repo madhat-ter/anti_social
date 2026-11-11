@@ -114,6 +114,8 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
     case 'event_request': return m(`@${r.actor ?? 'someone'} asked to come`, ev, eventUrl);
     case 'event_accepted': return m('You are in', `You are on the list for ${ev}.`, eventUrl);
     case 'event_declined': return m('Not this time', `${ev} is full of people already. Plenty more in Collab.`, '/collab');
+    // RFC §10.21: an admin wiped the event
+    case 'event_removed': return m('An admin removed your event', p.title ? `"${p.title}" is gone.` : 'It is gone.', '/collab');
     case 'event_invite': return m(`@${r.actor ?? 'someone'} invited you`, `Come to ${ev}?`, eventUrl);
     case 'collab_invite': return m(`@${r.actor ?? 'someone'} invited you`, `Join ${collab}?`, collabUrl);
     // RFC §10.6: consultations. Never a contact in a push, only that something changed.

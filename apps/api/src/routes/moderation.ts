@@ -6,9 +6,10 @@ import type { Deps } from '../deps';
 import { ApiError } from '../lib/errors';
 import { generateInviteCode } from '../lib/crypto';
 import {
-  banUser, flagCollab, flagPost, flagProject, flagQueue, removeCollab, removePost, removeProject, resolveCollabFlags, resolveFlags,
-  resolveProjectFlags, userIdByHandle,
+  banUser, flagCollab, flagPost, flagProject, flagQueue, removeCollab, removeEvent, removePost, removeProject, resolveCollabFlags,
+  resolveFlags, resolveProjectFlags, userIdByHandle,
 } from '../lib/moderation';
+import { adminCollab } from '../lib/collab-page';
 import { consultQueue, decideConsulting, opsConsultation, opsConsultations, resolveConsultationFlags, resolveOfferFlags, switchOff, switchOn } from '../lib/consultations';
 import { adminMembers, getAdminSettings, renameMember, setMemberBirthday, setMemberRole, unbanMember, updateAdminSettings, openMemberContact, setVerified } from '../lib/admin';
 import { UUID_RE } from '../lib/posts';
@@ -66,6 +67,19 @@ export const moderationRoutes = (deps: Deps) => {
       const a = requireOps(auth);
       if (!UUID_RE.test(params.id)) throw new ApiError(404, 'not_found');
       return removeCollab(db, params.id, a.user.id);
+    })
+
+    /** RFC §10.21: an admin can wipe any event, a meetup included. */
+    .post('/ops/events/:id/remove', async ({ auth, params }) => {
+      const a = requireOps(auth);
+      if (!UUID_RE.test(params.id)) throw new ApiError(404, 'not_found');
+      return removeEvent(db, params.id, a.user.id);
+    })
+
+    /** Every event, activity and project, for the admin's Collab section (hidden and cancelled ones too). */
+    .get('/ops/collab', async ({ auth }) => {
+      requireOps(auth);
+      return { items: await adminCollab(db) };
     })
 
     // ─── Consultations (RFC §10.6) ───

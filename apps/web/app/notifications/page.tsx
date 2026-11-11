@@ -65,6 +65,8 @@ function describe(n: Notification): string {
   if (n.kind === 'event_declined') return `${ev} is full of people already. There are plenty more in Collab.`;
   if (n.kind === 'event_invite') return `${who} invited you to ${ev}`;
   if (n.kind === 'collab_invite') return `${who} invited you to join ${co}`;
+  // RFC §10.21: an admin can wipe any event
+  if (n.kind === 'event_removed') return n.eventTitle ? `An admin removed your event "${n.eventTitle}".` : 'An admin removed your event.';
   // RFC §10.21: nothing waits forever
   const thing = n.collab ? `"${n.collab.title}"` : n.event ? `"${n.event.title}"` : 'it';
   if (n.kind === 'requests_waiting') return `${n.count ?? 1} ${(n.count ?? 1) === 1 ? 'person is' : 'people are'} waiting to join ${thing}`;
@@ -145,7 +147,7 @@ function Notifications({ myHandle }: { myHandle: string }) {
               : n.kind === 'verified' ? '/settings#contact'
               : n.kind === 'handle_changed' && n.newHandle ? `/u/${n.newHandle}`
               : n.post ? `/p/${n.post.rootId ?? n.post.id}#${n.post.id}` : n.event ? `/collab/event/${n.event.id}`
-              : n.collab ? `/collab/${n.collab.id}` : n.kind.startsWith('collab_') || n.kind === 'requests_waiting' ? '/collab' : null;
+              : n.collab ? `/collab/${n.collab.id}` : n.kind.startsWith('collab_') || n.kind === 'requests_waiting' || n.kind === 'event_removed' ? '/collab' : null;
             const body = (
               <>
                 {n.actor

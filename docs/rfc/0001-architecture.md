@@ -633,6 +633,9 @@ admin; the web app shows an **Admin** menu item and page to admins only (members
 - **Reports**: the flag queue; Keep it / Restore / Remove. Admins can also remove **any** post (post
   menu: "Remove (admin)") or project (project page) without reports. Removing closes any open
   reports and tells the author (`post_removed`, `project_removed` with the title).
+- **Collab** (RFC §10.21): every event, activity and project, hidden and cancelled ones included,
+  each with **Remove** — a wipe of that thing and everything in it. An event can also be removed
+  from its own page's ⋯ menu.
 - **Members**: everyone but deleted accounts, seated first and admins on top. Per person:
   - **Ban** (not admins) and **Unban**: `unban_user()` re-seats them if a seat is free, else they
     queue as a new invitee; their passkeys were kept, so they sign in as before. `set_state`
@@ -1333,6 +1336,12 @@ in Coming up), updates threads, invites skipping the ask, reports, interests. Th
 events they are only going to. A host runs at most 3 open activities and projects together; events
 are not counted.
 
+**An admin's power reaches all three.** **Admin → Collab** lists every event, activity and project
+(hidden, cancelled and team-only ones included) with **Remove**; an event can also be removed from
+its own page's ⋯ menu. Remove is a wipe, not a hide: the thing goes with its team (or RSVPs),
+requests, invites, updates and, for a collab, its meetups. The host is told, without who. The host's
+own **Delete** stays a hide, so a host cannot wipe a team by accident.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,
@@ -1400,6 +1409,7 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST /consultations/:id/flag`, `POST /members/:handle/consult-offer/flag` | A, 18+ | Reports |
 | `GET /ops/consultations[/:id]`, `POST /ops/consultations/:id/resolve`, `POST /ops/consult-offers/:handle/resolve`, `POST /ops/users/:handle/consulting` | O | Who consulted whom; reported requests in full; switch consulting off/on |
 | `GET /ops/consult-asks`, `POST /ops/users/:handle/consult-approval` | O | Who is waiting for consulting approval; approve or decline it (§10.18) |
+| `GET /ops/collab`, `POST /ops/events/:id/remove`, `POST /ops/collabs/:id/remove` | O | RFC §10.21: everything in Collab (hidden and cancelled too); wipe any event, activity or project |
 | `POST /events/:id/attendance` | A (host) | Confirm attendees |
 | `GET /notifications`, `POST /notifications/read` | U | In-app inbox |
 | `POST/DELETE /push/subscriptions` | U | Web Push |

@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { api, errorMessage, type EventDetail, type Post } from '@/lib/api';
 import { Composer } from '@/components/Composer';
@@ -27,10 +27,12 @@ export default function EventPage() {
 
 function EventView() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [ev, setEv] = useState<EventDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [askCancel, setAskCancel] = useState(false);
+  const [askRemove, setAskRemove] = useState(false);
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState('');
   const readOnly = useReadOnly();
@@ -146,6 +148,10 @@ function EventView() {
           {ev.isHost && !ev.cancelledAt && (
             <button type="button" className="btn danger" disabled={busy} onClick={() => setAskCancel(true)}>Cancel event</button>
           )}
+          {/* RFC §10.21: an admin can wipe any event, a co-host's or a stranger's, meetup or not */}
+          <ActionMenu label={`More actions for this event`} items={[
+            ev.canModerate && { label: 'Remove (admin)', danger: true, disabled: busy, onSelect: () => setAskRemove(true) },
+          ]} />
         </div>
         {asking && (
           <form className="stack card" onSubmit={(e) => { e.preventDefault(); void act(() => api.askToCome(id, note.trim() || undefined)).then(() => setAsking(false)); }}>
@@ -169,6 +175,20 @@ function EventView() {
         danger
         onConfirm={() => { setAskCancel(false); void act(() => api.cancelEvent(id)); }}
         onCancel={() => setAskCancel(false)}
+      />
+      <AlertDialog
+        open={askRemove}
+        title="Remove event"
+        message="Remove this event for good? Its RSVPs, requests, invites and updates are deleted with it. This cannot be undone. The host is told (not who)."
+        confirmLabel="Remove"
+        danger
+        onConfirm={async () => {
+          setAskRemove(false);
+          setBusy(true);
+          try { await api.opsRemoveEvent(id); router.push('/collab'); }
+          catch (e) { setErr(errorMessage(e)); setBusy(false); }
+        }}
+        onCancel={() => setAskRemove(false)}
       />
 
       {ev.canConfirmAttendance

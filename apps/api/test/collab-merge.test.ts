@@ -461,6 +461,59 @@ describe('an admin removes a collab (RFC §10.21)', () => {
     expect(row!.deleted).toBe(true);
     expect((await ana.get(`/collabs/${c.id}`)).status).toBe(404);
   });
+
+  /** RFC §10.21: an admin's power reaches every kind, events included. */
+  test('an admin wipes any event — a meetup or not — and the host is told', async () => {
+    const w = await world();
+    const boss = await w.member('boss');
+    await setOps(w.t.db, 'boss', true);
+    const ana = await w.member('ana', ['photography', 'writing']);
+    const ben = await w.member('ben');
+    const ev = (await ana.post('/events', EVENT)).body;
+    await ben.post(`/events/${ev.id}/rsvp`, {});
+    const project = (await ana.post('/collabs', { ...PROJECT, joinMode: 'open' })).body;
+    const meetup = (await ana.post('/events', { ...EVENT, title: 'Work night', collabId: project.id, audience: 'team' })).body;
+
+    // the flag rides on the event, and members have no such endpoint
+    expect((await boss.get(`/events/${ev.id}`)).body.canModerate).toBe(true);
+    expect((await ana.get(`/events/${ev.id}`)).body.canModerate).toBe(false);
+    expect((await ana.post(`/ops/events/${ev.id}/remove`, {})).status).toBe(404);
+    expect((await ben.post(`/ops/events/${ev.id}/remove`, {})).status).toBe(404);
+
+    expect((await boss.post(`/ops/events/${ev.id}/remove`, {})).body).toEqual({ removed: true });
+    const count = async (q: ReturnType<typeof sql>) => Number((await rows<{ n: number }>(w.t.db, q))[0]!.n);
+    expect(await count(sql`select count(*)::int as n from events where id = ${ev.id}::uuid`)).toBe(0);
+    expect(await count(sql`select count(*)::int as n from event_rsvps where event_id = ${ev.id}::uuid`)).toBe(0);
+    const n = (await ana.get('/notifications')).body.items.find((x: any) => x.kind === 'event_removed');
+    expect(n.eventTitle).toBe(EVENT.title);
+    expect((await ana.get(`/events/${ev.id}`)).status).toBe(404);
+
+    // a meetup goes the same way; its project stays
+    expect((await boss.post(`/ops/events/${meetup.id}/remove`, {})).body).toEqual({ removed: true });
+    expect(await count(sql`select count(*)::int as n from events where collab_id = ${project.id}::uuid`)).toBe(0);
+    expect(await count(sql`select count(*)::int as n from collabs where id = ${project.id}::uuid`)).toBe(1);
+  });
+
+  test('Admin → Collab lists every event, activity and project, hidden and team-only ones too', async () => {
+    const w = await world();
+    const boss = await w.member('boss');
+    await setOps(w.t.db, 'boss', true);
+    const ana = await w.member('ana', ['photography', 'music']);
+    const ev = (await ana.post('/events', EVENT)).body;
+    const project = (await ana.post('/collabs', { ...PROJECT, title: 'Hidden project' })).body;
+    const activity = (await ana.post('/collabs', ACTIVITY)).body;
+    const meetup = (await ana.post('/events', { ...EVENT, title: 'Team only', collabId: project.id, audience: 'team' })).body;
+    await w.t.db.execute(sql`update collabs set hidden_at = now() where id = ${project.id}::uuid`);
+
+    const list = (await boss.get('/ops/collab')).body.items as any[];
+    const byId = new Map(list.map((x) => [x.id, x]));
+    expect(byId.get(ev.id)).toMatchObject({ type: 'event', host: 'ana', flagged: false });
+    expect(byId.get(meetup.id)).toMatchObject({ type: 'event', title: 'Team only' });
+    expect(byId.get(project.id)).toMatchObject({ type: 'project', title: 'Hidden project', flagged: true });
+    expect(byId.get(activity.id)).toMatchObject({ type: 'activity', status: 'recruiting' });
+    // members have no door here at all
+    expect((await ana.get('/ops/collab')).status).toBe(404);
+  });
 });
 
 describe('the sweep: nothing waits forever (RFC §10.21)', () => {

@@ -163,7 +163,7 @@ function CollabView({ myHandle }: { myHandle: string }) {
             onTeam && { label: 'Leave the team', disabled: busy, onSelect: () => setConfirm('leave') },
             c.canReport && !readOnly && { label: reported ? 'Reported' : 'Report', disabled: busy || reported, onSelect: () => setConfirm('report') },
             iAmHost && { label: 'Delete this collab', danger: true, disabled: busy, onSelect: () => setConfirm('delete') },
-            c.canModerate && !iAmHost && { label: 'Remove (admin)', danger: true, disabled: busy, onSelect: () => setConfirm('remove') },
+            c.canModerate && { label: 'Remove (admin)', danger: true, disabled: busy, onSelect: () => setConfirm('remove') },
           ]} />
         </div>
         {asking && (

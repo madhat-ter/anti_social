@@ -310,6 +310,8 @@ export interface Notification {
   collab?: { id: string; title: string } | null;
   /** collab_removed: its title */
   collabTitle?: string | null;
+  /** event_removed: its title */
+  eventTitle?: string | null;
   /** collab_finished: your draft project */
   draftId?: string | null;
   /** consult_*: the request (pricing on consult_accepted; what it was waiting for on consult_expired; `topic` only on notifications from before 2026-11-09) */
@@ -345,6 +347,8 @@ export interface AnEvent {
   /** RFC §10.21: co-hosts edit, decide, invite and mark attendance; only the host cancels */
   cohosts?: CollabPerson[];
   canManage?: boolean;
+  /** the viewer is an admin: may remove this event for good */
+  canModerate?: boolean;
   my: { status: RsvpStatus; waitlistPosition: number | null; attended: boolean } | null;
   started: boolean; rsvpOpen: boolean; canEdit: boolean; canConfirmAttendance: boolean;
   collab: { id: string; title: string } | null; audience: 'anyone' | 'team'; canPostUpdate: boolean;
@@ -410,6 +414,16 @@ export type CollabPageItem =
   | ({ type: 'collab' } & CollabSummary);
 export interface WaitingOn { type: CollabKind; id: string; title: string; count: number }
 export interface MyCollab { hosting: CollabPageItem[]; in: CollabPageItem[]; going: CollabPageItem[]; waiting: WaitingOn[] }
+/** Admin → Collab: every event, activity and project, hidden and cancelled ones included. */
+export interface AdminCollabItem {
+  type: CollabKind;
+  id: string; title: string; host: string | null;
+  createdAt: string;
+  startsAt: string | null;
+  status: CollabStatus | null;
+  /** a cancelled event, or a collab hidden after reports */
+  flagged: boolean;
+}
 
 // ─── Consultations (RFC §10.6) ──────────────────────────────────────────────
 export type ConsultPricing = 'free' | 'paid';
@@ -726,6 +740,10 @@ export const api = {
   pushConfig: () => get<{ enabled: boolean; publicKey: string | null }>('/push/config'),
   pushSubscribe: (b: { endpoint: string; keys: { p256dh: string; auth: string } }) => post<{ ok: true }>('/push/subscriptions', b),
   pushUnsubscribe: (endpoint: string) => call<{ ok: true }>('DELETE', '/push/subscriptions', { endpoint }),
+
+  /** RFC §10.21: everything in Collab, and an admin's wipe of any of it */
+  opsCollab: () => get<{ items: AdminCollabItem[] }>('/ops/collab'),
+  opsRemoveEvent: (id: string) => post<{ removed: true }>(`/ops/events/${encodeURIComponent(id)}/remove`, {}),
 
   opsFlags: () => get<FlagItem[]>('/ops/flags'),
   opsResolvePost: (id: string, resolution: 'restored' | 'removed') =>

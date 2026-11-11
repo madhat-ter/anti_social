@@ -29,6 +29,8 @@ export type EventView = {
   isHost: boolean;
   /** host or co-host: may edit, decide requests, invite and mark attendance (cancelling stays the host's) */
   canManage: boolean;
+  /** the viewer is an admin: may remove this event for good */
+  canModerate: boolean;
   my: { status: RsvpStatus; waitlistPosition: number | null; attended: boolean } | null;
   started: boolean;
   /** RSVP / leave allowed (not cancelled, not started). */
@@ -60,7 +62,7 @@ export type EventRow = {
   started: boolean; attendance_open: boolean;
   collab_id: string | null; c_title: string | null; audience: 'anyone' | 'team'; on_team: boolean;
   requirements: string; join_mode: 'open' | 'approve'; interests: string[] | null; my_request: string | null; my_invited: boolean;
-  am_cohost: boolean; cohosts: unknown;
+  am_cohost: boolean; cohosts: unknown; viewer_ops: boolean;
 };
 
 /** Base SELECT; callers append where/order/limit. One query per page, viewer-specific fields inline. */
@@ -92,7 +94,8 @@ export function eventSelect(viewerId: string): SQL {
       (select coalesce(jsonb_agg(jsonb_build_object(
                 'handle', cu.handle, 'displayName', cu.display_name, 'gender', cu.gender,
                 'admin', cu.role = 'ops', 'verified', cu.verified_at is not null) order by eh.added_at), '[]'::jsonb)
-         from event_hosts eh join users cu on cu.id = eh.user_id where eh.event_id = e.id) as cohosts
+         from event_hosts eh join users cu on cu.id = eh.user_id where eh.event_id = e.id) as cohosts,
+      exists (select 1 from users v where v.id = ${viewerId}::uuid and v.role = 'ops') as viewer_ops
     from events e
     join users h on h.id = e.host_id
     left join collabs c on c.id = e.collab_id and c.deleted_at is null
@@ -126,6 +129,7 @@ export function toEvent(r: EventRow, viewerId: string): EventView {
     cohosts,
     isHost,
     canManage,
+    canModerate: !!r.viewer_ops,
     my: r.my_status
       ? { status: r.my_status, waitlistPosition: r.my_position === null ? null : Number(r.my_position), attended: !!r.my_attended }
       : null,
