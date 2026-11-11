@@ -15,10 +15,6 @@ export const RULES = {
   stay_fee_exempt_days: 90,
   reinstate_offer_hours: 72,
   waitlist_decay_days: 60,
-  /** RFC §10.10: half an hour of looking, then an hour locked out; nudges at these seconds */
-  screen_time_limit_s: 1800,
-  screen_time_rest_s: 3600,
-  screen_time_nudges_s: [600, 1200, 1500] as readonly number[],
   ban_invite_penalty_days: 30,
   session_days: 7,
 } as const;

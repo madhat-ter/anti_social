@@ -1,7 +1,7 @@
 /**
- * RFC §10.22: the small shared pieces behind the cassettes. One tape plays at a time, the screen
- * timer counts listening as time on the site (even with the screen off), and a recording's length
- * and waveform are measured here, in the browser, before it is sent.
+ * RFC §10.22: the small shared pieces behind the cassettes. One tape plays at a time, the keyboard
+ * reaches the right tape, and a recording's length and waveform are measured here, in the browser,
+ * before it is sent.
  */
 import { MONOLOGUE } from '@anti/shared';
 
@@ -94,8 +94,6 @@ export function tapeKey(e: KeyboardEvent): boolean {
   }
   return false;
 }
-/** for the screen timer (RFC §10.10): listening counts even when the tab is in the back */
-export const tapePlaying = () => playingId !== null;
 export function onOtherPlay(id: string, stop: () => void) {
   const h = (e: Event) => { if ((e as CustomEvent<string>).detail !== id) stop(); };
   window.addEventListener(PLAY_EVENT, h);

@@ -186,17 +186,15 @@ const EDITABLE = {
   seatCap: { key: 'seat_cap', min: 1, max: 1000 },
   invitesPerMember: { key: 'max_open_invites', min: 0, max: 20 },
   inviteExpiryDays: { key: 'invite_expiry_days', min: 1, max: 60 },
-  /** RFC §10.10: 1 = half an hour of looking then an hour away, for everyone; 0 (the default) = off */
-  screenTime: { key: 'screen_time', min: 0, max: 1 },
 } as const;
-export type AdminSettings = { seatCap: number; invitesPerMember: number; inviteExpiryDays: number; screenTime: boolean; seatsUsed: number };
+export type AdminSettings = { seatCap: number; invitesPerMember: number; inviteExpiryDays: number; seatsUsed: number };
 export type AdminSettingsInput = Partial<Record<keyof typeof EDITABLE, number>>;
 
 export async function getAdminSettings(db: Db): Promise<AdminSettings> {
-  const [r] = await rows<{ cap: number; inv: number; exp: number; st: number; used: number }>(db, sql`
+  const [r] = await rows<{ cap: number; inv: number; exp: number; used: number }>(db, sql`
     select setting_int('seat_cap') as cap, setting_int('max_open_invites') as inv,
-           setting_int('invite_expiry_days') as exp, coalesce(setting_int('screen_time'), 0) as st, seats_used() as used`);
-  return { seatCap: Number(r!.cap), invitesPerMember: Number(r!.inv), inviteExpiryDays: Number(r!.exp), screenTime: Number(r!.st) === 1, seatsUsed: Number(r!.used) };
+           setting_int('invite_expiry_days') as exp, seats_used() as used`);
+  return { seatCap: Number(r!.cap), invitesPerMember: Number(r!.inv), inviteExpiryDays: Number(r!.exp), seatsUsed: Number(r!.used) };
 }
 
 /**
@@ -221,8 +219,6 @@ export async function updateAdminSettings(db: Db, input: AdminSettingsInput): Pr
           on conflict (key) do update set value = excluded.value`);
       }
       if (changes.some((c) => c.key === 'seat_cap')) await tx.execute(sql`select promote_waitlist()`);
-      // switching screen time off lets everyone in at once, and nobody carries old minutes into the next switch-on
-      if (changes.some((c) => c.key === 'screen_time' && c.value === 0)) await tx.execute(sql`delete from screen_time`);
     });
   }
   return getAdminSettings(db);

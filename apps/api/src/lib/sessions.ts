@@ -1,5 +1,5 @@
 import { and, eq, gt, sql } from 'drizzle-orm';
-import { screenTime, sessions, users, type Db } from '@anti/db';
+import { sessions, users, type Db } from '@anti/db';
 import { RULES } from '@anti/shared';
 import { randomToken, sha256Hex } from './crypto';
 
@@ -11,11 +11,7 @@ export type VisitorPass = { id: string; expiresAt: Date };
  * looks seated so every read works unchanged, plus `visitor`; `requireUser` turns them away and
  * nothing that writes ever reaches a handler (app.ts).
  */
-export type Auth = {
-  user: SessionUser; tokenHash: string; visitor?: VisitorPass;
-  /** RFC §10.10: set while the member's half hour is spent and they are locked out */
-  lockedUntil?: Date | null;
-};
+export type Auth = { user: SessionUser; tokenHash: string; visitor?: VisitorPass };
 
 const DAY = 86_400_000;
 const sessionMs = RULES.session_days * DAY;
@@ -35,10 +31,9 @@ export async function createSession(db: Db, userId: string, client: 'web' | 'mob
 export async function resolveSession(db: Db, token: string): Promise<Auth | null> {
   const tokenHash = sha256Hex(token);
   const [row] = await db
-    .select({ user: users, expiresAt: sessions.expiresAt, lockedUntil: screenTime.lockedUntil })
+    .select({ user: users, expiresAt: sessions.expiresAt })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
-    .leftJoin(screenTime, eq(screenTime.userId, users.id))
     .where(and(eq(sessions.tokenHash, tokenHash), gt(sessions.expiresAt, new Date())))
     .limit(1);
   if (!row) return null;
@@ -46,7 +41,7 @@ export async function resolveSession(db: Db, token: string): Promise<Auth | null
   if (row.expiresAt.getTime() - Date.now() < sessionMs - DAY) {
     await db.update(sessions).set({ expiresAt: new Date(Date.now() + sessionMs) }).where(eq(sessions.tokenHash, tokenHash));
   }
-  return { user: row.user, tokenHash, lockedUntil: row.lockedUntil ?? null };
+  return { user: row.user, tokenHash };
 }
 
 export async function revokeSession(db: Db, tokenHash: string) {

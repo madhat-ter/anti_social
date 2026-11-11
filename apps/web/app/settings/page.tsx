@@ -15,7 +15,6 @@ import { SeatedShell } from '@/components/Shell';
 import { PayButton } from '@/components/Billing';
 import { PushToggle } from '@/components/PushToggle';
 import { AlertDialog, Loading, Win } from '@/components/retro';
-import { ScreenTime } from '@/components/ScreenTime';
 import { Avatar } from '@/components/Avatar';
 
 export default function Settings() {
@@ -72,12 +71,10 @@ export default function Settings() {
   // other page. Someone not seated (lapsed, paying the stay fee) has no rooms to go to, so they get the page alone.
   if (seated) return <SeatedShell me={me}>{() => page}</SeatedShell>;
   return (
-    <ScreenTime me={me}>
     <div className="stack">
       <div className="row"><Link href="/" className="ui">Back to the feed</Link></div>
       {page}
     </div>
-    </ScreenTime>
   );
 }
 

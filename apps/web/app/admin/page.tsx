@@ -927,34 +927,6 @@ function AddInterest() {
   );
 }
 
-/**
- * RFC §10.10: the one switch for screen time. Off by default. On: everyone with a seat gets half
- * an hour of looking, then an hour away (admins see the timer, never the lock). Off again lets
- * everyone in at once.
- */
-function ScreenTimeSwitch({ on, onChange, onError }: { on: boolean; onChange: (s: AdminSettings) => void; onError: (e: string | null) => void }) {
-  const [busy, setBusy] = useState(false);
-  async function flip() {
-    setBusy(true); onError(null);
-    try { onChange(await api.opsUpdateSettings({ screenTime: on ? 0 : 1 })); } catch (e) { onError(errorMessage(e)); } finally { setBusy(false); }
-  }
-  return (
-    <div className="stack adm-screen-time" role="group" aria-labelledby="adm-st">
-      <h3 id="adm-st" className="adm-sub">Screen time</h3>
-      <p className="muted small">
-        Half an hour of looking, then an hour locked out, for everyone with a seat. A timer in the header, reminders at 10, 20 and 25
-        minutes, a countdown at 30. Admins see the timer and the reminders but are never locked out. Switching it off lets everyone in at once.
-      </p>
-      <div className="row">
-        <span className={`tag${on ? ' on' : ''}`}>{on ? 'on' : 'off'}</span>
-        <button type="button" className={`btn${on ? '' : ' primary'}`} disabled={busy} onClick={() => void flip()}>
-          {busy ? 'Saving…' : on ? 'Switch screen time off' : 'Switch screen time on'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 /** The room's size and the invite rules. */
 function Community() {
   const [s, setS] = useState<AdminSettings | null>(null);
@@ -997,7 +969,6 @@ function Community() {
           <div className="row"><button className="btn primary">Save</button>{msg && <span role="status" className="muted">{msg}</span>}</div>
         </form>
       )}
-      {s && <ScreenTimeSwitch on={s.screenTime} onChange={(x) => { setS(x); setMsg(null); }} onError={setErr} />}
       <AddInterest />
       <ErrorNote message={err} />
     </section>

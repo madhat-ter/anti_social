@@ -206,7 +206,6 @@ export const moderationRoutes = (deps: Deps) => {
         seatCap: t.Optional(t.Number()),
         invitesPerMember: t.Optional(t.Number()),
         inviteExpiryDays: t.Optional(t.Number()),
-        screenTime: t.Optional(t.Number()),
       }),
     })
 

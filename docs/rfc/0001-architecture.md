@@ -937,36 +937,14 @@ five commits. The rules it left behind, for anything added later:
 
 `scripts/screenshots-desktop.ts` checks each of these at laptop sizes.
 
-### 10.10 Screen time (added 2026-11-09)
+### 10.10 Screen time (added 2026-11-09, removed 2026-11-11)
 
-The site would rather you went outside, so it says so and then shows you the door. Grilled Q1–Q9,
-all accepted.
-
-- **The cycle.** A member gets 30 minutes of looking, then is locked out for 60, then a fresh 30.
-  Only time with the tab in front counts: the page ticks while visible and sends a heartbeat with
-  the seconds since the last one every 30 s and when the tab goes to the background. An hour away
-  also opens a fresh half hour, so a quiet member never carries yesterday's minutes.
-- **Kept on the server**, one row per member (`screen_time`: `used_s`, `window_started_at`,
-  `locked_until`), so the half hour follows the person across tabs and devices and survives a
-  refresh. `GET /me/screen-time` reads it (and settles a spent rest); `POST /me/screen-time/beat
-  {seconds}` adds at most a minute per call and locks the member out when the limit is reached.
-- **The wall.** While locked, the auth plugin answers every request with `403 rest_time` (detail:
-  when it ends) except `/me`, `/me/screen-time*`, `/auth/logout` and `/health`. The lock is read
-  with the session (one left join), so it costs no extra query.
-- **In the app.** A timer centred in the header, pixel font in a bordered box, counting up and red
-  in the last five minutes; alert windows at 10, 20 and 25 minutes (once each per half hour,
-  remembered on the device by the window's start), one button each; at 30 the lock window replaces
-  every page with a countdown and *Sign out*, and clears itself when the hour is up.
-- **The switch.** Off by default (`settings.screen_time` = 0). An admin turns it on or off for
-  everyone from Admin → Community (`PATCH /ops/settings {screenTime: 0|1}`). While off, nothing
-  shows and heartbeats count nothing; switching it off deletes every `screen_time` row, so everyone
-  is let in at once and nobody carries old minutes into the next switch-on.
-- **Who.** Everyone with a seat. Admins see the timer and the nudges but are never locked out:
-  their count runs on past the half hour (`exempt` in the state) and the wall ignores them.
-  Visitors are excluded: their hour is the pass. Settings and setup are outside the shell;
-  Settings carries the timer too, setup does not.
-- Constants in `RULES` (`screen_time_limit_s`, `screen_time_rest_s`, `screen_time_nudges_s`); the
-  nudge texts live in `ScreenTime.tsx`. `scripts/screenshots-screen-time.ts` walks it.
+Removed on the owner's word. It was half an hour of looking, then an hour locked out, behind an
+admin switch that was off by default. Everything went: the timer in the header, the nudges, the
+lock screen and the API's wall, the heartbeat endpoints, the Admin → Community switch, the
+constants, the tests and the screenshot script. Migration 0034 drops the `screen_time` table and
+the `screen_time` setting. Nothing on the site counts a member's time any more; the number stays so
+the sections after it keep theirs.
 
 ### 10.11 The feed: newest first, with an end (added 2026-11-09)
 
@@ -1009,7 +987,7 @@ top of `(created_at desc, id desc)`, each one written on `/feed-rules`:
   the end. Pruned after 60 days by the daily cleanup, gone with the member. Visitors write nothing.
 - **Not built:** a "By person" view (what you missed, grouped per member, quietest first). Build it
   only if the 90th-percentile backlog stays above 150 posts, or fewer than half of the visits with
-  60+ new posts reach the end before a screen-time lock, or five members ask for it. Never an A/B
+  60+ new posts reach the end, or five members ask for it. Never an A/B
   test; time on site and sessions are never objectives.
 
 The landing page keeps "no algorithm"; its rule now reads "One feed, newest first. Likes never move
@@ -1367,8 +1345,6 @@ format does the work: a title, a kind, five minutes, listen back before posting.
   monologue notifies nobody. **No play counts**, anywhere (§10.11). It counts as a post for the
   lurker rule. Search finds it by title and note. No transcripts (they need a paid service).
 - **Visitors** (§10.8) can listen; they can't post, like or reply.
-- **Screen time** (§10.10): listening counts as time on the site, even with the screen off, and the
-  sound stops when the lock comes.
 
 **Where it lives.** In the **feed**, newest first like everything else; on its own tab,
 **Monologue**, which fills the phone bar's empty fifth slot (Feed · Collab · Monologue · Members ·

@@ -19,7 +19,6 @@ import { interestRoutes } from './routes/interests';
 import { collabRoutes } from './routes/collabs';
 import { consultationRoutes } from './routes/consultations';
 import { visitRoutes } from './routes/visit';
-import { screenTimeRoutes } from './routes/screen-time';
 import { petRoutes } from './routes/pets';
 import { monologueRoutes } from './routes/monologues';
 import { VISITOR_COOKIE, openPath } from './lib/visitors';
@@ -80,7 +79,6 @@ export function createApp(deps: Deps) {
     .use(visitRoutes(deps))
     .use(authRoutes(deps))
     .use(meRoutes(deps))
-    .use(screenTimeRoutes(deps))
     .use(postRoutes(deps))
     .use(socialRoutes(deps))
     .use(petRoutes(deps))

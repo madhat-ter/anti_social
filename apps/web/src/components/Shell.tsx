@@ -14,7 +14,6 @@ import { Rail } from './Rail';
 import { isAdult } from './Consult';
 import { ReadOnlyProvider, VisitorPill, isVisitor, membersOnlyPath, useVisitorEnd } from './Visitor';
 import { PhoneBar, TopBell } from './PhoneBar';
-import { ScreenTime } from './ScreenTime';
 import { Shortcuts } from './Shortcuts';
 import { PinGate } from './Pin';
 
@@ -53,7 +52,6 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
   // phones/tablets: nav on top, one column. Wide screens: menu | content | side windows (CSS).
   return (
     <ReadOnlyProvider on={isVisitor(me)}>
-      <ScreenTime me={me}>
       <div className={`shell${isVisitor(me) ? ' visiting' : ''}`}>
         <div className="shell-left">
           <NavBar me={me} />
@@ -65,7 +63,6 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
         </div>
         <Rail me={me} />
       </div>
-      </ScreenTime>
     </ReadOnlyProvider>
   );
 }

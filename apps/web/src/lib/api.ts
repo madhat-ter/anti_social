@@ -44,21 +44,6 @@ export interface Me {
   collabIntroSeen?: boolean;
 }
 
-/** RFC §10.10: a member's half hour on the site. */
-export interface ScreenState {
-  /** the admins' switch; off by default, and nothing shows while off */
-  enabled: boolean;
-  usedSeconds: number;
-  limitSeconds: number;
-  restSeconds: number;
-  /** ISO; while in the future the member is locked out */
-  lockedUntil: string | null;
-  /** ISO; identifies the current half hour */
-  windowStartedAt: string | null;
-  /** an admin: the timer shows and counts on, the lock never comes */
-  exempt: boolean;
-}
-
 /** RFC §10.8: one visitor pass as the admin panel lists it (the code is shown once, at creation). */
 export interface VisitorPassInfo {
   id: string; label: string;
@@ -106,7 +91,7 @@ export interface AdminContact {
   openedBy: { handle: string | null; at: string }[];
 }
 /** The room's settings an admin can change, plus seats in use. */
-export interface AdminSettings { seatCap: number; invitesPerMember: number; inviteExpiryDays: number; screenTime: boolean; seatsUsed: number }
+export interface AdminSettings { seatCap: number; invitesPerMember: number; inviteExpiryDays: number; seatsUsed: number }
 
 /** "Finish your profile": each item ticks itself from what you have done. */
 export type ChecklistItem = 'headline' | 'skills' | 'project' | 'post' | 'pick' | 'interests';
@@ -541,8 +526,6 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
     if (res.status === 401 && data?.error === 'visitor_expired' && typeof window !== 'undefined' && !window.location.pathname.startsWith('/visit/')) {
       window.location.assign('/visit/ended');
     }
-    // a member's half hour is spent (RFC §10.10): the timer finds out and shows the lock
-    if (res.status === 403 && data?.error === 'rest_time' && typeof window !== 'undefined') window.dispatchEvent(new Event('anti:rest'));
     throw new ApiError(res.status, data?.error ?? 'unknown', data?.detail);
   }
   return data as T;
@@ -573,9 +556,6 @@ export const api = {
   /** RFC §10.8: enter a visitor code; the hour starts and the cookie is set */
   visit: (code: string) => post<{ expiresAt: string }>('/visit', { code }),
   leaveVisit: () => post<{ ok: true }>('/visit/leave', {}),
-  /** RFC §10.10: the member's half hour, and the heartbeat that spends it */
-  screenTime: () => get<ScreenState>('/me/screen-time'),
-  screenBeat: (seconds: number) => post<ScreenState>('/me/screen-time/beat', { seconds }),
   opsVisitorPasses: () => get<{ items: VisitorPassInfo[]; active: number }>('/ops/visitor-passes'),
   opsCreateVisitorPass: (label: string) => post<VisitorPassInfo & { code: string }>('/ops/visitor-passes', { label }),
   opsRevokeVisitorPass: (id: string) => post<VisitorPassInfo>(`/ops/visitor-passes/${encodeURIComponent(id)}/revoke`, {}),
@@ -794,7 +774,7 @@ export const api = {
   opsRemovePost: (id: string) => post<{ removed: true }>(`/ops/posts/${encodeURIComponent(id)}/remove`, {}),
   opsRemoveProject: (id: string) => post<{ removed: true }>(`/ops/projects/${encodeURIComponent(id)}/remove`, {}),
   opsSettings: () => get<AdminSettings>('/ops/settings'),
-  opsUpdateSettings: (b: Partial<Omit<AdminSettings, 'seatsUsed' | 'screenTime'>> & { screenTime?: 0 | 1 }) => call<AdminSettings>('PATCH', '/ops/settings', b),
+  opsUpdateSettings: (b: Partial<Omit<AdminSettings, 'seatsUsed'>>) => call<AdminSettings>('PATCH', '/ops/settings', b),
   opsInvites: (count: number) => post<{ code: string; expiresAt: string }[]>('/ops/invites', { count }),
   seats: () => get<{ cap: number; used: number }>('/seats'),
 
@@ -876,7 +856,6 @@ const MESSAGES: Record<string, string> = {
   not_requester: 'Only the person who asked can do that.',
   visitor_readonly: 'Visitors can only watch.',
   visitor_expired: 'Your hour is up.',
-  rest_time: 'That is your half hour. Come back in an hour.',
   visitor_pass_invalid: 'That visitor code is not valid, or has expired.',
   visitor_pass_used: 'This pass has already been used.',
   already_member: 'You are already a member. No pass needed.',

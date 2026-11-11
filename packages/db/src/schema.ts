@@ -209,21 +209,6 @@ export const visitorPasses = pgTable('visitor_passes', {
   check('visitor_passes_label_len', sql`char_length(${t.label}) <= 80`),
 ]);
 
-/**
- * Screen time (RFC §10.10): how much of the current half hour a member has looked at the site, and
- * the hour they are locked out for once it is spent. One row per member, written by heartbeats.
- */
-export const screenTime = pgTable('screen_time', {
-  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
-  /** seconds of visible time in the current window */
-  usedS: integer('used_s').notNull().default(0),
-  /** when the current window began (null until the first heartbeat) */
-  windowStartedAt: tstz('window_started_at'),
-  /** set when the window is spent; the member is locked out until then */
-  lockedUntil: tstz('locked_until'),
-  updatedAt: tstz('updated_at').notNull().defaultNow(),
-});
-
 export const waitlist = pgTable('waitlist', {
   userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
   priority: integer('priority').notNull(), // 0 = reinstating member, 1 = new invitee

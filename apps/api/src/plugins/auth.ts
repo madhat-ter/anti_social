@@ -6,7 +6,6 @@ import { ApiError } from '../lib/errors';
 import { setupComplete } from '../lib/contact';
 import { resolveSession, touchLastSeen, SESSION_MAX_AGE_S, type Auth } from '../lib/sessions';
 import { VISITOR_COOKIE, VISITOR_COOKIE_MAX_AGE_S, closedToVisitors, openPath, resolveVisitor, visitorUser } from '../lib/visitors';
-import { openWhileLocked } from '../lib/screen-time';
 
 export const SESSION_COOKIE = 'anti_session';
 export type CookieJar = Record<string, Cookie<unknown>>;
@@ -32,11 +31,6 @@ export function authPlugin(deps: Deps, seed?: unknown) {
       auth = await resolveSession(deps.db, token);
       if (auth && (auth.user.state === 'banned' || auth.user.state === 'deleted')) auth = null;
       if (auth) await touchLastSeen(deps.db, auth.user.id);
-      // RFC §10.10: the half hour is spent; only the lock screen, the timer and signing out answer (admins are never locked)
-      if (auth?.lockedUntil && auth.user.role !== 'ops' && auth.lockedUntil.getTime() > Date.now()) {
-        const path = new URL(request.url).pathname;
-        if (!openWhileLocked(path)) throw new ApiError(403, 'rest_time', auth.lockedUntil.toISOString());
-      }
     }
     const vtoken = (cookie as CookieJar)[VISITOR_COOKIE]?.value;
     if (typeof vtoken === 'string' && vtoken) {

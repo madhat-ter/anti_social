@@ -55,7 +55,7 @@ Vercel's proxy (a 5-minute recording made on the site is about 2.4 MB).
   (`users.consult_approved_at`). Approval sticks across pauses; losing the badge wipes it. Never
   make `consult_offers.active` alone mean "bookable" — live is `offerLive()` in
   `apps/api/src/lib/consultations.ts`.
-- **The header is the wordmark only**, plus the phone bell and the screen-time pill. Ask before
+- **The header is the wordmark only**, plus the phone bell. Ask before
   adding anything to `.top`.
 - **Collab is one place** (§10.21): three kinds, one Start, one "More options" fold, one join
   button, one card. Events are pages inside it (`/collab/event/<id>`); never add Events or Collabs
