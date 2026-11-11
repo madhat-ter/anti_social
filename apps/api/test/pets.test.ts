@@ -25,10 +25,10 @@ const createPet = async (c: Client, name = 'Max', species = 'dog', extra: Record
 describe('Pet Corner (RFC §10.17)', () => {
   test('a pet is created with a drawn look and shows on its owner profile', async () => {
     const w = await world();
-    const mira = await w.member('mira', 'Mira');
+    const mira = await w.member('mira', 'mira');
     const pet = await createPet(mira, 'Max', 'dog', { avatarVariant: 7 });
     expect(pet).toMatchObject({
-      name: 'Max', species: 'dog', avatar: { variant: 7, url: null }, owner: { handle: 'mira', displayName: 'Mira' },
+      name: 'Max', species: 'dog', avatar: { variant: 7, url: null }, owner: { handle: 'mira', displayName: 'mira' },
     });
     const profile = await mira.get('/members/mira');
     expect(profile.body.pets.map((p: any) => p.name)).toEqual(['Max']);

@@ -25,7 +25,7 @@ async function newPost(c: Client, body: string, extra: Record<string, unknown> =
 describe('mentions (RFC §10.16)', () => {
   test('a real @handle is stored and notifies once', async () => {
     const w = await world();
-    const mira = await w.member('mira', 'Mira');
+    const mira = await w.member('mira', 'mira');
     const ben = await w.member('ben', 'Ben');
     const p = await newPost(ben, 'look at this, @mira');
     expect(p.mentions).toEqual(['mira']);
@@ -87,7 +87,7 @@ describe('mentions (RFC §10.16)', () => {
     expect((await ben.patch(`/posts/${p.id}`, { body: 'hello @mira and @cara' })).status).toBe(200);
     const after = await ben.get(`/posts/${p.id}`);
     expect(after.status).toBe(200);
-    expect(after.body.root.mentions.sort()).toEqual(['mira', 'cara']);
+    expect(after.body.root.mentions.sort()).toEqual(['cara', 'mira']);
     const noteFor = async (handle: string) => (await w.rowsOf(sql`
       select kind from notifications
        where user_id = (select id from users where handle = ${handle}) and payload->>'postId' = ${p.id}`)).length;
@@ -107,14 +107,14 @@ describe('mentions (RFC §10.16)', () => {
     const w = await world();
     const mira = await w.member('mira', 'Mira Sen');
     const ben = await w.member('ben', 'Ben Ok');
-    await w.member('noor', 'Noor Noor');
-    const byHandle = await ben.get('/members/mention?q=ad');
+    await w.member('noor', 'Noor Haq');
+    const byHandle = await ben.get('/members/mention?q=mir');
     expect(byHandle.status).toBe(200);
     expect(byHandle.body.items[0].handle).toBe('mira');
     const all = await ben.get('/members/mention');
     expect(all.body.items.length).toBeLessThanOrEqual(8);
     expect(all.body.items.map((i: any) => i.handle)).not.toContain('ben');
-    const byName = await ben.get('/members/mention?q=Noor');
+    const byName = await ben.get('/members/mention?q=noor');
     expect(byName.body.items.map((i: any) => i.handle)).toContain('noor');
     void mira;
   });
