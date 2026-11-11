@@ -1375,12 +1375,18 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST /projects/:id/flag`, `POST /ops/projects/:id/resolve` | A / O | Report a project; ops restore or remove |
 | `GET/POST /events`, `GET/PATCH/DELETE /events/:id` | A | Events |
 | `POST/DELETE /events/:id/rsvp` | A | RSVP (approve events: only accepted or invited people) |
+| `POST/DELETE /events/:id/cohosts[/:handle]` | A (host) | RFC §10.21: a co-host from the going list, or back again |
 | `POST/DELETE /events/:id/request`, `POST /events/:id/requests/:handle/accept\|decline` | A / host | Ask to come; the host decides |
 | `GET /events/:id/suggestions`, `POST /events/:id/invites`, `POST /events/:id/invite/decline` | host / A | People who might fit; invites |
 | `GET /events/:id/updates` | A | The event's updates (post with `POST /posts { eventId }`) |
 | `GET/POST /interests`, `PUT /me/interests` | A | The tag list; add a missing one; your picks |
 | `GET/POST /ops/interests`, `DELETE /ops/interests/:slug` | O | Who added what; add; remove everywhere |
 | `GET/POST /collabs`, `GET/PATCH/DELETE /collabs/:id` | A | Collabs (`?tab=for-you\|all&interest=`) |
+| `GET /collab` | A | RFC §10.21: one list of events, activities and projects (`?kind=all\|event\|activity\|project&interest=&done=0\|1&cursor=`) |
+| `GET /me/collab` | A (not V) | The "Yours" strip: hosting, in, going, requests waiting on you |
+| `GET /members/:handle/events` | A | The events that member hosts (upcoming, then the latest past 10) |
+| `POST /me/collab-intro/dismiss` | A | Close the one-time "Events and Collabs are one place now" strip |
+| `POST /collabs/:id/members/:handle/slot` | A / managers | A project role ("illustrator: @handle"), or null to free it |
 | `POST /collabs/:id/join`, `DELETE /collabs/:id/request`, `POST /collabs/:id/requests/:handle/accept\|decline` | A / managers | Join or ask; decide |
 | `GET /collabs/:id/suggestions`, `POST /collabs/:id/invites`, `POST /collabs/:id/invite/accept\|decline` | managers / A | Invites |
 | `POST /collabs/:id/leave`, `POST /collabs/:id/members/:handle/role`, `DELETE /collabs/:id/members/:handle` | A / host, managers | The team |
@@ -1422,6 +1428,7 @@ To members, every `/ops/*` path is a 404. Ops also has a CLI (`bun run ops:mint-
 | Session + challenge cleanup | Daily | Delete expired `sessions`, `auth_challenges`; `visitor_passes` older than 30 days (§10.8); `feed_visits` older than 60 days (§10.11) |
 | Upload quarantine sweep | Daily | Delete orphaned R2 quarantine objects > 24 h |
 | Notification fan-out | On insert (in-process queue) | Send Web Push for push-worthy kinds |
+| `collab_sweep` | Hourly | RFC §10.21: remind a waiting request at 3 days, close it at 7 (or when its event starts), and ask a quiet project (3 weeks) or activity (6 weeks) once |
 
 Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock(<job id>)` and skips if not acquired, so multiple API instances are safe.
 

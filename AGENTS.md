@@ -29,9 +29,8 @@ can time out under the full suite on a busy machine; they pass on their own.
 
 ## Open tasks
 
-- **One Collab (RFC §10.21)**: decided, not built. Merge Events and Collabs into one Collab
-  section (event / activity / project). The full build plan is `docs/tasks/collab-merge.md`;
-  follow it as written.
+Nothing in the code waits on anyone. One Collab (RFC §10.21) is built: events, activities and
+projects live under `/collab`; the old `/events…` and `/collabs…` addresses forward permanently.
 
 One thing waits on the **live test site** and needs an admin, not a commit:
 the §10.18 migration paused every offer that was already live, so they are sitting in
@@ -52,6 +51,9 @@ the §10.18 migration paused every offer that was already live, so they are sitt
   `apps/api/src/lib/consultations.ts`.
 - **The header is the wordmark only**, plus the phone bell and the screen-time pill. Ask before
   adding anything to `.top`.
+- **Collab is one place** (§10.21): three kinds, one Start, one "More options" fold, one join
+  button, one card. Events are pages inside it (`/collab/event/<id>`); never add Events or Collabs
+  back as separate tabs, and keep the old addresses forwarding.
 - **Faces are procedural** (`apps/web/src/components/Avatar.tsx`, from handle + gender). Any
   change to its pick lists or roll order redraws every member's face. Ask the owner first; check
   `/dev/faces` after.
@@ -100,7 +102,7 @@ by scripts must `PUT /me/setup` and join with `POST /auth/join` and a PIN.
 ### The latest UI, for the owner
 
 After any UI change, run `bun scripts/screenshots-latest.ts` (same stack as above). It overwrites
-`.screenshots/latest/` with the whole UI under fixed names (`01-landing` … `14-feed-dark`) plus
+`.screenshots/latest/` with the whole UI under fixed names (`01-landing` … `15-feed-dark`) plus
 `_when.txt` with the time and commit, so the newest look is always in the same file names. Show
 the screens you changed in the reply. A before/after pair for one change still goes in that
 feature's own folder (e.g. `.screenshots/feed-types-before/`).

@@ -44,6 +44,8 @@ export type Collab = CollabSummary & {
   invites: Person[] | null;
   /** hidden after reports (only the team and admins ever get true) */
   hidden: boolean;
+  /** RFC §10.21: the host was asked "finish it, keep going, or close?" and nothing has happened since */
+  quiet: boolean;
   canReport: boolean;
   /** the viewer is an admin: can remove it */
   canModerate: boolean;
@@ -64,7 +66,7 @@ type Row = {
   interests: string[] | null; team_count: number; h_handle: string | null; h_display: string | null; h_gender: string | null;
   h_admin: boolean | null; h_verified: boolean | null;
   match: number; my_role: CollabRole | null; my_request: string | null; my_invited: boolean;
-  hidden: boolean; viewer_ops: boolean;
+  hidden: boolean; viewer_ops: boolean; quiet: boolean;
 };
 
 const select = (me: string) => sql`
@@ -80,7 +82,14 @@ const select = (me: string) => sql`
     (select r.status from collab_requests r where r.collab_id = c.id and r.user_id = ${me}::uuid) as my_request,
     exists (select 1 from collab_invites i where i.collab_id = c.id and i.user_id = ${me}::uuid and i.status = 'pending') as my_invited,
     (c.hidden_at is not null) as hidden,
-    exists (select 1 from users v where v.id = ${me}::uuid and v.role = 'ops') as viewer_ops
+    exists (select 1 from users v where v.id = ${me}::uuid and v.role = 'ops') as viewer_ops,
+    -- RFC §10.21: the quiet nudge is still unanswered (nothing has happened since it was sent)
+    exists (select 1 from notifications n
+       where n.user_id = ${me}::uuid and n.kind = 'collab_quiet' and (n.payload->>'collabId') = c.id::text
+         and n.created_at >= greatest(c.updated_at,
+           coalesce((select max(p.created_at) from posts p where p.collab_id = c.id and p.deleted_at is null), '-infinity'::timestamptz),
+           coalesce((select max(m.joined_at) from collab_members m where m.collab_id = c.id), '-infinity'::timestamptz),
+           coalesce((select max(e.created_at) from events e where e.collab_id = c.id), '-infinity'::timestamptz))) as quiet
   from collabs c
   left join collab_members hm on hm.collab_id = c.id and hm.role = 'host'
   left join users h on h.id = hm.user_id and h.state not in ${LIVE}
@@ -176,7 +185,7 @@ export async function getCollab(db: Db, me: string, id: string): Promise<Collab>
     slots: roles.map((role) => ({ role, handle: team.find((t) => t.slot === role)?.handle ?? null })),
     team: team.map((t) => ({ handle: t.handle, displayName: t.display_name, gender: t.gender, role: t.role, slot: t.slot, joinedAt: t.joined, admin: !!t.admin, verified: !!t.verified })),
     canManage: manage, requests, invites,
-    hidden: !!r.hidden, canReport: !r.my_role && !r.hidden, canModerate: !!r.viewer_ops,
+    hidden: !!r.hidden, quiet: !!r.quiet, canReport: !r.my_role && !r.hidden, canModerate: !!r.viewer_ops,
     meetups: meetups.map((m) => ({ id: m.id, title: m.title, startsAt: m.starts, audience: m.audience, goingCount: Number(m.going), past: !!m.past })),
   };
 }

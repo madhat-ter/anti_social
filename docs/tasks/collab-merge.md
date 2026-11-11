@@ -1,8 +1,9 @@
-# One Collab: events, activities, projects (to build)
+# One Collab: events, activities, projects (built)
 
-> **Status (2026-11-11): decided, not built.** Every product decision is settled and recorded in
-> **RFC §10.21** (`docs/rfc/0001-architecture.md`). This file is the build plan. Follow it as
-> written; where it and the RFC disagree, the RFC wins, and say so in your report.
+> **Status (2026-11-11): done.** Every product decision is recorded in **RFC §10.21**
+> (`docs/rfc/0001-architecture.md`), and the build follows this plan. Events and Collabs are one
+> **Collab** section; the old addresses forward permanently; the before/after screenshots are in
+> `.screenshots/collab-merge-before/` and `.screenshots/collab-merge-after/`.
 
 **For the agent building this (Command Code or Claude).** Read `AGENTS.md`, then RFC §10.5 (how
 collabs and events work today), §10.9, §10.20 and §10.21 (what changes). Then read this file to
