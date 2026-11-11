@@ -5,6 +5,7 @@ import type { PaymentProvider } from './payments';
 import { expireStaleCheckouts, processRefunds } from './billing';
 import { fanOutPush, NoPushSender, type PushSender } from './push';
 import { sweepConsultations } from './consultations';
+import { sweepCollabs } from './collabs-sweep';
 
 export type JobDeps = { storage: Storage; payments: PaymentProvider; push?: PushSender };
 
@@ -85,6 +86,12 @@ export const JOBS: Job[] = [
     name: 'consultations',
     everyMs: HOUR,
     run: async (tx) => sweepConsultations(tx),
+  },
+  {
+    // RFC §10.21: requests that wait are reminded and then closed; quiet things ask their host once.
+    name: 'collab_sweep',
+    everyMs: HOUR,
+    run: async (tx) => sweepCollabs(tx),
   },
   {
     // Web Push fan-out of new notifications (RFC §12: near real time).

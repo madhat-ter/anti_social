@@ -2,6 +2,8 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
 import { rows } from '@anti/db';
 import { setOps } from '../src/lib/moderation';
+import { JOBS, runJob } from '../src/lib/jobs';
+import { describePush } from '../src/lib/push';
 import { cleanup, setup } from './client';
 
 afterEach(cleanup);
@@ -420,5 +422,107 @@ describe('the Collab page data (RFC §10.21)', () => {
     expect((await v.get('/me/collab')).status).toBe(403);
     expect((await v.get('/me/collab')).body.error).toBe('visitor_readonly');
     expect((await v.post('/me/collab-intro/dismiss', {})).status).toBe(403);
+  });
+});
+
+const sweep = JOBS.find((j) => j.name === 'collab_sweep')!;
+
+describe('the sweep: nothing waits forever (RFC §10.21)', () => {
+  const run = (w: Awaited<ReturnType<typeof world>>) => runJob(w.t.db, sweep, { storage: w.storage, payments: w.payments });
+
+  test('a request is reminded at three days, once, and closes at seven with the right words', async () => {
+    const w = await world();
+    const ana = await w.member('ana');
+    const ben = await w.member('ben');
+    const p = (await ana.post('/collabs', PROJECT)).body;
+    await ben.post(`/collabs/${p.id}/join`, { note: 'Me.' });
+    await w.t.db.execute(sql`update collab_requests set created_at = now() - interval '4 days'`);
+
+    const first = (await run(w)).result as any;
+    expect(first.reminded).toBe(1);
+    const reminder = (await ana.get('/notifications')).body.items.find((n: any) => n.kind === 'requests_waiting');
+    expect(reminder.collab).toEqual({ id: p.id, title: PROJECT.title });
+    // running it again sends nothing twice
+    expect(((await run(w)).result as any).reminded).toBe(0);
+    expect((await ana.get('/notifications')).body.items.filter((n: any) => n.kind === 'requests_waiting')).toHaveLength(1);
+
+    // at seven days it closes, and the person is told it was not answered in time
+    await w.t.db.execute(sql`update collab_requests set created_at = now() - interval '8 days'`);
+    expect(((await run(w)).result as any).expired).toBe(1);
+    const told = (await ben.get('/notifications')).body.items.find((n: any) => n.kind === 'request_expired');
+    expect(told.collab).toEqual({ id: p.id, title: PROJECT.title });
+    expect((await ben.get(`/collabs/${p.id}`)).body.my.request).toBeNull();
+    expect((await ana.post(`/collabs/${p.id}/requests/ben/accept`, {})).body.error).toBe('not_found');
+  });
+
+  test('an event request closes when its event starts, not only at seven days', async () => {
+    const w = await world();
+    const ana = await w.member('ana');
+    const ben = await w.member('ben');
+    const ev = (await ana.post('/events', { ...EVENT, joinMode: 'approve' })).body;
+    await ben.post(`/events/${ev.id}/request`, { note: 'Can I come?' });
+    await w.t.db.execute(sql`update events set starts_at = now() - interval '1 hour', ends_at = null where id = ${ev.id}::uuid`);
+    expect(((await run(w)).result as any).expired).toBe(1);
+    expect((await ben.get('/notifications')).body.items.some((n: any) => n.kind === 'request_expired')).toBe(true);
+    const [r] = await rows<{ status: string }>(w.t.db, sql`select status from event_requests where event_id = ${ev.id}::uuid`);
+    expect(r!.status).toBe('expired');
+  });
+
+  test('a quiet project asks its host once; a new thing to say starts a new spell', async () => {
+    const w = await world();
+    const ana = await w.member('ana');
+    const p = (await ana.post('/collabs', PROJECT)).body;
+    const quiet = async (days: number) => {
+      await w.t.db.execute(sql`update collabs set created_at = now() - make_interval(days => ${days}),
+        updated_at = now() - make_interval(days => ${days}) where id = ${p.id}::uuid`);
+      await w.t.db.execute(sql`update collab_members set joined_at = now() - make_interval(days => ${days}) where collab_id = ${p.id}::uuid`);
+    };
+    await quiet(22);
+    expect(((await run(w)).result as any).nudged).toBe(1);
+    let n = (await ana.get('/notifications')).body.items.filter((x: any) => x.kind === 'collab_quiet');
+    expect(n).toHaveLength(1);
+    // nothing changed: no second nudge
+    expect(((await run(w)).result as any).nudged).toBe(0);
+
+    // the host answers "keep going"; another full quiet spell brings one more nudge, not fewer
+    await ana.patch(`/collabs/${p.id}`, { description: 'Still going.' });
+    await w.t.db.execute(sql`update collabs set updated_at = now() - interval '22 days', quiet_nudged_at = now() - interval '60 days'
+      where id = ${p.id}::uuid`);
+    await w.t.db.execute(sql`update collab_members set joined_at = now() - interval '22 days' where collab_id = ${p.id}::uuid`);
+    expect(((await run(w)).result as any).nudged).toBe(1);
+    n = (await ana.get('/notifications')).body.items.filter((x: any) => x.kind === 'collab_quiet');
+    expect(n).toHaveLength(2);
+    expect(n[0].collab).toEqual({ id: p.id, title: PROJECT.title });
+  });
+
+  test('an activity gets six quiet weeks; finished and ended things are left alone', async () => {
+    const w = await world();
+    const ana = await w.member('ana');
+    const a = (await ana.post('/collabs', ACTIVITY)).body;
+    const done = (await ana.post('/collabs', { ...PROJECT, title: 'Done' })).body;
+    const ended = (await ana.post('/collabs', { ...ACTIVITY, title: 'Ended' })).body;
+    await ana.patch(`/collabs/${done.id}`, { status: 'finished' });
+    await ana.patch(`/collabs/${ended.id}`, { status: 'finished' });
+    for (const id of [a.id, done.id, ended.id]) {
+      await w.t.db.execute(sql`update collabs set created_at = now() - interval '50 days', updated_at = now() - interval '50 days' where id = ${id}::uuid`);
+      await w.t.db.execute(sql`update collab_members set joined_at = now() - interval '50 days' where collab_id = ${id}::uuid`);
+    }
+    expect(((await run(w)).result as any).nudged).toBe(1);
+    const n = (await ana.get('/notifications')).body.items.filter((x: any) => x.kind === 'collab_quiet');
+    expect(n.map((x: any) => x.collab.id)).toEqual([a.id]);
+  });
+
+  test('the push texts name the new place and the new kinds', () => {
+    const base = { actor: null, post_snippet: null, root_id: null, event_title: 'Talk' };
+    expect(describePush({ ...base, kind: 'requests_waiting', payload: { eventId: 'x', title: 'Talk', count: 2 } }))
+      .toMatchObject({ title: '2 waiting on you', url: '/collab/event/x' });
+    expect(describePush({ ...base, kind: 'request_expired', payload: { collabId: 'c', title: 'Zine' } }))
+      .toMatchObject({ url: '/collab/c' });
+    expect(describePush({ ...base, kind: 'collab_quiet', payload: { collabId: 'c', title: 'Zine', kind: 'activity' } }))
+      .toMatchObject({ title: 'Six quiet weeks', url: '/collab/c' });
+    expect(describePush({ ...base, kind: 'collab_quiet', payload: { collabId: 'c', title: 'Zine', kind: 'project' } }))
+      .toMatchObject({ title: 'Three quiet weeks' });
+    expect(describePush({ ...base, kind: 'event_update', payload: { eventId: 'e' } })).toMatchObject({ url: '/collab/event/e' });
+    expect(describePush({ ...base, kind: 'collab_update', payload: { collabId: 'c' } })).toMatchObject({ url: '/collab/c' });
   });
 });

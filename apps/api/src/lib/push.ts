@@ -67,9 +67,11 @@ type Row = {
 export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_snippet' | 'root_id' | 'event_title'>): PushMessage | null {
   const p = typeof r.payload === 'string' ? JSON.parse(r.payload) : (r.payload ?? {});
   const ev = r.event_title ? `"${r.event_title}"` : 'an event';
-  const eventUrl = p.eventId ? `/events/${p.eventId}` : '/events';
+  // RFC §10.21: one Collab place; events keep their own pages under it
+  const eventUrl = p.eventId ? `/collab/event/${p.eventId}` : '/collab';
   const collab = p.title ? `"${p.title}"` : 'a collab';
-  const collabUrl = p.collabId ? `/collabs/${p.collabId}` : '/collabs';
+  const collabUrl = p.collabId ? `/collab/${p.collabId}` : '/collab';
+  const collabOrEventUrl = p.collabId ? collabUrl : eventUrl;
   const consultUrl = p.consultationId ? `/consultations/${p.consultationId}` : '/consultations';
   const m = (title: string, body: string, url: string): PushMessage => ({ title, body, url, tag: `${r.kind}:${p.postId ?? p.eventId ?? p.collabId ?? p.consultationId ?? ''}` });
   switch (r.kind) {
@@ -97,14 +99,21 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
     case 'collab_request': return m(`@${r.actor ?? 'someone'} wants to join`, collab, collabUrl);
     case 'collab_joined': return m(`@${r.actor ?? 'someone'} joined`, collab, collabUrl);
     case 'collab_accepted': return m('You are on the team', collab, collabUrl);
-    case 'collab_declined': return m('Not this time', `${collab} has found its people. Plenty more to find.`, '/collabs');
+    case 'collab_declined': return m('Not this time', `${collab} has found its people. Plenty more to find.`, '/collab');
     case 'collab_update': return m(`@${r.actor ?? 'someone'} posted an update`, r.post_snippet ? `In ${collab}: ${r.post_snippet}` : collab, p.postId ? `/p/${p.postId}` : collabUrl);
     case 'collab_meetup': return m('A meetup is planned', `For ${collab}: ${ev}`, eventUrl);
     case 'collab_finished': return m('Finished. Well done.', `A draft project for ${collab} is waiting in your portfolio.`, collabUrl);
+    // RFC §10.21: nothing waits forever
+    case 'requests_waiting': return m(`${p.count ?? 1} waiting on you`, `To join ${collab}.`, collabOrEventUrl);
+    case 'request_expired': return m('Your request was not answered in time', `${collab} waited a week. Nothing was decided either way.`, collabOrEventUrl);
+    case 'collab_quiet': return m(
+      p.kind === 'activity' ? 'Six quiet weeks' : 'Three quiet weeks',
+      p.kind === 'activity' ? `Keep ${collab} running, or end it?` : `Finish ${collab}, keep going, or close it?`,
+      collabUrl);
     case 'event_update': return m(`@${r.actor ?? 'someone'} posted an update`, `On ${ev}.`, eventUrl);
     case 'event_request': return m(`@${r.actor ?? 'someone'} asked to come`, ev, eventUrl);
     case 'event_accepted': return m('You are in', `You are on the list for ${ev}.`, eventUrl);
-    case 'event_declined': return m('Not this time', `${ev} is full of people already. Plenty more in Events.`, '/events');
+    case 'event_declined': return m('Not this time', `${ev} is full of people already. Plenty more in Collab.`, '/collab');
     case 'event_invite': return m(`@${r.actor ?? 'someone'} invited you`, `Come to ${ev}?`, eventUrl);
     case 'collab_invite': return m(`@${r.actor ?? 'someone'} invited you`, `Join ${collab}?`, collabUrl);
     // RFC §10.6: consultations. Never a contact in a push, only that something changed.
