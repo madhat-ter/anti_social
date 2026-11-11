@@ -67,6 +67,9 @@ Order matters: the API needs the web address, and the web app needs the API addr
   Deploy latest commit*, or push any commit; the site was back about 2½ minutes after the push both times. Render →
   the service → *Events* shows the failed deploy and its reason; nothing in the code had changed between the good and
   the failed deploys, so the failure was on Render's side (free builds and boots can fail for lack of memory or time).
+  Since 2026-11-12 `.github/workflows/uptime-watch.yml` does this fix by itself: every 15 minutes it checks
+  `/api/health`, and after two bad checks it pushes an empty "Redeploy (uptime-watch)" commit to `main`. After three
+  such commits in a row it stops and fails (GitHub emails the owner), because then the code is the likely cause.
 
 ## Optional: push notifications
 

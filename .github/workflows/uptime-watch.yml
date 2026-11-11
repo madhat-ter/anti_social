@@ -1,8 +1,11 @@
 # Watches the live test site. When the API is down (Render answers 502 with
 # X-Render-Routing: no-deploy, see docs/deploy-free.md; or any 5xx, or no answer within 60 s),
-# it asks Render to deploy the latest commit again. The check also usually keeps the free instance from sleeping. Two bad checks in a row are needed, so a brief deploy in progress is not
-# treated as an outage. Needs the repo secret RENDER_DEPLOY_HOOK (Render → anti-api →
-# Settings → Deploy Hook). Without it the job only reports; it never fails the repo.
+# it pushes an empty commit to main. Render deploys every push, so that brings the API back,
+# exactly like the manual fix. No secret is needed: it uses the workflow's own GITHUB_TOKEN.
+# The check also usually keeps the free instance from sleeping. Two bad checks in a row are
+# needed, so a brief deploy in progress is not treated as an outage. If the last three commits
+# on main are already its own redeploys, it stops and fails instead (the code itself is likely
+# broken); GitHub then emails the owner.
 name: uptime-watch
 
 on:
@@ -11,13 +14,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   watch:
     runs-on: ubuntu-latest
     env:
       HEALTH_URL: https://anti-social-opal.vercel.app/api/health
+      MARK: "Redeploy (uptime-watch): API was down"
     steps:
       - name: Check the API through the web app
         id: check
@@ -48,13 +52,24 @@ jobs:
             fi
           fi
 
-      - name: Ask Render to deploy again
+      - name: Get main
         if: steps.check.outputs.down == 'true'
-        env:
-          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 3
+
+      - name: Push an empty commit so Render deploys again
+        if: steps.check.outputs.down == 'true'
         run: |
-          if [ -z "$DEPLOY_HOOK" ]; then
-            echo "API is down, but RENDER_DEPLOY_HOOK is not set. Add it in GitHub → Settings → Secrets."
-            exit 0
+          own=$(git log -3 --format=%s | grep -cF "$MARK" || true)
+          if [ "$own" -ge 3 ]; then
+            echo "The last three commits are already redeploys and the API is still down."
+            echo "Not pushing again: look at Render → anti-api → Events and Logs."
+            exit 1
           fi
-          curl -s -X POST "$DEPLOY_HOOK" -o /dev/null -w "deploy hook answered %{http_code}\n"
+          git config user.name "uptime-watch"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "$MARK ($(date -u +%Y-%m-%dT%H:%MZ))"
+          git push origin HEAD:main
+          echo "pushed; Render should be back in about 3 minutes"
