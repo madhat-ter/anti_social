@@ -63,10 +63,27 @@ export const COLLAB_TEAM_MIN = 2;
 export const COLLAB_TEAM_MAX = 20;
 export const COLLAB_NOTE_MAX = 300;
 export const COLLAB_PRICE_NOTE_MAX = 100;
-/** recruiting collabs one member can host at a time */
+/** recruiting collabs one member can host at a time (activities and projects together, RFC §10.21) */
 export const COLLAB_HOSTING_MAX = 3;
 /** open invitations per collab */
 export const COLLAB_INVITES_MAX = 20;
+// ─── One Collab (RFC §10.21): an event, an activity or a project ────────────
+export const COLLAB_KINDS = ['event', 'activity', 'project'] as const;
+export type CollabKind = (typeof COLLAB_KINDS)[number];
+/** the kinds that live in the `collabs` table (events are still `events`) */
+export const COLLAB_TABLE_KINDS = ['activity', 'project'] as const;
+/** the activity's plain "When we meet" line */
+export const COLLAB_MEETS_MAX = 120;
+/** an activity's optional size limit */
+export const ACTIVITY_SIZE_MAX = 1000;
+/** a request to join nobody answers gets a reminder after this many days… */
+export const REQUEST_REMIND_DAYS = 3;
+/** …and closes after this many, telling the person it was not answered in time */
+export const REQUEST_EXPIRE_DAYS = 7;
+/** a project with nothing new for this long asks its host once: finish, keep going, or close */
+export const QUIET_PROJECT_DAYS = 21;
+/** an activity with nothing new for this long asks: keep it running, or end it */
+export const QUIET_ACTIVITY_DAYS = 42;
 /** events get the same tags, requirements and ask-to-join (RFC §10.5) */
 export const EVENT_REQUIREMENTS_MAX = 500;
 export const EVENT_INTERESTS_MAX = 5;

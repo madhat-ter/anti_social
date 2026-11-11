@@ -225,6 +225,13 @@
       "when": 1794232000000,
       "tag": "0031_consult_approval",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794236000000,
+      "tag": "0032_collab_kinds",
+      "breakpoints": true
     }
   ]
 }

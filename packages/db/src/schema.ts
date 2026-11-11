@@ -73,6 +73,8 @@ export const users = pgTable('users', {
   pinBlockedAt: tstz('pin_blocked_at'),
   /** RFC §10.14: 'light' (everyone starts here, whatever the device says) or 'dark', chosen in Settings */
   theme: text('theme').notNull().default('light'),
+  /** RFC §10.21: when the member closed the one-time "Events and Collabs are one place now" strip */
+  collabIntroSeenAt: tstz('collab_intro_seen_at').defaultNow(),
 }, (t) => [
   check('users_theme', sql`${t.theme} in ('light', 'dark')`),
   index('users_state_idx').on(t.state),
@@ -481,12 +483,17 @@ export const collabs = pgTable('collabs', {
   title: text('title').notNull(),
   description: text('description').notNull().default(''),
   requirements: text('requirements').notNull().default(''),
+  /** RFC §10.21: 'activity' keeps going with no end; 'project' is a team with roles and a finish */
+  kind: text('kind').notNull().default('project'),
+  /** the activity's plain "When we meet" line ("Sundays 7am, by the lake"); projects leave it empty */
+  meets: text('meets').notNull().default(''),
   /** "Looking for": short role tags */
   roles: jsonb('roles').notNull().default(sql`'[]'::jsonb`),
-  teamMax: integer('team_max').notNull(),
+  /** null = no limit (activities only); a project is always 2-20 */
+  teamMax: integer('team_max'),
   /** 'open' = anyone joins; 'approve' = requests the host accepts */
   joinMode: text('join_mode').notNull().default('approve'),
-  /** 'recruiting' | 'closed' | 'finished' */
+  /** 'recruiting' | 'closed' | 'finished'; an activity only ever runs (recruiting) or ends (finished) */
   status: text('status').notNull().default('recruiting'),
   priceNote: text('price_note'),
   paymentUrl: text('payment_url'),
@@ -498,11 +505,17 @@ export const collabs = pgTable('collabs', {
   finishedAt: tstz('finished_at'),
   hiddenAt: tstz('hidden_at'),
   deletedAt: tstz('deleted_at'),
+  /** RFC §10.21: the last quiet nudge ("Finish it, keep going, or close?") */
+  quietNudgedAt: tstz('quiet_nudged_at'),
 }, (t) => [
   check('collabs_title_len', sql`char_length(${t.title}) between 1 and 80`),
-  check('collabs_team_max', sql`${t.teamMax} between 2 and 20`),
+  check('collabs_kind', sql`${t.kind} in ('activity', 'project')`),
+  check('collabs_meets_len', sql`char_length(${t.meets}) <= 120`),
+  check('collabs_team_max', sql`(${t.kind} = 'project' and ${t.teamMax} between 2 and 20)
+    or (${t.kind} = 'activity' and (${t.teamMax} is null or ${t.teamMax} between 2 and 1000))`),
   check('collabs_join_mode', sql`${t.joinMode} in ('open', 'approve')`),
   check('collabs_status', sql`${t.status} in ('recruiting', 'closed', 'finished')`),
+  check('collabs_activity_status', sql`${t.kind} = 'project' or ${t.status} in ('recruiting', 'finished')`),
   index('collabs_live').on(t.createdAt).where(sql`deleted_at is null`),
 ]);
 
@@ -516,6 +529,8 @@ export const collabMembers = pgTable('collab_members', {
   collabId: uuid('collab_id').notNull().references(() => collabs.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   role: text('role').notNull(),
+  /** RFC §10.21: the project role this member took ("illustrator"), or null */
+  slot: text('slot'),
   joinedAt: tstz('joined_at').notNull().defaultNow(),
 }, (t) => [
   primaryKey({ columns: [t.collabId, t.userId] }),
@@ -523,14 +538,18 @@ export const collabMembers = pgTable('collab_members', {
   index('collab_members_user').on(t.userId),
 ]);
 
-/** Asking to join an 'approve' collab: 'pending' | 'accepted' | 'declined' | 'withdrawn'. */
+/** Asking to join an 'approve' collab: 'pending' | 'accepted' | 'declined' | 'withdrawn' | 'expired'. */
 export const collabRequests = pgTable('collab_requests', {
   collabId: uuid('collab_id').notNull().references(() => collabs.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   note: text('note'),
   status: text('status').notNull().default('pending'),
+  /** RFC §10.21: the project role they would take, if they picked one */
+  slot: text('slot'),
   createdAt: tstz('created_at').notNull().defaultNow(),
   decidedAt: tstz('decided_at'),
+  /** RFC §10.21: the 3-day reminder to whoever decides was sent */
+  remindedAt: tstz('reminded_at'),
 }, (t) => [primaryKey({ columns: [t.collabId, t.userId] })]);
 
 /** A host's invitation: 'pending' | 'accepted' | 'declined'. */
@@ -561,7 +580,7 @@ export const eventInterests = pgTable('event_interests', {
   interest: text('interest').notNull().references(() => interests.slug, { onDelete: 'cascade' }),
 }, (t) => [primaryKey({ columns: [t.eventId, t.interest] }), index('event_interests_interest').on(t.interest)]);
 
-/** Asking to come to an 'approve' event: 'pending' | 'accepted' | 'declined' | 'withdrawn'. */
+/** Asking to come to an 'approve' event: 'pending' | 'accepted' | 'declined' | 'withdrawn' | 'expired'. */
 export const eventRequests = pgTable('event_requests', {
   eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -569,6 +588,8 @@ export const eventRequests = pgTable('event_requests', {
   status: text('status').notNull().default('pending'),
   createdAt: tstz('created_at').notNull().defaultNow(),
   decidedAt: tstz('decided_at'),
+  /** RFC §10.21: the 3-day reminder to whoever decides was sent */
+  remindedAt: tstz('reminded_at'),
 }, (t) => [primaryKey({ columns: [t.eventId, t.userId] })]);
 
 /** A host's invitation to an event: 'pending' | 'accepted' | 'declined'. Skips asking. */
@@ -578,6 +599,17 @@ export const eventInvites = pgTable('event_invites', {
   invitedBy: uuid('invited_by').references(() => users.id, { onDelete: 'set null' }),
   status: text('status').notNull().default('pending'),
   createdAt: tstz('created_at').notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.eventId, t.userId] })]);
+
+/**
+ * RFC §10.21: an event's co-hosts. `events.host_id` is still the host (only they cancel and their
+ * `event_hosted` contribution is the one that counts); co-hosts edit, decide requests, invite and
+ * mark attendance. They are always people going.
+ */
+export const eventHosts = pgTable('event_hosts', {
+  eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  addedAt: tstz('added_at').notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.eventId, t.userId] })]);
 
 // ─── Portfolio: the profile laid out like a Behance portfolio ───────────────
