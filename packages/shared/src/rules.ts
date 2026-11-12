@@ -287,3 +287,26 @@ export const ATTENDANCE_WINDOW_DAYS = 14;
 export const EVENT_MAX_DAYS_AHEAD = 365;
 /** Without an end time, an event counts as "happening now" for this many hours after it starts. */
 export const EVENT_DEFAULT_HOURS = 3;
+
+/**
+ * RFC §10.24, the File: a drawer of 12 pages, one card each. The first 7 are the member's own
+ * (page 0 is "Me": always first, never renamed); the last 5 hold cards other members made for them.
+ */
+export const FILE = {
+  pages: 12,
+  ownPages: 7,
+  giftPages: 5,
+  /** a tab's label, shown in capitals */
+  labelMax: 14,
+  meLabel: 'ME',
+  headlineMax: 60,
+  descriptionMax: 1200,
+  photosMax: 20,
+  captionMax: 140,
+  /** own cards a member may keep that are not on a page */
+  draftsMax: 12,
+  /** cards one member may have waiting in another member's tray */
+  trayPerMaker: 3,
+} as const;
+/** pages 0–6 hold your own cards, 7–11 cards made for you */
+export const fileSide = (position: number): 'own' | 'gift' => (position < FILE.ownPages ? 'own' : 'gift');

@@ -257,6 +257,28 @@ export interface ProjectSummary {
 export interface ProjectImageInput { id: string; layout: ProjectLayout; heading: string; text: string; caption: string }
 export type ProjectInput = Partial<ProjectFields> & { images?: ProjectImageInput[] };
 
+/** RFC §10.24, the File: a member's drawer of 12 pages, one card a page. */
+export interface FilePhoto { id: string; url: string; width: number; height: number; caption: string }
+export interface FileCard {
+  id: string; headline: string; description: string; photos: FilePhoto[];
+  /** who made it; null when that member is gone */
+  maker: { handle: string; displayName: string; gender: Gender | null } | null;
+  /** made by the File's owner for themselves */
+  own: boolean;
+  /** you made it: you may edit or delete it */
+  mine: boolean;
+  /** the page it sits on, or null when it is not in the File */
+  page: number | null;
+  createdAt: string; updatedAt: string;
+}
+/** pages 0–6 are the owner's own (0 is "Me"), 7–11 hold cards made for them */
+export interface FilePage { position: number; side: 'own' | 'gift'; label: string; card: FileCard | null }
+export interface FileView {
+  owner: { handle: string; displayName: string; gender: Gender | null };
+  mine: boolean; pages: FilePage[];
+}
+export interface FileCardInput { headline?: string; description?: string; photos?: { id: string; caption: string }[]; page?: number | null }
+
 export interface MemberSummary {
   handle: string;
   displayName: string;
@@ -676,6 +698,14 @@ export const api = {
   updateProject: (id: string, b: ProjectInput) => call<Project>('PATCH', `/me/projects/${encodeURIComponent(id)}`, b),
   deleteProject: (id: string) => call<{ ok: true }>('DELETE', `/me/projects/${encodeURIComponent(id)}`),
   orderProjects: (ids: string[]) => post<{ ok: true }>('/me/projects/order', { ids }),
+  // RFC §10.24, the File
+  file: (handle: string) => get<FileView>(`/members/${encodeURIComponent(handle)}/file`),
+  myFileCards: () => get<{ items: FileCard[] }>('/me/file/cards'),
+  createFileCard: (b: FileCardInput) => post<FileCard>('/me/file/cards', b),
+  updateFileCard: (id: string, b: FileCardInput) => call<FileCard>('PATCH', `/me/file/cards/${encodeURIComponent(id)}`, b),
+  deleteFileCard: (id: string) => call<{ ok: true }>('DELETE', `/me/file/cards/${encodeURIComponent(id)}`),
+  setFilePage: (position: number, b: { label?: string; cardId?: string | null }) => call<{ ok: true }>('PUT', `/me/file/pages/${position}`, b),
+  orderFilePages: (order: number[]) => post<{ ok: true }>('/me/file/pages/order', { order }),
   flagProject: (id: string, reason?: string) => post<{ flagged: true }>(`/projects/${encodeURIComponent(id)}/flag`, reason ? { reason } : {}),
   memberPosts: (handle: string, cursor?: string | null, limit = 20) =>
     get<Page<Post>>(`/members/${encodeURIComponent(handle)}/posts${qs({ cursor, limit })}`),

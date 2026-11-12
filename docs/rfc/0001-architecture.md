@@ -1425,6 +1425,49 @@ default for everyone, and visitors always get it**:
   account (`users.feed_order`, migration 0035; `PATCH /me {feedOrder}`). Visitors cannot choose.
 - Tests: `apps/api/test/feed-mix.test.ts`; screenshots: `scripts/screenshots-feed-mix.ts`
   (`SHOTS=before` for the old order).
+
+### 10.24 The File: a drawer of cards (added 2026-11-12)
+
+The owner's idea, from a poster of a filing drawer: every member has a **File**, drawn as that
+drawer. Tabs stand up at the back and the front, one page lies open, and each page holds one
+**card**. Decided with the owner in two rounds (21 questions, all as proposed, except the split:
+**7 pages of your own and 5 for cards others made**, where 6 + 6 was proposed).
+
+- **The drawer.** 12 pages, always. Pages 0–6 are the member's own: page 0 is **Me** (always
+  first, open by default, never renamed); pages 1–6 carry a label the member types (14 characters,
+  shown in capitals) and can be reordered. Pages 7–11 hold only cards **other members made for
+  them**; their tab shows the maker's handle. The seven own tabs stand at the back, the five gift
+  tabs at the front, the open tab is black. An empty page keeps a blank tab that only the owner can
+  open. One card a page.
+- **The card.** A headline (60), 1–20 photos, each with an optional caption (140), and a
+  description (1,200). On its page it is a preview; tapping it opens it full screen (headline on
+  top; photos left and description right on a wide screen, stacked on a phone). The photos are a
+  swipeable carousel, cropped square from the centre, with dots and "3 / 20". Tapping a photo shows
+  it whole as a polaroid with its caption underneath.
+- **Own cards.** "Make a card" for yourself; it goes on one of your seven pages, or waits off the
+  File (at most 12 waiting). Taking a card off a page keeps it; deleting erases it and its photos.
+- **Cards made for someone** (step 2). "For someone" picks any seated member. Until sent it is the
+  maker's draft; once sent it waits in the recipient's private tray. Only the recipient can place
+  it, on a gift page, one card per maker at a time; a maker has at most 3 waiting per person.
+  Placing notifies the maker; declining or removing is silent. The maker can edit or delete it any
+  time; an edit takes it off the File and back to the tray for a new yes.
+- **Where it lives** (step 3). On phones a File button in the header beside the bell (the owner
+  asked for it: the header is now the wordmark, the File button and the bell); on computers an
+  entry in the side menu; an "Open File" link on each profile. Members see every File; visitors on
+  a pass can look but not make cards. A public share link `/f/<handle>`, **off by default**
+  (Settings), shows only the File and the member's name and face, always light; a gift card shows
+  there only if its maker allowed public sharing; previews work when the link is pasted, search
+  engines are asked not to list it.
+- **Quiet.** Cards are never feed items, have no likes or replies, and never count for the 30-day
+  seat rule. Reports and admin removal as for posts (step 4). When a member leaves, their File, the
+  cards made for them and the cards they made for others are erased.
+- **How it is built.** `file_cards` (maker, for, headline, description; `sent_at`, `declined_at`,
+  `public_ok`, `hidden_at` for the later steps), `file_card_photos` (the upload moved in, as project
+  images are), `file_pages` (user, position 0–11, label, card; rows appear on the first write),
+  migration 0036. `apps/api/src/lib/file.ts`, `routes/file.ts`; `apps/web/src/components/File.tsx`,
+  `/file` (yours) and `/file/<handle>`. Limits in `FILE` (`packages/shared/src/rules.ts`).
+  Tests: `apps/api/test/file.test.ts`; screenshots: `scripts/screenshots-file.ts`.
+- **Progress.** Step 1 (own cards and the drawer) built 2026-11-12. Steps 2–4 follow.
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,
@@ -1466,6 +1509,9 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `GET /members/:handle/portfolio`, `PATCH /me/portfolio` | A | Portfolio (CV fields, look, cover) |
 | `GET /members/:handle/projects[/:id]` | A | Contents list (with the look) and one project |
 | `POST /me/projects`, `PATCH/DELETE /me/projects/:id`, `POST /me/projects/order` | A | Projects |
+| `GET /members/:handle/file` | A | A member's File: 12 pages, each with its card or empty (§10.24) |
+| `GET/POST /me/file/cards`, `PATCH/DELETE /me/file/cards/:id` | A (not V) | Your own cards: list, make (`page` places it), change, delete (§10.24) |
+| `PUT /me/file/pages/:position`, `POST /me/file/pages/order` | A (not V) | Rename a page, put a card on it or take it off; reorder your pages 1–6 (§10.24) |
 | `POST /projects/:id/flag`, `POST /ops/projects/:id/resolve` | A / O | Report a project; ops restore or remove |
 | `GET/POST /events`, `GET/PATCH/DELETE /events/:id` | A | Events |
 | `POST/DELETE /events/:id/rsvp` | A | RSVP (approve events: only accepted or invited people) |

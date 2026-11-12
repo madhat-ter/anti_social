@@ -833,3 +833,56 @@ export const mediaBlobs = pgTable('media_blobs', {
   bytes: bytea('bytes').notNull(),
   createdAt: tstz('created_at').notNull().defaultNow(),
 });
+
+// ─── RFC §10.24, the File: 12 pages a member, one card a page ────────────────
+
+/** A card: headline, photos, description. maker = for is the member's own; otherwise made for someone. */
+export const fileCards = pgTable('file_cards', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  makerId: uuid('maker_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  forId: uuid('for_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  headline: text('headline').notNull(),
+  description: text('description').notNull().default(''),
+  /** a card made for someone: handed over (it waits in their tray until placed) */
+  sentAt: tstz('sent_at'),
+  /** …and quietly turned down by them (the maker is never told) */
+  declinedAt: tstz('declined_at'),
+  /** the maker allows it on the recipient's public share page */
+  publicOk: boolean('public_ok').notNull().default(false),
+  hiddenAt: tstz('hidden_at'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  updatedAt: tstz('updated_at').notNull().defaultNow(),
+}, (t) => [
+  check('file_cards_headline_len', sql`char_length(${t.headline}) between 1 and 60`),
+  check('file_cards_description_len', sql`char_length(${t.description}) <= 1200`),
+  index('file_cards_for').on(t.forId),
+  index('file_cards_maker').on(t.makerId),
+]);
+
+/** A card's photos, in carousel order. The id is the upload's id (moved out of post_images). */
+export const fileCardPhotos = pgTable('file_card_photos', {
+  id: uuid('id').primaryKey(),
+  cardId: uuid('card_id').notNull().references(() => fileCards.id, { onDelete: 'cascade' }),
+  r2Key: text('r2_key').notNull(),
+  width: integer('width').notNull(),
+  height: integer('height').notNull(),
+  position: integer('position').notNull().default(0),
+  caption: text('caption').notNull().default(''),
+}, (t) => [
+  check('file_card_photos_position', sql`${t.position} between 0 and 19`),
+  check('file_card_photos_caption_len', sql`char_length(${t.caption}) <= 140`),
+  index('file_card_photos_card').on(t.cardId, t.position),
+]);
+
+/** A page of the drawer: 0–6 the member's own (0 is "Me"), 7–11 for cards made for them. */
+export const filePages = pgTable('file_pages', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull(),
+  label: text('label').notNull().default(''),
+  cardId: uuid('card_id').references(() => fileCards.id, { onDelete: 'set null' }),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.position] }),
+  check('file_pages_position', sql`${t.position} between 0 and 11`),
+  check('file_pages_label_len', sql`char_length(${t.label}) <= 14`),
+  uniqueIndex('file_pages_card').on(t.cardId).where(sql`card_id is not null`),
+]);

@@ -21,6 +21,7 @@ import { consultationRoutes } from './routes/consultations';
 import { visitRoutes } from './routes/visit';
 import { petRoutes } from './routes/pets';
 import { monologueRoutes } from './routes/monologues';
+import { fileRoutes } from './routes/file';
 import { VISITOR_COOKIE, openPath } from './lib/visitors';
 
 export function createApp(deps: Deps) {
@@ -90,6 +91,7 @@ export function createApp(deps: Deps) {
     .use(suggestionRoutes(deps))
     .use(portfolioRoutes(deps))
     .use(projectRoutes(deps))
+    .use(fileRoutes(deps))
     .use(interestRoutes(deps))
     .use(collabRoutes(deps))
     .use(consultationRoutes(deps));
