@@ -208,6 +208,8 @@ export const socialRoutes = (deps: Deps) => {
           eventTitle: r.kind === 'event_removed' ? r.x_title : null,
           newHandle: r.kind === 'handle_changed' ? r.x_to : null,
           projectTitle: r.kind === 'project_removed' ? r.x_title : null,
+          // RFC §10.24: a card made for you, or your card put in someone's File
+          cardTitle: r.kind === 'file_card_received' || r.kind === 'file_card_placed' ? r.x_title : null,
           pickTitle: r.kind === 'pick_remark' || r.kind === 'remark_removed' || r.kind === 'pick_removed' ? r.x_title : null,
           consultation: r.x_consult ? { id: r.x_consult, topic: r.x_topic ?? '', pricing: r.x_pricing, was: r.x_was } : null,
           checklist: r.kind === 'checklist_reminder' ? { done: Number(r.x_done ?? 0), total: Number(r.x_total ?? 5) } : null,

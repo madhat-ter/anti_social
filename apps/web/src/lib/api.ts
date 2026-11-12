@@ -269,6 +269,12 @@ export interface FileCard {
   mine: boolean;
   /** the page it sits on, or null when it is not in the File */
   page: number | null;
+  /** who it was made for, when that is not the maker */
+  for: { handle: string; displayName: string; gender: Gender | null } | null;
+  /** 'own'; or for a card made for someone: 'draft' (not sent), 'sent' (not in their File) or 'placed' */
+  state: 'own' | 'draft' | 'sent' | 'placed';
+  /** the maker allows it on the recipient's public share page */
+  publicOk: boolean;
   createdAt: string; updatedAt: string;
 }
 /** pages 0–6 are the owner's own (0 is "Me"), 7–11 hold cards made for them */
@@ -277,7 +283,11 @@ export interface FileView {
   owner: { handle: string; displayName: string; gender: Gender | null };
   mine: boolean; pages: FilePage[];
 }
-export interface FileCardInput { headline?: string; description?: string; photos?: { id: string; caption: string }[]; page?: number | null }
+export interface FileCardInput {
+  headline?: string; description?: string; photos?: { id: string; caption: string }[]; page?: number | null;
+  /** make it for this member instead of yourself */
+  forHandle?: string | null; publicOk?: boolean;
+}
 
 export interface MemberSummary {
   handle: string;
@@ -317,6 +327,8 @@ export interface Notification {
   newHandle?: string | null;
   /** project_removed: the project's title */
   projectTitle?: string | null;
+  /** file_card_received / file_card_placed: the card's headline */
+  cardTitle?: string | null;
   /** pick_remark / remark_removed: the pick's title */
   pickTitle?: string | null;
   /** checklist_reminder: how far along "Finish your profile" is */
@@ -706,6 +718,10 @@ export const api = {
   deleteFileCard: (id: string) => call<{ ok: true }>('DELETE', `/me/file/cards/${encodeURIComponent(id)}`),
   setFilePage: (position: number, b: { label?: string; cardId?: string | null }) => call<{ ok: true }>('PUT', `/me/file/pages/${position}`, b),
   orderFilePages: (order: number[]) => post<{ ok: true }>('/me/file/pages/order', { order }),
+  sendFileCard: (id: string) => post<FileCard>(`/me/file/cards/${encodeURIComponent(id)}/send`, {}),
+  fileMade: () => get<{ items: FileCard[] }>('/me/file/made'),
+  fileTray: () => get<{ items: FileCard[] }>('/me/file/tray'),
+  declineFileCard: (id: string) => post<{ ok: true }>(`/me/file/tray/${encodeURIComponent(id)}/decline`, {}),
   flagProject: (id: string, reason?: string) => post<{ flagged: true }>(`/projects/${encodeURIComponent(id)}/flag`, reason ? { reason } : {}),
   memberPosts: (handle: string, cursor?: string | null, limit = 20) =>
     get<Page<Post>>(`/members/${encodeURIComponent(handle)}/posts${qs({ cursor, limit })}`),

@@ -129,7 +129,7 @@ try {
   must(await lap.page.locator('.file-tab').count() === 12, 'not 12 tabs');
   must(await lap.page.locator('.file-tab.on').innerText() === 'ME', 'the "Me" page is not open by default');
   must(await lap.page.locator('.file-tab:disabled').count() === 8, `empty tabs should be closed to others: ${await lap.page.locator('.file-tab:disabled').count()}`);
-  must(await lap.page.getByRole('button', { name: /Make a card/ }).count() === 0, 'someone else can make a card here');
+  must(await lap.page.getByRole('button', { name: '+ Make a card', exact: true }).count() === 0, 'someone else can make their own card here');
   await shot(lap.page, 'drawer-desktop');
 
   await lap.page.getByRole('tab', { name: 'Coffee' }).click();
@@ -207,6 +207,68 @@ try {
   await own.page.getByRole('tab', { name: 'Walks' }).waitFor();
   await shot(own.page, 'owner-named-page', true);
   await own.ctx.close();
+
+  // ── step 2: Theo makes a card for Maya, from her File
+  const giver = await open(theo, DESKTOP);
+  await giver.page.goto(`${WEB}/file/maya`);
+  await giver.page.getByRole('button', { name: '+ Make a card for Maya' }).click();
+  await giver.page.getByLabel(/^Headline/).fill('Maya taught me to fold a zine');
+  await giver.page.getByLabel(/^Description/).fill('One Saturday at the market she showed me the eight-page fold with a single cut. I have made forty since. This is the first one, and her hands doing it.');
+  await giver.page.locator('input[type=file]').setInputFiles([
+    { name: 'a.png', mimeType: 'image/png', buffer: Buffer.from(await picture(71)) },
+    { name: 'b.png', mimeType: 'image/png', buffer: Buffer.from(await picture(72)) },
+  ]);
+  await giver.page.waitForFunction(() => document.querySelectorAll('.pj-att.done').length === 2);
+  await giver.page.getByLabel('Caption for photo 1 (optional)').fill('The first fold');
+  await shot(giver.page, 'make-a-card-for-someone', true);
+  await giver.page.getByRole('button', { name: 'Send to @maya' }).click();
+  await giver.page.locator('.file').waitFor();
+  must((await call(maya, 'GET', '/me/file/tray')).items.length === 1, 'the card did not reach her tray');
+  must((await call(theo, 'GET', '/members/maya/file')).pages.slice(7).every((p: any) => !p.card), 'the card shows before she said yes');
+  await giver.ctx.close();
+  // a second one, from Inês, made through the API
+  const ines = await member('ines', 'Inês Moreau', 'woman');
+  const inesCard = await call(ines, 'POST', '/me/file/cards', { headline: 'The stall at the corner', description: 'Maya drew my stall every week for a year.', photos: [{ id: await upload(ines, 81), caption: '' }], forHandle: 'maya' });
+  await call(ines, 'POST', `/me/file/cards/${inesCard.id}/send`);
+
+  // Maya finds both in her tray
+  const got = await open(maya, DESKTOP);
+  await got.page.goto(`${WEB}/notifications`);
+  await got.page.getByText('made a card for your File').first().waitFor();
+  await shot(got.page, 'notification-card-for-you');
+  await got.page.goto(`${WEB}/file`);
+  await got.page.getByText('2 cards were made for you.').waitFor();
+  await shot(got.page, 'tray');
+  const mine = got.page.locator('.file-spare li', { hasText: 'Maya taught me to fold a zine' });
+  await mine.getByRole('button', { name: 'Look' }).click();
+  await got.page.locator('.file-full[open] .file-car').waitFor();
+  await shot(got.page, 'tray-look');
+  await got.page.keyboard.press('Escape');
+  await mine.getByRole('button', { name: 'Put in my File' }).click();
+  await got.page.getByRole('tab', { name: 'theo', exact: true }).waitFor();
+  must(await got.page.locator('.file-tab.on').innerText() === 'THEO', 'the gift page did not open with the maker’s name on its tab');
+  await shot(got.page, 'gift-card-in-file', true);
+  // turn the other one down: it just goes
+  await got.page.locator('.file-spare li', { hasText: 'The stall at the corner' }).getByRole('button', { name: 'Turn down' }).click();
+  await shot(got.page, 'turn-down-dialog');
+  await got.page.getByRole('button', { name: 'Turn it down' }).click();
+  await got.page.waitForFunction(() => !document.body.innerText.includes('The stall at the corner'));
+  must((await call(ines, 'GET', '/notifications')).items.every((x: any) => !x.kind.startsWith('file_')), 'the maker was told about a turned-down card');
+  await got.ctx.close();
+
+  // Theo hears the good news, and sees it in "cards you made for others"
+  const told = await open(theo, PHONE);
+  await told.page.goto(`${WEB}/notifications`);
+  await told.page.getByText('put your card "Maya taught me to fold a zine" in their File').waitFor();
+  await shot(told.page, 'notification-card-placed');
+  await told.page.goto(`${WEB}/file`);
+  await told.page.getByText('In @maya’s File').waitFor();
+  await shot(told.page, 'cards-you-made-for-others', true);
+  await told.page.goto(`${WEB}/file/maya`);
+  await told.page.getByRole('tab', { name: 'theo', exact: true }).click();
+  await told.page.getByText('Made by @theo').first().waitFor();
+  await shot(told.page, 'gift-page-phone', true);
+  await told.ctx.close();
 
   // ── dark mode follows the member's choice
   await call(theo, 'PATCH', '/me', { theme: 'dark' });

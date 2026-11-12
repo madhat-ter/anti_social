@@ -132,6 +132,9 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
     case 'consult_approved': return m('Your consulting is approved', 'Switch your offer on, or it stays as you left it.', '/consultations?tab=offer');
     case 'consult_not_approved': return m('Consulting not approved', 'An admin has not approved your consulting.', '/consultations?tab=offer');
     case 'verified': return m('You are verified', 'The badge now shows by your name.', '/settings');
+    // RFC §10.24: the File
+    case 'file_card_received': return m(`@${r.actor ?? 'someone'} made a card for your File`, p.title ? `"${p.title}" is waiting for you.` : 'It is waiting for you.', '/file');
+    case 'file_card_placed': return m(`@${r.actor ?? 'someone'} put your card in their File`, p.title ? `"${p.title}"` : '', r.actor ? `/file/${r.actor}` : '/file');
     default: return null;
   }
 }

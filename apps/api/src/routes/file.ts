@@ -1,7 +1,9 @@
 import { Elysia, t } from 'elysia';
 import type { Deps } from '../deps';
 import { ApiError } from '../lib/errors';
-import { createCard, deleteCard, getFile, listMyCards, reorderPages, setPage, updateCard } from '../lib/file';
+import {
+  createCard, declineCard, deleteCard, getFile, listMade, listMyCards, listTray, reorderPages, sendCard, setPage, updateCard,
+} from '../lib/file';
 import { authPlugin, requireSeated } from '../plugins/auth';
 
 /**
@@ -13,6 +15,11 @@ import { authPlugin, requireSeated } from '../plugins/auth';
  * DELETE /me/file/cards/:id
  * PUT    /me/file/pages/:position     { label?, cardId? } rename a page / put a card on it / take it off
  * POST   /me/file/pages/order         { order } your own pages 1–6 in their new order
+ * Cards made for someone (a card with `forHandle` is your draft until sent):
+ * POST   /me/file/cards/:id/send      hand it over: it waits in their tray
+ * GET    /me/file/made                cards you made for others
+ * GET    /me/file/tray                cards others made for you, waiting for your yes
+ * POST   /me/file/tray/:id/decline    turn one down (its maker is never told)
  * Photos come from POST /uploads (same pipeline as posts) and are attached by id.
  */
 export const fileRoutes = (deps: Deps) => {
@@ -22,6 +29,7 @@ export const fileRoutes = (deps: Deps) => {
     headline: t.Optional(t.String({ maxLength: 400 })),
     description: t.Optional(t.String({ maxLength: 6000 })),
     photos: t.Optional(t.Array(photo, { maxItems: 50 })),
+    publicOk: t.Optional(t.Boolean()),
   };
   return new Elysia()
     .use(authPlugin(deps))
@@ -41,7 +49,7 @@ export const fileRoutes = (deps: Deps) => {
     .post('/me/file/cards', async ({ auth, body }) => {
       const a = requireSeated(auth);
       return createCard(db, a.user.id, body as Record<string, unknown>);
-    }, { body: t.Object({ ...fields, page: t.Optional(t.Nullable(t.Number())) }) })
+    }, { body: t.Object({ ...fields, page: t.Optional(t.Nullable(t.Number())), forHandle: t.Optional(t.Nullable(t.String({ maxLength: 60 }))) }) })
 
     .patch('/me/file/cards/:id', async ({ auth, params, body }) => {
       const a = requireSeated(auth);
@@ -51,6 +59,27 @@ export const fileRoutes = (deps: Deps) => {
     .delete('/me/file/cards/:id', async ({ auth, params }) => {
       const a = requireSeated(auth);
       await deleteCard(db, storage, a.user.id, params.id);
+      return { ok: true };
+    })
+
+    .post('/me/file/cards/:id/send', async ({ auth, params }) => {
+      const a = requireSeated(auth);
+      return sendCard(db, a.user.id, params.id);
+    })
+
+    .get('/me/file/made', async ({ auth }) => {
+      const a = requireSeated(auth);
+      return { items: await listMade(db, a.user.id) };
+    })
+
+    .get('/me/file/tray', async ({ auth }) => {
+      const a = requireSeated(auth);
+      return { items: await listTray(db, a.user.id) };
+    })
+
+    .post('/me/file/tray/:id/decline', async ({ auth, params }) => {
+      const a = requireSeated(auth);
+      await declineCard(db, a.user.id, params.id);
       return { ok: true };
     })
 

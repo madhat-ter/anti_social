@@ -24,6 +24,15 @@ export type FileCard = {
   mine: boolean;
   /** the page it is on in its owner's File, or null */
   page: number | null;
+  /** who it was made for, when that is not the maker */
+  for: Person | null;
+  /**
+   * 'own'; or, for a card made for someone: 'draft' (not sent yet), 'sent' (handed over, not in
+   * their File: waiting or turned down, the maker is never told which) or 'placed' (in their File).
+   */
+  state: 'own' | 'draft' | 'sent' | 'placed';
+  /** the maker allows it on the recipient's public share page */
+  publicOk: boolean;
   createdAt: string; updatedAt: string;
 };
 export type FilePage = { position: number; side: 'own' | 'gift'; label: string; card: FileCard | null };
@@ -42,6 +51,7 @@ const SEEN = sql`('active', 'flagged_lurker', 'archived')`;
 type CardRow = {
   id: string; maker_id: string; for_id: string; headline: string; description: string; hidden: boolean;
   mh: string | null; md: string | null; mg: string | null; page: number | null;
+  fh: string | null; fd: string | null; fg: string | null; sent: boolean; public_ok: boolean;
   created_iso: string; updated_iso: string; photos: unknown;
 };
 type PhotoRow = { id: string; key: string; width: number; height: number; caption: string };
@@ -49,20 +59,27 @@ type PhotoRow = { id: string; key: string; width: number; height: number; captio
 const cardSelect = sql`
   select c.id, c.maker_id, c.for_id, c.headline, c.description, (c.hidden_at is not null) as hidden,
     m.handle as mh, m.display_name as md, m.gender::text as mg,
+    f.handle as fh, f.display_name as fd, f.gender::text as fg, (c.sent_at is not null) as sent, c.public_ok,
     (select pg.position from file_pages pg where pg.card_id = c.id) as page,
     ${iso(sql`c.created_at`)} as created_iso, ${iso(sql`c.updated_at`)} as updated_iso,
     coalesce((select json_agg(json_build_object('id', i.id, 'key', i.r2_key, 'width', i.width, 'height', i.height,
         'caption', i.caption) order by i.position)
       from file_card_photos i where i.card_id = c.id), '[]'::json) as photos
   from file_cards c
-  left join users m on m.id = c.maker_id and m.state in ${SEEN}`;
+  left join users m on m.id = c.maker_id and m.state in ${SEEN}
+  left join users f on f.id = c.for_id and f.state in ${SEEN}`;
 
 function toCard(r: CardRow, viewerId: string): FileCard {
+  const own = r.maker_id === r.for_id;
+  const page = r.page === null ? null : Number(r.page);
   return {
     id: r.id, headline: r.headline, description: r.description,
     photos: j<PhotoRow[]>(r.photos, []).map((i) => ({ id: i.id, url: mediaUrl(i.key), width: i.width, height: i.height, caption: i.caption })),
     maker: r.mh ? { handle: r.mh, displayName: r.md ?? r.mh, gender: r.mg } : null,
-    own: r.maker_id === r.for_id, mine: r.maker_id === viewerId, page: r.page === null ? null : Number(r.page),
+    own, mine: r.maker_id === viewerId, page,
+    for: !own && r.fh ? { handle: r.fh, displayName: r.fd ?? r.fh, gender: r.fg } : null,
+    state: own ? 'own' : page !== null ? 'placed' : r.sent ? 'sent' : 'draft',
+    publicOk: !!r.public_ok,
     createdAt: r.created_iso, updatedAt: r.updated_iso,
   };
 }
@@ -191,6 +208,7 @@ async function place(tx: Db, ownerId: string, pos: number, cardId: string | null
 /**
  * Make a card for yourself. `page` (one of your own pages, 0–6) puts it straight on that page;
  * without it the card waits, unplaced, and at most `FILE.draftsMax` may wait.
+ * With `forHandle` it is a card for that member: your draft until you send it (`sendCard`).
  */
 export async function createCard(db: Db, userId: string, body: Record<string, unknown>): Promise<FileCard> {
   const headline = str(body.headline, 'Headline', FILE.headlineMax);
@@ -199,10 +217,28 @@ export async function createCard(db: Db, userId: string, body: Record<string, un
   const photos = cleanPhotos(body.photos);
   const pos = body.page === undefined || body.page === null ? null : position(body.page);
   if (pos !== null && fileSide(pos) !== 'own') throw bad('Your own cards go on your own pages.');
+  // a card for someone else: any seated member but yourself; it starts as your draft
+  let forId = userId;
+  if (body.forHandle !== undefined && body.forHandle !== null) {
+    if (typeof body.forHandle !== 'string') throw bad('Choose who the card is for.');
+    const [who] = await rows<{ id: string }>(db, sql`
+      select id from users where lower(handle) = lower(${body.forHandle}) and state in ('active', 'flagged_lurker')`);
+    if (!who) throw new ApiError(404, 'member_not_found', 'That member is not here.');
+    if (who.id === userId) throw bad('A card for yourself is just your own card.');
+    if (pos !== null) throw bad('Only they can put it in their File.');
+    forId = who.id;
+  }
+  const gift = forId !== userId;
+  const publicOk = gift && body.publicOk === true;
   const id = await db.transaction(async (txx) => {
     const tx = txx as unknown as Db;
     await lock(tx, userId);
-    if (pos === null) {
+    if (gift) {
+      const [n] = await rows<{ n: number }>(tx, sql`
+        select count(*)::int as n from file_cards c
+         where c.maker_id = ${userId}::uuid and c.for_id <> ${userId}::uuid and c.sent_at is null`);
+      if ((n?.n ?? 0) >= FILE.draftsMax) throw new ApiError(409, 'file_limit', `You can keep up to ${FILE.draftsMax} unsent cards. Send or delete one first.`);
+    } else if (pos === null) {
       const [n] = await rows<{ n: number }>(tx, sql`
         select count(*)::int as n from file_cards c
          where c.maker_id = ${userId}::uuid and c.for_id = ${userId}::uuid
@@ -210,8 +246,8 @@ export async function createCard(db: Db, userId: string, body: Record<string, un
       if ((n?.n ?? 0) >= FILE.draftsMax) throw new ApiError(409, 'file_limit', `You can keep up to ${FILE.draftsMax} cards that are not in your File. Delete one first.`);
     }
     const [created] = rowsOf<{ id: string }>(await tx.execute(sql`
-      insert into file_cards (maker_id, for_id, headline, description)
-      values (${userId}::uuid, ${userId}::uuid, ${headline}, ${description}) returning id`));
+      insert into file_cards (maker_id, for_id, headline, description, public_ok)
+      values (${userId}::uuid, ${forId}::uuid, ${headline}, ${description}, ${publicOk}) returning id`));
     await syncPhotos(tx, userId, created!.id, photos);
     if (pos !== null) await place(tx, userId, pos, created!.id);
     return created!.id;
@@ -227,11 +263,15 @@ export async function updateCard(db: Db, storage: Storage, userId: string, id: s
   const description = body.description === undefined
     ? current.description : str(body.description, 'Description', FILE.descriptionMax, { multiline: true });
   const photos = body.photos === undefined ? null : cleanPhotos(body.photos);
+  const publicOk = current.own ? false : typeof body.publicOk === 'boolean' ? body.publicOk : current.publicOk;
   const gone = await db.transaction(async (txx) => {
     const tx = txx as unknown as Db;
     await tx.execute(sql`
-      update file_cards set headline = ${headline}, description = ${description}, updated_at = now()
+      update file_cards set headline = ${headline}, description = ${description}, public_ok = ${publicOk}, updated_at = now()
        where id = ${id}::uuid and maker_id = ${userId}::uuid`);
+    // a card made for someone changed after they said yes: it comes off their File and waits
+    // in their tray for a new yes (it could now say anything)
+    if (!current.own) await tx.execute(sql`update file_pages set card_id = null where card_id = ${id}::uuid`);
     return photos ? syncPhotos(tx, userId, id, photos) : [];
   });
   await removeBlobs(storage, gone);
@@ -270,16 +310,36 @@ export async function setPage(db: Db, userId: string, pos: number, body: { label
     await ensurePages(tx, userId);
     if (label !== null) await tx.execute(sql`update file_pages set label = ${label} where user_id = ${userId}::uuid and position = ${pos}`);
     if (cardId === undefined) return;
+    let told: { makerId: string; headline: string } | null = null;
     if (cardId !== null) {
-      const [c] = await rows<{ maker_id: string }>(tx, sql`
-        select maker_id from file_cards where id = ${cardId as string}::uuid and for_id = ${userId}::uuid`);
-      if (!c) throw new ApiError(404, 'not_found');
-      const own = c.maker_id === userId;
+      const [c] = await rows<{ maker_id: string; headline: string; sent: boolean; declined: boolean; was_on: number | null; told: boolean }>(tx, sql`
+        select c.maker_id, c.headline, (c.sent_at is not null) as sent, (c.declined_at is not null) as declined,
+               (select p.position from file_pages p where p.card_id = c.id) as was_on,
+               exists (select 1 from notifications n where n.kind = 'file_card_placed'
+                         and n.payload->>'cardId' = c.id::text and n.created_at >= c.updated_at) as told
+          from file_cards c where c.id = ${cardId as string}::uuid and c.for_id = ${userId}::uuid`);
+      const own = c?.maker_id === userId;
+      // a card made for you counts once it was sent, and until you turn it down
+      if (!c || (!own && (!c.sent || c.declined))) throw new ApiError(404, 'not_found');
       if (own !== (side === 'own')) {
         throw bad(own ? 'Your own cards go on your own pages.' : 'A card made for you goes on one of the last five pages.');
       }
+      if (!own) {
+        const [other] = await rows<{ n: number }>(tx, sql`
+          select count(*)::int as n from file_pages p join file_cards o on o.id = p.card_id
+           where p.user_id = ${userId}::uuid and p.position <> ${pos} and o.maker_id = ${c.maker_id}::uuid and o.id <> ${cardId as string}::uuid`);
+        if ((other?.n ?? 0) > 0) throw new ApiError(409, 'file_one_per_maker', 'One card per person in your File. Take their other card off first.');
+        // the maker hears the good news once per version of the card
+        if (c.was_on === null && !c.told) told = { makerId: c.maker_id, headline: c.headline };
+      }
     }
     await place(tx, userId, pos, cardId as string | null);
+    if (told) {
+      await tx.execute(sql`
+        insert into notifications (user_id, kind, payload)
+        select ${told.makerId}::uuid, 'file_card_placed', jsonb_build_object('actorId', ${userId}::text, 'cardId', ${cardId as string}::text, 'title', ${told.headline}::text)
+         where exists (select 1 from users where id = ${told.makerId}::uuid and state in ('active', 'flagged_lurker'))`);
+    }
   });
 }
 
@@ -310,6 +370,68 @@ export async function reorderPages(db: Db, userId: string, order: unknown): Prom
   });
 }
 
+// ─── Cards made for someone ─────────────────────────────────────────────────
+
+/**
+ * Hand a card you made over to the member it is for: it waits in their tray until they place it
+ * or turn it down. At most `FILE.trayPerMaker` of yours may wait with one person.
+ */
+export async function sendCard(db: Db, userId: string, id: string): Promise<FileCard> {
+  const card = await getMade(db, userId, id);
+  if (card.own) throw bad('Your own cards are placed, not sent.');
+  if (card.state !== 'draft') return card;
+  await db.transaction(async (txx) => {
+    const tx = txx as unknown as Db;
+    await lock(tx, userId);
+    const [r] = await rows<{ for_id: string; here: boolean; waiting: number }>(tx, sql`
+      select c.for_id,
+             exists (select 1 from users u where u.id = c.for_id and u.state in ('active', 'flagged_lurker')) as here,
+             (select count(*)::int from file_cards w
+               where w.maker_id = c.maker_id and w.for_id = c.for_id and w.sent_at is not null and w.declined_at is null
+                 and not exists (select 1 from file_pages p where p.card_id = w.id)) as waiting
+        from file_cards c where c.id = ${id}::uuid`);
+    if (!r?.here) throw new ApiError(404, 'member_not_found', 'That member is not here any more.');
+    if (Number(r.waiting) >= FILE.trayPerMaker) {
+      throw new ApiError(409, 'file_tray_full', `You already have ${FILE.trayPerMaker} cards waiting with them. Wait until they have looked at those.`);
+    }
+    await tx.execute(sql`update file_cards set sent_at = now(), updated_at = now() where id = ${id}::uuid and sent_at is null`);
+    await tx.execute(sql`
+      insert into notifications (user_id, kind, payload)
+      values (${r.for_id}::uuid, 'file_card_received', jsonb_build_object('actorId', ${userId}::text, 'cardId', ${id}::text, 'title', ${card.headline}::text))`);
+  });
+  return getMade(db, userId, id);
+}
+
+/** Cards you made for other members, newest first: drafts, sent ones, and ones in their File. */
+export async function listMade(db: Db, userId: string): Promise<FileCard[]> {
+  const found = await rows<CardRow>(db, sql`${cardSelect}
+    where c.maker_id = ${userId}::uuid and c.for_id <> ${userId}::uuid order by c.created_at desc, c.id`);
+  return found.map((r) => toCard(r, userId));
+}
+
+/** Your tray: cards other members made for you that are waiting for your yes. Private to you. */
+export async function listTray(db: Db, userId: string): Promise<FileCard[]> {
+  const found = await rows<CardRow>(db, sql`${cardSelect}
+    where c.for_id = ${userId}::uuid and c.maker_id <> ${userId}::uuid
+      and c.sent_at is not null and c.declined_at is null and c.hidden_at is null and m.id is not null
+      and not exists (select 1 from file_pages p where p.card_id = c.id)
+    order by c.sent_at desc, c.id`);
+  return found.map((r) => toCard(r, userId));
+}
+
+/** Turn down a card made for you: it leaves your tray (and your File) for good. Its maker is never told. */
+export async function declineCard(db: Db, userId: string, id: string): Promise<void> {
+  if (!UUID_RE.test(id)) throw new ApiError(404, 'not_found');
+  await db.transaction(async (txx) => {
+    const tx = txx as unknown as Db;
+    const done = rowsOf<{ id: string }>(await tx.execute(sql`
+      update file_cards set declined_at = now()
+       where id = ${id}::uuid and for_id = ${userId}::uuid and maker_id <> ${userId}::uuid and sent_at is not null
+      returning id`));
+    if (!done.length) throw new ApiError(404, 'not_found');
+    await tx.execute(sql`update file_pages set card_id = null where card_id = ${id}::uuid`);
+  });
+}
 /** When an account closes: every card the member made or that was made for them goes. Returns blob keys. */
 export async function dropFile(tx: Db, userId: string): Promise<string[]> {
   const keys = await rows<{ k: string }>(tx, sql`

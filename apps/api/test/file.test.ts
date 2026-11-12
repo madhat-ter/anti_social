@@ -200,3 +200,131 @@ describe('cards', () => {
     expect((await v.put('/me/file/pages/1', { label: 'x' })).status).toBe(403);
   });
 });
+
+describe('cards made for someone', () => {
+  const gift = async (c: Client, forHandle: string, headline: string, extra: Record<string, unknown> = {}) => {
+    const r = await c.post('/me/file/cards', { headline, photos: [{ id: await upload(c) }], forHandle, ...extra });
+    expect(r.status).toBe(200);
+    return r.body;
+  };
+
+  test('a card for someone is the maker’s draft until sent; then it waits in their private tray', async () => {
+    const w = await world();
+    const maya = await w.member('maya');
+    const theo = await w.member('theo');
+    const ines = await w.member('ines');
+    const c = await gift(theo, 'maya', 'Maya, by Theo', { publicOk: true });
+    expect(c).toMatchObject({ own: false, mine: true, state: 'draft', for: { handle: 'maya' }, publicOk: true, page: null });
+    expect((await maya.get('/me/file/tray')).body.items).toEqual([]);
+    expect((await maya.get('/notifications')).body.items.filter((x: any) => x.kind.startsWith('file_'))).toEqual([]);
+    // not for yourself, not for nobody, never straight onto a page
+    expect((await theo.post('/me/file/cards', { headline: 'x', photos: [{ id: await upload(theo) }], forHandle: 'theo' })).status).toBe(400);
+    expect((await theo.post('/me/file/cards', { headline: 'x', photos: [{ id: await upload(theo) }], forHandle: 'ghost' })).status).toBe(404);
+    expect((await theo.post('/me/file/cards', { headline: 'x', photos: [{ id: await upload(theo) }], forHandle: 'maya', page: 8 })).status).toBe(400);
+
+    const sent = await theo.post(`/me/file/cards/${c.id}/send`);
+    expect(sent.body.state).toBe('sent');
+    const tray = (await maya.get('/me/file/tray')).body.items;
+    expect(tray.map((x: any) => [x.headline, x.maker.handle, x.mine])).toEqual([['Maya, by Theo', 'theo', false]]);
+    expect((await maya.get('/notifications')).body.items[0]).toMatchObject({ kind: 'file_card_received', actor: { handle: 'theo' }, cardTitle: 'Maya, by Theo' });
+    // nobody else sees it: not on her File, not in anyone else's tray
+    expect((await ines.get('/members/maya/file')).body.pages.every((p: any) => p.card === null)).toBe(true);
+    expect((await ines.get('/me/file/tray')).body.items).toEqual([]);
+    expect((await ines.put('/me/file/pages/8', { cardId: c.id })).status).toBe(404);
+    // her own cards list is only her own
+    expect((await maya.get('/me/file/cards')).body.items).toEqual([]);
+  });
+
+  test('only the recipient places it, on a gift page; the maker is told, and the tab carries their handle', async () => {
+    const w = await world();
+    const maya = await w.member('maya');
+    const theo = await w.member('theo');
+    const c = await gift(theo, 'maya', 'Maya, by Theo');
+    // an unsent card cannot be placed
+    expect((await maya.put('/me/file/pages/8', { cardId: c.id })).status).toBe(404);
+    await theo.post(`/me/file/cards/${c.id}/send`);
+    expect((await theo.put('/me/file/pages/8', { cardId: c.id })).status).toBe(404);
+    expect((await maya.put('/me/file/pages/2', { cardId: c.id })).status).toBe(400); // her own half is hers
+    expect((await maya.put('/me/file/pages/8', { cardId: c.id })).status).toBe(200);
+    const page = (await theo.get('/members/maya/file')).body.pages[8];
+    expect(page).toMatchObject({ side: 'gift', label: 'theo', card: { headline: 'Maya, by Theo', mine: true, state: 'placed' } });
+    expect((await maya.get('/me/file/tray')).body.items).toEqual([]);
+    const n = (await theo.get('/notifications')).body.items;
+    expect(n[0]).toMatchObject({ kind: 'file_card_placed', actor: { handle: 'maya' }, cardTitle: 'Maya, by Theo' });
+    // moving it to another gift page, or taking it off and putting it back, does not ring again
+    await maya.put('/me/file/pages/9', { cardId: c.id });
+    await maya.put('/me/file/pages/9', { cardId: null });
+    expect((await maya.get('/me/file/tray')).body.items).toHaveLength(1); // off the page = back in the tray
+    await maya.put('/me/file/pages/7', { cardId: c.id });
+    expect((await theo.get('/notifications')).body.items.filter((x: any) => x.kind === 'file_card_placed')).toHaveLength(1);
+    expect((await theo.get('/me/file/made')).body.items[0]).toMatchObject({ state: 'placed', for: { handle: 'maya' } });
+  });
+
+  test('declining is silent: the maker only sees "not in their File"', async () => {
+    const w = await world();
+    const maya = await w.member('maya');
+    const theo = await w.member('theo');
+    const c = await gift(theo, 'maya', 'Hmm');
+    await theo.post(`/me/file/cards/${c.id}/send`);
+    expect((await theo.post(`/me/file/tray/${c.id}/decline`)).status).toBe(404);
+    const before = (await theo.get('/notifications')).body.items.length;
+    expect((await maya.post(`/me/file/tray/${c.id}/decline`)).status).toBe(200);
+    expect((await maya.get('/me/file/tray')).body.items).toEqual([]);
+    expect((await maya.put('/me/file/pages/8', { cardId: c.id })).status).toBe(404);
+    expect((await theo.get('/notifications')).body.items.length).toBe(before);
+    expect((await theo.get('/me/file/made')).body.items[0].state).toBe('sent');
+    // a placed card can be turned down later too: it leaves the File
+    const d = await gift(theo, 'maya', 'Second');
+    await theo.post(`/me/file/cards/${d.id}/send`);
+    await maya.put('/me/file/pages/8', { cardId: d.id });
+    expect((await maya.post(`/me/file/tray/${d.id}/decline`)).status).toBe(200);
+    expect((await maya.get('/members/maya/file')).body.pages[8].card).toBeNull();
+  });
+
+  test('an edit after the yes takes the card off the File and back to the tray; a new yes rings again', async () => {
+    const w = await world();
+    const maya = await w.member('maya');
+    const theo = await w.member('theo');
+    const c = await gift(theo, 'maya', 'Kind words');
+    await theo.post(`/me/file/cards/${c.id}/send`);
+    await maya.put('/me/file/pages/8', { cardId: c.id });
+    const r = await theo.patch(`/me/file/cards/${c.id}`, { headline: 'Different words' });
+    expect(r.body).toMatchObject({ headline: 'Different words', state: 'sent', page: null });
+    expect((await maya.get('/members/maya/file')).body.pages[8].card).toBeNull();
+    expect((await maya.get('/me/file/tray')).body.items[0].headline).toBe('Different words');
+    await new Promise((res) => setTimeout(res, 20));
+    await maya.put('/me/file/pages/8', { cardId: c.id });
+    expect((await theo.get('/notifications')).body.items.filter((x: any) => x.kind === 'file_card_placed')).toHaveLength(2);
+    // the maker deletes it: gone from her File
+    expect((await maya.del(`/me/file/cards/${c.id}`)).status).toBe(404);
+    expect((await theo.del(`/me/file/cards/${c.id}`)).status).toBe(200);
+    expect((await maya.get('/members/maya/file')).body.pages[8].card).toBeNull();
+  });
+
+  test('one card per maker in a File; at most three of yours wait with one person', async () => {
+    const w = await world();
+    const maya = await w.member('maya');
+    const theo = await w.member('theo');
+    const ids: string[] = [];
+    for (let i = 0; i < FILE.trayPerMaker + 1; i++) ids.push((await gift(theo, 'maya', `card ${i}`)).id);
+    for (let i = 0; i < FILE.trayPerMaker; i++) expect((await theo.post(`/me/file/cards/${ids[i]}/send`)).status).toBe(200);
+    expect((await theo.post(`/me/file/cards/${ids[3]}/send`)).status).toBe(409);
+    expect((await maya.put('/me/file/pages/7', { cardId: ids[0] })).status).toBe(200);
+    expect((await maya.put('/me/file/pages/8', { cardId: ids[1] })).status).toBe(409);
+    // swapping on the same page is fine; and a placed card no longer counts as waiting
+    expect((await maya.put('/me/file/pages/7', { cardId: ids[1] })).status).toBe(200);
+    await maya.post(`/me/file/tray/${ids[0]}/decline`);
+    expect((await theo.post(`/me/file/cards/${ids[3]}/send`)).status).toBe(200);
+  });
+
+  test('when the maker leaves, their card leaves her File', async () => {
+    const w = await world();
+    const maya = await w.member('maya');
+    const theo = await w.member('theo');
+    const c = await gift(theo, 'maya', 'From Theo');
+    await theo.post(`/me/file/cards/${c.id}/send`);
+    await maya.put('/me/file/pages/8', { cardId: c.id });
+    expect((await theo.del('/me')).status).toBe(200);
+    expect((await maya.get('/members/maya/file')).body.pages[8]).toMatchObject({ card: null, label: '' });
+  });
+});

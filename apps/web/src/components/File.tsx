@@ -25,14 +25,25 @@ export function FileDrawer({ handle }: { handle: string }) {
   const [err, setErr] = useState<string | null>(null);
   const [open, setOpen] = useState(0);
   const [full, setFull] = useState(false);
-  const [editing, setEditing] = useState<{ card: FileCard | null; page: number | null } | null>(null);
+  const [editing, setEditing] = useState<{ card: FileCard | null; page: number | null; forHandle?: string; choose?: boolean } | null>(null);
   const [deleting, setDeleting] = useState<FileCard | null>(null);
+  /** cards other members made for you, waiting for your yes (yours alone to see) */
+  const [tray, setTray] = useState<FileCard[]>([]);
+  /** cards you made for other members */
+  const [made, setMade] = useState<FileCard[]>([]);
+  const [viewing, setViewing] = useState<FileCard | null>(null);
+  const [declining, setDeclining] = useState<FileCard | null>(null);
 
   const load = useCallback(async () => {
     try {
       const f = await api.file(handle);
       setFile(f);
-      if (f.mine) setSpare((await api.myFileCards()).items.filter((c) => c.page === null));
+      if (f.mine) {
+        const [own, waiting, mine] = await Promise.all([api.myFileCards(), api.fileTray(), api.fileMade()]);
+        setSpare(own.items.filter((c) => c.page === null));
+        setTray(waiting.items);
+        setMade(mine.items);
+      }
       setErr(null);
     } catch (e) { setErr(errorMessage(e)); }
   }, [handle]);
@@ -48,12 +59,18 @@ export function FileDrawer({ handle }: { handle: string }) {
   if (!file) return err ? <ErrorNote message={err} /> : <Loading />;
   const canEdit = file.mine && !readOnly;
   const page = file.pages[open]!;
+  /** a card from the tray goes on the open page if that is an empty gift page, else the first empty one */
+  const putInFile = (c: FileCard) => {
+    const free = page.side === 'gift' && !page.card ? page : file.pages.find((p) => p.side === 'gift' && !p.card);
+    if (!free) { setErr('All five pages for cards made for you are full. Take one off first.'); return; }
+    void act(async () => { await api.setFilePage(free.position, { cardId: c.id }); setOpen(free.position); });
+  };
   const who = file.mine ? 'Your' : `${firstName(file.owner.displayName)}’s`;
 
   if (editing) {
     return (
       <CardEditor
-        initial={editing.card} page={editing.page}
+        initial={editing.card} page={editing.page} forHandle={editing.forHandle ?? null} choose={!!editing.choose}
         onCancel={() => setEditing(null)}
         onSaved={async () => { setEditing(null); await load(); }}
       />
@@ -84,14 +101,40 @@ export function FileDrawer({ handle }: { handle: string }) {
     <div className="stack file-page">
       <div className="row between">
         <h1>{who} File</h1>
-        {canEdit && <button type="button" className="btn primary" onClick={() => setEditing({ card: null, page: null })}>+ Make a card</button>}
+        {canEdit && <button type="button" className="btn primary" onClick={() => setEditing({ card: null, page: null, choose: true })}>+ Make a card</button>}
+        {!file.mine && !readOnly && (
+          <button type="button" className="btn primary" onClick={() => setEditing({ card: null, page: null, forHandle: file.owner.handle })}>
+            + Make a card for {firstName(file.owner.displayName)}
+          </button>
+        )}
       </div>
       <ErrorNote message={err} />
+
+      {canEdit && tray.length > 0 && (
+        <Win title="made_for_you" dark bodyClassName="stack">
+          <p className="muted small">
+            {tray.length === 1 ? 'Someone made a card for you.' : `${tray.length} cards were made for you.`} Only you can see them here.
+            Put one in your File (the last five pages), or turn it down: nobody is told either way unless you put it in.
+          </p>
+          <ul className="file-spare">
+            {tray.map((c) => (
+              <li key={c.id}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {c.photos[0] && <img src={c.photos[0].url} alt="" />}
+                <span className="file-spare-h">{c.headline} <span className="muted small">by @{c.maker?.handle}</span></span>
+                <button type="button" className="link-btn" onClick={() => setViewing(c)}>Look</button>
+                <button type="button" className="link-btn" onClick={() => putInFile(c)}>Put in my File</button>
+                <button type="button" className="link-btn danger-text" onClick={() => setDeclining(c)}>Turn down</button>
+              </li>
+            ))}
+          </ul>
+        </Win>
+      )}
 
       <div className="file" role="tablist" aria-label={`${who} File: 12 pages`}>
         <div className="file-back">{BACK.map(tab)}</div>
         <div className="file-sheet" id="file-sheet" role="tabpanel" aria-labelledby={`file-tab-${open}`}>
-          <Sheet page={page} canEdit={canEdit} mine={file.mine} spare={spare} owner={firstName(file.owner.displayName)}
+          <Sheet page={page} canEdit={canEdit} mine={file.mine} spare={spare} tray={tray} owner={firstName(file.owner.displayName)}
             onOpen={() => setFull(true)}
             onMake={() => setEditing({ card: null, page: page.position })}
             onPlace={(c) => void act(() => api.setFilePage(page.position, { cardId: c.id }))} />
@@ -135,7 +178,40 @@ export function FileDrawer({ handle }: { handle: string }) {
         </Win>
       )}
 
-      {page.card && <FullCard card={page.card} label={page.label} open={full} onClose={() => setFull(false)} />}
+      {canEdit && made.length > 0 && (
+        <Win title="cards_you_made_for_others" bodyClassName="stack">
+          <ul className="file-spare">
+            {made.map((c) => (
+              <li key={c.id}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {c.photos[0] && <img src={c.photos[0].url} alt="" />}
+                <span className="file-spare-h">
+                  {c.headline}{' '}
+                  <span className="muted small">
+                    {c.state === 'draft' ? `Draft for @${c.for?.handle ?? '…'}: not sent yet`
+                      : c.state === 'placed' ? `In @${c.for?.handle}’s File`
+                      : `Sent to @${c.for?.handle ?? '…'}: not in their File`}
+                  </span>
+                </span>
+                {c.state === 'draft' && <button type="button" className="link-btn" onClick={() => void act(() => api.sendFileCard(c.id))}>Send</button>}
+                <button type="button" className="link-btn" onClick={() => setEditing({ card: c, page: null })}>Edit</button>
+                <button type="button" className="link-btn danger-text" onClick={() => setDeleting(c)}>Delete</button>
+              </li>
+            ))}
+          </ul>
+        </Win>
+      )}
+
+      {(viewing ?? page.card) && (
+        <FullCard
+          card={(viewing ?? page.card)!} label={viewing ? `from @${viewing.maker?.handle ?? ''}` : page.label}
+          open={full || !!viewing} onClose={() => { setFull(false); setViewing(null); }}
+        />
+      )}
+      <AlertDialog open={!!declining} title="Turn down" confirmLabel="Turn it down" focusCancel
+        message={<>Turn down <strong>{declining?.headline}</strong>? It leaves your tray for good. @{declining?.maker?.handle} is not told.</>}
+        onConfirm={() => { const c = declining; setDeclining(null); if (c) void act(() => api.declineFileCard(c.id)); }}
+        onCancel={() => setDeclining(null)} />
       <AlertDialog open={!!deleting} title="Delete card" danger confirmLabel="Delete" focusCancel
         message={<>Delete <strong>{deleting?.headline}</strong> and its photos? This cannot be undone.</>}
         onConfirm={() => { const c = deleting; setDeleting(null); if (c) void act(() => api.deleteFileCard(c.id)); }}
@@ -145,8 +221,8 @@ export function FileDrawer({ handle }: { handle: string }) {
 }
 
 /** The open page: its card as a preview you tap, or what an empty page says. */
-function Sheet({ page, canEdit, mine, spare, owner, onOpen, onMake, onPlace }: {
-  page: FilePage; canEdit: boolean; mine: boolean; spare: FileCard[]; owner: string;
+function Sheet({ page, canEdit, mine, spare, tray, owner, onOpen, onMake, onPlace }: {
+  page: FilePage; canEdit: boolean; mine: boolean; spare: FileCard[]; tray: FileCard[]; owner: string;
   onOpen: () => void; onMake: () => void; onPlace: (c: FileCard) => void;
 }) {
   const c = page.card;
@@ -176,7 +252,16 @@ function Sheet({ page, canEdit, mine, spare, owner, onOpen, onMake, onPlace }: {
     return (
       <div className="file-empty stack">
         <p><b>Empty.</b> This page is for a card someone else made for you.</p>
-        <p className="muted small">The last five pages can only hold cards other members made for you. Nothing is waiting yet.</p>
+        {tray.length === 0
+          ? <p className="muted small">The last five pages can only hold cards other members made for you. Nothing is waiting yet.</p>
+          : (
+            <div className="stack" style={{ gap: '.4rem' }}>
+              <p className="muted small">Waiting for your yes:</p>
+              {tray.map((s) => (
+                <button key={s.id} type="button" className="link-btn file-put" onClick={() => onPlace(s)}>Put “{s.headline}” by @{s.maker?.handle} here</button>
+              ))}
+            </div>
+          )}
       </div>
     );
   }
@@ -222,7 +307,7 @@ function PageTools({ page, onLabel, onEdit, onTakeOff, onDelete, onMove }: {
       {page.card && (
         <div className="row">
           {page.card.mine && <button type="button" className="btn" onClick={onEdit}>Edit card</button>}
-          <button type="button" className="btn" onClick={onTakeOff}>Take it off this page</button>
+          <button type="button" className="btn" onClick={onTakeOff}>{page.side === 'gift' ? 'Take it off (back to your tray)' : 'Take it off this page'}</button>
           {page.card.mine && <button type="button" className="btn danger" onClick={onDelete}>Delete card</button>}
         </div>
       )}
@@ -313,13 +398,31 @@ function FullCard({ card, label, open, onClose }: { card: FileCard; label: strin
 type Att = { key: string; id: string; preview: string; caption: string; status: 'uploading' | 'done' | 'error'; error?: string };
 
 /** Make or change a card: a headline, 1–20 photos (each with an optional caption), a description. */
-function CardEditor({ initial, page, onCancel, onSaved }: {
+function CardEditor({ initial, page, forHandle, choose, onCancel, onSaved }: {
   initial: FileCard | null;
   /** a new card goes straight onto this page */
   page: number | null;
+  /** a new card for this member (made from their File) */
+  forHandle: string | null;
+  /** a new card: ask "for me" or "for someone" */
+  choose: boolean;
   onCancel: () => void; onSaved: () => Promise<void>;
 }) {
   const id = useId();
+  const [target, setTarget] = useState<'me' | 'someone'>(forHandle ? 'someone' : 'me');
+  const [who, setWho] = useState<string | null>(forHandle ?? initial?.for?.handle ?? null);
+  const [q, setQ] = useState('');
+  const [found, setFound] = useState<{ handle: string; displayName: string }[]>([]);
+  const [publicOk, setPublicOk] = useState(initial?.publicOk ?? false);
+  const sendAfter = useRef(false);
+  /** a card for someone else: a new one aimed at them, or an existing one of that kind */
+  const gift = initial ? !initial.own : target === 'someone';
+  useEffect(() => {
+    if (!choose || target !== 'someone' || who) return;
+    let alive = true;
+    const t = setTimeout(() => { api.mentionMembers(q).then((r) => { if (alive) setFound(r.items); }, () => {}); }, 200);
+    return () => { alive = false; clearTimeout(t); };
+  }, [choose, target, who, q]);
   const [headline, setHeadline] = useState(initial?.headline ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [atts, setAtts] = useState<Att[]>(() => (initial?.photos ?? []).map((p) => ({ key: p.id, id: p.id, preview: p.url, caption: p.caption, status: 'done' as const })));
@@ -367,16 +470,51 @@ function CardEditor({ initial, page, onCancel, onSaved }: {
     setBusy(true); setErr(null);
     const input = { headline, description, photos: ready.map((a) => ({ id: a.id, caption: a.caption })) };
     try {
-      if (initial) await api.updateFileCard(initial.id, input);
-      else await api.createFileCard({ ...input, page });
+      let saved: FileCard;
+      if (initial) saved = await api.updateFileCard(initial.id, gift ? { ...input, publicOk } : input);
+      else if (gift) saved = await api.createFileCard({ ...input, forHandle: who, publicOk });
+      else saved = await api.createFileCard({ ...input, page });
+      if (gift && sendAfter.current && saved.state === 'draft') await api.sendFileCard(saved.id);
       await onSaved();
     } catch (x) { setErr(errorMessage(x)); setBusy(false); }
+    finally { sendAfter.current = false; }
   }
 
   return (
     <form onSubmit={submit} className="stack file-page">
-      <h1>{initial ? 'Edit card' : 'Make a card'}</h1>
+      <h1>{initial ? 'Edit card' : gift && who ? `A card for @${who}` : 'Make a card'}</h1>
       <Win title={initial ? 'card/edit' : 'card/new'} as="div" bodyClassName="stack">
+        {choose && !initial && (
+          <fieldset className="setup-choices">
+            <legend className="ui">Who is it for?</legend>
+            <label className="check setup-choice">
+              <input type="radio" name={`${id}-for`} checked={target === 'me'} onChange={() => setTarget('me')} />
+              <span><b>For me</b> <span className="muted small">It goes in your own File.</span></span>
+            </label>
+            <label className="check setup-choice">
+              <input type="radio" name={`${id}-for`} checked={target === 'someone'} onChange={() => setTarget('someone')} />
+              <span><b>For someone</b> <span className="muted small">They decide whether it goes in their File.</span></span>
+            </label>
+            {target === 'someone' && (who
+              ? <p className="row">For <b>@{who}</b> <button type="button" className="link-btn" onClick={() => setWho(null)}>Change</button></p>
+              : (
+                <div className="stack" style={{ gap: '.4rem' }}>
+                  <label>Find a member
+                    <input value={q} placeholder="Name or handle" onChange={(e) => setQ(e.target.value)} />
+                  </label>
+                  <div className="row">
+                    {found.map((m) => (
+                      <button key={m.handle} type="button" className="btn" onClick={() => setWho(m.handle)}>{m.displayName} @{m.handle}</button>
+                    ))}
+                    {found.length === 0 && <span className="muted small">No one by that name.</span>}
+                  </div>
+                </div>
+              ))}
+          </fieldset>
+        )}
+        {initial && gift && initial.state === 'placed' && (
+          <p className="error">This card is in @{initial.for?.handle}&rsquo;s File. Saving a change takes it off until they say yes again.</p>
+        )}
         <label>Headline <span className="counter">{headline.length}/{FILE.headlineMax}</span>
           <input value={headline} maxLength={FILE.headlineMax} required placeholder="Things I make on weekends" onChange={(e) => setHeadline(e.target.value)} />
         </label>
@@ -419,12 +557,25 @@ function CardEditor({ initial, page, onCancel, onSaved }: {
             <label htmlFor={`${id}-file`} className={`btn attach${full ? ' disabled' : ''}`} aria-disabled={full}>+ Photos</label>
           </div>
         </section>
+        {gift && (
+          <label className="check">
+            <input type="checkbox" checked={publicOk} onChange={(e) => setPublicOk(e.target.checked)} />
+            They may show this card on their public share link (outside anti)
+          </label>
+        )}
         <ErrorNote message={err} />
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <button type="button" className="btn" onClick={onCancel} disabled={busy}>Cancel</button>
-          <button type="submit" className="btn primary" disabled={busy || uploading || !headline.trim() || ready.length === 0}>
-            {busy ? 'Saving…' : uploading ? 'Uploading…' : initial ? 'Save card' : page !== null ? 'Add to this page' : 'Save card'}
+          <button type="submit" className={gift && (!initial || initial.state === 'draft') ? 'btn' : 'btn primary'}
+            disabled={busy || uploading || !headline.trim() || ready.length === 0 || (gift && !who)}>
+            {busy ? 'Saving…' : uploading ? 'Uploading…' : gift ? (initial && initial.state !== 'draft' ? 'Save card' : 'Save as draft') : initial ? 'Save card' : page !== null ? 'Add to this page' : 'Save card'}
           </button>
+          {gift && (!initial || initial.state === 'draft') && (
+            <button type="submit" className="btn primary" onClick={() => { sendAfter.current = true; }}
+              disabled={busy || uploading || !headline.trim() || ready.length === 0 || !who}>
+              Send to @{who ?? '…'}
+            </button>
+          )}
         </div>
       </Win>
     </form>

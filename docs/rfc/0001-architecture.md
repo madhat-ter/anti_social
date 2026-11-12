@@ -1467,7 +1467,15 @@ drawer. Tabs stand up at the back and the front, one page lies open, and each pa
   migration 0036. `apps/api/src/lib/file.ts`, `routes/file.ts`; `apps/web/src/components/File.tsx`,
   `/file` (yours) and `/file/<handle>`. Limits in `FILE` (`packages/shared/src/rules.ts`).
   Tests: `apps/api/test/file.test.ts`; screenshots: `scripts/screenshots-file.ts`.
-- **Progress.** Step 1 (own cards and the drawer) built 2026-11-12. Steps 2–4 follow.
+- **Step 2, as built.** `POST /me/file/cards` with `forHandle` makes the maker's draft (at most 12
+  unsent); `POST /me/file/cards/:id/send` hands it over and rings the recipient
+  (`file_card_received`). `GET /me/file/tray` is the recipient's private tray; placing rings the
+  maker once per version of the card (`file_card_placed`); taking it off a page returns it to the
+  tray; `POST /me/file/tray/:id/decline` removes it for good, silently. The maker's list
+  (`GET /me/file/made`) only ever says draft, "in their File" or "not in their File". The tick
+  "they may show this card on their public share link" (`public_ok`) is set by the maker.
+- **Progress.** Steps 1 (own cards and the drawer) and 2 (cards made for someone) built 2026-11-12.
+  Steps 3 (the button, the profile link, the public page) and 4 (reports, admin removal) follow.
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,
@@ -1512,6 +1520,8 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `GET /members/:handle/file` | A | A member's File: 12 pages, each with its card or empty (§10.24) |
 | `GET/POST /me/file/cards`, `PATCH/DELETE /me/file/cards/:id` | A (not V) | Your own cards: list, make (`page` places it), change, delete (§10.24) |
 | `PUT /me/file/pages/:position`, `POST /me/file/pages/order` | A (not V) | Rename a page, put a card on it or take it off; reorder your pages 1–6 (§10.24) |
+| `POST /me/file/cards/:id/send`, `GET /me/file/made` | A (not V) | Send a card you made for someone; the cards you made for others (§10.24) |
+| `GET /me/file/tray`, `POST /me/file/tray/:id/decline` | A (not V) | Cards made for you that wait for your yes; turn one down, silently (§10.24) |
 | `POST /projects/:id/flag`, `POST /ops/projects/:id/resolve` | A / O | Report a project; ops restore or remove |
 | `GET/POST /events`, `GET/PATCH/DELETE /events/:id` | A | Events |
 | `POST/DELETE /events/:id/rsvp` | A | RSVP (approve events: only accepted or invited people) |
