@@ -77,8 +77,11 @@ export const users = pgTable('users', {
   collabIntroSeenAt: tstz('collab_intro_seen_at').defaultNow(),
   /** RFC §10.22: the Monologue page's own "new since" line (the feed's is feedSeenThrough) */
   monologuesSeenThrough: tstz('monologues_seen_through'),
+  /** RFC §10.23: 'mixed' (everyone starts here) or 'newest' (strict newest first), chosen in Settings */
+  feedOrder: text('feed_order').notNull().default('mixed'),
 }, (t) => [
   check('users_theme', sql`${t.theme} in ('light', 'dark')`),
+  check('users_feed_order', sql`${t.feedOrder} in ('mixed', 'newest')`),
   index('users_state_idx').on(t.state),
   uniqueIndex('users_handle_lower').on(sql`lower(${t.handle})`),
 ]);

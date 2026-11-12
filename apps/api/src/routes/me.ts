@@ -91,6 +91,8 @@ export const meRoutes = (deps: Deps) => {
       // RFC §10.13: members who joined with a passkey are asked to choose a PIN
       pinSet: !!u.pinHash,
       theme: u.theme === 'dark' ? 'dark' as const : 'light' as const,
+      // RFC §10.23: how the home feed is ordered for this member
+      feedOrder: u.feedOrder === 'newest' ? 'newest' as const : 'mixed' as const,
       // RFC §10.21: members from before see the one-time "Events and Collabs are one place now" strip
       collabIntroSeen: u.collabIntroSeenAt !== null,
     };
@@ -110,7 +112,7 @@ export const meRoutes = (deps: Deps) => {
       '/',
       async ({ auth, body }) => {
         const a = requireUser(auth);
-        const patch: { displayName?: string; bio?: string; gender?: (typeof GENDERS)[number]; birthdayPublic?: boolean; theme?: 'light' | 'dark' } = {};
+        const patch: { displayName?: string; bio?: string; gender?: (typeof GENDERS)[number]; birthdayPublic?: boolean; theme?: 'light' | 'dark'; feedOrder?: 'mixed' | 'newest' } = {};
         if (body.displayName !== undefined) {
           const d = body.displayName.trim();
           if (d.length < 1 || d.length > DISPLAY_NAME_MAX) {
@@ -124,6 +126,8 @@ export const meRoutes = (deps: Deps) => {
         if (body.birthdayPublic !== undefined) patch.birthdayPublic = body.birthdayPublic;
         // RFC §10.14: light or dark, on the account so it follows the member to every device
         if (body.theme !== undefined) patch.theme = body.theme;
+        // RFC §10.23: mixed or newest first, on the account like the theme
+        if (body.feedOrder !== undefined) patch.feedOrder = body.feedOrder;
         if (Object.keys(patch).length) await db.update(users).set(patch).where(eq(users.id, a.user.id));
         return profile(a.user.id);
       },
@@ -132,6 +136,7 @@ export const meRoutes = (deps: Deps) => {
           displayName: t.Optional(t.String({ maxLength: 200 })), bio: t.Optional(t.String({ maxLength: 160 })),
           gender: t.Optional(genderSchema), birthdayPublic: t.Optional(t.Boolean()),
           theme: t.Optional(t.Union([t.Literal('light'), t.Literal('dark')])),
+          feedOrder: t.Optional(t.Union([t.Literal('mixed'), t.Literal('newest')])),
         }),
       },
     )

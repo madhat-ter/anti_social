@@ -1,14 +1,19 @@
 'use client';
 /**
- * RFC §10.11: the home feed. Newest first and never ranked; what this adds is a frozen line where
+ * RFC §10.11: the home feed. Never ranked; what this adds is a frozen line where
  * you left off, and an end. Above the line: what is new since your last visit, with a few rows
  * placed at their own time (a conversation on an older post, a new event), and a busy poster's
  * extra posts folded into one row. At the line: the "caught up" card, and the feed stops (nothing
  * loads on its own below it). Older posts come only when you ask for them.
+ *
+ * RFC §10.23: by default the new posts above the line come mixed by the server (the newest on top,
+ * then a seeded mix that keeps one person's posts apart); the list keeps that order, drops the day
+ * headers there and gives the rows seeded places. Under the line, and for members who chose
+ * "Newest first", everything stays in time order.
  */
 import Link from 'next/link';
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { FEED, foldBusy, type FeedItem } from '@anti/shared';
+import { FEED, foldBusy, mixRand, type FeedItem } from '@anti/shared';
 import { api, type FeedEventRow, type FeedThreadRow, type FeedVisit, type Post } from '@/lib/api';
 import type { usePaged } from '@/lib/hooks';
 import { ListStatus, PagedFooter } from './Paged';
@@ -18,7 +23,8 @@ import { eventTime } from './Events';
 import { Avatar } from './Avatar';
 import { Win } from './retro';
 
-type Stored = { since: string; capped: boolean; visitId: number | null; at: number };
+/** `mix` (RFC §10.23): the visit's seed and start, so a reload brings back the same mix */
+type Stored = { since: string; capped: boolean; visitId: number | null; at: number; mix?: { seed: number; until: string } | null };
 const GAP_MS = FEED.visitGapMinutes * 60_000;
 /** RFC §10.22: the Monologue page keeps its own line, so its visit is stored apart (scope) */
 const keyFor = (handle: string, scope = 'feed') => `anti:${scope === 'feed' ? 'feed' : scope}-visit:${handle}`;
@@ -42,15 +48,16 @@ export function useFeedVisit(handle: string, scope = 'feed') {
   const stored = useRef<Stored | null>(null);
 
   /** what the first page asks for: resume a live visit, or start one */
-  const params = useCallback((): { visit?: boolean; since?: string } => {
+  const params = useCallback((): { visit?: boolean; since?: string; seed?: number; until?: string } => {
     const s = read(handle, scope);
     stored.current = s;
-    return s && Date.now() - s.at < GAP_MS ? { since: s.since } : { visit: true };
+    if (!s || Date.now() - s.at >= GAP_MS) return { visit: true };
+    return s.mix ? { since: s.since, seed: s.mix.seed, until: s.mix.until } : { since: s.since };
   }, [handle, scope]);
 
   const got = useCallback((v: FeedVisit) => {
     const visitId = v.visitId ?? stored.current?.visitId ?? null;
-    const s: Stored = { since: v.since, capped: v.capped, visitId, at: Date.now() };
+    const s: Stored = { since: v.since, capped: v.capped, visitId, at: Date.now(), mix: v.mix ?? null };
     stored.current = s;
     write(handle, s, scope);
     setVisit({ ...v, visitId });
@@ -195,8 +202,11 @@ export function FeedList({ p, visit, mine, readOnly, empty, interludes, what = '
   /** the line is reached once a post at or under it is loaded, or there are no more pages */
   const reached = !!visit && (below.length > 0 || !p.hasMore);
   const fresh = above.filter((x) => x.author?.handle !== mine).length;
+  /** RFC §10.23: this visit's new posts came mixed (newest on top, then the seeded mix) */
+  const mix = visit?.mix ?? null;
 
-  const newest = items[0]?.createdAt ?? null;
+  // in a mix the first item is not always the newest, so look for it
+  const newest = items.reduce<string | null>((m, x) => (m === null || Date.parse(x.createdAt) > Date.parse(m) ? x.createdAt : m), null);
   const onSeen = useCallback(() => {
     if (readOnly || !visit || !newest || caught.current === newest) return;
     caught.current = newest;
@@ -209,12 +219,17 @@ export function FeedList({ p, visit, mine, readOnly, empty, interludes, what = '
     return next;
   });
 
-  // rows only live above the line, at their own time (newest first, like everything else)
-  const rows: Row[] = visit
+  const rowKey = (row: Row) => `${row.kind}:${row.kind === 'thread' ? row.row.rootId : row.row.id}`;
+  // rows only live above the line, at their own time (newest first, like everything else);
+  // in a mix (RFC §10.23) each gets a fixed place among the new posts, drawn from the visit's
+  // seed, never above the newest post
+  const span = Math.max(1, visit?.newPosts ?? 1);
+  const rows: (Row & { slot: number })[] = visit
     ? [...visit.threads.map((row) => ({ kind: 'thread' as const, at: row.at, row })),
        ...visit.events.map((row) => ({ kind: 'event' as const, at: row.at, row }))]
       .filter((r) => newer(r.at))
-      .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+      .map((r) => ({ ...r, slot: mix ? 1 + Math.floor(mixRand(mix.seed, rowKey(r)) * span) : 0 }))
+      .sort((a, b) => (mix ? a.slot - b.slot : 0) || Date.parse(b.at) - Date.parse(a.at))
     : [];
 
   const folded = foldBusy(above, mine, localDay);
@@ -224,11 +239,14 @@ export function FeedList({ p, visit, mine, readOnly, empty, interludes, what = '
   type Draw = { key: string; at: string; node: ReactNode; post?: boolean };
   const draw: Draw[] = [];
   let r = 0;
-  const flushRows = (before: string | null) => {
-    while (r < rows.length && (before === null || Date.parse(rows[r]!.at) > Date.parse(before))) {
+  /** rows due before the next item: by time, or (mixed) by place; `null`: all that are left */
+  const flushRows = (next: { at: string; index: number } | null) => {
+    const due = (row: (typeof rows)[number]) =>
+      next === null || (mix ? row.slot <= next.index : Date.parse(row.at) > Date.parse(next.at));
+    while (r < rows.length && due(rows[r]!)) {
       const row = rows[r++]!;
       draw.push({
-        key: `${row.kind}:${row.kind === 'thread' ? row.row.rootId : row.row.id}`, at: row.at,
+        key: rowKey(row), at: row.at,
         node: row.kind === 'thread' ? <ThreadLine row={row.row} /> : <EventLine row={row.row} />,
       });
     }
@@ -237,8 +255,8 @@ export function FeedList({ p, visit, mine, readOnly, empty, interludes, what = '
     <PostCard framed post={post} onChange={(np) => p.setItems((cur) => replaceIn(cur, np))} />
   );
   const pushItems = (list: FeedItem<Post>[], withRows: boolean) => {
-    for (const x of list) {
-      if (withRows) flushRows(itemTime(x));
+    for (const [index, x] of list.entries()) {
+      if (withRows) flushRows({ at: itemTime(x), index });
       if (x.kind === 'post') {
         draw.push({ key: x.post.id, at: x.post.createdAt, node: card(x.post), post: true });
         continue;
@@ -276,12 +294,17 @@ export function FeedList({ p, visit, mine, readOnly, empty, interludes, what = '
       <ListStatus p={p} count={n} empty={empty} />
       {n === 0 && !p.loading && !p.error && (interludes ?? []).map((it, i) => <Fragment key={`i${i}`}>{it.node}</Fragment>)}
       {visit && fresh > 0 && !p.loading && (
-        <p className="feed-since meta">{fresh} new since {sinceLabel(visit)}</p>
+        <p className="feed-since meta">
+          {fresh} new since {sinceLabel(visit)}
+          {/* RFC §10.23: say it out loud, and where the rules are */}
+          {mix && <> · <Link href="/feed-rules#mixed">mixed, newest on top</Link></>}
+        </p>
       )}
       <div className="posts cards">
         {draw.map((d, i) => {
-          const day = dayLabel(d.at);
-          const header = day !== last;
+          // the mixed part has no day headers (it is not in time order); each card shows its time
+          const day = mix && i < lineAt ? '' : dayLabel(d.at);
+          const header = day !== '' && day !== last;
           last = day;
           if (d.post) seenPosts++;
           return (

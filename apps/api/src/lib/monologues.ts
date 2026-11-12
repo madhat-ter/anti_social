@@ -102,7 +102,7 @@ export async function monologueVisit(db: Db, viewerId: string, visitor: boolean,
            (select count(*)::int from posts p
              where ${MONOLOGUE_WHERE()} and p.created_at > s.since and p.author_id is distinct from ${viewerId}::uuid) as n
       from s`);
-  return { since: r!.since, capped: !!r!.capped, newPosts: Number(r!.n), ...empty, threads: [], events: [] };
+  return { since: r!.since, capped: !!r!.capped, newPosts: Number(r!.n), ...empty, threads: [], events: [], mix: null };
 }
 
 /** The end card was on screen: monologues up to `through` count as heard. Only ever forward. */

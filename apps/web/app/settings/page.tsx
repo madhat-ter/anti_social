@@ -40,6 +40,7 @@ export default function Settings() {
         <a href="#profile">Profile</a>
         <a href="#face">Face</a>
         <a href="#look">Appearance</a>
+        <a href="#feed">Feed</a>
         <a href="#bday">Birthday</a>
         <a href="#interests">Interests</a>
         {me.contactEnabled && <a href="#contact">Contact</a>}
@@ -54,6 +55,7 @@ export default function Settings() {
         <Profile me={me} onSaved={setMe} />
         <Face me={me} onSaved={setMe} />
         <AppearanceSec me={me} onSaved={setMe} />
+        <FeedSec me={me} onSaved={setMe} />
         <BirthdaySec me={me} onSaved={setMe} />
         <InterestsSec me={me} onSaved={setMe} />
         <ContactSec me={me} onSaved={setMe} />
@@ -218,6 +220,38 @@ function AppearanceSec({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
           </label>
         ))}
         <p className="muted small">Saved to your account, so it follows you to every device. Anti stays light until you choose Dark here, even if your phone is set to dark.</p>
+      </fieldset>
+      <ErrorNote message={err} />
+    </section>
+  );
+}
+
+/** RFC §10.23: the home feed mixed (everyone starts here) or strictly newest first; on the account. */
+function FeedSec({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
+  const [err, setErr] = useState<string | null>(null);
+  const current = me.feedOrder === 'newest' ? 'newest' : 'mixed';
+  async function pick(feedOrder: 'mixed' | 'newest') {
+    if (feedOrder === current) return;
+    setErr(null);
+    try { onSaved(await api.updateMe({ feedOrder })); }
+    catch (e) { setErr(errorMessage(e)); }
+  }
+  const choices = [
+    ['mixed', 'Mixed', 'The newest post on top, the rest of what’s new mixed, so no one fills your screen.'],
+    ['newest', 'Newest first', 'Everything in the order it was posted.'],
+  ] as const;
+  return (
+    <section className="panel-sec" aria-labelledby="feed">
+      <h2 id="feed">Feed</h2>
+      <fieldset className="setup-choices">
+        <legend className="ui">Feed order</legend>
+        {choices.map(([v, label, says]) => (
+          <label key={v} className="check setup-choice">
+            <input type="radio" name="settings-feed-order" value={v} checked={current === v} onChange={() => void pick(v)} />
+            <span><b>{label}</b> <span className="muted small">{says}</span></span>
+          </label>
+        ))}
+        <p className="muted small">Saved to your account. It takes effect the next time you open the feed. Likes never move a post either way.</p>
       </fieldset>
       <ErrorNote message={err} />
     </section>

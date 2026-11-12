@@ -56,6 +56,8 @@ export function visitorUser(): SessionUser {
     monologuesSeenThrough: null,
     pinHash: null, pinFails: 0, pinLocks: 0, pinLockedUntil: null, pinFailDay: null, pinFailsDay: 0, pinBlockedAt: null,
     theme: 'light',
+    // RFC §10.23: a visitor always gets the mixed feed
+    feedOrder: 'mixed',
   };
 }
 
@@ -71,6 +73,7 @@ export function visitorProfile(pass: VisitorPass) {
     collabIntroSeen: true,
     // RFC §10.14: visitors always see the light pages
     theme: 'light' as const,
+    feedOrder: 'mixed' as const,
     visitor: { expiresAt: pass.expiresAt.toISOString() },
   };
 }

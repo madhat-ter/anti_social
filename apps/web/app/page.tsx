@@ -82,7 +82,7 @@ function Landing() {
 
       <ul className="rules">
         <li><b>No DMs</b><span>Replies are public. If you want to talk, host an event and meet.</span></li>
-        <li><b>No algorithm</b><span>One feed, newest first. Likes never move a post. A line shows where you left off, and you will reach the end of it.</span></li>
+        <li><b>No algorithm</b><span>One feed. The newest post on top, the rest of what&rsquo;s new mixed, so no one fills your screen. Likes never move a post, and you will reach the end.</span></li>
         <li><b>Show up</b><span>Disappear for 30 days and your seat goes to someone who will.</span></li>
       </ul>
     </div>
@@ -94,9 +94,11 @@ function Landing() {
  * while the tab is in front, and on focus). They wait behind a "3 new posts" pill rather than
  * jumping the list, so nothing moves under a reader's thumb.
  */
-function useNewPosts(p: ReturnType<typeof usePaged<Post>>) {
+function useNewPosts(p: ReturnType<typeof usePaged<Post>>, until: string | null) {
   const [pending, setPending] = useState<Post[]>([]);
   const items = p.items;
+  // RFC §10.23: in a mixed visit, posts up to `until` are in the mix (maybe on a later page); only later ones are new
+  const after = until ? Date.parse(until) : Number.NEGATIVE_INFINITY;
   useEffect(() => {
     if (p.loading) return;
     let alive = true;
@@ -108,7 +110,7 @@ function useNewPosts(p: ReturnType<typeof usePaged<Post>>) {
         const have = new Set(items.map((x) => x.id));
         setPending((cur) => {
           const known = new Set([...have, ...cur.map((x) => x.id)]);
-          const fresh = page.items.filter((x) => !x.parentId && !known.has(x.id));
+          const fresh = page.items.filter((x) => !x.parentId && !known.has(x.id) && Date.parse(x.createdAt) > after);
           return fresh.length ? [...fresh, ...cur] : cur;
         });
       } catch { /* next tick */ }
@@ -116,7 +118,7 @@ function useNewPosts(p: ReturnType<typeof usePaged<Post>>) {
     const t = setInterval(() => void check(), 30_000);
     window.addEventListener('focus', check);
     return () => { alive = false; clearInterval(t); window.removeEventListener('focus', check); };
-  }, [items, p.loading]);
+  }, [items, p.loading, after]);
   const show = () => {
     p.setItems((cur) => { const ids = new Set(cur.map((x) => x.id)); return [...pending.filter((x) => !ids.has(x.id)), ...cur]; });
     setPending([]);
@@ -141,7 +143,7 @@ function FeedView({ me, onPosted }: { me: Me; onPosted: () => void }) {
     if (page.visit) fv.got(page.visit);
     return page;
   });
-  const fresh = useNewPosts(p);
+  const fresh = useNewPosts(p, fv.visit?.mix?.until ?? null);
   useEffect(() => {
     if (window.location.hash !== '#compose') return;
     const ta = document.querySelector<HTMLTextAreaElement>('#compose textarea');

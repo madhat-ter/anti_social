@@ -261,7 +261,15 @@ export const FEED = {
   shortMaxLines: 3,
   /** a longer text post shows this many lines in a list, then "Read more" */
   clampLines: 6,
+  /** RFC §10.23, the mix: a new post's odds in the lottery halve every this many hours of age */
+  mixHalfLifeHours: 12,
+  /** …and the same person is kept at least this many posts apart where the others allow it */
+  mixGap: 3,
 } as const;
+
+/** RFC §10.23: how a member's home feed is ordered. Mixed for everyone unless they choose otherwise. */
+export const FEED_ORDERS = ['mixed', 'newest'] as const;
+export type FeedOrder = (typeof FEED_ORDERS)[number];
 
 
 // ─── Events (RFC-0001 §10) ──────────────────────────────────────────────────

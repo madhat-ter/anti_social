@@ -10,7 +10,9 @@ import { ApiError } from '../lib/errors';
 import {
   getPost, listPosts, mediaUrl, postSelect, toPost, UUID_RE, type Post, type PostRow,
 } from '../lib/posts';
-import { FEED_WHERE, markCaughtUp, resumeVisit, startVisit } from '../lib/feed';
+import {
+  decodeMixCursor, FEED_WHERE, markCaughtUp, mixedPage, mixUntil, newMixSeed, resumeVisit, startVisit,
+} from '../lib/feed';
 import { isValidKey } from '../lib/storage';
 import { hit } from '../lib/ratelimit';
 import { notifyUpdate, updatePlace } from '../lib/updates';
@@ -54,18 +56,32 @@ export const postRoutes = (deps: Deps) => {
 
   return new Elysia()
     .use(authPlugin(deps))
-    // RFC §10.11: newest first, always. `visit=1` (first page only) starts a visit and returns
-    // the frozen "new since" line; `since=` resumes one after a reload. The 30-second "new posts"
-    // poll sends neither, so it never starts a visit.
+    // RFC §10.11: `visit=1` (first page only) starts a visit and returns the frozen "new since"
+    // line; `since=` resumes one after a reload. The 30-second "new posts" poll sends neither, so
+    // it never starts a visit and always gets plain newest first.
+    // RFC §10.23: for a member on "mixed" (the default) and every visitor, the visit's new posts
+    // come mixed: newest on top, then the seeded mix; `seed=` and `until=` resume the same mix.
     .get('/feed', async ({ auth, query }) => {
       const a = requireSeated(auth);
-      const page = await listPosts(db, a.user.id, FEED_WHERE(), query);
-      if (query.cursor || (!query.visit && !query.since)) return page;
+      const mixCursor = decodeMixCursor(query.cursor);
+      if (mixCursor) return mixedPage(db, a.user.id, mixCursor, query.limit);
+      if (query.cursor || (!query.visit && !query.since)) return listPosts(db, a.user.id, FEED_WHERE(), query);
       const visit = query.since
         ? await resumeVisit(db, a.user.id, query.since)
         : await startVisit(db, a.user.id, !!a.visitor);
-      return { ...page, visit };
-    }, { query: t.Object({ ...pageQuery.properties, visit: t.Optional(t.String()), since: t.Optional(t.String()) }) })
+      const mixed = !!a.visitor || a.user.feedOrder !== 'newest';
+      if (!mixed) return { ...(await listPosts(db, a.user.id, FEED_WHERE(), query)), visit };
+      const seedAsked = Number(query.seed);
+      const seed = query.since && Number.isSafeInteger(seedAsked) && seedAsked > 0 ? seedAsked : newMixSeed();
+      const until = await mixUntil(db, visit.since, query.since ? query.until : undefined);
+      const page = await mixedPage(db, a.user.id, { seed, since: visit.since, until, offset: 0, lastId: null }, query.limit);
+      return { ...page, visit: { ...visit, mix: { seed, until } } };
+    }, {
+      query: t.Object({
+        ...pageQuery.properties, visit: t.Optional(t.String()), since: t.Optional(t.String()),
+        seed: t.Optional(t.String()), until: t.Optional(t.String()),
+      }),
+    })
 
     // the end card was on screen: everything up to `through` counts as read (closed to visitors)
     .post('/feed/caught-up', async ({ auth, body }) => {

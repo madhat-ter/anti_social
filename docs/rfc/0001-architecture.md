@@ -948,6 +948,9 @@ the sections after it keep theirs.
 
 ### 10.11 The feed: newest first, with an end (added 2026-11-09)
 
+(Since 2026-11-12 the new posts above the line come **mixed** by default, §10.23; the rest of
+this section still holds, and "Newest first" in Settings brings back the order described here.)
+
 Built from a read of how big platforms and small community sites order their feeds, and what
 users and builders say about it. The feed is **not ranked**: no
 score, no likes or replies moving a post, nothing learned from what anyone looks at. At a hundred
@@ -1385,6 +1388,43 @@ likes, replies, mentions, reports and the lurker rule are the ordinary post code
 `monologues` (migration 0033). Media answers byte-range requests, which Safari needs to play audio.
 `STORAGE=r2` puts new files in Cloudflare R2 and still reads what the database holds; until the
 owner sets R2 up, recordings live in the database like images do.
+
+### 10.23 The feed is mixed: newest on top, the rest fair (added 2026-11-12)
+
+The owner's problem with strict newest first (§10.11): when one member posts ten monologues in a
+row, they sit on top and bury the one good post someone made just before. The fold already shrinks
+the ten to two and a row, but those still come first. Decided with the owner after a read of how
+shuffles are done (Spotify spreading one artist through a shuffle, Apple's "less random to feel
+more random", Bluesky's Friendship Feed taking turns between people, Efraimidis–Spirakis weighted
+sampling, and the complaints about Instagram's and Tumblr's reordering: losing your place, posts
+that seem to vanish). Sixteen questions, all as proposed, plus the owner's word that **mixed is the
+default for everyone, and visitors always get it**:
+
+- **What is mixed:** only what is new since your last visit, above the "new since" line. The single
+  newest post at the moment the visit starts stays first. Under the line, older posts keep time
+  order and their day headers; the end card and *Show older posts* are as before.
+- **How** (`mixFeed` in `packages/shared/src/feed.ts`, pure and tested): the rest draw lots, newer
+  posts with better tickets (a post's weight halves every `FEED.mixHalfLifeHours`, 12, counted from
+  the newest post); then the same person is spread out: each place takes the best-drawn post whose
+  author is not among the last `FEED.mixGap` (3) placed, narrowing only when nobody else is left,
+  and someone with too many posts left to fit apart goes sooner. Never twice in a row while anyone
+  else is waiting. The fold still applies (2 a day, then one row), and the row takes one place.
+- **Only time and who posted.** Likes, replies and clicks never move a post; no learning, no
+  A/B tests. The landing page keeps "no algorithm".
+- **Stable for a visit.** The server draws a seed when the visit starts and returns
+  `visit.mix {seed, until}`; the browser keeps it with the visit, so reloads and later pages get the
+  same order (`seed=`, `until=` on resume; mixed pages carry their own cursor, then an ordinary one
+  takes over under the line). A new visit (30 minutes away) draws a new seed. Posts made after
+  `until` wait behind "N new posts" and go on top, newest first; your own new post goes on top at once.
+- **Rows** ("3 people replied since you were here", new events) get a seeded place among the new
+  posts instead of a place in time. The mixed part has no day headers: one line, "12 new since
+  yesterday, 5:17 PM · mixed, newest on top", links to `/feed-rules#mixed`, and each card keeps its
+  time. Nothing new: plain newest first, no label.
+- **Only the home feed.** Profiles, the Monologue tab, collabs and search stay newest first.
+- **A way back:** Settings → Feed → *Feed order*: **Mixed** (default) or **Newest first**, on the
+  account (`users.feed_order`, migration 0035; `PATCH /me {feedOrder}`). Visitors cannot choose.
+- Tests: `apps/api/test/feed-mix.test.ts`; screenshots: `scripts/screenshots-feed-mix.ts`
+  (`SHOTS=before` for the old order).
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,
@@ -1408,11 +1448,11 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `GET/PUT /me/setup` | U | Setup: About you, gender, birthday (under 13 + `confirmUnderage`: account closed) |
 | `GET /me/checklist`, `POST /me/checklist/dismiss` | A | "Finish your profile" items, and closing it |
 | `GET/POST/DELETE /me/passkeys` | U | Manage passkeys |
-| `PATCH /me` | U | Display name, bio, gender, "show my birthday" |
+| `PATCH /me` | U | Display name, bio, gender, "show my birthday", theme, feed order (§10.23) |
 | `DELETE /me` | U | Self-deletion |
 | `GET/POST /me/invites` | A | List / create (≤ 2 open, no penalty) |
 | `POST /me/waitlist/rejoin` | U (archived) | Join priority queue |
-| `GET /feed` | A | Global feed, newest first; `visit=1` / `since=` on the first page add the visit (§10.11) |
+| `GET /feed` | A | Global feed; `visit=1` / `since=` on the first page add the visit (§10.11); the visit's new posts come mixed unless the member chose newest first, `seed=` / `until=` resume the mix (§10.23) |
 | `POST /feed/caught-up` | A (not V) | The end card was seen: move the "new since" line forward (§10.11) |
 | `POST /posts` | A | Create post or reply |
 | `GET /posts/:id` | A | Post + thread |

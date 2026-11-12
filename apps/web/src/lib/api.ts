@@ -38,6 +38,8 @@ export interface Me {
   pinSet?: boolean;
   /** RFC §10.14: light unless they chose dark in Settings (the device's own setting is ignored) */
   theme?: 'light' | 'dark';
+  /** RFC §10.23: the home feed mixed (everyone's default) or strictly newest first */
+  feedOrder?: 'mixed' | 'newest';
   /** RFC §10.8: set when "you" are a visitor on an admin's pass: an hour of reading, nothing else */
   visitor?: { expiresAt: string };
   /** RFC §10.21: the one-time "Events and Collabs are one place now" strip was closed */
@@ -323,6 +325,11 @@ export interface FeedVisit {
   threads: FeedThreadRow[];
   /** public events announced since the line; a row at the moment they were made */
   events: FeedEventRow[];
+  /**
+   * RFC §10.23: set when this visit's new posts come mixed (the seed fixes the mix for the visit);
+   * posts after `until` wait behind "N new posts". Absent from the Monologue page's line.
+   */
+  mix?: { seed: number; until: string } | null;
   /** shown on the end card: one you are going to first, else the soonest you can see */
   nextEvent: { id: string; title: string; startsAt: string; going: number; imGoing: boolean } | null;
 }
@@ -536,7 +543,7 @@ const post = <T,>(p: string, b: unknown = {}) => call<T>('POST', p, b);
 
 export const api = {
   me: () => get<Me>('/me'),
-  updateMe: (b: { displayName?: string; bio?: string; gender?: Gender; birthdayPublic?: boolean; theme?: 'light' | 'dark' }) => call<Me>('PATCH', '/me', b),
+  updateMe: (b: { displayName?: string; bio?: string; gender?: Gender; birthdayPublic?: boolean; theme?: 'light' | 'dark'; feedOrder?: 'mixed' | 'newest' }) => call<Me>('PATCH', '/me', b),
   checklist: () => get<ChecklistState>('/me/checklist'),
   interests: () => get<{ items: Interest[] }>('/interests'),
   setInterests: (interests: string[]) => call<{ interests: string[] }>('PUT', '/me/interests', { interests }),
@@ -585,8 +592,8 @@ export const api = {
   rejoin: () => post<{ ok: true }>('/me/waitlist/rejoin', {}),
 
   /** `visit`: start a visit (first page only); `since`: resume one after a reload (RFC §10.11) */
-  feed: (cursor?: string | null, limit = 20, v: { visit?: boolean; since?: string } = {}) =>
-    get<Page<Post> & { visit?: FeedVisit }>(`/feed${qs({ cursor, limit, visit: v.visit ? 1 : undefined, since: v.since })}`),
+  feed: (cursor?: string | null, limit = 20, v: { visit?: boolean; since?: string; seed?: number; until?: string } = {}) =>
+    get<Page<Post> & { visit?: FeedVisit }>(`/feed${qs({ cursor, limit, visit: v.visit ? 1 : undefined, since: v.since, seed: v.seed, until: v.until })}`),
   caughtUp: (through: string, visitId?: number | null) =>
     post<{ seenThrough: string | null }>('/feed/caught-up', visitId == null ? { through } : { through, visitId }),
   createPost: (b: {

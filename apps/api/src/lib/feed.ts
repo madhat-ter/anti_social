@@ -3,11 +3,14 @@
  * rules around it: a frozen "new since" line per visit, an end that says you are caught up, and
  * the visit log the owner reads to see whether members get through it.
  */
+import { randomInt } from 'node:crypto';
 import { sql, type SQL } from 'drizzle-orm';
 import { rows, type Db } from '@anti/db';
-import { FEED } from '@anti/shared';
+import { FEED, mixFeed } from '@anti/shared';
 import { ApiError } from './errors';
-import { TS_RE } from './posts';
+import {
+  encodeCursor, listPosts, parseLimit, postSelect, toPost, TS_RE, UUID_RE, type Page, type Post, type PostRow,
+} from './posts';
 
 /** The feed's filter: root posts on nobody's collab or event page, not a pet post, visible. */
 export const FEED_WHERE = (p = 'p'): SQL => sql.raw(
@@ -30,6 +33,11 @@ export type FeedVisit = {
   events: EventRow[];
   /** the end card's one event: one you are going to first, else the soonest you can see */
   nextEvent: NextEvent | null;
+  /**
+   * RFC §10.23: set when this visit's new posts are mixed. `seed` fixes the mix for the visit;
+   * `until` is when the visit began: posts after it wait behind "N new posts", newest first.
+   */
+  mix: { seed: number; until: string } | null;
 };
 
 type Person = { handle: string; displayName: string; gender: string | null };
@@ -110,7 +118,7 @@ export async function startVisit(db: Db, viewerId: string, visitor: boolean): Pr
     const [r] = await rows<{ since: string; n: number }>(db, sql`
       select ${iso(windowStart)} as since,
              (select count(*)::int from posts p where ${FEED_WHERE()} and p.created_at > ${windowStart}) as n`);
-    return { since: r!.since, capped: true, newPosts: Number(r!.n), visitId: null, ...(await around(db, viewerId, r!.since)) };
+    return { since: r!.since, capped: true, newPosts: Number(r!.n), visitId: null, mix: null, ...(await around(db, viewerId, r!.since)) };
   }
   const [r] = await rows<{ id: number; since: string; new_posts: number; capped: boolean }>(db, sql`
     with me as (
@@ -127,7 +135,7 @@ export async function startVisit(db: Db, viewerId: string, visitor: boolean): Pr
     )
     select v.id, ${iso(sql`v.since`)} as since, v.new_posts, me.capped from v, me`);
   if (!r) throw new ApiError(404, 'not_found');
-  return { since: r.since, capped: !!r.capped, newPosts: Number(r.new_posts), visitId: Number(r.id), ...(await around(db, viewerId, r.since)) };
+  return { since: r.since, capped: !!r.capped, newPosts: Number(r.new_posts), visitId: Number(r.id), mix: null, ...(await around(db, viewerId, r.since)) };
 }
 
 /**
@@ -142,7 +150,81 @@ export async function resumeVisit(db: Db, viewerId: string, since: string): Prom
            (select count(*)::int from posts p
              where ${FEED_WHERE()} and p.created_at > s.since and p.author_id is distinct from ${viewerId}::uuid) as n
       from s`);
-  return { since: r!.since, capped: !!r!.capped, newPosts: Number(r!.n), visitId: null, ...(await around(db, viewerId, r!.since)) };
+  return { since: r!.since, capped: !!r!.capped, newPosts: Number(r!.n), visitId: null, mix: null, ...(await around(db, viewerId, r!.since)) };
+}
+
+// ─── RFC §10.23, the mixed feed ─────────────────────────────────────────────
+
+type MixState = { seed: number; since: string; until: string; offset: number; lastId: string | null };
+const MIX_TAG = 'mix';
+/** the chronological part starts just under the line: (since, the largest id) */
+const MAX_UUID = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+
+/** A page cursor inside the mixed part: everything needed to draw the same mix again. */
+export const encodeMixCursor = (s: MixState) =>
+  Buffer.from([MIX_TAG, s.seed, s.since, s.until, s.offset, s.lastId ?? ''].join('|')).toString('base64url');
+
+/** null when the cursor is an ordinary (time, id) one */
+export function decodeMixCursor(c: string | undefined): MixState | null {
+  if (!c) return null;
+  const parts = Buffer.from(c, 'base64url').toString().split('|');
+  if (parts[0] !== MIX_TAG) return null;
+  const [, seed, since, until, offset, lastId] = parts;
+  const s = { seed: Number(seed), since: since ?? '', until: until ?? '', offset: Number(offset), lastId: lastId || null };
+  if (parts.length !== 6 || !Number.isSafeInteger(s.seed) || !TS_RE.test(s.since) || !TS_RE.test(s.until)
+    || !Number.isSafeInteger(s.offset) || s.offset < 0 || (s.lastId && !UUID_RE.test(s.lastId))) {
+    throw new ApiError(400, 'cursor_invalid');
+  }
+  return s;
+}
+
+/** a fresh seed for a new visit (31 bits, so it survives JSON and sessionStorage) */
+export const newMixSeed = () => randomInt(1, 2 ** 31 - 1);
+
+/** The `until` a resumed visit asked for, kept between its line and now; otherwise now. */
+export async function mixUntil(db: Db, since: string, asked: string | undefined): Promise<string> {
+  const a = asked && TS_RE.test(asked) ? asked : null;
+  const [r] = await rows<{ t: string }>(db, sql`
+    select ${iso(sql`case when ${a}::timestamptz is null then now()
+                         else least(greatest(${a}::timestamptz, ${since}::timestamptz), now()) end`)} as t`);
+  return r!.t;
+}
+
+/**
+ * One page of the mixed feed. The new posts of the visit (after the line, up to `until`) are mixed
+ * by `mixFeed` with the visit's seed, so every page and every reload sees the same order; after
+ * the last of them the cursor turns into an ordinary one and the posts under the line follow,
+ * newest first, as before. A post deleted mid-visit shifts nothing: a page resumes after the last
+ * post it showed.
+ */
+export async function mixedPage(db: Db, viewerId: string, s: MixState, limitRaw: string | undefined): Promise<Page<Post>> {
+  const limit = parseLimit(limitRaw);
+  const light = await rows<{ id: string; created: string; handle: string | null }>(db, sql`
+    select p.id, ${iso(sql`p.created_at`)} as created, u.handle
+      from posts p left join users u on u.id = p.author_id and u.state <> 'deleted'
+     where ${FEED_WHERE()} and p.created_at > ${s.since}::timestamptz and p.created_at <= ${s.until}::timestamptz`);
+  if (s.offset === 0 && !s.lastId && light.length === 0) {
+    // nothing new: the feed is plain newest first under the line
+    return listPosts(db, viewerId, FEED_WHERE(), { cursor: encodeCursor(s.since, MAX_UUID), limit: String(limit) });
+  }
+  const order = mixFeed(light.map((r) => ({ id: r.id, createdAt: r.created, author: r.handle ? { handle: r.handle } : null })), s.seed);
+  let start = s.offset;
+  if (s.lastId) {
+    const i = order.findIndex((x) => x.id === s.lastId);
+    if (i >= 0) start = i + 1;
+  }
+  const slice = order.slice(start, start + limit);
+  const found = slice.length
+    ? await rows<PostRow>(db, sql`${postSelect(viewerId)} where p.id in (${sql.join(slice.map((x) => sql`${x.id}::uuid`), sql`, `)})`)
+    : [];
+  const byId = new Map(found.map((r) => [r.id, r]));
+  const items = slice.flatMap((x) => { const r = byId.get(x.id); return r ? [toPost(r, viewerId)] : []; });
+  const end = start + slice.length;
+  if (end < order.length) return { items, nextCursor: encodeMixCursor({ ...s, offset: end, lastId: slice[slice.length - 1]?.id ?? null }) };
+  // the mixed part is done: older posts follow under the line, if there are any
+  const [older] = await rows<{ any: boolean }>(db, sql`
+    select exists (select 1 from posts p where ${FEED_WHERE()} and p.created_at <= ${s.since}::timestamptz) as any`);
+  return { items, nextCursor: older?.any ? encodeCursor(s.since, MAX_UUID) : null };
 }
 
 /**

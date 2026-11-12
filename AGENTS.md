@@ -71,8 +71,12 @@ Vercel's proxy (a 5-minute recording made on the site is about 2.4 MB).
 - **Faces are procedural** (`apps/web/src/components/Avatar.tsx`, from handle + gender). Any
   change to its pick lists or roll order redraws every member's face. Ask the owner first; check
   `/dev/faces` after.
-- **The feed is not ranked** (§10.11): newest first, a "new since" line, an end card, folds. No
+- **The feed is not ranked** (§10.11): a "new since" line, an end card, folds. No
   algorithmic ranking, no A/B tests. "By person" view is deliberately not built.
+- **The feed is mixed, not ranked** (§10.23): above the line, the newest post on top, then a seeded
+  mix (`mixFeed`: newer posts likelier, one person kept apart) that only uses time and author, stable
+  for a visit. Default for everyone and visitors; "Newest first" is the member's choice in Settings.
+  Never let likes, replies or clicks into it.
 - **Posts look like what they are** (§10.12 posts vs replies, §10.15 framed cards shaped by
   `postShape`: photo / short / text).
 - **Mentions are typed, never a button** (§10.16): @ in any post box opens the member list;
