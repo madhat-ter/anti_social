@@ -266,8 +266,10 @@ export type ProjectInput = Partial<ProjectFields> & { images?: ProjectImageInput
 export interface FilePhoto { id: string; url: string; width: number; height: number; caption: string }
 export interface FileCard {
   id: string; headline: string; description: string; photos: FilePhoto[];
-  /** who made it; null when that member is gone */
+  /** who made it; null when that member is gone, or when it came from outside anti */
   maker: { handle: string; displayName: string; gender: Gender | null } | null;
+  /** the name typed by someone outside anti who made it on the share page (not a member, not an identity) */
+  guest?: string | null;
   /** made by the File's owner for themselves */
   own: boolean;
   /** you made it: you may edit or delete it */
@@ -342,6 +344,8 @@ export interface Notification {
   projectTitle?: string | null;
   /** file_card_received / file_card_placed: the card's headline */
   cardTitle?: string | null;
+  /** file_card_received from outside anti: the name its maker typed (there is no actor) */
+  guestName?: string | null;
   /** pick_remark / remark_removed: the pick's title */
   pickTitle?: string | null;
   /** checklist_reminder: how far along "Finish your profile" is */
@@ -727,6 +731,8 @@ export const api = {
   file: (handle: string) => get<FileView>(`/members/${encodeURIComponent(handle)}/file`),
   /** the share link's view: no sign-in, only what the member (and each card's maker) made public */
   publicFile: (handle: string) => get<FileView>(`/public/file/${encodeURIComponent(handle)}`),
+  /** a card from someone outside anti, sent from the share page: name, headline, description, captions (a JSON list), photos */
+  sendGuestCard: (handle: string, form: FormData) => call<{ ok: true }>('POST', `/public/file/${encodeURIComponent(handle)}/cards`, form),
   myFileCards: () => get<{ items: FileCard[] }>('/me/file/cards'),
   createFileCard: (b: FileCardInput) => post<FileCard>('/me/file/cards', b),
   updateFileCard: (id: string, b: FileCardInput) => call<FileCard>('PATCH', `/me/file/cards/${encodeURIComponent(id)}`, b),

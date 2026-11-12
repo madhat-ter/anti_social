@@ -841,8 +841,11 @@ export const mediaBlobs = pgTable('media_blobs', {
 /** A card: headline, photos, description. maker = for is the member's own; otherwise made for someone. */
 export const fileCards = pgTable('file_cards', {
   id: uuid('id').primaryKey().defaultRandom(),
-  makerId: uuid('maker_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** null for a card someone outside anti made on the public share page (then `guestName` is set) */
+  makerId: uuid('maker_id').references(() => users.id, { onDelete: 'cascade' }),
   forId: uuid('for_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** the name an outside maker typed; never an identity */
+  guestName: text('guest_name'),
   headline: text('headline').notNull(),
   description: text('description').notNull().default(''),
   /** a card made for someone: handed over (it waits in their tray until placed) */
@@ -857,6 +860,7 @@ export const fileCards = pgTable('file_cards', {
 }, (t) => [
   check('file_cards_headline_len', sql`char_length(${t.headline}) between 1 and 60`),
   check('file_cards_description_len', sql`char_length(${t.description}) <= 1200`),
+  check('file_cards_maker_or_guest', sql`(${t.makerId} is not null and ${t.guestName} is null) or (${t.makerId} is null and char_length(${t.guestName}) between 1 and 40)`),
   index('file_cards_for').on(t.forId),
   index('file_cards_maker').on(t.makerId),
 ]);

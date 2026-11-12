@@ -1853,9 +1853,12 @@ label.label-row { flex-direction: row; align-items: baseline; gap: .4rem; }
 .file-label { align-items: flex-end; }
 .file-label label { flex: 1 1 10rem; }
 .file-spare { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
-.file-spare li { display: flex; align-items: center; gap: .7rem; }
+/* on a narrow screen the buttons drop under the headline rather than squeezing it out of sight */
+.file-spare li { display: flex; align-items: center; gap: .4rem .7rem; flex-wrap: wrap; }
 .file-spare img { width: 2.6rem; height: 2.6rem; object-fit: cover; border: 2px solid var(--ink); flex: none; }
-.file-spare-h { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.file-spare-h { flex: 1 1 11rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+/* who a waiting card is from: on its own line and never cut short, so "(not a member)" always shows */
+.file-spare-by { display: block; white-space: normal; font-weight: 400; }
 .file-atts .pj-att { grid-template-columns: 6.5rem minmax(0, 1fr); }
 .file-atts .pj-att-pic img { aspect-ratio: 1; }
 
@@ -1908,6 +1911,8 @@ label.label-row { flex-direction: row; align-items: baseline; gap: .4rem; }
 /* the share link, offered in the File itself while it is on */
 .file-share { border: 1px dashed var(--line); padding: .7rem .8rem; display: grid; gap: .5rem; }
 .file-share input { flex: 1 1 12rem; min-width: 0; }
+/* the outside card form's trap for robots: on the page, never in sight or in the tab order */
+.file-trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 /* RFC §10.24: flipping between pages, like a card file. The wrapper gives the depth; the leaving
    page and the arriving one hinge on their bottom edge. Back: the open page tips toward you and
    falls away, the one behind it settles. Front: the new page swings up from lying toward you.

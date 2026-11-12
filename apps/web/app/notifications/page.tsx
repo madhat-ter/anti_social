@@ -27,7 +27,7 @@ function describe(n: Notification): string {
   if (n.kind === 'pin_reset_code') return `${who} (an admin) made you a one-hour PIN reset code. If you did not ask for it, tell another admin.`;
   if (n.kind === 'invitee_first_post') return `${who}, whom you invited, wrote their first post. Say hello?`;
   // RFC §10.24: the File
-  if (n.kind === 'file_card_received') return `${who} made a card for your File${n.cardTitle ? `: "${n.cardTitle}"` : ''}. It is waiting for your yes.`;
+  if (n.kind === 'file_card_received') return `${n.guestName ? `${n.guestName} (not a member)` : who} made a card for your File${n.cardTitle ? `: "${n.cardTitle}"` : ''}. It is waiting for your yes.`;
   if (n.kind === 'file_card_removed') return n.cardTitle ? `An admin removed a card you made: "${n.cardTitle}".` : 'An admin removed a card you made.';
   if (n.kind === 'file_card_placed') return `${who} put your card${n.cardTitle ? ` "${n.cardTitle}"` : ''} in their File.`;
   if (n.kind === 'activated') return 'You have a seat. Welcome in.';

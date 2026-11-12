@@ -205,7 +205,9 @@ export async function flagQueue(db: Db): Promise<FlagQueueItem[]> {
        where f.resolved_at is null
        group by c.id, u.handle
       union all
-      select 'file_card' as kind, fc.id, fc.headline || case when fc.description <> '' then ' — ' || left(fc.description, 200) else '' end as body,
+      select 'file_card' as kind, fc.id,
+             -- a card from outside anti has no member behind it: say whose name is on it
+             case when fc.guest_name is not null then 'From outside anti, signed "' || fc.guest_name || '": ' else '' end || fc.headline || case when fc.description <> '' then ' — ' || left(fc.description, 200) else '' end as body,
              u.handle, (fc.hidden_at is not null) as hidden, count(*)::int as n,
              coalesce(array_agg(f.reason) filter (where f.reason is not null), '{}') as reasons,
              min(f.created_at) as first_at

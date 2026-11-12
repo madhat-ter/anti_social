@@ -24,6 +24,8 @@ export const LIMITS = {
   consultRequest: { limit: 10, windowSec: 86_400 },
   /** members adding their own interest tags */
   interestAdd: { limit: 5, windowSec: 86_400 },
+  /** RFC §10.24: cards sent from the public share page, per IP (there is no account to count) */
+  guestCard: { limit: 3, windowSec: 3600 },
 } as const;
 export type LimitName = keyof typeof LIMITS;
 

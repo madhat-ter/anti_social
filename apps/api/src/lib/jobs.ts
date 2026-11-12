@@ -6,6 +6,7 @@ import { expireStaleCheckouts, processRefunds } from './billing';
 import { fanOutPush, NoPushSender, type PushSender } from './push';
 import { sweepConsultations } from './consultations';
 import { sweepCollabs } from './collabs-sweep';
+import { sweepGuestCards } from './file';
 
 export type JobDeps = { storage: Storage; payments: PaymentProvider; push?: PushSender };
 
@@ -117,6 +118,8 @@ export const JOBS: Job[] = [
          where post_id is null and created_at < now() - make_interval(hours => ${ORPHAN_UPLOAD_HOURS})
         returning audio_key as r2_key`);
       orphans.push(...sounds);
+      // RFC §10.24: cards from outside anti that nobody put in their File for a month
+      orphans.push(...(await sweepGuestCards(tx)).map((r2_key) => ({ r2_key })));
       // Blobs are removed after the rows; a failed blob delete leaves an unreferenced file, never a dangling row.
       for (const o of orphans) await storage.delete(o.r2_key).catch((e) => console.error('orphan delete failed', o.r2_key, e));
       const limits = await rows<{ n: number }>(tx, sql`

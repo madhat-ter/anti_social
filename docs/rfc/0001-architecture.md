@@ -1435,8 +1435,9 @@ drawer. Tabs stand up at the back and the front, one page lies open, and each pa
 
 - **The drawer.** 12 pages, always. Pages 0–6 are the member's own: page 0 is **Me** (always
   first, open by default, never renamed); pages 1–6 carry a label the member types (14 characters,
-  shown in capitals) and can be reordered. Pages 7–11 hold only cards **other members made for
-  them**; their tab shows the maker's handle. The seven own tabs stand at the back, the five gift
+  shown in capitals) and can be reordered. Pages 7–11 hold only cards **other people made for
+  them**; their tab shows the maker's handle (or, for a card from outside anti, the name its
+  maker typed). The seven own tabs stand at the back, the five gift
   tabs at the front, the open tab is black. An empty page keeps a blank tab that only the owner can
   open. One card a page.
 - **The card.** A headline (60), 1–20 photos, each with an optional caption (140), and a
@@ -1455,7 +1456,7 @@ drawer. Tabs stand up at the back and the front, one page lies open, and each pa
   asked for it: the header is now the wordmark, the File button and the bell); on computers an
   entry in the side menu; an "Open File" link on each profile. Members see every File; visitors on
   a pass can look but not make cards. A public share link `/f/<handle>`, **off by default**
-  (Settings), shows only the File and the member's name and face, always light; a gift card shows
+  (switched on in the File itself, see below), shows only the File and the member's name and face, always light; a gift card shows
   there only if its maker allowed public sharing; previews work when the link is pasted, search
   engines are asked not to list it.
 - **Quiet.** Cards are never feed items, have no likes or replies, and never count for the 30-day
@@ -1501,10 +1502,48 @@ drawer. Tabs stand up at the back and the front, one page lies open, and each pa
   "+ Make a card". One tap switches the link on and hands it over: the phone's share sheet where
   there is one, the clipboard on a computer. While the link is on, a strip under the heading shows
   the address, Share / Copy link, "Open it" and "Stop sharing" (one tap, no question: it can be
-  switched back on). The link is still off until the member taps; the Settings switch stays and
-  does the same thing. `GET /members/:handle/file` tells the member alone whether it is on
-  (`shared`). Screenshots: `scripts/screenshots-file-share.ts`.
-- **Progress.** All four steps built 2026-11-12, and the flip, and sharing from the File.
+  switched back on). The link is still off until the member taps. `GET /members/:handle/file`
+  tells the member alone whether it is on (`shared`). The switch that used to sit in Settings was
+  removed the next day (owner: one place only), so the File is where sharing is switched on and
+  off. Screenshots: `scripts/screenshots-file-share.ts`.
+- **Cards from outside anti** (asked for 2026-11-12: "when the link is opened by someone outside
+  the community they can also gift a card"; decided in two rounds, 15 questions, all as proposed
+  except that the owner wanted **no limit on how many may wait in a tray**, where 5 was proposed).
+  - *Who.* No account, no email: a name they type (40), required. Everywhere the card appears it
+    says "Riya (not a member)": the tray, the card, the share page, the bell. No names are
+    blocked; the mark is what stops a typed name passing for a member. No handle, face or profile.
+  - *What.* The same card, at most **5 photos**. One screen on the share page ("+ Make a card
+    for Maya"): name, headline, photos, description, Send. No drafts. Once sent it cannot be
+    changed or taken back (nothing proves it is the same person later), and the form says so.
+  - *Where it goes.* The member's private tray, with a bell notification, exactly like a
+    member's card: only they see it, only they place it, on a gift page. The tab shows the typed
+    name (first 14 letters). There is no one-per-person rule for these (a name is not a person),
+    so all five gift pages may hold outside cards. Placed, it **always** shows on the share page
+    (that is where its maker made it); nobody is told when it is placed or turned down.
+  - *One switch.* The button is on the share page whenever the link is on. Stop sharing turns
+    both off. A visitor on a pass (§10.8) still cannot make cards inside; they can use the share
+    link like anyone else.
+  - *Spam.* At most **3 cards an hour from one internet connection**, counted across all Files
+    (people on one wifi share them), and a hidden field that only robots fill in (they are
+    answered "sent" and nothing is kept). No puzzle to solve. No cap on the tray.
+  - *Tidying.* Turning an outside card down erases it and its photos at once. One that waits off
+    the File for **30 days** (since it was sent, or since it last came off a page) is erased by
+    the nightly clean-up. Placed cards stay.
+  - *Reports.* As for any card: five reports hide it, an admin restores or removes it, an admin
+    can remove it outright. Nobody is told when it goes. Admin → Reports says "by someone
+    outside anti" and gives the typed name.
+  - *As built.* `file_cards.maker_id` may be null, then `guest_name` holds the name (migration
+    0039, one or the other, checked). `POST /public/file/:handle/cards` (multipart: `name`,
+    `headline`, `description`, `captions` as a JSON list, `photos`, and the trap `website`)
+    checks `users.file_public` first (404 otherwise), then the words, then counts the hit
+    (`guestCard` in `lib/ratelimit.ts`), then stores the photos through the same pipeline as any
+    upload and the card with `sent_at` and `public_ok` set. If anything fails nothing is kept.
+    The browser shrinks the photos first (longest side 1,600, JPEG) so the whole card travels in
+    one request under 4 MB. `checkGuestCard`, `addGuestCard`, `sweepGuestCards` in
+    `apps/api/src/lib/file.ts`; `GuestCardForm` in `File.tsx`. Tests:
+    `apps/api/test/file-guest.test.ts`; screenshots: `scripts/screenshots-file-guest.ts`.
+- **Progress.** All four steps built 2026-11-12, and the flip, and sharing from the File; cards
+  from outside built 2026-11-13.
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,
@@ -1552,6 +1591,7 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST /me/file/cards/:id/send`, `GET /me/file/made` | A (not V) | Send a card you made for someone; the cards you made for others (§10.24) |
 | `GET /me/file/tray`, `POST /me/file/tray/:id/decline` | A (not V) | Cards made for you that wait for your yes; turn one down, silently (§10.24) |
 | `GET /public/file/:handle`, `GET /public/file/:handle/media/:key` | none | A File its member shares by link, and its photos; 404 unless shared (§10.24) |
+| `POST /public/file/:handle/cards` | none | A card from someone outside anti, into that member's tray; 404 unless shared; 3 an hour per IP (§10.24) |
 | `POST /file/cards/:id/flag` | A (not V) | Report a card you can see (§10.24) |
 | `POST /ops/file/cards/:id/resolve`, `POST /ops/file/cards/:id/remove` | ops | Restore or remove a reported card; remove any placed or sent card (§10.24) |
 | `POST /projects/:id/flag`, `POST /ops/projects/:id/resolve` | A / O | Report a project; ops restore or remove |

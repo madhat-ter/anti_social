@@ -307,6 +307,14 @@ export const FILE = {
   draftsMax: 12,
   /** cards one member may have waiting in another member's tray */
   trayPerMaker: 3,
+  /**
+   * A card from someone outside anti, made on a member's public share page: a typed name instead
+   * of an account, fewer photos, and no limit on how many may wait in a tray.
+   */
+  guestNameMax: 40,
+  guestPhotosMax: 5,
+  /** an outside card that waits, unplaced, this many days is erased */
+  guestTrayDays: 30,
 } as const;
 /** pages 0–6 hold your own cards, 7–11 cards made for you */
 export const fileSide = (position: number): 'own' | 'gift' => (position < FILE.ownPages ? 'own' : 'gift');

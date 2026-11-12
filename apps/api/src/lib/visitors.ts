@@ -30,7 +30,8 @@ const CLOSED_TO_VISITORS = /^\/(me\/|notifications|consultations|payments|push\/
 export const closedToVisitors = (path: string) => CLOSED_TO_VISITORS.test(path);
 
 /** Paths that must keep working with a stale or missing visitor cookie: entering a code, signing in, joining. */
-const OPEN_PATHS = /^\/(visit|auth\/|invites\/check|health$|push\/config$)/;
+// (and the public share page, RFC §10.24: a visitor may send a card from it like anyone outside)
+const OPEN_PATHS = /^\/(visit|auth\/|invites\/check|health$|push\/config$|public\/file\/)/;
 export const openPath = (path: string) => OPEN_PATHS.test(path);
 
 type Row = {

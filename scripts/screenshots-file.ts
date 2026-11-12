@@ -324,20 +324,18 @@ try {
   await pub.goto(`${WEB}/f/maya`);
   await pub.getByText('This File is not shared').waitFor();
   await shot(pub, 'public-not-shared');
-  // Maya switches it on in Settings
-  await desk.page.goto(`${WEB}/settings#file`);
-  const share = desk.page.getByRole('checkbox', { name: 'Share my File with a link' });
-  await share.scrollIntoViewIfNeeded();
-  await share.click();
+  // Maya switches it on from her File: one tap on Share
+  await desk.page.goto(`${WEB}/file`);
+  await desk.page.getByRole('button', { name: 'Share', exact: true }).click();
   await desk.page.getByLabel('Your File’s link').waitFor();
   must((await desk.page.getByLabel('Your File’s link').inputValue()).endsWith('/f/maya'), 'the link is not /f/maya');
-  await shot(desk.page, 'settings-share-file');
+  await shot(desk.page, 'file-share-strip');
   await desk.ctx.close();
   // now anyone with the link sees it: her own cards, and Theo's only because he did not allow it → empty
   await pub.goto(`${WEB}/f/maya`);
   await pub.locator('#file-sheet .file-card').waitFor();
   must(await pub.locator('nav.nav, .tabbar, .top-bell').count() === 0, 'the public page shows the site’s menu');
-  must(await pub.getByRole('button', { name: /Make a card/ }).count() === 0, 'the public page offers to make a card');
+  must(await pub.getByRole('button', { name: '+ Make a card for Maya' }).count() === 1, 'the public page does not offer to make a card for her');
   must(await pub.getByRole('tab', { name: 'theo', exact: true }).count() === 0, 'a gift card shows publicly without its maker’s yes');
   await shot(pub, 'public-file-desktop', true);
   // Theo allows his card outside: now it is there

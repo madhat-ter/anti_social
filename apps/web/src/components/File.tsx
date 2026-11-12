@@ -8,13 +8,15 @@
  */
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { FILE } from '@anti/shared';
-import { api, errorMessage, IMAGE_MAX_BYTES, type FileCard, type FilePage, type FilePhoto, type FileView } from '@/lib/api';
+import { api, ApiError, errorMessage, IMAGE_MAX_BYTES, type FileCard, type FilePage, type FilePhoto, type FileView } from '@/lib/api';
 import { AlertDialog, Loading, Win } from './retro';
 import { Avatar } from './Avatar';
 import { ErrorNote } from './ui';
 import { useReadOnly } from './Visitor';
 
 const firstName = (s: string) => s.split(/\s+/)[0] || s;
+/** who a card is from: a member's handle, or the name someone outside anti typed (always marked as such) */
+const by = (c: FileCard) => (c.maker ? `@${c.maker.handle}` : c.guest ? `${c.guest} (not a member)` : '');
 /** the back of the drawer, top to bottom: pages 1–6, then "Me" right behind the open sheet */
 const BACK = [1, 2, 3, 4, 5, 6, 0];
 const FRONT = [7, 8, 9, 10, 11];
@@ -47,6 +49,8 @@ export function FileDrawer({ handle, pub = false }: {
   const [removing, setRemoving] = useState<FileCard | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  /** the share page: someone outside is making a card for this member */
+  const [gifting, setGifting] = useState(false);
   /**
    * The flip between pages, like a card file: going to a page further back, the open page tips
    * forward toward you and falls away; going to one further front, the new page swings up from
@@ -120,6 +124,16 @@ export function FileDrawer({ handle, pub = false }: {
     catch (e) { setErr(errorMessage(e)); }
   };
 
+  if (gifting) {
+    const name = firstName(file.owner.displayName);
+    return (
+      <GuestCardForm
+        handle={file.owner.handle} owner={name}
+        onCancel={() => setGifting(false)}
+        onSent={() => { setGifting(false); setNote(`Sent. ${name} will see it. If it goes in ${name}’s File, it shows here.`); }}
+      />
+    );
+  }
   if (editing) {
     return (
       <CardEditor
@@ -163,6 +177,12 @@ export function FileDrawer({ handle, pub = false }: {
             <button type="button" className="btn primary" onClick={() => setEditing({ card: null, page: null, choose: true })}>+ Make a card</button>
           </span>
         )}
+        {/* the share page: anyone with the link may make a card; it waits for the member's yes like any other */}
+        {pub && (
+          <button type="button" className="btn primary" onClick={() => { setNote(null); setGifting(true); }}>
+            + Make a card for {firstName(file.owner.displayName)}
+          </button>
+        )}
         {!file.mine && !readOnly && !pub && (
           <button type="button" className="btn primary" onClick={() => setEditing({ card: null, page: null, forHandle: file.owner.handle })}>
             + Make a card for {firstName(file.owner.displayName)}
@@ -186,7 +206,7 @@ export function FileDrawer({ handle, pub = false }: {
               <li key={c.id}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 {c.photos[0] && <img src={c.photos[0].url} alt="" />}
-                <span className="file-spare-h">{c.headline} <span className="muted small">by @{c.maker?.handle}</span></span>
+                <span className="file-spare-h">{c.headline} <span className="muted small file-spare-by">by {by(c)}</span></span>
                 <button type="button" className="link-btn" onClick={() => setViewing(c)}>Look</button>
                 <button type="button" className="link-btn" onClick={() => putInFile(c)}>Put in my File</button>
                 <button type="button" className="link-btn danger-text" onClick={() => setDeclining(c)}>Turn down</button>
@@ -281,7 +301,7 @@ export function FileDrawer({ handle, pub = false }: {
 
       {(viewing ?? page.card) && (
         <FullCard
-          card={(viewing ?? page.card)!} label={viewing ? `from @${viewing.maker?.handle ?? ''}` : page.label}
+          card={(viewing ?? page.card)!} label={viewing ? `from ${by(viewing)}` : page.label}
           open={full || !!viewing} onClose={() => { setFull(false); setViewing(null); }}
           onReport={pub || readOnly ? undefined : (c) => { setFull(false); setViewing(null); setReporting(c); }}
           onRemove={pub ? undefined : (c) => { setFull(false); setViewing(null); setRemoving(c); }}
@@ -301,7 +321,7 @@ export function FileDrawer({ handle, pub = false }: {
         onConfirm={() => { const c = removing; setRemoving(null); if (c) void act(async () => { await api.opsRemoveFileCard(c.id); setNote('Removed.'); }); }}
         onCancel={() => setRemoving(null)} />
       <AlertDialog open={!!declining} title="Turn down" confirmLabel="Turn it down" focusCancel
-        message={<>Turn down <strong>{declining?.headline}</strong>? It leaves your tray for good. @{declining?.maker?.handle} is not told.</>}
+        message={<>Turn down <strong>{declining?.headline}</strong>? It leaves your tray for good. {declining?.maker ? `@${declining.maker.handle} is not told.` : 'It is erased, and nobody is told.'}</>}
         onConfirm={() => { const c = declining; setDeclining(null); if (c) void act(() => api.declineFileCard(c.id)); }}
         onCancel={() => setDeclining(null)} />
       <AlertDialog open={!!deleting} title="Delete card" danger confirmLabel="Delete" focusCancel
@@ -328,7 +348,7 @@ function ShareStrip({ handle, sheet, copied, onHand, onStop }: {
   return (
     <div className="file-share" role="group" aria-label="Your File’s share link">
       <p className="small">
-        <b>Shared by link.</b> <span className="muted">Anyone who has it can open your File without signing in. A card someone made for you shows there only if they allowed it.</span>
+        <b>Shared by link.</b> <span className="muted">Anyone who has it can open your File without signing in, and make you a card: it waits here for your yes. A member’s card shows there only if they allowed it.</span>
       </p>
       <div className="row">
         <input readOnly value={`${origin}/f/${handle}`} aria-label="Your File’s link" onFocus={(e) => e.currentTarget.select()} />
@@ -361,7 +381,7 @@ function Sheet({ page, canEdit, mine, spare, tray, owner, onOpen, onMake, onPlac
         </span>
         {c.hidden && <span className="error">Hidden after reports: other members cannot see this card until an admin decides.</span>}
         <span className="file-card-foot ui">
-          {page.side === 'gift' && c.maker ? `Made by @${c.maker.handle} · ` : ''}Tap to open
+          {page.side === 'gift' && by(c) ? `Made by ${by(c)} · ` : ''}Tap to open
         </span>
       </button>
     );
@@ -379,7 +399,7 @@ function Sheet({ page, canEdit, mine, spare, tray, owner, onOpen, onMake, onPlac
             <div className="stack" style={{ gap: '.4rem' }}>
               <p className="muted small">Waiting for your yes:</p>
               {tray.map((s) => (
-                <button key={s.id} type="button" className="link-btn file-put" onClick={() => onPlace(s)}>Put “{s.headline}” by @{s.maker?.handle} here</button>
+                <button key={s.id} type="button" className="link-btn file-put" onClick={() => onPlace(s)}>Put “{s.headline}” by {by(s)} here</button>
               ))}
             </div>
           )}
@@ -502,7 +522,7 @@ function FullCard({ card, label, open, onClose, onReport, onRemove }: {
           </div>
           <div className="file-full-text">
             {card.description ? <p>{card.description}</p> : <p className="muted">No description.</p>}
-            {card.maker && !card.own && <p className="meta">Made by @{card.maker.handle}</p>}
+            {!card.own && by(card) && <p className="meta">Made by {by(card)}</p>}
             {card.hidden && <p className="error">Hidden after reports. Only its owner, its maker and admins see it until an admin decides.</p>}
             {((card.canReport && onReport) || (card.canModerate && onRemove)) && (
               <p className="row file-full-acts">
@@ -708,6 +728,182 @@ function CardEditor({ initial, page, forHandle, choose, onCancel, onSaved }: {
               Send to @{who ?? '…'}
             </button>
           )}
+        </div>
+      </Win>
+    </form>
+  );
+}
+
+type Picked = { key: string; file: File; preview: string; caption: string };
+/** the whole card travels in one request: keep it well under what the proxy in front of the API lets through */
+const TRAVEL_MAX_BYTES = 4 * 1024 * 1024;
+const STORED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+/** A photo made small enough to travel: its longest side at most `max`, as a JPEG. If the browser cannot, the file as it is. */
+async function shrink(file: File, max: number, quality: number): Promise<Blob> {
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bmp.width * k));
+    canvas.height = Math.max(1, Math.round(bmp.height * k));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    // a JPEG has no see-through: anything transparent in the photo becomes white paper
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    bmp.close();
+    const out = await new Promise<Blob | null>((done) => canvas.toBlob(done, 'image/jpeg', quality));
+    if (!out) return file;
+    return out.size < file.size || !STORED_TYPES.includes(file.type) ? out : file;
+  } catch { return file; }
+}
+
+/**
+ * RFC §10.24: a card from someone outside anti, made on a member's share page. No account and no
+ * drafts: a name, a headline, up to five photos, a description, Send. It goes to the member's
+ * private tray; nothing shows anywhere until they put it in their File.
+ */
+function GuestCardForm({ handle, owner, onCancel, onSent }: {
+  handle: string;
+  /** the member's first name */
+  owner: string;
+  onCancel: () => void; onSent: () => void;
+}) {
+  const id = useId();
+  const [name, setName] = useState('');
+  const [headline, setHeadline] = useState('');
+  const [description, setDescription] = useState('');
+  const [picks, setPicks] = useState<Picked[]>([]);
+  /** a field people never see or fill; robots do */
+  const [trap, setTrap] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const picksRef = useRef<Picked[]>([]);
+  picksRef.current = picks;
+  useEffect(() => () => { picksRef.current.forEach((p) => URL.revokeObjectURL(p.preview)); }, []);
+  const full = picks.length >= FILE.guestPhotosMax;
+
+  function pick(files: FileList | null) {
+    if (!files) return;
+    setErr(null);
+    const room = FILE.guestPhotosMax - picks.length;
+    const chosen = Array.from(files);
+    if (chosen.length > room) setErr(`A card from outside holds up to ${FILE.guestPhotosMax} photos.`);
+    const added: Picked[] = [];
+    for (const f of chosen.slice(0, Math.max(room, 0))) {
+      if (!f.type.startsWith('image/')) { setErr(`"${f.name}" is not an image.`); continue; }
+      added.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file: f, preview: URL.createObjectURL(f), caption: '' });
+    }
+    setPicks((cur) => [...cur, ...added]);
+    if (fileRef.current) fileRef.current.value = '';
+  }
+  const move = (i: number, by: -1 | 1) => setPicks((cur) => {
+    const j = i + by;
+    if (j < 0 || j >= cur.length) return cur;
+    const next = [...cur];
+    [next[i], next[j]] = [next[j]!, next[i]!];
+    return next;
+  });
+  const remove = (key: string) => setPicks((cur) => {
+    const gone = cur.find((x) => x.key === key);
+    if (gone) URL.revokeObjectURL(gone.preview);
+    return cur.filter((x) => x.key !== key);
+  });
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true); setErr(null);
+    try {
+      const size = (list: Blob[]) => list.reduce((n, b) => n + b.size, 0);
+      let photos = await Promise.all(picks.map((p) => shrink(p.file, 1600, 0.85)));
+      if (size(photos) > TRAVEL_MAX_BYTES) photos = await Promise.all(picks.map((p) => shrink(p.file, 1100, 0.7)));
+      if (size(photos) > TRAVEL_MAX_BYTES || photos.some((b) => b.size > IMAGE_MAX_BYTES)) {
+        setErr('These photos are too large to send together. Try fewer, or smaller ones.');
+        setBusy(false);
+        return;
+      }
+      const form = new FormData();
+      form.append('name', name);
+      form.append('headline', headline);
+      form.append('description', description);
+      form.append('captions', JSON.stringify(picks.map((p) => p.caption)));
+      form.append('website', trap);
+      photos.forEach((b, i) => form.append('photos', b, `photo-${i + 1}.${b.type === 'image/jpeg' ? 'jpg' : 'img'}`));
+      await api.sendGuestCard(handle, form);
+      onSent();
+    } catch (x) {
+      const status = x instanceof ApiError ? x.status : 0;
+      setErr(status === 429 ? 'Three cards an hour can be sent from one internet connection. Try again in a while.'
+        : status === 404 ? `${owner}’s File is not shared any more.`
+        : errorMessage(x));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="stack file-page">
+      <h1>A card for {owner}</h1>
+      <Win title="card/new" as="div" bodyClassName="stack">
+        <p className="muted small">
+          No account needed. {owner} sees your card first, privately, and decides whether it goes in their File. If it does,
+          it shows on this page with your name. Once sent, it cannot be changed or taken back.
+        </p>
+        <label>Your name <span className="counter">{name.length}/{FILE.guestNameMax}</span>
+          <input value={name} maxLength={FILE.guestNameMax} required autoComplete="name" placeholder="Who is it from?" onChange={(e) => setName(e.target.value)} />
+        </label>
+        <div className="file-trap" aria-hidden="true">
+          <label>Website <input value={trap} tabIndex={-1} autoComplete="off" onChange={(e) => setTrap(e.target.value)} /></label>
+        </div>
+        <label>Headline <span className="counter">{headline.length}/{FILE.headlineMax}</span>
+          <input value={headline} maxLength={FILE.headlineMax} required placeholder={`How I know ${owner}`} onChange={(e) => setHeadline(e.target.value)} />
+        </label>
+        <label>Description <span className="counter">{description.length}/{FILE.descriptionMax}</span>
+          <textarea value={description} maxLength={FILE.descriptionMax} rows={6} placeholder="What this card is about." onChange={(e) => setDescription(e.target.value)} />
+        </label>
+
+        <section className="stack" aria-labelledby={`${id}-ph`}>
+          <div className="row between">
+            <h2 id={`${id}-ph`} className="pf-sec-h">Photos</h2>
+            <span className="counter">{picks.length}/{FILE.guestPhotosMax}</span>
+          </div>
+          <p className="muted small">At least one. People swipe through them in this order; the first is the one on the page. Each can have its own caption.</p>
+          {picks.length > 0 && (
+            <ol className="pj-atts file-atts">
+              {picks.map((a, i) => (
+                <li key={a.key} className="pj-att done">
+                  <div className="pj-att-pic">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.preview} alt={`Photo ${i + 1}`} />
+                  </div>
+                  <div className="pj-att-fields">
+                    <label>Caption for photo {i + 1} (optional)
+                      <input value={a.caption} maxLength={FILE.captionMax} placeholder="Where, when, who" onChange={(e) => setPicks((cur) => cur.map((x) => (x.key === a.key ? { ...x, caption: e.target.value } : x)))} />
+                    </label>
+                    <div className="row">
+                      <button type="button" className="icon-btn" aria-label={`Move photo ${i + 1} earlier`} disabled={i === 0} onClick={() => move(i, -1)}>↑</button>
+                      <button type="button" className="icon-btn" aria-label={`Move photo ${i + 1} later`} disabled={i === picks.length - 1} onClick={() => move(i, 1)}>↓</button>
+                      <button type="button" className="link-btn danger-text" onClick={() => remove(a.key)}>Remove</button>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+          <div className="row">
+            <input ref={fileRef} id={`${id}-file`} type="file" accept="image/*" multiple className="sr-only" disabled={full} onChange={(e) => pick(e.target.files)} />
+            <label htmlFor={`${id}-file`} className={`btn attach${full ? ' disabled' : ''}`} aria-disabled={full}>+ Photos</label>
+          </div>
+        </section>
+        <ErrorNote message={err} />
+        <div className="row" style={{ justifyContent: 'flex-end' }}>
+          <button type="button" className="btn" onClick={onCancel} disabled={busy}>Cancel</button>
+          <button type="submit" className="btn primary" disabled={busy || !name.trim() || !headline.trim() || picks.length === 0}>
+            {busy ? 'Sending…' : `Send to ${owner}`}
+          </button>
         </div>
       </Win>
     </form>

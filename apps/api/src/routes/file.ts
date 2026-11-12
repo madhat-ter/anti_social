@@ -2,11 +2,13 @@ import { Elysia, t } from 'elysia';
 import type { Deps } from '../deps';
 import { ApiError } from '../lib/errors';
 import {
-  createCard, declineCard, deleteCard, getFile, getPublicFile, isPublicFilePhoto, listMade, listMyCards, listTray, reorderPages, sendCard, setPage, updateCard,
+  addGuestCard, checkGuestCard, createCard, declineCard, deleteCard, getFile, getPublicFile, isPublicFilePhoto, listMade, listMyCards, listTray,
+  reorderPages, sendCard, setPage, updateCard, type GuestPhoto,
 } from '../lib/file';
+import { clientIp, hit } from '../lib/ratelimit';
 import { isValidKey } from '../lib/storage';
 import { authPlugin, requireSeated } from '../plugins/auth';
-import { mediaResponse } from './posts';
+import { imageToWebp, mediaResponse } from './posts';
 
 /**
  * RFC §10.24, the File.
@@ -25,6 +27,8 @@ import { mediaResponse } from './posts';
  * The share link (no sign-in; only when the member switched it on in Settings):
  * GET    /public/file/:handle               the File as the outside may see it
  * GET    /public/file/:handle/media/:key    one of its photos, and nothing else
+ * POST   /public/file/:handle/cards         a card from someone outside (multipart: name, headline,
+ *                                           description, captions, 1–5 photos); 3 an hour per IP
  * Photos come from POST /uploads (same pipeline as posts) and are attached by id.
  */
 export const fileRoutes = (deps: Deps) => {
@@ -61,6 +65,45 @@ export const fileRoutes = (deps: Deps) => {
       const f = await storage.get(params.key);
       if (!f) throw new ApiError(404, 'not_found');
       return mediaResponse(f.bytes, f.contentType, request.headers.get('range'));
+    })
+
+    // RFC §10.24: a card from someone outside anti, made on the share page. No account: a typed
+    // name, up to five photos, sent in one go. It lands in the member's private tray like any
+    // card made for them. Nothing is kept unless everything is right.
+    .post('/public/file/:handle/cards', async ({ params, body, request, server }) => {
+      const b = body as Record<string, unknown>;
+      // the trap: a field people never see. A robot that fills it is thanked and nothing is kept.
+      if (typeof b.website === 'string' && b.website.trim()) return { ok: true };
+      const files = (Array.isArray(b.photos) ? b.photos : b.photos ? [b.photos] : [])
+        .filter((f): f is File => !!f && typeof (f as File).arrayBuffer === 'function');
+      const input = await checkGuestCard(db, params.handle, b, files.length);
+      try {
+        await hit(db, 'guestCard', clientIp(request, server as Parameters<typeof clientIp>[1], deps.cfg.trustProxy ?? false));
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 429) {
+          throw new ApiError(429, 'rate_limited', 'Three cards an hour can be sent from one internet connection. Try again in a while.');
+        }
+        throw e;
+      }
+      const stored: GuestPhoto[] = [];
+      try {
+        for (const f of files) {
+          const out = await imageToWebp(f);
+          const key = `${crypto.randomUUID()}.webp`;
+          await storage.put(key, new Uint8Array(out.data), 'image/webp');
+          stored.push({ key, width: out.info.width, height: out.info.height });
+        }
+        await addGuestCard(db, input, stored);
+      } catch (e) {
+        await Promise.all(stored.map((s) => storage.delete(s.key).catch(() => {})));
+        throw e;
+      }
+      return { ok: true };
+    }, {
+      body: t.Object({
+        name: t.Optional(t.Any()), headline: t.Optional(t.Any()), description: t.Optional(t.Any()),
+        captions: t.Optional(t.Any()), photos: t.Optional(t.Any()), website: t.Optional(t.Any()),
+      }),
     })
 
     .get('/me/file/cards', async ({ auth }) => {
@@ -101,7 +144,7 @@ export const fileRoutes = (deps: Deps) => {
 
     .post('/me/file/tray/:id/decline', async ({ auth, params }) => {
       const a = requireSeated(auth);
-      await declineCard(db, a.user.id, params.id);
+      await declineCard(db, storage, a.user.id, params.id);
       return { ok: true };
     })
 

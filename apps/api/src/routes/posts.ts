@@ -341,20 +341,7 @@ export const postRoutes = (deps: Deps) => {
         select count(*)::int as n from post_images where uploader_id = ${uid}::uuid and post_id is null`);
       if ((pending?.n ?? 0) >= MAX_PENDING_UPLOADS) throw new ApiError(429, 'rate_limited', 'Too many unattached uploads.');
 
-      let out: { data: Buffer; info: { width: number; height: number } };
-      try {
-        const img = sharp(new Uint8Array(await file.arrayBuffer()), { limitInputPixels: 50_000_000 });
-        const meta = await img.metadata();
-        if (!meta.format || !['jpeg', 'png', 'webp', 'gif'].includes(meta.format)) throw new Error('format');
-        // No withMetadata(): sharp drops EXIF/ICC/XMP. rotate() bakes orientation in first.
-        out = await img
-          .rotate()
-          .resize({ width: IMAGE_MAX_DIMENSION, height: IMAGE_MAX_DIMENSION, fit: 'inside', withoutEnlargement: true })
-          .webp({ quality: 82 })
-          .toBuffer({ resolveWithObject: true });
-      } catch {
-        throw new ApiError(415, 'image_unsupported', 'Use a JPEG, PNG, WebP or GIF image.');
-      }
+      const out = await imageToWebp(file);
 
       const key = `${crypto.randomUUID()}.webp`;
       await storage.put(key, new Uint8Array(out.data), 'image/webp');
@@ -377,6 +364,27 @@ export const postRoutes = (deps: Deps) => {
       return mediaResponse(f.bytes, f.contentType, request.headers.get('range'));
     });
 };
+
+/**
+ * An uploaded picture as it is stored: turned upright, made to fit, re-encoded as WebP with every
+ * tag (EXIF, ICC, XMP) dropped. Too large is 413; anything that is not a picture is 415.
+ */
+export async function imageToWebp(file: File): Promise<{ data: Buffer; info: { width: number; height: number } }> {
+  if (file.size > IMAGE_MAX_BYTES) throw new ApiError(413, 'image_too_large', 'Images can be at most 5 MB.');
+  try {
+    const img = sharp(new Uint8Array(await file.arrayBuffer()), { limitInputPixels: 50_000_000 });
+    const meta = await img.metadata();
+    if (!meta.format || !['jpeg', 'png', 'webp', 'gif'].includes(meta.format)) throw new Error('format');
+    // No withMetadata(): sharp drops EXIF/ICC/XMP. rotate() bakes orientation in first.
+    return await img
+      .rotate()
+      .resize({ width: IMAGE_MAX_DIMENSION, height: IMAGE_MAX_DIMENSION, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toBuffer({ resolveWithObject: true });
+  } catch {
+    throw new ApiError(415, 'image_unsupported', 'Use a JPEG, PNG, WebP or GIF image.');
+  }
+}
 
 const CACHE = 'private, max-age=31536000, immutable';
 

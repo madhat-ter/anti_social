@@ -41,7 +41,6 @@ export default function Settings() {
         <a href="#face">Face</a>
         <a href="#look">Appearance</a>
         <a href="#feed">Feed</a>
-        <a href="#file">File</a>
         <a href="#bday">Birthday</a>
         <a href="#interests">Interests</a>
         {me.contactEnabled && <a href="#contact">Contact</a>}
@@ -57,7 +56,6 @@ export default function Settings() {
         <Face me={me} onSaved={setMe} />
         <AppearanceSec me={me} onSaved={setMe} />
         <FeedSec me={me} onSaved={setMe} />
-        <FileSec me={me} onSaved={setMe} />
         <BirthdaySec me={me} onSaved={setMe} />
         <InterestsSec me={me} onSaved={setMe} />
         <ContactSec me={me} onSaved={setMe} />
@@ -255,42 +253,6 @@ function FeedSec({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
         ))}
         <p className="muted small">Saved to your account. It takes effect the next time you open the feed. Likes never move a post either way.</p>
       </fieldset>
-      <ErrorNote message={err} />
-    </section>
-  );
-}
-
-/** RFC §10.24: share your File outside anti by a link. Off until the member switches it on. */
-function FileSec({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
-  const [err, setErr] = useState<string | null>(null);
-  const [origin, setOrigin] = useState('');
-  useEffect(() => { setOrigin(window.location.origin); }, []);
-  const on = !!me.filePublic;
-  async function set(filePublic: boolean) {
-    setErr(null);
-    try { onSaved(await api.updateMe({ filePublic })); }
-    catch (e) { setErr(errorMessage(e)); }
-  }
-  const link = `${origin}/f/${me.handle}`;
-  return (
-    <section className="panel-sec" aria-labelledby="file">
-      <h2 id="file">File</h2>
-      <label className="check">
-        <input type="checkbox" checked={on} onChange={(e) => void set(e.target.checked)} />
-        Share my File with a link
-      </label>
-      <p className="muted small">
-        Off, only members see your File. On, anyone who has the link can open it without signing in: your name, your face and
-        the cards in your File, nothing else of anti. A card someone made for you shows there only if they allowed it. Search
-        engines are asked not to list it.
-      </p>
-      {on && (
-        <div className="row">
-          <input readOnly value={link} aria-label="Your File’s link" onFocus={(e) => e.currentTarget.select()} style={{ flex: '1 1 14rem' }} />
-          <CopyButton text={link} label="Copy link" />
-          <Link className="btn" href={`/f/${me.handle}`}>Open it</Link>
-        </div>
-      )}
       <ErrorNote message={err} />
     </section>
   );

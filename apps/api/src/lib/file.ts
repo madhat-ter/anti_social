@@ -17,8 +17,10 @@ type Person = { handle: string; displayName: string; gender: string | null };
 export type FilePhoto = { id: string; url: string; width: number; height: number; caption: string };
 export type FileCard = {
   id: string; headline: string; description: string; photos: FilePhoto[];
-  /** who made it; null when that member is gone */
+  /** who made it; null when that member is gone, or when it came from outside anti */
   maker: Person | null;
+  /** the name typed by someone outside anti who made it on the public share page (never an identity) */
+  guest: string | null;
   /** made by the File's owner for themselves */
   own: boolean;
   /** the viewer made it (and may edit or delete it) */
@@ -59,10 +61,10 @@ const j = <T,>(v: unknown, fallback: T): T => {
 const rowsOf = <T>(res: unknown): T[] => (Array.isArray(res) ? res : (res as { rows: T[] }).rows) as T[];
 const SEEN = sql`('active', 'flagged_lurker', 'archived')`;
 /** a card made by someone who is banned or gone is not shown anywhere (it comes back if they do) */
-const MAKER_HERE = sql`(c.maker_id = c.for_id or m.id is not null)`;
+const MAKER_HERE = sql`(c.maker_id = c.for_id or m.id is not null or c.maker_id is null)`;
 
 type CardRow = {
-  id: string; maker_id: string; for_id: string; headline: string; description: string; hidden: boolean;
+  id: string; maker_id: string | null; guest_name: string | null; for_id: string; headline: string; description: string; hidden: boolean;
   mh: string | null; md: string | null; mg: string | null; page: number | null;
   fh: string | null; fd: string | null; fg: string | null; sent: boolean; public_ok: boolean;
   created_iso: string; updated_iso: string; photos: unknown;
@@ -70,7 +72,7 @@ type CardRow = {
 type PhotoRow = { id: string; key: string; width: number; height: number; caption: string };
 
 const cardSelect = sql`
-  select c.id, c.maker_id, c.for_id, c.headline, c.description, (c.hidden_at is not null) as hidden,
+  select c.id, c.maker_id, c.guest_name, c.for_id, c.headline, c.description, (c.hidden_at is not null) as hidden,
     m.handle as mh, m.display_name as md, m.gender::text as mg,
     f.handle as fh, f.display_name as fd, f.gender::text as fg, (c.sent_at is not null) as sent, c.public_ok,
     (select pg.position from file_pages pg where pg.card_id = c.id) as page,
@@ -89,6 +91,7 @@ function toCard(r: CardRow, viewerId: string): FileCard {
     id: r.id, headline: r.headline, description: r.description,
     photos: j<PhotoRow[]>(r.photos, []).map((i) => ({ id: i.id, url: mediaUrl(i.key), width: i.width, height: i.height, caption: i.caption })),
     maker: r.mh ? { handle: r.mh, displayName: r.md ?? r.mh, gender: r.mg } : null,
+    guest: r.maker_id === null ? r.guest_name : null,
     own, mine: r.maker_id === viewerId, page,
     for: !own && r.fh ? { handle: r.fh, displayName: r.fd ?? r.fh, gender: r.fg } : null,
     state: own ? 'own' : page !== null ? 'placed' : r.sent ? 'sent' : 'draft',
@@ -97,6 +100,10 @@ function toCard(r: CardRow, viewerId: string): FileCard {
     createdAt: r.created_iso, updatedAt: r.updated_iso,
   };
 }
+
+/** a gift page is named by who made its card: a member's handle, or the name someone outside typed */
+const giftLabel = (card: FileCard | null): string =>
+  card?.maker?.handle ?? (card?.guest ? Array.from(card.guest).slice(0, FILE.labelMax).join('') : '');
 
 /** A member's File as this viewer may see it: all 12 pages, empty ones included. */
 export async function getFile(db: Db, viewerId: string, handle: string, opts: { ops?: boolean } = {}): Promise<FileView | null> {
@@ -118,7 +125,7 @@ export async function getFile(db: Db, viewerId: string, handle: string, opts: { 
     const side = fileSide(position);
     const card = byPage.get(position) ?? null;
     // a gift page is named by who made its card; "Me" is always "Me"
-    const label = position === 0 ? FILE.meLabel : side === 'gift' ? (card?.maker?.handle ?? '') : (labelAt.get(position) ?? '');
+    const label = position === 0 ? FILE.meLabel : side === 'gift' ? giftLabel(card) : (labelAt.get(position) ?? '');
     return { position, side, label, card };
   });
   // only the member is told whether their share link is on (so the File can offer it in one tap)
@@ -168,7 +175,7 @@ export async function getPublicFile(db: Db, handle: string): Promise<FileView | 
   const pages: FilePage[] = Array.from({ length: FILE.pages }, (_, position) => {
     const side = fileSide(position);
     const card = byPage.get(position) ?? null;
-    const label = position === 0 ? FILE.meLabel : side === 'gift' ? (card?.maker?.handle ?? '') : (labelAt.get(position) ?? '');
+    const label = position === 0 ? FILE.meLabel : side === 'gift' ? giftLabel(card) : (labelAt.get(position) ?? '');
     return { position, side, label, card };
   });
   return { owner: { handle: o.handle, displayName: o.display_name, gender: o.gender }, mine: false, pages };
@@ -376,7 +383,7 @@ export async function setPage(db: Db, userId: string, pos: number, body: { label
     if (cardId === undefined) return;
     let told: { makerId: string; headline: string } | null = null;
     if (cardId !== null) {
-      const [c] = await rows<{ maker_id: string; headline: string; sent: boolean; declined: boolean; was_on: number | null; told: boolean }>(tx, sql`
+      const [c] = await rows<{ maker_id: string | null; headline: string; sent: boolean; declined: boolean; was_on: number | null; told: boolean }>(tx, sql`
         select c.maker_id, c.headline, (c.sent_at is not null) as sent, (c.declined_at is not null) as declined,
                (select p.position from file_pages p where p.card_id = c.id) as was_on,
                exists (select 1 from notifications n where n.kind = 'file_card_placed'
@@ -388,7 +395,8 @@ export async function setPage(db: Db, userId: string, pos: number, body: { label
       if (own !== (side === 'own')) {
         throw bad(own ? 'Your own cards go on your own pages.' : 'A card made for you goes on one of the last five pages.');
       }
-      if (!own) {
+      // a card from outside has no maker to count or to tell: a typed name is not a person
+      if (!own && c.maker_id) {
         const [other] = await rows<{ n: number }>(tx, sql`
           select count(*)::int as n from file_pages p join file_cards o on o.id = p.card_id
            where p.user_id = ${userId}::uuid and p.position <> ${pos} and o.maker_id = ${c.maker_id}::uuid and o.id <> ${cardId as string}::uuid`);
@@ -397,6 +405,11 @@ export async function setPage(db: Db, userId: string, pos: number, body: { label
         if (c.was_on === null && !c.told) told = { makerId: c.maker_id, headline: c.headline };
       }
     }
+    // an outside card that comes off this page starts its days in the tray again (see sweepGuestCards)
+    await tx.execute(sql`
+      update file_cards set updated_at = now()
+       where maker_id is null and id is distinct from ${cardId as string | null}::uuid
+         and id = (select p.card_id from file_pages p where p.user_id = ${userId}::uuid and p.position = ${pos})`);
     await place(tx, userId, pos, cardId as string | null);
     if (told) {
       await tx.execute(sql`
@@ -476,25 +489,100 @@ export async function listMade(db: Db, userId: string): Promise<FileCard[]> {
 /** Your tray: cards other members made for you that are waiting for your yes. Private to you. */
 export async function listTray(db: Db, userId: string): Promise<FileCard[]> {
   const found = await rows<CardRow>(db, sql`${cardSelect}
-    where c.for_id = ${userId}::uuid and c.maker_id <> ${userId}::uuid
-      and c.sent_at is not null and c.declined_at is null and c.hidden_at is null and m.id is not null
+    where c.for_id = ${userId}::uuid and c.maker_id is distinct from ${userId}::uuid
+      and c.sent_at is not null and c.declined_at is null and c.hidden_at is null and (m.id is not null or c.maker_id is null)
       and not exists (select 1 from file_pages p where p.card_id = c.id)
     order by c.sent_at desc, c.id`);
   return found.map((r) => toCard(r, userId));
 }
 
-/** Turn down a card made for you: it leaves your tray (and your File) for good. Its maker is never told. */
-export async function declineCard(db: Db, userId: string, id: string): Promise<void> {
+/**
+ * Turn down a card made for you: it leaves your tray (and your File) for good. Its maker is never
+ * told. A member's card is kept (their list only ever says "not in their File"); a card from
+ * outside has nobody keeping it, so it and its photos are erased.
+ */
+export async function declineCard(db: Db, storage: Storage, userId: string, id: string): Promise<void> {
   if (!UUID_RE.test(id)) throw new ApiError(404, 'not_found');
-  await db.transaction(async (txx) => {
+  const gone = await db.transaction(async (txx) => {
     const tx = txx as unknown as Db;
-    const done = rowsOf<{ id: string }>(await tx.execute(sql`
+    const done = rowsOf<{ id: string; outside: boolean }>(await tx.execute(sql`
       update file_cards set declined_at = now()
-       where id = ${id}::uuid and for_id = ${userId}::uuid and maker_id <> ${userId}::uuid and sent_at is not null
-      returning id`));
+       where id = ${id}::uuid and for_id = ${userId}::uuid and maker_id is distinct from ${userId}::uuid and sent_at is not null
+      returning id, (maker_id is null) as outside`));
     if (!done.length) throw new ApiError(404, 'not_found');
     await tx.execute(sql`update file_pages set card_id = null where card_id = ${id}::uuid`);
+    if (!done[0]!.outside) return [] as string[];
+    const keys = await rows<{ r2_key: string }>(tx, sql`delete from file_card_photos where card_id = ${id}::uuid returning r2_key`);
+    await tx.execute(sql`delete from file_cards where id = ${id}::uuid`);
+    return keys.map((k) => k.r2_key);
   });
+  await removeBlobs(storage, gone);
+}
+
+// ─── Cards from outside anti (made on the public share page) ────────────────
+
+export type GuestCardInput = { forId: string; name: string; headline: string; description: string; captions: string[] };
+export type GuestPhoto = { key: string; width: number; height: number };
+
+/**
+ * Look over a card someone outside wants to send, before a single photo is touched: the File must
+ * be shared (404 otherwise, as for reading it), and the words must fit. `photoCount` is how many
+ * photos came with it. Returns what `addGuestCard` needs.
+ */
+export async function checkGuestCard(db: Db, handle: string, body: Record<string, unknown>, photoCount: number): Promise<GuestCardInput> {
+  const [o] = await rows<{ id: string }>(db, sql`
+    select id from users where lower(handle) = lower(${handle}) and state in ('active', 'flagged_lurker') and file_public`);
+  if (!o) throw new ApiError(404, 'not_found');
+  const name = str(body.name, 'Your name', FILE.guestNameMax);
+  if (!name) throw bad('Say who the card is from.');
+  const headline = str(body.headline, 'Headline', FILE.headlineMax);
+  if (!headline) throw bad('A card needs a headline.');
+  const description = str(body.description, 'Description', FILE.descriptionMax, { multiline: true });
+  if (photoCount < 1) throw bad('A card needs at least one photo.');
+  if (photoCount > FILE.guestPhotosMax) throw bad(`Up to ${FILE.guestPhotosMax} photos on a card.`);
+  // captions travel as one JSON list, in the photos' order; anything missing is no caption
+  let list: unknown = body.captions;
+  if (typeof list === 'string') { try { list = JSON.parse(list); } catch { list = []; } }
+  const captions = Array.from({ length: photoCount }, (_, i) => str(Array.isArray(list) ? list[i] : '', 'Caption', FILE.captionMax));
+  return { forId: o.id, name, headline, description, captions };
+}
+
+/**
+ * Keep a card from outside: no maker, only the typed name. It is sent at once (it waits in the
+ * member's private tray, and rings them), and it may show on the share page if they place it:
+ * that is where its maker made it. `photos` are already stored, in order.
+ */
+export async function addGuestCard(db: Db, input: GuestCardInput, photos: GuestPhoto[]): Promise<void> {
+  await db.transaction(async (txx) => {
+    const tx = txx as unknown as Db;
+    const [c] = rowsOf<{ id: string }>(await tx.execute(sql`
+      insert into file_cards (maker_id, guest_name, for_id, headline, description, public_ok, sent_at)
+      select null::uuid, ${input.name}::text, u.id, ${input.headline}::text, ${input.description}::text, true, now()
+        from users u where u.id = ${input.forId}::uuid and u.state in ('active', 'flagged_lurker') and u.file_public
+      returning id`));
+    if (!c) throw new ApiError(404, 'not_found');
+    for (const [pos, p] of photos.entries()) {
+      await tx.execute(sql`
+        insert into file_card_photos (id, card_id, r2_key, width, height, position, caption)
+        values (gen_random_uuid(), ${c.id}::uuid, ${p.key}, ${p.width}::int, ${p.height}::int, ${pos}::int, ${input.captions[pos] ?? ''})`);
+    }
+    await tx.execute(sql`
+      insert into notifications (user_id, kind, payload)
+      values (${input.forId}::uuid, 'file_card_received', jsonb_build_object('cardId', ${c.id}::text, 'title', ${input.headline}::text, 'guestName', ${input.name}::text))`);
+  });
+}
+
+/**
+ * The daily clean-up: a card from outside that has waited off the File for `FILE.guestTrayDays`
+ * (since it was sent, or since it last came off a page) is erased. Returns its photos' blob keys.
+ */
+export async function sweepGuestCards(tx: Db): Promise<string[]> {
+  const stale = sql`c.maker_id is null and c.updated_at < now() - make_interval(days => ${FILE.guestTrayDays})
+    and not exists (select 1 from file_pages p where p.card_id = c.id)`;
+  const keys = await rows<{ r2_key: string }>(tx, sql`
+    delete from file_card_photos i using file_cards c where i.card_id = c.id and ${stale} returning i.r2_key`);
+  await tx.execute(sql`delete from file_cards c where ${stale}`);
+  return keys.map((k) => k.r2_key);
 }
 // ─── Reports and admin removal (the same rules as posts and projects) ───────
 
@@ -507,7 +595,7 @@ export async function flagCard(db: Db, userId: string, cardId: string, reason: s
   if (!UUID_RE.test(cardId)) throw new ApiError(404, 'not_found');
   return db.transaction(async (txx) => {
     const tx = txx as unknown as Db;
-    const [c] = await rows<{ maker_id: string; for_id: string; hidden: boolean; placed: boolean; sent: boolean; declined: boolean }>(tx, sql`
+    const [c] = await rows<{ maker_id: string | null; for_id: string; hidden: boolean; placed: boolean; sent: boolean; declined: boolean }>(tx, sql`
       select maker_id, for_id, (hidden_at is not null) as hidden, (sent_at is not null) as sent, (declined_at is not null) as declined,
              exists (select 1 from file_pages p where p.card_id = file_cards.id) as placed
         from file_cards where id = ${cardId}::uuid for update`);
@@ -528,10 +616,13 @@ export async function flagCard(db: Db, userId: string, cardId: string, reason: s
   });
 }
 
-/** A moderator removes a card (inside the caller's transaction): it and its photos go for good, its maker is told. */
-async function moderatorDeleteCard(tx: Db, c: { id: string; maker_id: string; headline: string }, actorId: string | null): Promise<string[]> {
+/**
+ * A moderator removes a card (inside the caller's transaction): it and its photos go for good, its
+ * maker is told. (A card from outside has no maker to tell.)
+ */
+async function moderatorDeleteCard(tx: Db, c: { id: string; maker_id: string | null; headline: string }, actorId: string | null): Promise<string[]> {
   const keys = await rows<{ r2_key: string }>(tx, sql`delete from file_card_photos where card_id = ${c.id}::uuid returning r2_key`);
-  if (c.maker_id !== actorId) {
+  if (c.maker_id && c.maker_id !== actorId) {
     await tx.execute(sql`insert into notifications (user_id, kind, payload)
       values (${c.maker_id}::uuid, 'file_card_removed', ${JSON.stringify({ cardId: c.id, title: c.headline })}::jsonb)`);
   }
@@ -544,7 +635,7 @@ export async function resolveCardFlags(db: Db, storage: Storage, cardId: string,
   if (!UUID_RE.test(cardId)) throw new ApiError(404, 'not_found');
   const keys = await db.transaction(async (txx) => {
     const tx = txx as unknown as Db;
-    const [c] = await rows<{ id: string; maker_id: string; headline: string }>(tx, sql`
+    const [c] = await rows<{ id: string; maker_id: string | null; headline: string }>(tx, sql`
       select id, maker_id, headline from file_cards where id = ${cardId}::uuid for update`);
     if (!c) throw new ApiError(404, 'not_found');
     const closed = await rows(tx, sql`
@@ -566,7 +657,7 @@ export async function removeCard(db: Db, storage: Storage, cardId: string, actor
   if (!UUID_RE.test(cardId)) throw new ApiError(404, 'not_found');
   const keys = await db.transaction(async (txx) => {
     const tx = txx as unknown as Db;
-    const [c] = await rows<{ id: string; maker_id: string; for_id: string; headline: string; sent: boolean; placed: boolean }>(tx, sql`
+    const [c] = await rows<{ id: string; maker_id: string | null; for_id: string; headline: string; sent: boolean; placed: boolean }>(tx, sql`
       select id, maker_id, for_id, headline, (sent_at is not null) as sent,
              exists (select 1 from file_pages p where p.card_id = file_cards.id) as placed
         from file_cards where id = ${cardId}::uuid for update`);

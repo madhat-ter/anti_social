@@ -521,7 +521,7 @@ function Reports() {
               <li key={f.postId ?? f.projectId ?? f.collabId ?? f.consultationId ?? f.cardId ?? `offer:${f.offerHandle}`}>
                 <span className="adm-meta">
                   <strong>{KIND_LABEL[f.kind]}</strong>
-                  {f.kind === 'collab' ? ' hosted by ' : f.kind === 'consultation' ? ' to ' : ' by '}{f.author ? <Link href={`/u/${f.author}`}>@{f.author}</Link> : 'a deleted member'}
+                  {f.kind === 'collab' ? ' hosted by ' : f.kind === 'consultation' ? ' to ' : ' by '}{f.author ? <Link href={`/u/${f.author}`}>@{f.author}</Link> : f.kind === 'file_card' ? 'someone outside anti' : 'a deleted member'}
                   {f.kind === 'consultation' && f.requester && <> from <Link href={`/u/${f.requester}`}>@{f.requester}</Link></>}
                   {f.kind === 'file_card' && f.fileOf && f.fileOf !== f.author && <> for <Link href={`/u/${f.fileOf}`}>@{f.fileOf}</Link></>}
                   {' · '}{f.flags} report{f.flags === 1 ? '' : 's'}
