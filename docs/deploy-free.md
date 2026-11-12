@@ -70,6 +70,11 @@ Order matters: the API needs the web address, and the web app needs the API addr
   Since 2026-11-12 `.github/workflows/uptime-watch.yml` does this fix by itself: every 15 minutes it checks
   `/api/health`, and after two bad checks it pushes an empty "Redeploy (uptime-watch)" commit to `main`. After three
   such commits in a row it stops and fails (GitHub emails the owner), because then the code is the likely cause.
+  The real cause, found 2026-11-12 in the logs ("api stopping: SIGTERM after N min" lines): the free plan puts the API
+  to sleep after 15 minutes without visitors, and now and then Render fails to wake it, answering `no-deploy`.
+  GitHub's 15-minute schedule is too unreliable to prevent that (it ran once in 4½ hours), so the API now visits its
+  own `RENDER_EXTERNAL_URL/health` every 10 minutes and never sleeps (`KEEP_AWAKE=off` turns that off). Running all
+  month uses about 720 of the workspace's 750 free instance hours, so keep it the only free web service there.
 
 ## Optional: push notifications
 

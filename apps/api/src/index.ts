@@ -40,6 +40,20 @@ process.on('uncaughtException', (e) => {
   process.exit(1);
 });
 
+// Render's free plan puts the API to sleep after 15 min without visitors and sometimes fails to
+// wake it ("X-Render-Routing: no-deploy", 2026-11-12: six sleeps in nine hours, the sixth never woke).
+// So the API visits its own public address every 10 min and never falls asleep. RENDER_EXTERNAL_URL
+// is set by Render only, so this does nothing locally. GitHub's uptime-watch stays as the backup.
+const selfUrl = process.env.RENDER_EXTERNAL_URL;
+if (selfUrl && process.env.KEEP_AWAKE !== 'off') {
+  setInterval(() => {
+    fetch(`${selfUrl}/health`, { signal: AbortSignal.timeout(30_000) }).catch((e) =>
+      console.error('keep-awake visit failed:', String(e)),
+    );
+  }, 10 * 60_000);
+  console.log('keep-awake: visiting own /health every 10 min');
+}
+
 if (process.env.JOBS === 'off') console.log('scheduled jobs disabled (JOBS=off)');
 else startScheduler(db, { storage, payments, push });
 if (!push.publicKey) console.log('web push disabled (set VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY; bun run ops:vapid-keys)');
