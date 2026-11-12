@@ -375,3 +375,81 @@ describe('the public share link', () => {
     expect((await out.get(url.replace('/api', ''))).status).toBe(404);
   });
 });
+describe('reports, admin removal, bans', () => {
+  const gift = async (c: Client, forHandle: string, headline: string) => {
+    const r = await c.post('/me/file/cards', { headline, photos: [{ id: await upload(c) }], forHandle });
+    expect(r.status).toBe(200);
+    await c.post(`/me/file/cards/${r.body.id}/send`);
+    return r.body;
+  };
+
+  test('five reports hide a card from everyone but its owner, its maker and admins; an admin restores or removes it', async () => {
+    const w = await world();
+    const maya = await w.member('maya');
+    const boss = await w.member('boss');
+    await w.rowsOf(sql`update users set role = 'ops' where handle = 'boss'`);
+    const c = await card(maya, 'Me', { page: 0 });
+    expect((await maya.post(`/file/cards/${c.id}/flag`)).status).toBe(409); // not your own
+    const spare = await card(maya, 'Not on a page');
+    const reporters: Client[] = [];
+    for (let i = 0; i < 5; i++) reporters.push(await w.member(`reporter${i}`));
+    expect((await reporters[0]!.post(`/file/cards/${spare.id}/flag`)).status).toBe(404); // nobody can see it
+    for (const r of reporters.slice(0, 4)) expect((await r.post(`/file/cards/${c.id}/flag`, { reason: 'not ok' })).status).toBe(200);
+    expect((await reporters[0]!.post(`/file/cards/${c.id}/flag`)).status).toBe(200); // twice counts once
+    expect((await reporters[0]!.get('/members/maya/file')).body.pages[0].card).not.toBeNull();
+    await reporters[4]!.post(`/file/cards/${c.id}/flag`);
+    expect((await reporters[0]!.get('/members/maya/file')).body.pages[0].card).toBeNull();
+    expect((await maya.get('/members/maya/file')).body.pages[0].card).toMatchObject({ hidden: true });
+    const seen = (await boss.get('/members/maya/file')).body.pages[0].card;
+    expect(seen).toMatchObject({ hidden: true, canModerate: true });
+    expect((await boss.get('/notifications')).body.items.some((x: any) => x.kind === 'flag_threshold')).toBe(true);
+    const q = (await boss.get('/ops/flags')).body.find((x: any) => x.kind === 'file_card');
+    expect(q).toMatchObject({ cardId: c.id, fileOf: 'maya', author: 'maya', hidden: true, flags: 5, body: 'Me' });
+    expect((await maya.post(`/ops/file/cards/${c.id}/resolve`, { resolution: 'restored' })).status).toBe(404);
+    expect((await boss.post(`/ops/file/cards/${c.id}/resolve`, { resolution: 'restored' })).status).toBe(200);
+    expect((await reporters[0]!.get('/members/maya/file')).body.pages[0].card.headline).toBe('Me');
+    expect((await boss.post(`/ops/file/cards/${c.id}/resolve`, { resolution: 'restored' })).status).toBe(409);
+    // an admin can also remove a card outright: it and its photos go, and the maker is told
+    expect((await boss.post(`/ops/file/cards/${c.id}/remove`)).status).toBe(200);
+    expect((await maya.get('/members/maya/file')).body.pages[0].card).toBeNull();
+    expect((await maya.get('/notifications')).body.items[0]).toMatchObject({ kind: 'file_card_removed', cardTitle: 'Me' });
+    expect((await boss.post(`/ops/file/cards/${spare.id}/remove`)).status).toBe(404); // never placed, never sent: hers alone
+  });
+
+  test('the recipient can report a card sent to them; it reaches the admins’ queue', async () => {
+    const w = await world();
+    const maya = await w.member('maya');
+    const theo = await w.member('theo');
+    const ines = await w.member('ines');
+    const boss = await w.member('boss');
+    await w.rowsOf(sql`update users set role = 'ops' where handle = 'boss'`);
+    const c = await gift(theo, 'maya', 'Unkind');
+    expect((await ines.post(`/file/cards/${c.id}/flag`)).status).toBe(404); // she cannot see it
+    expect((await maya.post(`/file/cards/${c.id}/flag`, { reason: 'cruel' })).status).toBe(200);
+    const q = (await boss.get('/ops/flags')).body.find((x: any) => x.kind === 'file_card');
+    expect(q).toMatchObject({ cardId: c.id, fileOf: 'maya', author: 'theo', flags: 1, reasons: ['cruel'] });
+    expect((await boss.post(`/ops/file/cards/${c.id}/resolve`, { resolution: 'removed' })).status).toBe(200);
+    expect((await maya.get('/me/file/tray')).body.items).toEqual([]);
+    expect((await theo.get('/me/file/made')).body.items).toEqual([]);
+  });
+
+  test('a banned maker’s card leaves every File (and comes back if the ban is lifted)', async () => {
+    const w = await world();
+    const maya = await w.member('maya');
+    const theo = await w.member('theo');
+    const boss = await w.member('boss');
+    await w.rowsOf(sql`update users set role = 'ops' where handle = 'boss'`);
+    const c = await gift(theo, 'maya', 'From Theo');
+    await maya.put('/me/file/pages/7', { cardId: c.id });
+    await maya.patch('/me', { filePublic: true });
+    await theo.patch(`/me/file/cards/${c.id}`, { publicOk: true });
+    await maya.put('/me/file/pages/7', { cardId: c.id });
+    const out = w.client();
+    expect((await out.get('/public/file/maya')).body.pages[7].card.headline).toBe('From Theo');
+    expect((await boss.post('/ops/users/theo/ban')).status).toBe(200);
+    expect((await maya.get('/members/maya/file')).body.pages[7]).toMatchObject({ card: null, label: '' });
+    expect((await out.get('/public/file/maya')).body.pages[7].card).toBeNull();
+    expect((await maya.get('/members/theo/file')).status).toBe(404);
+    expect((await boss.post('/ops/users/theo/unban')).status).toBe(200);
+  });
+});

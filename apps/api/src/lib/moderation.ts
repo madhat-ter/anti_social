@@ -140,7 +140,10 @@ export async function resolveCollabFlags(db: Db, collabId: string, resolution: '
 }
 
 export type FlagQueueItem = {
-  kind: 'post' | 'project' | 'collab' | 'consult_offer' | 'consultation';
+  kind: 'post' | 'project' | 'collab' | 'consult_offer' | 'consultation' | 'file_card';
+  /** the reported File card (RFC §10.24), and whose File it is in or was sent to */
+  cardId?: string;
+  fileOf?: string | null;
   /** a reported consultation offer: whose */
   offerHandle?: string;
   /** a reported consultation request (open GET /ops/consultations/:id for the whole of it) */
@@ -201,6 +204,14 @@ export async function flagQueue(db: Db): Promise<FlagQueueItem[]> {
         from consult_flags f join consultations c on c.id = f.consultation_id join users u on u.id = c.consultant_id
        where f.resolved_at is null
        group by c.id, u.handle
+      union all
+      select 'file_card' as kind, fc.id, fc.headline || case when fc.description <> '' then ' — ' || left(fc.description, 200) else '' end as body,
+             u.handle, (fc.hidden_at is not null) as hidden, count(*)::int as n,
+             coalesce(array_agg(f.reason) filter (where f.reason is not null), '{}') as reasons,
+             min(f.created_at) as first_at
+        from file_card_flags f join file_cards fc on fc.id = f.card_id left join users u on u.id = fc.maker_id
+       where f.resolved_at is null
+       group by fc.id, u.handle
     ) q
     order by hidden desc, n desc, first_at
     limit 200`);
@@ -208,7 +219,11 @@ export async function flagQueue(db: Db): Promise<FlagQueueItem[]> {
   const askers = new Map((await rows<{ id: string; handle: string }>(db, sql`
     select c.id, u.handle from consultations c join users u on u.id = c.requester_id
      where exists (select 1 from consult_flags f where f.consultation_id = c.id and f.resolved_at is null)`)).map((x) => [x.id, x.handle]));
+  const fileOf = new Map((await rows<{ id: string; handle: string }>(db, sql`
+    select fc.id, u.handle from file_cards fc join users u on u.id = fc.for_id
+     where exists (select 1 from file_card_flags f where f.card_id = fc.id and f.resolved_at is null)`)).map((x) => [x.id, x.handle]));
   const ids = (x: any) => x.kind === 'post' ? { postId: x.id } : x.kind === 'collab' ? { collabId: x.id }
+    : x.kind === 'file_card' ? { cardId: x.id, fileOf: fileOf.get(x.id) ?? null }
     : x.kind === 'consult_offer' ? { offerHandle: x.handle } : x.kind === 'consultation' ? { consultationId: x.id, requester: askers.get(x.id) ?? null }
     : { projectId: x.id };
   return r.map((x) => ({

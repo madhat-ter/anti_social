@@ -13,6 +13,7 @@ import { adminCollab } from '../lib/collab-page';
 import { consultQueue, decideConsulting, opsConsultation, opsConsultations, resolveConsultationFlags, resolveOfferFlags, switchOff, switchOn } from '../lib/consultations';
 import { adminMembers, getAdminSettings, renameMember, setMemberBirthday, setMemberRole, unbanMember, updateAdminSettings, openMemberContact, setVerified } from '../lib/admin';
 import { UUID_RE } from '../lib/posts';
+import { flagCard, removeCard, resolveCardFlags } from '../lib/file';
 import { activePassCount, createPass, listPasses, revokePass } from '../lib/visitors';
 import { hit } from '../lib/ratelimit';
 import { createPinReset } from '../lib/pin';
@@ -49,6 +50,23 @@ export const moderationRoutes = (deps: Deps) => {
       const r = await flagProject(db, a.user.id, params.id, body?.reason);
       return { flagged: r.flagged };
     }, { body: t.Optional(t.Object({ reason: t.Optional(t.String({ maxLength: 800 })) })) })
+
+    // RFC §10.24: a card in someone's File, or one sent to you
+    .post('/file/cards/:id/flag', async ({ auth, params, body }) => {
+      const a = requireSeated(auth);
+      await hit(db, 'flag', a.user.id);
+      return flagCard(db, a.user.id, params.id, body?.reason);
+    }, { body: t.Optional(t.Object({ reason: t.Optional(t.String({ maxLength: 800 })) })) })
+
+    .post('/ops/file/cards/:id/resolve', async ({ auth, params, body }) => {
+      requireOps(auth);
+      return resolveCardFlags(db, storage, params.id, body.resolution);
+    }, { body: t.Object({ resolution: t.Union([t.Literal('restored'), t.Literal('removed')]) }) })
+
+    .post('/ops/file/cards/:id/remove', async ({ auth, params }) => {
+      const a = requireOps(auth);
+      return removeCard(db, storage, params.id, a.user.id);
+    })
 
     .post('/collabs/:id/flag', async ({ auth, params, body }) => {
       const a = requireSeated(auth);

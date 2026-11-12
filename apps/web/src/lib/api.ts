@@ -58,7 +58,10 @@ export interface VisitorPassInfo {
 
 /** One reported post or project in the moderation queue. */
 export interface FlagItem {
-  kind: 'post' | 'project' | 'collab' | 'consult_offer' | 'consultation';
+  kind: 'post' | 'project' | 'collab' | 'consult_offer' | 'consultation' | 'file_card';
+  /** file_card (RFC §10.24): the card, and whose File it is in or was sent to */
+  cardId?: string;
+  fileOf?: string | null;
   /** consult_offer: whose offer */
   offerHandle?: string;
   /** consultation: the request (author = the consultant, requester = who asked) */
@@ -277,6 +280,12 @@ export interface FileCard {
   state: 'own' | 'draft' | 'sent' | 'placed';
   /** the maker allows it on the recipient's public share page */
   publicOk: boolean;
+  /** hidden after reports: only its owner, its maker and admins still see it */
+  hidden?: boolean;
+  /** you may report it */
+  canReport?: boolean;
+  /** you are an admin and may remove it */
+  canModerate?: boolean;
   createdAt: string; updatedAt: string;
 }
 /** pages 0–6 are the owner's own (0 is "Me"), 7–11 hold cards made for them */
@@ -726,6 +735,10 @@ export const api = {
   fileMade: () => get<{ items: FileCard[] }>('/me/file/made'),
   fileTray: () => get<{ items: FileCard[] }>('/me/file/tray'),
   declineFileCard: (id: string) => post<{ ok: true }>(`/me/file/tray/${encodeURIComponent(id)}/decline`, {}),
+  flagFileCard: (id: string, reason?: string) => post<{ flagged: true }>(`/file/cards/${encodeURIComponent(id)}/flag`, reason ? { reason } : {}),
+  opsResolveFileCard: (id: string, resolution: 'restored' | 'removed') =>
+    post<{ resolution: string }>(`/ops/file/cards/${encodeURIComponent(id)}/resolve`, { resolution }),
+  opsRemoveFileCard: (id: string) => post<{ removed: true }>(`/ops/file/cards/${encodeURIComponent(id)}/remove`, {}),
   flagProject: (id: string, reason?: string) => post<{ flagged: true }>(`/projects/${encodeURIComponent(id)}/flag`, reason ? { reason } : {}),
   memberPosts: (handle: string, cursor?: string | null, limit = 20) =>
     get<Page<Post>>(`/members/${encodeURIComponent(handle)}/posts${qs({ cursor, limit })}`),

@@ -422,6 +422,7 @@ function ConsultAsks() {
 type Ask = { item: FlagItem; resolution: 'restored' | 'removed' } | null;
 const KIND_LABEL: Record<FlagItem['kind'], string> = {
   post: 'Post', project: 'Project', collab: 'Collab', consult_offer: 'Consultation offer', consultation: 'Consultation request',
+  file_card: 'File card',
 };
 
 /** A reported request in full: admins see contacts only here, to judge a report (RFC §10.6). */
@@ -489,6 +490,7 @@ function Reports() {
       else if (a.item.kind === 'collab') await api.opsResolveCollab(a.item.collabId!, a.resolution);
       else if (a.item.kind === 'consult_offer') await api.opsResolveConsultOffer(a.item.offerHandle!, a.resolution);
       else if (a.item.kind === 'consultation') await api.opsResolveConsultation(a.item.consultationId!, a.resolution);
+      else if (a.item.kind === 'file_card') await api.opsResolveFileCard(a.item.cardId!, a.resolution);
       else await api.opsResolveProject(a.item.projectId!, a.resolution);
       await load();
     } catch (e) { setErr(errorMessage(e)); }
@@ -499,13 +501,15 @@ function Reports() {
     : f.kind === 'collab' ? `/collab/${f.collabId}`
     : f.kind === 'consult_offer' ? `/u/${f.offerHandle}`
     : f.kind === 'consultation' ? null
+    // RFC §10.24: the File it sits in (a card still in someone's tray has no page to open)
+    : f.kind === 'file_card' ? (f.fileOf ? `/file/${f.fileOf}` : null)
     : f.author ? `/u/${f.author}/work/${f.projectId}` : null;
 
   return (
     <section className="panel-sec" aria-labelledby="adm-rep" id="reports">
       <h2 id="adm-rep">Reports</h2>
       <div className="row between adm-rep-head">
-        <p className="muted">Posts, projects, collabs and consultations members reported. Five reports hide one automatically until you decide; a reported consultation request comes straight here.</p>
+        <p className="muted">Posts, projects, collabs, File cards and consultations members reported. Five reports hide one automatically until you decide; a reported consultation request comes straight here.</p>
         <button type="button" className="btn" onClick={() => void load()}>Refresh</button>
       </div>
       <ErrorNote message={err} />
@@ -514,11 +518,12 @@ function Reports() {
           {items.map((f) => {
             const href = link(f);
             return (
-              <li key={f.postId ?? f.projectId ?? f.collabId ?? f.consultationId ?? `offer:${f.offerHandle}`}>
+              <li key={f.postId ?? f.projectId ?? f.collabId ?? f.consultationId ?? f.cardId ?? `offer:${f.offerHandle}`}>
                 <span className="adm-meta">
                   <strong>{KIND_LABEL[f.kind]}</strong>
                   {f.kind === 'collab' ? ' hosted by ' : f.kind === 'consultation' ? ' to ' : ' by '}{f.author ? <Link href={`/u/${f.author}`}>@{f.author}</Link> : 'a deleted member'}
                   {f.kind === 'consultation' && f.requester && <> from <Link href={`/u/${f.requester}`}>@{f.requester}</Link></>}
+                  {f.kind === 'file_card' && f.fileOf && f.fileOf !== f.author && <> for <Link href={`/u/${f.fileOf}`}>@{f.fileOf}</Link></>}
                   {' · '}{f.flags} report{f.flags === 1 ? '' : 's'}
                   {' · '}<time dateTime={f.firstFlaggedAt} title={fmtDate(f.firstFlaggedAt)}>{relativeTime(f.firstFlaggedAt)}</time>
                   {f.hidden && <span className="tag">hidden</span>}

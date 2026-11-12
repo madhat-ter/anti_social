@@ -71,7 +71,8 @@ Vercel's proxy (a 5-minute recording made on the site is about 2.4 MB).
 - **The File is a drawer** (§10.24): 12 pages, one card each; pages 0–6 are the member's own
   (0 is "Me", fixed), 7–11 hold only cards other members made for them, placed by the member alone.
   A card is a headline, 1–20 photos with optional captions, a description. Never a feed item, no
-  likes, not a contribution. Built in four steps; §10.24 "Progress" says which are done.
+  likes, not a contribution. All four steps are built (§10.24). Tabs flip the page like a real card
+  file (`.file-leaf-out` / `.file-leaf-in`); keep the flip when changing the drawer.
   The share link `/f/<handle>` is the only page of a member's content open to the outside: off by
   default, and a gift card shows there only with its maker's `public_ok`. Anything new served
   without a session must go through `/public/…` and check `users.file_public`.

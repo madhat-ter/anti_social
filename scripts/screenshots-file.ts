@@ -125,7 +125,7 @@ try {
   // ── Theo looks at Maya's File on a laptop
   const lap = await open(theo, DESKTOP);
   await lap.page.goto(`${WEB}/file/maya`);
-  await lap.page.locator('.file-card').waitFor();
+  await lap.page.locator('#file-sheet .file-card').waitFor();
   must(await lap.page.locator('.file-tab').count() === 12, 'not 12 tabs');
   must(await lap.page.locator('.file-tab.on').innerText() === 'ME', 'the "Me" page is not open by default');
   must(await lap.page.locator('.file-tab:disabled').count() === 8, `empty tabs should be closed to others: ${await lap.page.locator('.file-tab:disabled').count()}`);
@@ -133,12 +133,12 @@ try {
   await shot(lap.page, 'drawer-desktop');
 
   await lap.page.getByRole('tab', { name: 'Coffee' }).click();
-  must((await lap.page.locator('.file-card-h').innerText()).toLowerCase().includes('where i work'), 'the Coffee page did not open');
+  must((await lap.page.locator('#file-sheet .file-card-h').innerText()).toLowerCase().includes('where i work'), 'the Coffee page did not open');
   await shot(lap.page, 'another-page');
   await lap.page.getByRole('tab', { name: 'ME', exact: true }).click();
 
   // the card, full screen
-  await lap.page.locator('.file-card').click();
+  await lap.page.locator('#file-sheet .file-card').click();
   await lap.page.locator('.file-full[open] .file-car').waitFor();
   must((await lap.page.locator('.file-count').innerText()).trim() === '1 / 7', 'the counter does not start at 1 / 7');
   await shot(lap.page, 'card-full-desktop');
@@ -162,9 +162,9 @@ try {
   // ── Theo on a phone
   const phone = await open(theo, PHONE);
   await phone.page.goto(`${WEB}/file/maya`);
-  await phone.page.locator('.file-card').waitFor();
+  await phone.page.locator('#file-sheet .file-card').waitFor();
   await shot(phone.page, 'drawer-phone', true);
-  await phone.page.locator('.file-card').click();
+  await phone.page.locator('#file-sheet .file-card').click();
   await phone.page.locator('.file-full[open] .file-car').waitFor();
   await shot(phone.page, 'card-full-phone');
   await phone.page.locator('.file-car-item').first().click();
@@ -175,9 +175,31 @@ try {
   // ── Maya, the owner: tools, an empty page, making a card
   const own = await open(maya, DESKTOP);
   await own.page.goto(`${WEB}/file`);
-  await own.page.locator('.file-card').waitFor();
+  await own.page.locator('#file-sheet .file-card').waitFor();
   must(await own.page.locator('.file-tab:disabled').count() === 0, 'the owner cannot open every page');
   await shot(own.page, 'owner-me-page', true);
+
+  // the flip, frame by frame (animations run even with reduced motion, just quicker)
+  const FLIP = join(OUT, 'flip');
+  mkdirSync(FLIP, { recursive: true });
+  const frames = async (name: string, tabName: string) => {
+    const drawer = own.page.locator('.file');
+    await own.page.getByRole('tab', { name: tabName, exact: true }).click();
+    must(await own.page.locator('.file-leaf-out').count() === 1, `no leaving page drawn for the ${name} flip`);
+    // freeze the flip at exact moments (Web Animations API), so the frames show the motion
+    for (const [k, at] of [0, 60, 120, 180, 240, 300, 360].entries()) {
+      await own.page.evaluate((t) => { for (const a of document.getAnimations()) { a.pause(); a.currentTime = t; } }, at);
+      await drawer.screenshot({ path: join(FLIP, `${name}-${k}.png`), animations: 'allow' });
+    }
+    await own.page.evaluate(() => { for (const a of document.getAnimations()) a.finish(); });
+    await own.page.waitForTimeout(600);
+    must(await own.page.locator('.file-leaf-out').count() === 0, `the leaving page stayed after the ${name} flip`);
+    await drawer.screenshot({ path: join(FLIP, `${name}-end.png`) });
+    console.log('saved flip', name);
+  };
+  await frames('to-the-back', 'Zines');          // "Me" → a page behind it: "Me" tips forward and falls away
+  await frames('to-the-front', 'Page 8 (empty)'); // Zines → a front page: it swings up toward you
+  await frames('back-again', 'ME');
   await own.page.getByRole('tab', { name: 'Music (empty)' }).click();
   await own.page.getByText('Put “Sketches I never finished” here').waitFor();
   await shot(own.page, 'owner-empty-page', true);
@@ -313,7 +335,7 @@ try {
   await desk.ctx.close();
   // now anyone with the link sees it: her own cards, and Theo's only because he did not allow it → empty
   await pub.goto(`${WEB}/f/maya`);
-  await pub.locator('.file-card').waitFor();
+  await pub.locator('#file-sheet .file-card').waitFor();
   must(await pub.locator('nav.nav, .tabbar, .top-bell').count() === 0, 'the public page shows the site’s menu');
   must(await pub.getByRole('button', { name: /Make a card/ }).count() === 0, 'the public page offers to make a card');
   must(await pub.getByRole('tab', { name: 'theo', exact: true }).count() === 0, 'a gift card shows publicly without its maker’s yes');
@@ -326,7 +348,7 @@ try {
   await pub.getByRole('tab', { name: 'theo', exact: true }).click();
   await pub.getByText('Made by @theo').first().waitFor();
   await shot(pub, 'public-gift-card');
-  await pub.locator('.file-card').click();
+  await pub.locator('#file-sheet .file-card').click();
   await pub.locator('.file-full[open] .file-car-item').first().click();
   await pub.locator('.file-pola').waitFor();
   must(await pub.locator('.file-pola img').evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0), 'a public photo did not load');
@@ -340,15 +362,48 @@ try {
   const outPhone = await browser.newContext(PHONE);
   const pp = await outPhone.newPage();
   await pp.goto(`${WEB}/f/maya`);
-  await pp.locator('.file-card').waitFor();
+  await pp.locator('#file-sheet .file-card').waitFor();
   await shot(pp, 'public-file-phone', true);
   await outPhone.close();
+
+  // ── step 4: reporting a card, and the admin's side
+  const rep = await open(theo, DESKTOP);
+  await rep.page.goto(`${WEB}/file/maya`);
+  await rep.page.getByRole('tab', { name: 'Coffee' }).click();
+  await rep.page.locator('#file-sheet .file-card').click();
+  await rep.page.locator('.file-full[open]').getByRole('button', { name: 'Report' }).click();
+  await rep.page.getByPlaceholder('Why (optional)').fill('Not hers to post');
+  await shot(rep.page, 'report-card');
+  await rep.page.getByRole('button', { name: 'Report', exact: true }).click();
+  await rep.page.getByText('Reported. An admin will look at it.').waitFor();
+  await rep.ctx.close();
+
+  const boss = await member('boss', 'Boss Admin', 'man');
+  await t.client.query(`update users set role = 'ops', activated_at = now() - interval '60 days', checklist_dismissed_at = now() where handle = 'boss'`);
+  const adm = await open(boss, DESKTOP);
+  await adm.page.goto(`${WEB}/admin#reports`);
+  const row = adm.page.locator('.adm-reports li', { hasText: 'File card' });
+  await row.waitFor();
+  must((await row.innerText()).includes('Not hers to post'), 'the reason is not in the admin queue');
+  await row.scrollIntoViewIfNeeded();
+  await shot(adm.page, 'admin-reported-card');
+  // the admin opens the File and removes the card there
+  await adm.page.goto(`${WEB}/file/maya`);
+  await adm.page.getByRole('tab', { name: 'Coffee' }).click();
+  await adm.page.locator('#file-sheet .file-card').click();
+  await adm.page.locator('.file-full[open]').getByRole('button', { name: 'Remove (admin)' }).click();
+  await shot(adm.page, 'admin-remove-card');
+  await adm.page.getByRole('button', { name: 'Remove', exact: true }).click();
+  await adm.page.getByText('Removed.').waitFor();
+  must(!(await call(theo, 'GET', '/members/maya/file')).pages[2].card, 'the removed card is still on its page');
+  must((await call(maya, 'GET', '/notifications')).items.some((x: any) => x.kind === 'file_card_removed'), 'the maker was not told');
+  await adm.ctx.close();
 
   // ── dark mode follows the member's choice
   await call(theo, 'PATCH', '/me', { theme: 'dark' });
   const dark = await open(theo, PHONE);
   await dark.page.goto(`${WEB}/file/maya`);
-  await dark.page.locator('.file-card').waitFor();
+  await dark.page.locator('#file-sheet .file-card').waitFor();
   await shot(dark.page, 'drawer-dark', true);
   await dark.ctx.close();
 

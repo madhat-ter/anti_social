@@ -888,3 +888,15 @@ export const filePages = pgTable('file_pages', {
   check('file_pages_label_len', sql`char_length(${t.label}) <= 14`),
   uniqueIndex('file_pages_card').on(t.cardId).where(sql`card_id is not null`),
 ]);
+/** Reports on a File card: the same shape and lifecycle as `project_flags`. */
+export const fileCardFlags = pgTable('file_card_flags', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  cardId: uuid('card_id').notNull().references(() => fileCards.id, { onDelete: 'cascade' }),
+  reason: text('reason'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  resolvedAt: tstz('resolved_at'),
+  resolution: text('resolution'), // 'restored' | 'removed'
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.cardId] }),
+  index('file_card_flags_open').on(t.cardId).where(sql`resolved_at is null`),
+]);

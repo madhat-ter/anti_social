@@ -18,6 +18,11 @@ const firstName = (s: string) => s.split(/\s+/)[0] || s;
 /** the back of the drawer, top to bottom: pages 1–6, then "Me" right behind the open sheet */
 const BACK = [1, 2, 3, 4, 5, 6, 0];
 const FRONT = [7, 8, 9, 10, 11];
+/** where a page stands in the drawer, back (0) to front (11): flipping goes the way a real one does */
+const DRAWER = [...BACK, ...FRONT];
+const depthOf = (pos: number) => DRAWER.indexOf(pos);
+/** the leaving page goes when its animation ends; this is only the fallback if that never fires */
+const FLIP_MS = 1500;
 
 export function FileDrawer({ handle, pub = false }: {
   handle: string;
@@ -38,6 +43,24 @@ export function FileDrawer({ handle, pub = false }: {
   const [made, setMade] = useState<FileCard[]>([]);
   const [viewing, setViewing] = useState<FileCard | null>(null);
   const [declining, setDeclining] = useState<FileCard | null>(null);
+  const [reporting, setReporting] = useState<FileCard | null>(null);
+  const [removing, setRemoving] = useState<FileCard | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  /**
+   * The flip between pages, like a card file: going to a page further back, the open page tips
+   * forward toward you and falls away; going to one further front, the new page swings up from
+   * lying toward you. `from` is the page that is leaving.
+   */
+  const [flip, setFlip] = useState<{ from: number; dir: 'back' | 'front'; n: number } | null>(null);
+  const flipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (flipTimer.current) clearTimeout(flipTimer.current); }, []);
+  const flipTo = (pos: number) => {
+    if (pos === open) return;
+    if (flipTimer.current) clearTimeout(flipTimer.current);
+    setFlip((cur) => ({ from: open, dir: depthOf(pos) < depthOf(open) ? 'back' : 'front', n: (cur?.n ?? 0) + 1 }));
+    setOpen(pos);
+    flipTimer.current = setTimeout(() => setFlip(null), FLIP_MS);
+  };
 
   const load = useCallback(async () => {
     try {
@@ -69,7 +92,7 @@ export function FileDrawer({ handle, pub = false }: {
   const putInFile = (c: FileCard) => {
     const free = page.side === 'gift' && !page.card ? page : file.pages.find((p) => p.side === 'gift' && !p.card);
     if (!free) { setErr('All five pages for cards made for you are full. Take one off first.'); return; }
-    void act(async () => { await api.setFilePage(free.position, { cardId: c.id }); setOpen(free.position); });
+    void act(async () => { await api.setFilePage(free.position, { cardId: c.id }); flipTo(free.position); });
   };
   const who = file.mine ? 'Your' : `${firstName(file.owner.displayName)}’s`;
 
@@ -95,7 +118,7 @@ export function FileDrawer({ handle, pub = false }: {
           className={`file-tab${open === pos ? ' on' : ''}${p.card ? '' : ' empty'}`}
           disabled={!usable}
           aria-label={p.label ? `${p.label}${p.card ? '' : ' (empty)'}` : `Page ${pos + 1}${p.card ? '' : ' (empty)'}`}
-          onClick={() => setOpen(pos)}
+          onClick={() => flipTo(pos)}
         >
           {text}
         </button>
@@ -118,6 +141,7 @@ export function FileDrawer({ handle, pub = false }: {
         )}
       </div>
       <ErrorNote message={err} />
+      {note && <p className="meta" role="status">{note}</p>}
 
       {canEdit && tray.length > 0 && (
         <Win title="made_for_you" dark bodyClassName="stack">
@@ -134,6 +158,7 @@ export function FileDrawer({ handle, pub = false }: {
                 <button type="button" className="link-btn" onClick={() => setViewing(c)}>Look</button>
                 <button type="button" className="link-btn" onClick={() => putInFile(c)}>Put in my File</button>
                 <button type="button" className="link-btn danger-text" onClick={() => setDeclining(c)}>Turn down</button>
+                <button type="button" className="link-btn" onClick={() => setReporting(c)}>Report</button>
               </li>
             ))}
           </ul>
@@ -142,11 +167,22 @@ export function FileDrawer({ handle, pub = false }: {
 
       <div className="file" role="tablist" aria-label={`${who} File: 12 pages`}>
         <div className="file-back">{BACK.map(tab)}</div>
-        <div className="file-sheet" id="file-sheet" role="tabpanel" aria-labelledby={`file-tab-${open}`}>
-          <Sheet page={page} canEdit={canEdit} mine={file.mine} spare={spare} tray={tray} owner={firstName(file.owner.displayName)}
-            onOpen={() => setFull(true)}
-            onMake={() => setEditing({ card: null, page: page.position })}
-            onPlace={(c) => void act(() => api.setFilePage(page.position, { cardId: c.id }))} />
+        <div className={`file-sheet-wrap${flip ? ` flipping flip-${flip.dir}` : ''}`}>
+          {/* the page that is leaving, drawn once more while it falls (it can't be clicked) */}
+          {flip && file.pages[flip.from] && (
+            <div key={`leaf-${flip.n}`} className="file-sheet file-leaf-out" aria-hidden="true" inert
+              onAnimationEnd={(e) => { if (e.target === e.currentTarget) setFlip(null); }}>
+              <Sheet page={file.pages[flip.from]!} canEdit={canEdit} mine={file.mine} spare={spare} tray={tray}
+                owner={firstName(file.owner.displayName)} onOpen={() => {}} onMake={() => {}} onPlace={() => {}} />
+            </div>
+          )}
+          <div key={flip ? `page-${open}-${flip.n}` : `page-${open}`} className={`file-sheet${flip ? ' file-leaf-in' : ''}`}
+            id="file-sheet" role="tabpanel" aria-labelledby={`file-tab-${open}`}>
+            <Sheet page={page} canEdit={canEdit} mine={file.mine} spare={spare} tray={tray} owner={firstName(file.owner.displayName)}
+              onOpen={() => setFull(true)}
+              onMake={() => setEditing({ card: null, page: page.position })}
+              onPlace={(c) => void act(() => api.setFilePage(page.position, { cardId: c.id }))} />
+          </div>
         </div>
         <div className="file-front">{FRONT.map(tab)}</div>
         <div className="file-box" aria-hidden="true"><span className="file-pull"><i /><i /><i /></span></div>
@@ -165,7 +201,7 @@ export function FileDrawer({ handle, pub = false }: {
             const j = i + by;
             if (i < 0 || j < 0 || j >= order.length) return;
             [order[i], order[j]] = [order[j]!, order[i]!];
-            void act(async () => { await api.orderFilePages(order); setOpen(j + 1); });
+            void act(async () => { await api.orderFilePages(order); flipTo(j + 1); });
           }}
         />
       )}
@@ -215,8 +251,23 @@ export function FileDrawer({ handle, pub = false }: {
         <FullCard
           card={(viewing ?? page.card)!} label={viewing ? `from @${viewing.maker?.handle ?? ''}` : page.label}
           open={full || !!viewing} onClose={() => { setFull(false); setViewing(null); }}
+          onReport={pub || readOnly ? undefined : (c) => { setFull(false); setViewing(null); setReporting(c); }}
+          onRemove={pub ? undefined : (c) => { setFull(false); setViewing(null); setRemoving(c); }}
         />
       )}
+      {/* RFC §10.24: reports and admin removal, as for posts */}
+      <AlertDialog open={!!reporting} title="Report card" confirmLabel="Report"
+        message={<>Report <strong>{reporting?.headline}</strong> to the admins? Five reports hide a card until an admin decides.</>}
+        input={{ label: 'Why (optional)', placeholder: 'Why (optional)', maxLength: 200 }}
+        onConfirm={(reason) => {
+          const c = reporting; setReporting(null);
+          if (c) void act(async () => { await api.flagFileCard(c.id, reason || undefined); setNote('Reported. An admin will look at it.'); });
+        }}
+        onCancel={() => setReporting(null)} />
+      <AlertDialog open={!!removing} title="Remove card" danger confirmLabel="Remove" focusCancel
+        message={<>Remove <strong>{removing?.headline}</strong> for good? Its photos are erased and its maker is told an admin removed it.</>}
+        onConfirm={() => { const c = removing; setRemoving(null); if (c) void act(async () => { await api.opsRemoveFileCard(c.id); setNote('Removed.'); }); }}
+        onCancel={() => setRemoving(null)} />
       <AlertDialog open={!!declining} title="Turn down" confirmLabel="Turn it down" focusCancel
         message={<>Turn down <strong>{declining?.headline}</strong>? It leaves your tray for good. @{declining?.maker?.handle} is not told.</>}
         onConfirm={() => { const c = declining; setDeclining(null); if (c) void act(() => api.declineFileCard(c.id)); }}
@@ -248,6 +299,7 @@ function Sheet({ page, canEdit, mine, spare, tray, owner, onOpen, onMake, onPlac
           </span>
           <span className="file-card-text">{c.description || <span className="muted">No description.</span>}</span>
         </span>
+        {c.hidden && <span className="error">Hidden after reports: other members cannot see this card until an admin decides.</span>}
         <span className="file-card-foot ui">
           {page.side === 'gift' && c.maker ? `Made by @${c.maker.handle} · ` : ''}Tap to open
         </span>
@@ -325,7 +377,11 @@ function PageTools({ page, onLabel, onEdit, onTakeOff, onDelete, onMove }: {
 }
 
 /** The card, full screen: headline, the carousel, the description. */
-function FullCard({ card, label, open, onClose }: { card: FileCard; label: string; open: boolean; onClose: () => void }) {
+function FullCard({ card, label, open, onClose, onReport, onRemove }: {
+  card: FileCard; label: string; open: boolean; onClose: () => void;
+  /** offered when the viewer may report this card / is an admin who may remove it */
+  onReport?: (c: FileCard) => void; onRemove?: (c: FileCard) => void;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
   const strip = useRef<HTMLDivElement>(null);
   const id = useId();
@@ -387,6 +443,13 @@ function FullCard({ card, label, open, onClose }: { card: FileCard; label: strin
           <div className="file-full-text">
             {card.description ? <p>{card.description}</p> : <p className="muted">No description.</p>}
             {card.maker && !card.own && <p className="meta">Made by @{card.maker.handle}</p>}
+            {card.hidden && <p className="error">Hidden after reports. Only its owner, its maker and admins see it until an admin decides.</p>}
+            {((card.canReport && onReport) || (card.canModerate && onRemove)) && (
+              <p className="row file-full-acts">
+                {card.canReport && onReport && <button type="button" className="link-btn" onClick={() => onReport(card)}>Report</button>}
+                {card.canModerate && onRemove && <button type="button" className="link-btn danger-text" onClick={() => onRemove(card)}>Remove (admin)</button>}
+              </p>
+            )}
           </div>
         </div>
       </div>

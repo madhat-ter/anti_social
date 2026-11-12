@@ -10,7 +10,7 @@ import { Avatar } from '@/components/Avatar';
 import { AlertIcon, Dot } from '@/components/retro';
 
 /** System notices that need action get the warning triangle; good news gets the red dot. */
-const WARNINGS = new Set(['pin_locked', 'pin_blocked', 'pin_reset_code', 'lurker_warning', 'seat_offer_expired', 'payment_refunded', 'event_cancelled', 'post_removed', 'project_removed', 'consult_removed', 'consult_switched_off', 'consult_not_approved']);
+const WARNINGS = new Set(['pin_locked', 'pin_blocked', 'pin_reset_code', 'lurker_warning', 'seat_offer_expired', 'payment_refunded', 'event_cancelled', 'post_removed', 'project_removed', 'file_card_removed', 'consult_removed', 'consult_switched_off', 'consult_not_approved']);
 
 export default function NotificationsPage() {
   useTitle('Notifications');
@@ -28,6 +28,7 @@ function describe(n: Notification): string {
   if (n.kind === 'invitee_first_post') return `${who}, whom you invited, wrote their first post. Say hello?`;
   // RFC §10.24: the File
   if (n.kind === 'file_card_received') return `${who} made a card for your File${n.cardTitle ? `: "${n.cardTitle}"` : ''}. It is waiting for your yes.`;
+  if (n.kind === 'file_card_removed') return n.cardTitle ? `An admin removed a card you made: "${n.cardTitle}".` : 'An admin removed a card you made.';
   if (n.kind === 'file_card_placed') return `${who} put your card${n.cardTitle ? ` "${n.cardTitle}"` : ''} in their File.`;
   if (n.kind === 'activated') return 'You have a seat. Welcome in.';
   if (n.kind === 'seat_offered') return 'A seat opened up for you. Reinstate within 72 hours to keep it.';
@@ -146,7 +147,7 @@ function Notifications({ myHandle }: { myHandle: string }) {
               : n.kind === 'consult_switched_off' || n.kind === 'consult_approved' || n.kind === 'consult_not_approved' ? '/consultations?tab=offer'
               : n.kind === 'collab_finished' && n.draftId ? `/u/${myHandle}/work/${n.draftId}/edit`
               : n.kind === 'checklist_reminder' ? '/'
-              : n.kind === 'file_card_received' ? '/file'
+              : n.kind === 'file_card_received' || n.kind === 'file_card_removed' ? '/file'
               : n.kind === 'file_card_placed' ? (n.actor ? `/file/${n.actor.handle}` : '/file')
               : n.kind.startsWith('pin_') ? '/settings#pin'
               : n.kind === 'verified' ? '/settings#contact'

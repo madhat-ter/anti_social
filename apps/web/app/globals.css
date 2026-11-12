@@ -1898,8 +1898,43 @@ label.label-row { flex-direction: row; align-items: baseline; gap: .4rem; }
   .file-card-body { grid-template-columns: minmax(0, 1fr); }
   .file-card-text { -webkit-line-clamp: 4; }
   .file-sheet { padding-inline: .7rem; }
-}/* RFC §10.24: the File button beside the bell (phones), and the public share page */
+}/* the front tabs stay in front of a page while it flips */
+.file-front { z-index: 1; }
+/* RFC §10.24: the File button beside the bell (phones), and the public share page */
 .top-actions { gap: .5rem; }
 .file-pub-h { display: flex; align-items: center; gap: .7rem; }
 .file-public { max-width: 40rem; margin: 0 auto; width: 100%; }
 .file-public-foot { text-align: center; }
+/* RFC §10.24: flipping between pages, like a card file. The wrapper gives the depth; the leaving
+   page and the arriving one hinge on their bottom edge. Back: the open page tips toward you and
+   falls away, the one behind it settles. Front: the new page swings up from lying toward you.
+   It still plays with animations turned off (as the cassette reels do), just quicker. */
+.file-sheet-wrap { position: relative; perspective: 1500px; perspective-origin: 50% 120%; }
+.file-leaf-out { position: absolute; inset: 0 0 auto 0; height: 100%; overflow: hidden; pointer-events: none;
+  transform-origin: 50% 100%; z-index: 1; backface-visibility: hidden; }
+.file-leaf-in { position: relative; transform-origin: 50% 100%; backface-visibility: hidden; }
+.flip-back .file-leaf-out { z-index: 3; animation: file-fall-fwd .52s cubic-bezier(.5, 0, .75, .4) forwards; }
+.flip-back .file-leaf-in { animation: file-settle .52s ease-out; }
+.flip-front .file-leaf-in { z-index: 3; animation: file-rise-up .52s cubic-bezier(.2, .7, .3, 1); }
+.flip-front .file-leaf-out { animation: file-lean-back .52s ease-in forwards; }
+@keyframes file-fall-fwd {
+  0%   { transform: rotateX(0deg); box-shadow: 0 0 0 transparent; }
+  70%  { opacity: 1; }
+  100% { transform: rotateX(-86deg); opacity: 0; box-shadow: 0 -18px 30px rgba(0, 0, 0, .25); }
+}
+@keyframes file-settle {
+  0%   { transform: rotateX(9deg); filter: brightness(.94); }
+  100% { transform: rotateX(0deg); filter: none; }
+}
+@keyframes file-rise-up {
+  0%   { transform: rotateX(-84deg); opacity: .3; }
+  25%  { opacity: 1; }
+  100% { transform: rotateX(0deg); }
+}
+@keyframes file-lean-back {
+  0%   { transform: rotateX(0deg); opacity: 1; }
+  100% { transform: rotateX(12deg); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flip-back .file-leaf-out, .flip-back .file-leaf-in, .flip-front .file-leaf-in, .flip-front .file-leaf-out { animation-duration: .42s; }
+}

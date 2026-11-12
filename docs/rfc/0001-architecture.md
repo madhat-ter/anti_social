@@ -1483,9 +1483,20 @@ drawer. Tabs stand up at the back and the front, one page lies open, and each pa
   `GET /public/file/:handle/media/:key`, which serves a blob only if it is a photo of a card
   that File shows publicly: the owner's own placed cards, and placed gift cards with `public_ok`.
   A gift card without it is an empty, unnamed page outside.
-- **Progress.** Steps 1 (own cards and the drawer), 2 (cards made for someone) and 3 (the button,
-  the menu entry, the profile link, the share link) built 2026-11-12. Step 4 (reports, admin
-  removal) follows.
+- **Step 4, as built.** `POST /file/cards/:id/flag` (a card you can see: on a page of a File, or
+  sent to you; never your own making) into `file_card_flags` (migration 0038). Five open reports
+  hide the card from everyone but its owner, its maker and admins, and ring the admins
+  (`flag_threshold`). Admin → Reports lists "File card" with whose File it is in;
+  `POST /ops/file/cards/:id/resolve` restores or removes, `POST /ops/file/cards/:id/remove` (also
+  "Remove (admin)" on the full card) removes any placed or sent card; the maker gets
+  `file_card_removed`. A banned or gone maker's cards are not shown anywhere (they return with an
+  unban); a closed account's cards are erased (step 1).
+- **The flip** (asked for 2026-11-12, after step 3: "I want it to flip like a real file page").
+  Tapping a tab flips the page the way a card file does: to a page further back, the open page
+  tips forward on its bottom edge and falls away toward you; to one further front, the new page
+  swings up from lying toward you. CSS 3D (`perspective`, `rotateX`), about half a second; with
+  animations turned off it still flips, just quicker. Frames: `.screenshots/file/flip/`.
+- **Progress.** All four steps built 2026-11-12, and the flip.
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,
@@ -1533,6 +1544,8 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST /me/file/cards/:id/send`, `GET /me/file/made` | A (not V) | Send a card you made for someone; the cards you made for others (§10.24) |
 | `GET /me/file/tray`, `POST /me/file/tray/:id/decline` | A (not V) | Cards made for you that wait for your yes; turn one down, silently (§10.24) |
 | `GET /public/file/:handle`, `GET /public/file/:handle/media/:key` | none | A File its member shares by link, and its photos; 404 unless shared (§10.24) |
+| `POST /file/cards/:id/flag` | A (not V) | Report a card you can see (§10.24) |
+| `POST /ops/file/cards/:id/resolve`, `POST /ops/file/cards/:id/remove` | ops | Restore or remove a reported card; remove any placed or sent card (§10.24) |
 | `POST /projects/:id/flag`, `POST /ops/projects/:id/resolve` | A / O | Report a project; ops restore or remove |
 | `GET/POST /events`, `GET/PATCH/DELETE /events/:id` | A | Events |
 | `POST/DELETE /events/:id/rsvp` | A | RSVP (approve events: only accepted or invited people) |

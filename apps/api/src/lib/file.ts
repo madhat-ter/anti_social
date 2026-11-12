@@ -9,6 +9,7 @@ import { sql, type SQL } from 'drizzle-orm';
 import { rows, type Db } from '@anti/db';
 import { FILE, fileSide } from '@anti/shared';
 import { ApiError } from './errors';
+import { FLAG_HIDE_THRESHOLD } from './moderation';
 import { mediaUrl, UUID_RE } from './posts';
 import type { Storage } from './storage';
 
@@ -33,6 +34,12 @@ export type FileCard = {
   state: 'own' | 'draft' | 'sent' | 'placed';
   /** the maker allows it on the recipient's public share page */
   publicOk: boolean;
+  /** hidden after reports: only its owner, its maker and admins still see it */
+  hidden: boolean;
+  /** the viewer may report it (not their own making) */
+  canReport: boolean;
+  /** the viewer is an admin and may remove it; set by the route */
+  canModerate: boolean;
   createdAt: string; updatedAt: string;
 };
 export type FilePage = { position: number; side: 'own' | 'gift'; label: string; card: FileCard | null };
@@ -47,6 +54,8 @@ const j = <T,>(v: unknown, fallback: T): T => {
 };
 const rowsOf = <T>(res: unknown): T[] => (Array.isArray(res) ? res : (res as { rows: T[] }).rows) as T[];
 const SEEN = sql`('active', 'flagged_lurker', 'archived')`;
+/** a card made by someone who is banned or gone is not shown anywhere (it comes back if they do) */
+const MAKER_HERE = sql`(c.maker_id = c.for_id or m.id is not null)`;
 
 type CardRow = {
   id: string; maker_id: string; for_id: string; headline: string; description: string; hidden: boolean;
@@ -80,12 +89,13 @@ function toCard(r: CardRow, viewerId: string): FileCard {
     for: !own && r.fh ? { handle: r.fh, displayName: r.fd ?? r.fh, gender: r.fg } : null,
     state: own ? 'own' : page !== null ? 'placed' : r.sent ? 'sent' : 'draft',
     publicOk: !!r.public_ok,
+    hidden: !!r.hidden, canReport: !!viewerId && r.maker_id !== viewerId, canModerate: false,
     createdAt: r.created_iso, updatedAt: r.updated_iso,
   };
 }
 
 /** A member's File as this viewer may see it: all 12 pages, empty ones included. */
-export async function getFile(db: Db, viewerId: string, handle: string): Promise<FileView | null> {
+export async function getFile(db: Db, viewerId: string, handle: string, opts: { ops?: boolean } = {}): Promise<FileView | null> {
   const [o] = await rows<{ id: string; handle: string; display_name: string; gender: string | null }>(db, sql`
     select id, handle, display_name, gender::text as gender from users
      where lower(handle) = lower(${handle}) and state in ${SEEN}`);
@@ -96,8 +106,8 @@ export async function getFile(db: Db, viewerId: string, handle: string): Promise
   // a card hidden after reports stays visible to its owner and its maker only
   const cards = await rows<CardRow>(db, sql`${cardSelect}
     join file_pages p on p.card_id = c.id and p.user_id = ${o.id}::uuid
-    where c.for_id = ${o.id}::uuid
-      and (c.hidden_at is null or ${mine} or c.maker_id = ${viewerId}::uuid)`);
+    where c.for_id = ${o.id}::uuid and ${MAKER_HERE}
+      and (c.hidden_at is null or ${mine} or ${!!opts.ops} or c.maker_id = ${viewerId}::uuid)`);
   const byPage = new Map(cards.map((r) => [Number(r.page), toCard(r, viewerId)]));
   const labelAt = new Map(labels.map((l) => [Number(l.position), l.label]));
   const pages: FilePage[] = Array.from({ length: FILE.pages }, (_, position) => {
@@ -144,7 +154,7 @@ export async function getPublicFile(db: Db, handle: string): Promise<FileView | 
     select position, label from file_pages where user_id = ${o.id}::uuid`);
   const cards = await rows<CardRow>(db, sql`${cardSelect}
     join file_pages p on p.card_id = c.id and p.user_id = ${o.id}::uuid
-    where c.for_id = ${o.id}::uuid and ${PUBLIC_CARD}`);
+    where c.for_id = ${o.id}::uuid and ${PUBLIC_CARD} and ${MAKER_HERE}`);
   const byPage = new Map(cards.map((r) => {
     const c = toCard(r, '');
     return [Number(r.page), { ...c, photos: c.photos.map((p, i) => ({ ...p, url: publicMediaUrl(o.handle, j<PhotoRow[]>(r.photos, [])[i]!.key) })) }];
@@ -167,7 +177,8 @@ export async function isPublicFilePhoto(db: Db, handle: string, key: string): Pr
         join file_cards c on c.id = i.card_id
         join file_pages p on p.card_id = c.id
         join users u on u.id = p.user_id
-       where i.r2_key = ${key} and lower(u.handle) = lower(${handle})
+        left join users m on m.id = c.maker_id and m.state in ${SEEN}
+       where i.r2_key = ${key} and lower(u.handle) = lower(${handle}) and ${MAKER_HERE}
          and u.state in ('active', 'flagged_lurker') and u.file_public and ${PUBLIC_CARD}) as ok`);
   return !!r?.ok;
 }
@@ -479,6 +490,86 @@ export async function declineCard(db: Db, userId: string, id: string): Promise<v
     if (!done.length) throw new ApiError(404, 'not_found');
     await tx.execute(sql`update file_pages set card_id = null where card_id = ${id}::uuid`);
   });
+}
+// ─── Reports and admin removal (the same rules as posts and projects) ───────
+
+/**
+ * One member's report on a card. You can report a card you can see: one on a page of someone's
+ * File, or one sent to you. Never your own making. Five reports hide it (only its owner, its
+ * maker and admins still see it) and ring the admins.
+ */
+export async function flagCard(db: Db, userId: string, cardId: string, reason: string | undefined) {
+  if (!UUID_RE.test(cardId)) throw new ApiError(404, 'not_found');
+  return db.transaction(async (txx) => {
+    const tx = txx as unknown as Db;
+    const [c] = await rows<{ maker_id: string; for_id: string; hidden: boolean; placed: boolean; sent: boolean; declined: boolean }>(tx, sql`
+      select maker_id, for_id, (hidden_at is not null) as hidden, (sent_at is not null) as sent, (declined_at is not null) as declined,
+             exists (select 1 from file_pages p where p.card_id = file_cards.id) as placed
+        from file_cards where id = ${cardId}::uuid for update`);
+    const visible = !!c && (c.placed || (c.for_id === userId && c.sent && !c.declined));
+    if (!c || !visible) throw new ApiError(404, 'not_found');
+    if (c.maker_id === userId) throw new ApiError(409, 'own_card', 'You cannot report a card you made.');
+    await tx.execute(sql`
+      insert into file_card_flags (user_id, card_id, reason) values (${userId}::uuid, ${cardId}::uuid, ${reason?.trim().slice(0, 200) || null})
+      on conflict do nothing`);
+    const [n] = await rows<{ n: number }>(tx, sql`select count(*)::int as n from file_card_flags where card_id = ${cardId}::uuid and resolved_at is null`);
+    if (!c.hidden && Number(n?.n ?? 0) >= FLAG_HIDE_THRESHOLD) {
+      await tx.execute(sql`update file_cards set hidden_at = now() where id = ${cardId}::uuid`);
+      await tx.execute(sql`
+        insert into notifications (user_id, kind, payload)
+        select id, 'flag_threshold', ${JSON.stringify({ cardId })}::jsonb from users where role = 'ops' and state <> 'deleted'`);
+    }
+    return { flagged: true as const };
+  });
+}
+
+/** A moderator removes a card (inside the caller's transaction): it and its photos go for good, its maker is told. */
+async function moderatorDeleteCard(tx: Db, c: { id: string; maker_id: string; headline: string }, actorId: string | null): Promise<string[]> {
+  const keys = await rows<{ r2_key: string }>(tx, sql`delete from file_card_photos where card_id = ${c.id}::uuid returning r2_key`);
+  if (c.maker_id !== actorId) {
+    await tx.execute(sql`insert into notifications (user_id, kind, payload)
+      values (${c.maker_id}::uuid, 'file_card_removed', ${JSON.stringify({ cardId: c.id, title: c.headline })}::jsonb)`);
+  }
+  await tx.execute(sql`delete from file_cards where id = ${c.id}::uuid`);
+  return keys.map((k) => k.r2_key);
+}
+
+/** 'restored': unhide, close the reports. 'removed': the card goes. */
+export async function resolveCardFlags(db: Db, storage: Storage, cardId: string, resolution: 'restored' | 'removed') {
+  if (!UUID_RE.test(cardId)) throw new ApiError(404, 'not_found');
+  const keys = await db.transaction(async (txx) => {
+    const tx = txx as unknown as Db;
+    const [c] = await rows<{ id: string; maker_id: string; headline: string }>(tx, sql`
+      select id, maker_id, headline from file_cards where id = ${cardId}::uuid for update`);
+    if (!c) throw new ApiError(404, 'not_found');
+    const closed = await rows(tx, sql`
+      update file_card_flags set resolved_at = now(), resolution = ${resolution}
+       where card_id = ${cardId}::uuid and resolved_at is null returning 1`);
+    if (!closed.length) throw new ApiError(409, 'no_open_flags', 'This card has no open reports.');
+    if (resolution === 'restored') {
+      await tx.execute(sql`update file_cards set hidden_at = null where id = ${cardId}::uuid`);
+      return [] as string[];
+    }
+    return moderatorDeleteCard(tx, c, null);
+  });
+  await removeBlobs(storage, keys);
+  return { resolution };
+}
+
+/** A moderator removes any card that is in a File or was sent, reported or not. A maker's unsent draft is theirs alone: 404. */
+export async function removeCard(db: Db, storage: Storage, cardId: string, actorId: string) {
+  if (!UUID_RE.test(cardId)) throw new ApiError(404, 'not_found');
+  const keys = await db.transaction(async (txx) => {
+    const tx = txx as unknown as Db;
+    const [c] = await rows<{ id: string; maker_id: string; for_id: string; headline: string; sent: boolean; placed: boolean }>(tx, sql`
+      select id, maker_id, for_id, headline, (sent_at is not null) as sent,
+             exists (select 1 from file_pages p where p.card_id = file_cards.id) as placed
+        from file_cards where id = ${cardId}::uuid for update`);
+    if (!c || (!c.placed && !c.sent)) throw new ApiError(404, 'not_found');
+    return moderatorDeleteCard(tx, c, actorId);
+  });
+  await removeBlobs(storage, keys);
+  return { removed: true as const };
 }
 /** When an account closes: every card the member made or that was made for them goes. Returns blob keys. */
 export async function dropFile(tx: Db, userId: string): Promise<string[]> {

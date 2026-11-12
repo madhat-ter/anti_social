@@ -41,9 +41,11 @@ export const fileRoutes = (deps: Deps) => {
 
     .get('/members/:handle/file', async ({ auth, params }) => {
       const a = requireSeated(auth);
-      const file = await getFile(db, a.user.id, params.handle);
+      const ops = !a.visitor && a.user.role === 'ops';
+      const file = await getFile(db, a.user.id, params.handle, { ops });
       if (!file) throw new ApiError(404, 'not_found');
-      return file;
+      // an admin may remove any card but their own making (that one they just delete)
+      return ops ? { ...file, pages: file.pages.map((p) => (p.card ? { ...p, card: { ...p.card, canModerate: !p.card.mine } } : p)) } : file;
     })
 
     // RFC §10.24: the share link. No session: anyone with the link, if the member shares their File.
