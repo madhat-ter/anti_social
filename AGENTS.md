@@ -55,8 +55,8 @@ Vercel's proxy (a 5-minute recording made on the site is about 2.4 MB).
   (`users.consult_approved_at`). Approval sticks across pauses; losing the badge wipes it. Never
   make `consult_offers.active` alone mean "bookable" — live is `offerLive()` in
   `apps/api/src/lib/consultations.ts`.
-- **The header is the wordmark only**, plus the phone bell. Ask before
-  adding anything to `.top`.
+- **The header is the wordmark only**, plus, on phones, the File button and the bell (the owner
+  asked for the File button there, §10.24). Ask before adding anything else to `.top`.
 - **Collab is one place** (§10.21): three kinds, one Start, one "More options" fold, one join
   button, one card. Events are pages inside it (`/collab/event/<id>`); never add Events or Collabs
   back as separate tabs, and keep the old addresses forwarding. An admin's **Remove** — in Admin →
@@ -72,6 +72,9 @@ Vercel's proxy (a 5-minute recording made on the site is about 2.4 MB).
   (0 is "Me", fixed), 7–11 hold only cards other members made for them, placed by the member alone.
   A card is a headline, 1–20 photos with optional captions, a description. Never a feed item, no
   likes, not a contribution. Built in four steps; §10.24 "Progress" says which are done.
+  The share link `/f/<handle>` is the only page of a member's content open to the outside: off by
+  default, and a gift card shows there only with its maker's `public_ok`. Anything new served
+  without a session must go through `/public/…` and check `users.file_public`.
 - **Faces are procedural** (`apps/web/src/components/Avatar.tsx`, from handle + gender). Any
   change to its pick lists or roll order redraws every member's face. Ask the owner first; check
   `/dev/faces` after.

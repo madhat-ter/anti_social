@@ -10,6 +10,7 @@ import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 
 import { FILE } from '@anti/shared';
 import { api, errorMessage, IMAGE_MAX_BYTES, type FileCard, type FilePage, type FilePhoto, type FileView } from '@/lib/api';
 import { AlertDialog, Loading, Win } from './retro';
+import { Avatar } from './Avatar';
 import { ErrorNote } from './ui';
 import { useReadOnly } from './Visitor';
 
@@ -18,7 +19,11 @@ const firstName = (s: string) => s.split(/\s+/)[0] || s;
 const BACK = [1, 2, 3, 4, 5, 6, 0];
 const FRONT = [7, 8, 9, 10, 11];
 
-export function FileDrawer({ handle }: { handle: string }) {
+export function FileDrawer({ handle, pub = false }: {
+  handle: string;
+  /** the public share page: no sign-in, nothing to edit, only what was made public */
+  pub?: boolean;
+}) {
   const readOnly = useReadOnly();
   const [file, setFile] = useState<FileView | null>(null);
   const [spare, setSpare] = useState<FileCard[]>([]);
@@ -36,7 +41,7 @@ export function FileDrawer({ handle }: { handle: string }) {
 
   const load = useCallback(async () => {
     try {
-      const f = await api.file(handle);
+      const f = pub ? await api.publicFile(handle) : await api.file(handle);
       setFile(f);
       if (f.mine) {
         const [own, waiting, mine] = await Promise.all([api.myFileCards(), api.fileTray(), api.fileMade()]);
@@ -46,7 +51,7 @@ export function FileDrawer({ handle }: { handle: string }) {
       }
       setErr(null);
     } catch (e) { setErr(errorMessage(e)); }
-  }, [handle]);
+  }, [handle, pub]);
   useEffect(() => { void load(); }, [load]);
 
   /** run a change, then read the File again */
@@ -56,6 +61,7 @@ export function FileDrawer({ handle }: { handle: string }) {
     catch (e) { setErr(errorMessage(e)); }
   };
 
+  if (!file && err && pub) return <p className="file-empty">This File is not shared, or the link is wrong.</p>;
   if (!file) return err ? <ErrorNote message={err} /> : <Loading />;
   const canEdit = file.mine && !readOnly;
   const page = file.pages[open]!;
@@ -100,9 +106,12 @@ export function FileDrawer({ handle }: { handle: string }) {
   return (
     <div className="stack file-page">
       <div className="row between">
-        <h1>{who} File</h1>
+        <h1 className={pub ? 'file-pub-h' : undefined}>
+          {pub && <Avatar seed={file.owner.handle} gender={file.owner.gender} size={52} />}
+          {who} File
+        </h1>
         {canEdit && <button type="button" className="btn primary" onClick={() => setEditing({ card: null, page: null, choose: true })}>+ Make a card</button>}
-        {!file.mine && !readOnly && (
+        {!file.mine && !readOnly && !pub && (
           <button type="button" className="btn primary" onClick={() => setEditing({ card: null, page: null, forHandle: file.owner.handle })}>
             + Make a card for {firstName(file.owner.displayName)}
           </button>

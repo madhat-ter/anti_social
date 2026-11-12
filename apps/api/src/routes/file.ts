@@ -2,9 +2,11 @@ import { Elysia, t } from 'elysia';
 import type { Deps } from '../deps';
 import { ApiError } from '../lib/errors';
 import {
-  createCard, declineCard, deleteCard, getFile, listMade, listMyCards, listTray, reorderPages, sendCard, setPage, updateCard,
+  createCard, declineCard, deleteCard, getFile, getPublicFile, isPublicFilePhoto, listMade, listMyCards, listTray, reorderPages, sendCard, setPage, updateCard,
 } from '../lib/file';
+import { isValidKey } from '../lib/storage';
 import { authPlugin, requireSeated } from '../plugins/auth';
+import { mediaResponse } from './posts';
 
 /**
  * RFC §10.24, the File.
@@ -20,6 +22,9 @@ import { authPlugin, requireSeated } from '../plugins/auth';
  * GET    /me/file/made                cards you made for others
  * GET    /me/file/tray                cards others made for you, waiting for your yes
  * POST   /me/file/tray/:id/decline    turn one down (its maker is never told)
+ * The share link (no sign-in; only when the member switched it on in Settings):
+ * GET    /public/file/:handle               the File as the outside may see it
+ * GET    /public/file/:handle/media/:key    one of its photos, and nothing else
  * Photos come from POST /uploads (same pipeline as posts) and are attached by id.
  */
 export const fileRoutes = (deps: Deps) => {
@@ -39,6 +44,21 @@ export const fileRoutes = (deps: Deps) => {
       const file = await getFile(db, a.user.id, params.handle);
       if (!file) throw new ApiError(404, 'not_found');
       return file;
+    })
+
+    // RFC §10.24: the share link. No session: anyone with the link, if the member shares their File.
+    .get('/public/file/:handle', async ({ params, set }) => {
+      const file = await getPublicFile(db, params.handle);
+      if (!file) throw new ApiError(404, 'not_found');
+      set.headers['x-robots-tag'] = 'noindex';
+      return file;
+    })
+
+    .get('/public/file/:handle/media/:key', async ({ params, request }) => {
+      if (!isValidKey(params.key) || !(await isPublicFilePhoto(db, params.handle, params.key))) throw new ApiError(404, 'not_found');
+      const f = await storage.get(params.key);
+      if (!f) throw new ApiError(404, 'not_found');
+      return mediaResponse(f.bytes, f.contentType, request.headers.get('range'));
     })
 
     .get('/me/file/cards', async ({ auth }) => {

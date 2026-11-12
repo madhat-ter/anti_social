@@ -40,6 +40,8 @@ export interface Me {
   theme?: 'light' | 'dark';
   /** RFC §10.23: the home feed mixed (everyone's default) or strictly newest first */
   feedOrder?: 'mixed' | 'newest';
+  /** RFC §10.24: your File can be opened by anyone with its link */
+  filePublic?: boolean;
   /** RFC §10.8: set when "you" are a visitor on an admin's pass: an hour of reading, nothing else */
   visitor?: { expiresAt: string };
   /** RFC §10.21: the one-time "Events and Collabs are one place now" strip was closed */
@@ -577,7 +579,7 @@ const post = <T,>(p: string, b: unknown = {}) => call<T>('POST', p, b);
 
 export const api = {
   me: () => get<Me>('/me'),
-  updateMe: (b: { displayName?: string; bio?: string; gender?: Gender; birthdayPublic?: boolean; theme?: 'light' | 'dark'; feedOrder?: 'mixed' | 'newest' }) => call<Me>('PATCH', '/me', b),
+  updateMe: (b: { displayName?: string; bio?: string; gender?: Gender; birthdayPublic?: boolean; theme?: 'light' | 'dark'; feedOrder?: 'mixed' | 'newest'; filePublic?: boolean }) => call<Me>('PATCH', '/me', b),
   checklist: () => get<ChecklistState>('/me/checklist'),
   interests: () => get<{ items: Interest[] }>('/interests'),
   setInterests: (interests: string[]) => call<{ interests: string[] }>('PUT', '/me/interests', { interests }),
@@ -712,6 +714,8 @@ export const api = {
   orderProjects: (ids: string[]) => post<{ ok: true }>('/me/projects/order', { ids }),
   // RFC §10.24, the File
   file: (handle: string) => get<FileView>(`/members/${encodeURIComponent(handle)}/file`),
+  /** the share link's view: no sign-in, only what the member (and each card's maker) made public */
+  publicFile: (handle: string) => get<FileView>(`/public/file/${encodeURIComponent(handle)}`),
   myFileCards: () => get<{ items: FileCard[] }>('/me/file/cards'),
   createFileCard: (b: FileCardInput) => post<FileCard>('/me/file/cards', b),
   updateFileCard: (id: string, b: FileCardInput) => call<FileCard>('PATCH', `/me/file/cards/${encodeURIComponent(id)}`, b),

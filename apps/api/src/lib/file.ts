@@ -124,6 +124,54 @@ async function getMade(db: Db, userId: string, id: string): Promise<FileCard> {
   return toCard(r, userId);
 }
 
+// ─── The public share page ──────────────────────────────────────────────────
+
+const publicMediaUrl = (handle: string, key: string) => `/api/public/file/${encodeURIComponent(handle)}/media/${key}`;
+/** what the outside may see of a File: the owner's own placed cards, and gift cards whose maker allowed it */
+const PUBLIC_CARD = sql`c.hidden_at is null and (c.maker_id = c.for_id or c.public_ok)`;
+
+/**
+ * A member's File for someone with the link and no seat: only when the member switched sharing
+ * on. A gift card whose maker did not allow public sharing shows as an empty page. Photo
+ * addresses go through the public media route, which serves these photos and nothing else.
+ */
+export async function getPublicFile(db: Db, handle: string): Promise<FileView | null> {
+  const [o] = await rows<{ id: string; handle: string; display_name: string; gender: string | null }>(db, sql`
+    select id, handle, display_name, gender::text as gender from users
+     where lower(handle) = lower(${handle}) and state in ('active', 'flagged_lurker') and file_public`);
+  if (!o) return null;
+  const labels = await rows<{ position: number; label: string }>(db, sql`
+    select position, label from file_pages where user_id = ${o.id}::uuid`);
+  const cards = await rows<CardRow>(db, sql`${cardSelect}
+    join file_pages p on p.card_id = c.id and p.user_id = ${o.id}::uuid
+    where c.for_id = ${o.id}::uuid and ${PUBLIC_CARD}`);
+  const byPage = new Map(cards.map((r) => {
+    const c = toCard(r, '');
+    return [Number(r.page), { ...c, photos: c.photos.map((p, i) => ({ ...p, url: publicMediaUrl(o.handle, j<PhotoRow[]>(r.photos, [])[i]!.key) })) }];
+  }));
+  const labelAt = new Map(labels.map((l) => [Number(l.position), l.label]));
+  const pages: FilePage[] = Array.from({ length: FILE.pages }, (_, position) => {
+    const side = fileSide(position);
+    const card = byPage.get(position) ?? null;
+    const label = position === 0 ? FILE.meLabel : side === 'gift' ? (card?.maker?.handle ?? '') : (labelAt.get(position) ?? '');
+    return { position, side, label, card };
+  });
+  return { owner: { handle: o.handle, displayName: o.display_name, gender: o.gender }, mine: false, pages };
+}
+
+/** Is this blob a photo on a card that member shares publicly? (The public media route serves nothing else.) */
+export async function isPublicFilePhoto(db: Db, handle: string, key: string): Promise<boolean> {
+  const [r] = await rows<{ ok: boolean }>(db, sql`
+    select exists (
+      select 1 from file_card_photos i
+        join file_cards c on c.id = i.card_id
+        join file_pages p on p.card_id = c.id
+        join users u on u.id = p.user_id
+       where i.r2_key = ${key} and lower(u.handle) = lower(${handle})
+         and u.state in ('active', 'flagged_lurker') and u.file_public and ${PUBLIC_CARD}) as ok`);
+  return !!r?.ok;
+}
+
 // ─── Validation ─────────────────────────────────────────────────────────────
 
 const bad = (detail: string) => new ApiError(400, 'file_invalid', detail);

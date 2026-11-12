@@ -58,6 +58,7 @@ export function visitorUser(): SessionUser {
     theme: 'light',
     // RFC §10.23: a visitor always gets the mixed feed
     feedOrder: 'mixed',
+    filePublic: false,
   };
 }
 
@@ -74,6 +75,7 @@ export function visitorProfile(pass: VisitorPass) {
     // RFC §10.14: visitors always see the light pages
     theme: 'light' as const,
     feedOrder: 'mixed' as const,
+    filePublic: false,
     visitor: { expiresAt: pass.expiresAt.toISOString() },
   };
 }

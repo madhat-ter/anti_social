@@ -328,3 +328,50 @@ describe('cards made for someone', () => {
     expect((await maya.get('/members/maya/file')).body.pages[8]).toMatchObject({ card: null, label: '' });
   });
 });
+describe('the public share link', () => {
+  test('off by default; when on, it shows own cards and only the gift cards whose maker allowed it', async () => {
+    const w = await world();
+    const maya = await w.member('maya');
+    const theo = await w.member('theo');
+    const ines = await w.member('ines');
+    const out = w.client(); // nobody: no session at all
+    const me = await card(maya, 'Me', { page: 0 });
+    await maya.put('/me/file/pages/1', { label: 'Coffee' });
+    const yes = (await theo.post('/me/file/cards', { headline: 'Public is fine', photos: [{ id: await upload(theo) }], forHandle: 'maya', publicOk: true })).body;
+    const no = (await ines.post('/me/file/cards', { headline: 'Members only', photos: [{ id: await upload(ines) }], forHandle: 'maya' })).body;
+    await theo.post(`/me/file/cards/${yes.id}/send`);
+    await ines.post(`/me/file/cards/${no.id}/send`);
+    await maya.put('/me/file/pages/7', { cardId: yes.id });
+    await maya.put('/me/file/pages/8', { cardId: no.id });
+
+    expect((await maya.get('/me')).body.filePublic).toBe(false);
+    expect((await out.get('/public/file/maya')).status).toBe(404);
+    const key = me.photos[0].url.split('/').pop();
+    expect((await out.get(`/public/file/maya/media/${key}`)).status).toBe(404);
+
+    expect((await maya.patch('/me', { filePublic: true })).body.filePublic).toBe(true);
+    const f = (await out.get('/public/file/maya')).body;
+    expect(f.owner.handle).toBe('maya');
+    expect(f.pages.map((p: any) => p.card?.headline ?? null)).toEqual(['Me', null, null, null, null, null, null, 'Public is fine', null, null, null, null]);
+    expect(f.pages[1].label).toBe('Coffee');
+    expect(f.pages[7].label).toBe('theo');
+    expect(f.pages[8].label).toBe(''); // not even the maker's name
+    // photos open without a session, through the public address only; nothing else does
+    const url = f.pages[0].card.photos[0].url as string;
+    expect(url).toBe(`/api/public/file/maya/media/${key}`);
+    const pic = await out.raw('GET', url.replace('/api', ''));
+    expect(pic.status).toBe(200);
+    expect(pic.headers.get('content-type')).toBe('image/webp');
+    expect((await out.get(`/media/${key}`)).status).toBe(401);
+    const hidden = no.photos[0].url.split('/').pop();
+    expect((await out.get(`/public/file/maya/media/${hidden}`)).status).toBe(404);
+    const spare = await card(maya, 'Not placed');
+    expect((await out.get(`/public/file/maya/media/${spare.photos[0].url.split('/').pop()}`)).status).toBe(404);
+    // members still see everything inside
+    expect((await theo.get('/members/maya/file')).body.pages[8].card.headline).toBe('Members only');
+
+    await maya.patch('/me', { filePublic: false });
+    expect((await out.get('/public/file/maya')).status).toBe(404);
+    expect((await out.get(url.replace('/api', ''))).status).toBe(404);
+  });
+});

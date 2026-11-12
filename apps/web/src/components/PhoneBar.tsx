@@ -27,7 +27,7 @@ const ROOMS: Room[] = [
 /** pages that live behind "you" */
 const YOURS = /^\/(notifications|search|settings|admin|consultations)/;
 
-type IconName = 'feed' | 'events' | 'collabs' | 'members' | 'bell' | 'tape';
+type IconName = 'feed' | 'events' | 'collabs' | 'members' | 'bell' | 'tape' | 'file';
 /** 1-bit tab icons, drawn to match the alert triangle and the pick icons. */
 export function TabIcon({ name, size = 22 }: { name: IconName; size?: number }) {
   // the fill follows --icon-fill so a lit (ink) tab can flip it to ink and keep the lines visible
@@ -59,6 +59,11 @@ export function TabIcon({ name, size = 22 }: { name: IconName; size?: number }) 
         <circle cx="16" cy="11" r="2.2" {...s} />
         <path d="M7 19l1.6-3.2h6.8L17 19" {...s} />
       </>)}
+      {/* RFC §10.24: a folder with its tab */}
+      {name === 'file' && (<>
+        <path d="M3 20V5h7l2 3h9v12Z" {...s} />
+        <path d="M3 11h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </>)}
       {name === 'bell' && (<>
         <path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4l2-2Z" {...s} />
         <path d="M10 21h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -81,6 +86,17 @@ export function TopBell({ unread }: { unread: number }) {
       aria-label={unread > 0 ? `Notifications, ${unread > 99 ? '99+' : unread} unread` : 'Notifications'}>
       <TabIcon name="bell" />
       {unread > 0 && <span className="badge" aria-hidden="true">{unread > 99 ? '99+' : unread}</span>}
+    </Link>
+  );
+}
+
+/** RFC §10.24: your File, in the sticky header beside the bell (the owner asked for it there). */
+export function TopFile() {
+  const path = usePathname() ?? '/';
+  const on = path.startsWith('/file');
+  return (
+    <Link href="/file" className="top-bell top-file" aria-current={on ? 'page' : undefined} aria-label="Your File">
+      <TabIcon name="file" />
     </Link>
   );
 }

@@ -1474,8 +1474,18 @@ drawer. Tabs stand up at the back and the front, one page lies open, and each pa
   tray; `POST /me/file/tray/:id/decline` removes it for good, silently. The maker's list
   (`GET /me/file/made`) only ever says draft, "in their File" or "not in their File". The tick
   "they may show this card on their public share link" (`public_ok`) is set by the maker.
-- **Progress.** Steps 1 (own cards and the drawer) and 2 (cards made for someone) built 2026-11-12.
-  Steps 3 (the button, the profile link, the public page) and 4 (reports, admin removal) follow.
+- **Step 3, as built.** `TopFile` beside `TopBell` in the phone header; "File" in the side menu;
+  "Open … File" on each profile. `users.file_public` (migration 0037, `PATCH /me {filePublic}`,
+  Settings → File, with the link and a copy button). `/f/<handle>` is a server page (title,
+  description, `og:image` from the "Me" card's first photo, `robots: noindex`) around the same
+  drawer in a read-only mode; it removes the dark theme while it is open. It reads
+  `GET /public/file/:handle` (no session; 404 unless shared) and its photos come from
+  `GET /public/file/:handle/media/:key`, which serves a blob only if it is a photo of a card
+  that File shows publicly: the owner's own placed cards, and placed gift cards with `public_ok`.
+  A gift card without it is an empty, unnamed page outside.
+- **Progress.** Steps 1 (own cards and the drawer), 2 (cards made for someone) and 3 (the button,
+  the menu entry, the profile link, the share link) built 2026-11-12. Step 4 (reports, admin
+  removal) follows.
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,
@@ -1522,6 +1532,7 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `PUT /me/file/pages/:position`, `POST /me/file/pages/order` | A (not V) | Rename a page, put a card on it or take it off; reorder your pages 1–6 (§10.24) |
 | `POST /me/file/cards/:id/send`, `GET /me/file/made` | A (not V) | Send a card you made for someone; the cards you made for others (§10.24) |
 | `GET /me/file/tray`, `POST /me/file/tray/:id/decline` | A (not V) | Cards made for you that wait for your yes; turn one down, silently (§10.24) |
+| `GET /public/file/:handle`, `GET /public/file/:handle/media/:key` | none | A File its member shares by link, and its photos; 404 unless shared (§10.24) |
 | `POST /projects/:id/flag`, `POST /ops/projects/:id/resolve` | A / O | Report a project; ops restore or remove |
 | `GET/POST /events`, `GET/PATCH/DELETE /events/:id` | A | Events |
 | `POST/DELETE /events/:id/rsvp` | A | RSVP (approve events: only accepted or invited people) |

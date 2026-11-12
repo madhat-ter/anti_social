@@ -79,6 +79,8 @@ export const users = pgTable('users', {
   monologuesSeenThrough: tstz('monologues_seen_through'),
   /** RFC §10.23: 'mixed' (everyone starts here) or 'newest' (strict newest first), chosen in Settings */
   feedOrder: text('feed_order').notNull().default('mixed'),
+  /** RFC §10.24: the member's File can be opened by anyone with its link (/f/<handle>); off by default */
+  filePublic: boolean('file_public').notNull().default(false),
 }, (t) => [
   check('users_theme', sql`${t.theme} in ('light', 'dark')`),
   check('users_feed_order', sql`${t.feedOrder} in ('mixed', 'newest')`),

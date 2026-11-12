@@ -13,7 +13,7 @@ import { Loading } from './retro';
 import { Rail } from './Rail';
 import { isAdult } from './Consult';
 import { ReadOnlyProvider, VisitorPill, isVisitor, membersOnlyPath, useVisitorEnd } from './Visitor';
-import { PhoneBar, TopBell } from './PhoneBar';
+import { PhoneBar, TopBell, TopFile } from './PhoneBar';
 import { Shortcuts } from './Shortcuts';
 import { PinGate } from './Pin';
 
@@ -113,7 +113,8 @@ function NavBar({ me }: { me: Me }) {
   const phone = (
     <>
       <PhoneBar me={me} unread={unread} waiting={waiting} adult={adult} />
-      {slot && !visitor && createPortal(<TopBell unread={unread} />, slot)}
+      {/* RFC §10.24: the File button sits beside the bell */}
+      {slot && !visitor && createPortal(<><TopFile /><TopBell unread={unread} /></>, slot)}
     </>
   );
 
@@ -130,7 +131,9 @@ function NavBar({ me }: { me: Me }) {
     { href: '/members', label: 'Members', match: (p) => p === '/members' },
     { href: '/search', label: 'Search', match: (p) => p === '/search' },
     ...(visitor ? [] : [
-      { href: '/pets', label: 'Pet Corner', match: (p: string) => p.startsWith('/pets') || p.startsWith('/pet/'), cls: 'nav-drawer nav-drawer-first' },
+      // RFC §10.24: your File
+      { href: '/file', label: 'File', match: (p: string) => p.startsWith('/file'), cls: 'nav-drawer nav-drawer-first' },
+      { href: '/pets', label: 'Pet Corner', match: (p: string) => p.startsWith('/pets') || p.startsWith('/pet/'), cls: 'nav-drawer' },
       { href: '/notifications', label: 'Notifications', match: (p: string) => p === '/notifications', badge: unread, cls: 'nav-drawer' },
       { href: '/settings', label: 'Settings', match: (p: string) => p === '/settings', cls: 'nav-drawer' },
     ]),

@@ -1898,4 +1898,8 @@ label.label-row { flex-direction: row; align-items: baseline; gap: .4rem; }
   .file-card-body { grid-template-columns: minmax(0, 1fr); }
   .file-card-text { -webkit-line-clamp: 4; }
   .file-sheet { padding-inline: .7rem; }
-}
+}/* RFC §10.24: the File button beside the bell (phones), and the public share page */
+.top-actions { gap: .5rem; }
+.file-pub-h { display: flex; align-items: center; gap: .7rem; }
+.file-public { max-width: 40rem; margin: 0 auto; width: 100%; }
+.file-public-foot { text-align: center; }

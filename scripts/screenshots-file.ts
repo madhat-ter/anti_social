@@ -270,6 +270,80 @@ try {
   await shot(told.page, 'gift-page-phone', true);
   await told.ctx.close();
 
+  // ── step 3: the button beside the bell, the menu entry, the profile link, the share link
+  const nav = await open(maya, PHONE);
+  await nav.page.goto(WEB);
+  await nav.page.getByRole('button', { name: 'Got it' }).click({ timeout: 4000 }).catch(() => {});
+  const topFile = nav.page.locator('.top .top-file');
+  await topFile.waitFor();
+  must(await nav.page.locator('.top .top-bell').count() === 2, 'the header should hold the File button and the bell');
+  await shot(nav.page, 'header-file-button-phone');
+  await topFile.click();
+  await nav.page.locator('.file').waitFor();
+  must(new URL(nav.page.url()).pathname === '/file', 'the header button does not open your File');
+  await shot(nav.page, 'header-file-button-on');
+  await nav.page.goto(`${WEB}/u/theo`);
+  await nav.page.getByRole('link', { name: 'Open Theo’s File' }).waitFor();
+  await nav.page.getByRole('link', { name: 'Open Theo’s File' }).scrollIntoViewIfNeeded();
+  await shot(nav.page, 'profile-open-file');
+  await nav.ctx.close();
+
+  const desk = await open(maya, DESKTOP);
+  await desk.page.goto(WEB);
+  await desk.page.getByRole('button', { name: 'Got it' }).click({ timeout: 4000 }).catch(() => {});
+  await desk.page.locator('nav.nav').getByRole('link', { name: 'File', exact: true }).waitFor();
+  must(await desk.page.locator('.top .top-file:visible').count() === 0, 'the header button shows on a wide screen');
+  await shot(desk.page, 'menu-file-desktop');
+
+  // the share link: off by default, nothing outside
+  const outside = await browser.newContext(DESKTOP);
+  const pub = await outside.newPage();
+  pub.on('pageerror', (e) => errors.push(e.message));
+  await pub.goto(`${WEB}/f/maya`);
+  await pub.getByText('This File is not shared').waitFor();
+  await shot(pub, 'public-not-shared');
+  // Maya switches it on in Settings
+  await desk.page.goto(`${WEB}/settings#file`);
+  const share = desk.page.getByRole('checkbox', { name: 'Share my File with a link' });
+  await share.scrollIntoViewIfNeeded();
+  await share.click();
+  await desk.page.getByLabel('Your File’s link').waitFor();
+  must((await desk.page.getByLabel('Your File’s link').inputValue()).endsWith('/f/maya'), 'the link is not /f/maya');
+  await shot(desk.page, 'settings-share-file');
+  await desk.ctx.close();
+  // now anyone with the link sees it: her own cards, and Theo's only because he did not allow it → empty
+  await pub.goto(`${WEB}/f/maya`);
+  await pub.locator('.file-card').waitFor();
+  must(await pub.locator('nav.nav, .tabbar, .top-bell').count() === 0, 'the public page shows the site’s menu');
+  must(await pub.getByRole('button', { name: /Make a card/ }).count() === 0, 'the public page offers to make a card');
+  must(await pub.getByRole('tab', { name: 'theo', exact: true }).count() === 0, 'a gift card shows publicly without its maker’s yes');
+  await shot(pub, 'public-file-desktop', true);
+  // Theo allows his card outside: now it is there
+  const theirs = (await call(theo, 'GET', '/me/file/made')).items[0];
+  await call(theo, 'PATCH', `/me/file/cards/${theirs.id}`, { publicOk: true });
+  await call(maya, 'PUT', '/me/file/pages/7', { cardId: theirs.id }); // an edit needs her yes again
+  await pub.reload();
+  await pub.getByRole('tab', { name: 'theo', exact: true }).click();
+  await pub.getByText('Made by @theo').first().waitFor();
+  await shot(pub, 'public-gift-card');
+  await pub.locator('.file-card').click();
+  await pub.locator('.file-full[open] .file-car-item').first().click();
+  await pub.locator('.file-pola').waitFor();
+  must(await pub.locator('.file-pola img').evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0), 'a public photo did not load');
+  await shot(pub, 'public-polaroid');
+  // what a pasted link shows, and what search engines are told
+  const html = await (await fetch(`${WEB}/f/maya`)).text();
+  must(/<meta name="robots" content="noindex/.test(html), 'the public page does not say noindex');
+  must(/property="og:image" content="http:\/\/localhost:3100\/api\/public\/file\/maya\/media\//.test(html), 'no preview image for a pasted link');
+  must(html.includes('Maya’s File · anti'), 'no preview title');
+  await outside.close();
+  const outPhone = await browser.newContext(PHONE);
+  const pp = await outPhone.newPage();
+  await pp.goto(`${WEB}/f/maya`);
+  await pp.locator('.file-card').waitFor();
+  await shot(pp, 'public-file-phone', true);
+  await outPhone.close();
+
   // ── dark mode follows the member's choice
   await call(theo, 'PATCH', '/me', { theme: 'dark' });
   const dark = await open(theo, PHONE);

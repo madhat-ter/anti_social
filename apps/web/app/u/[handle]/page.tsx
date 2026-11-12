@@ -123,6 +123,8 @@ function Profile({ myHandle, adult }: { myHandle: string; adult: boolean }) {
         onPets={(pets) => setMember((cur) => cur ? { ...cur, pets } : cur)}
         consulting={<ConsultingSection handle={member.handle} viewerAdult={adult} />} />
       <ErrorNote message={orderErr} />
+      {/* RFC §10.24: the member's File, a drawer of cards */}
+      <p className="row"><Link className="btn" href={mine ? '/file' : `/file/${member.handle}`}>{mine ? 'Open your File' : `Open ${member.displayName.split(/\s+/)[0]}’s File`}</Link></p>
       {/* RFC §10.22: their tapes, only once there is one */}
       <MonologueShelf handle={member.handle} />
       <div className="tabs pf-tabs" role="tablist">
