@@ -74,7 +74,7 @@ Vercel's proxy (a 5-minute recording made on the site is about 2.4 MB).
   likes, not a contribution. All four steps are built (§10.24). Tabs flip the page like a real card
   file (`.file-leaf-out` / `.file-leaf-in`); keep the flip when changing the drawer.
   The share link `/f/<handle>` is the only page of a member's content open to the outside: off by
-  default, and a gift card shows there only with its maker's `public_ok`. Anything new served
+  default, switched on by the member's own tap (Share in their File, or Settings), and a gift card shows there only with its maker's `public_ok`. Anything new served
   without a session must go through `/public/…` and check `users.file_public`.
 - **Faces are procedural** (`apps/web/src/components/Avatar.tsx`, from handle + gender). Any
   change to its pick lists or roll order redraws every member's face. Ask the owner first; check

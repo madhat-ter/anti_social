@@ -46,6 +46,7 @@ export function FileDrawer({ handle, pub = false }: {
   const [reporting, setReporting] = useState<FileCard | null>(null);
   const [removing, setRemoving] = useState<FileCard | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   /**
    * The flip between pages, like a card file: going to a page further back, the open page tips
    * forward toward you and falls away; going to one further front, the new page swings up from
@@ -96,6 +97,29 @@ export function FileDrawer({ handle, pub = false }: {
   };
   const who = file.mine ? 'Your' : `${firstName(file.owner.displayName)}’s`;
 
+  /** hand the link over: the phone's share sheet where there is one, the clipboard elsewhere */
+  const hand = async () => {
+    const url = `${window.location.origin}/f/${file.owner.handle}`;
+    try {
+      if (canSheet()) { await navigator.share({ title: `${file.owner.displayName}’s File`, url }); return; }
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* the sheet was closed, or there is no clipboard: the link is on the page to copy by hand */ }
+  };
+  /** one tap from the File: switch the share link on (it is off until then) and hand it over */
+  const share = async () => {
+    setErr(null);
+    try { await api.updateMe({ filePublic: true }); setFile({ ...file, shared: true }); }
+    catch (e) { setErr(errorMessage(e)); return; }
+    await hand();
+  };
+  const stopSharing = async () => {
+    setErr(null);
+    try { await api.updateMe({ filePublic: false }); setFile({ ...file, shared: false }); }
+    catch (e) { setErr(errorMessage(e)); }
+  };
+
   if (editing) {
     return (
       <CardEditor
@@ -133,7 +157,12 @@ export function FileDrawer({ handle, pub = false }: {
           {pub && <Avatar seed={file.owner.handle} gender={file.owner.gender} size={52} />}
           {who} File
         </h1>
-        {canEdit && <button type="button" className="btn primary" onClick={() => setEditing({ card: null, page: null, choose: true })}>+ Make a card</button>}
+        {canEdit && (
+          <span className="row">
+            {!file.shared && <button type="button" className="btn" onClick={() => void share()}>Share</button>}
+            <button type="button" className="btn primary" onClick={() => setEditing({ card: null, page: null, choose: true })}>+ Make a card</button>
+          </span>
+        )}
         {!file.mine && !readOnly && !pub && (
           <button type="button" className="btn primary" onClick={() => setEditing({ card: null, page: null, forHandle: file.owner.handle })}>
             + Make a card for {firstName(file.owner.displayName)}
@@ -142,6 +171,9 @@ export function FileDrawer({ handle, pub = false }: {
       </div>
       <ErrorNote message={err} />
       {note && <p className="meta" role="status">{note}</p>}
+      {canEdit && file.shared && (
+        <ShareStrip handle={file.owner.handle} sheet={canSheet()} copied={copied} onHand={() => void hand()} onStop={() => void stopSharing()} />
+      )}
 
       {canEdit && tray.length > 0 && (
         <Win title="made_for_you" dark bodyClassName="stack">
@@ -276,6 +308,34 @@ export function FileDrawer({ handle, pub = false }: {
         message={<>Delete <strong>{deleting?.headline}</strong> and its photos? This cannot be undone.</>}
         onConfirm={() => { const c = deleting; setDeleting(null); if (c) void act(() => api.deleteFileCard(c.id)); }}
         onCancel={() => setDeleting(null)} />
+    </div>
+  );
+}
+
+/** a phone or tablet with a share sheet; a computer copies the link instead */
+const canSheet = () => typeof navigator !== 'undefined' && typeof navigator.share === 'function'
+  && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+
+/**
+ * RFC §10.24: the share link, in the File itself. Shown to the member while the link is on: the
+ * address, one button that hands it over, a look at what the outside sees, and the way to stop.
+ */
+function ShareStrip({ handle, sheet, copied, onHand, onStop }: {
+  handle: string; sheet: boolean; copied: boolean; onHand: () => void; onStop: () => void;
+}) {
+  const [origin, setOrigin] = useState('');
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+  return (
+    <div className="file-share" role="group" aria-label="Your File’s share link">
+      <p className="small">
+        <b>Shared by link.</b> <span className="muted">Anyone who has it can open your File without signing in. A card someone made for you shows there only if they allowed it.</span>
+      </p>
+      <div className="row">
+        <input readOnly value={`${origin}/f/${handle}`} aria-label="Your File’s link" onFocus={(e) => e.currentTarget.select()} />
+        <button type="button" className="btn primary" onClick={onHand}>{sheet ? 'Share' : copied ? 'Copied' : 'Copy link'}</button>
+        <a className="btn" href={`/f/${handle}`} target="_blank" rel="noreferrer">Open it</a>
+        <button type="button" className="link-btn" onClick={onStop}>Stop sharing</button>
+      </div>
     </div>
   );
 }

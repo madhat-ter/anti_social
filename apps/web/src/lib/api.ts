@@ -293,6 +293,8 @@ export interface FilePage { position: number; side: 'own' | 'gift'; label: strin
 export interface FileView {
   owner: { handle: string; displayName: string; gender: Gender | null };
   mine: boolean; pages: FilePage[];
+  /** your own File only: is its share link switched on? */
+  shared?: boolean;
 }
 export interface FileCardInput {
   headline?: string; description?: string; photos?: { id: string; caption: string }[]; page?: number | null;

@@ -1496,7 +1496,15 @@ drawer. Tabs stand up at the back and the front, one page lies open, and each pa
   tips forward on its bottom edge and falls away toward you; to one further front, the new page
   swings up from lying toward you. CSS 3D (`perspective`, `rotateX`), about half a second; with
   animations turned off it still flips, just quicker. Frames: `.screenshots/file/flip/`.
-- **Progress.** All four steps built 2026-11-12, and the flip.
+- **Sharing from the File itself** (asked for 2026-11-12: "we need to go to settings for it, give
+  the option in the file section"). The member's own File has a **Share** button beside
+  "+ Make a card". One tap switches the link on and hands it over: the phone's share sheet where
+  there is one, the clipboard on a computer. While the link is on, a strip under the heading shows
+  the address, Share / Copy link, "Open it" and "Stop sharing" (one tap, no question: it can be
+  switched back on). The link is still off until the member taps; the Settings switch stays and
+  does the same thing. `GET /members/:handle/file` tells the member alone whether it is on
+  (`shared`). Screenshots: `scripts/screenshots-file-share.ts`.
+- **Progress.** All four steps built 2026-11-12, and the flip, and sharing from the File.
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops,

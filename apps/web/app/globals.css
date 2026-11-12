@@ -1905,6 +1905,9 @@ label.label-row { flex-direction: row; align-items: baseline; gap: .4rem; }
 .file-pub-h { display: flex; align-items: center; gap: .7rem; }
 .file-public { max-width: 40rem; margin: 0 auto; width: 100%; }
 .file-public-foot { text-align: center; }
+/* the share link, offered in the File itself while it is on */
+.file-share { border: 1px dashed var(--line); padding: .7rem .8rem; display: grid; gap: .5rem; }
+.file-share input { flex: 1 1 12rem; min-width: 0; }
 /* RFC §10.24: flipping between pages, like a card file. The wrapper gives the depth; the leaving
    page and the arriving one hinge on their bottom edge. Back: the open page tips toward you and
    falls away, the one behind it settles. Front: the new page swings up from lying toward you.

@@ -349,7 +349,11 @@ describe('the public share link', () => {
     const key = me.photos[0].url.split('/').pop();
     expect((await out.get(`/public/file/maya/media/${key}`)).status).toBe(404);
 
+    // the File tells its member (and nobody else) whether the link is on, so it can offer sharing itself
+    expect((await maya.get('/members/maya/file')).body.shared).toBe(false);
     expect((await maya.patch('/me', { filePublic: true })).body.filePublic).toBe(true);
+    expect((await maya.get('/members/maya/file')).body.shared).toBe(true);
+    expect('shared' in (await theo.get('/members/maya/file')).body).toBe(false);
     const f = (await out.get('/public/file/maya')).body;
     expect(f.owner.handle).toBe('maya');
     expect(f.pages.map((p: any) => p.card?.headline ?? null)).toEqual(['Me', null, null, null, null, null, null, 'Public is fine', null, null, null, null]);

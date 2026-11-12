@@ -43,7 +43,11 @@ export type FileCard = {
   createdAt: string; updatedAt: string;
 };
 export type FilePage = { position: number; side: 'own' | 'gift'; label: string; card: FileCard | null };
-export type FileView = { owner: Person; mine: boolean; pages: FilePage[] };
+export type FileView = {
+  owner: Person; mine: boolean; pages: FilePage[];
+  /** your own File only: is its share link (`/f/<handle>`) switched on? */
+  shared?: boolean;
+};
 export type PhotoInput = { id: string; caption?: string };
 
 const iso = (col: SQL) => sql`to_char(${col} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
@@ -96,8 +100,8 @@ function toCard(r: CardRow, viewerId: string): FileCard {
 
 /** A member's File as this viewer may see it: all 12 pages, empty ones included. */
 export async function getFile(db: Db, viewerId: string, handle: string, opts: { ops?: boolean } = {}): Promise<FileView | null> {
-  const [o] = await rows<{ id: string; handle: string; display_name: string; gender: string | null }>(db, sql`
-    select id, handle, display_name, gender::text as gender from users
+  const [o] = await rows<{ id: string; handle: string; display_name: string; gender: string | null; file_public: boolean }>(db, sql`
+    select id, handle, display_name, gender::text as gender, file_public from users
      where lower(handle) = lower(${handle}) and state in ${SEEN}`);
   if (!o) return null;
   const mine = o.id === viewerId;
@@ -117,7 +121,8 @@ export async function getFile(db: Db, viewerId: string, handle: string, opts: { 
     const label = position === 0 ? FILE.meLabel : side === 'gift' ? (card?.maker?.handle ?? '') : (labelAt.get(position) ?? '');
     return { position, side, label, card };
   });
-  return { owner: { handle: o.handle, displayName: o.display_name, gender: o.gender }, mine, pages };
+  // only the member is told whether their share link is on (so the File can offer it in one tap)
+  return { owner: { handle: o.handle, displayName: o.display_name, gender: o.gender }, mine, pages, ...(mine ? { shared: !!o.file_public } : {}) };
 }
 
 /** Your own cards (the ones you made for yourself), newest first; `page` says where each sits. */
