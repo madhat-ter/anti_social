@@ -1387,7 +1387,8 @@ input[type=search]::-webkit-search-cancel-button {
   }
   .composer.collapsible:not(.open) .composer-text textarea { padding-right: 6.5rem; }
   /* "0/1500" says nothing and pushed Post onto a second line beside + Image and Record */
-  .composer-bar .counter.empty { display: none; }
+  /* (not `.empty`: that is the dashed "nothing here" box, and it drew a square round the count) */
+  .composer-bar .counter.zero { display: none; }
 
   .watch-strip { font-size: .98rem; }
 }

@@ -249,7 +249,7 @@ export function Composer({
         )}
         <span className="grow" />
         {savedDraft && body.trim() && <span className="counter" role="status">Draft saved</span>}
-        <span id={`${id}-count`} className={`counter${over ? ' over' : ''}${body.length === 0 ? ' empty' : ''}`} aria-live="polite">
+        <span id={`${id}-count`} className={`counter${over ? ' over' : ''}${body.length === 0 ? ' zero' : ''}`} aria-live="polite">
           {body.length}/{POST_MAX}
         </span>
         <button className="btn primary" type="submit" disabled={!canPost} title={hasFailed ? 'Failed uploads are skipped' : 'Ctrl/Cmd+Enter'}>
