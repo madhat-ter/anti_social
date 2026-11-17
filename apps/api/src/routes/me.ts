@@ -13,6 +13,8 @@ import { checkAbout, checkBirthday, closeAccount } from '../lib/account';
 import { checkEmail, checkPhone, contactEnabled, hasContact, openContact, saveContact, setupComplete } from '../lib/contact';
 import type { Db } from '@anti/db';
 import { interestsOf } from './interests';
+import { changePin } from '../lib/pin';
+import { hit } from '../lib/ratelimit';
 
 /** Queue standing. `priority` 'reinstating' = former member (seat is offered, paid); 'new' = invitee (seated free). */
 type Waitlist = { position: number; total: number; priority: 'reinstating' | 'new'; offeredUntil: string | null };
@@ -85,17 +87,32 @@ export const meRoutes = (deps: Deps) => {
       contact: hasContact(u) ? { phone: openContact(u.contactPhoneEnc), email: openContact(u.contactEmailEnc), updatedAt: iso(u.contactUpdatedAt) } : null,
       verifiedAt: iso(u.verifiedAt),
       interests: await interestsOf(db, u.id),
+      // RFC §10.13: members who joined with a passkey are asked to choose a PIN
+      pinSet: !!u.pinHash,
+      theme: u.theme === 'dark' ? 'dark' as const : 'light' as const,
+      // RFC §10.23: how the home feed is ordered for this member
+      feedOrder: u.feedOrder === 'newest' ? 'newest' as const : 'mixed' as const,
+      // RFC §10.24: the File's share link is on
+      filePublic: !!u.filePublic,
+      // RFC §10.21: members from before see the one-time "Events and Collabs are one place now" strip
+      collabIntroSeen: u.collabIntroSeenAt !== null,
     };
   }
 
   return new Elysia({ prefix: '/me' })
     .use(authPlugin(deps))
     .get('/', ({ auth }) => profile(requireUser(auth).user.id))
+    // RFC §10.13: choose or change the PIN; with one set, the current PIN is needed. Other devices are signed out.
+    .put('/pin', async ({ auth, body }) => {
+      const a = requireUser(auth);
+      await hit(db, 'pinGuess', a.user.id);
+      return changePin(db, a.user.id, a.tokenHash, body.pin, body.currentPin);
+    }, { body: t.Object({ pin: t.String({ maxLength: 12 }), currentPin: t.Optional(t.String({ maxLength: 12 })) }) })
     .patch(
       '/',
       async ({ auth, body }) => {
         const a = requireUser(auth);
-        const patch: { displayName?: string; bio?: string; gender?: (typeof GENDERS)[number]; birthdayPublic?: boolean } = {};
+        const patch: { displayName?: string; bio?: string; gender?: (typeof GENDERS)[number]; birthdayPublic?: boolean; theme?: 'light' | 'dark'; feedOrder?: 'mixed' | 'newest'; filePublic?: boolean } = {};
         if (body.displayName !== undefined) {
           const d = body.displayName.trim();
           if (d.length < 1 || d.length > DISPLAY_NAME_MAX) {
@@ -107,6 +124,12 @@ export const meRoutes = (deps: Deps) => {
         // gender can change any time (the face redraws); the birthday cannot (admins can correct it)
         if (body.gender !== undefined) patch.gender = body.gender;
         if (body.birthdayPublic !== undefined) patch.birthdayPublic = body.birthdayPublic;
+        // RFC §10.14: light or dark, on the account so it follows the member to every device
+        if (body.theme !== undefined) patch.theme = body.theme;
+        // RFC §10.23: mixed or newest first, on the account like the theme
+        if (body.feedOrder !== undefined) patch.feedOrder = body.feedOrder;
+        // RFC §10.24: share the File outside anti by a link, or stop
+        if (body.filePublic !== undefined) patch.filePublic = body.filePublic;
         if (Object.keys(patch).length) await db.update(users).set(patch).where(eq(users.id, a.user.id));
         return profile(a.user.id);
       },
@@ -114,6 +137,9 @@ export const meRoutes = (deps: Deps) => {
         body: t.Object({
           displayName: t.Optional(t.String({ maxLength: 200 })), bio: t.Optional(t.String({ maxLength: 160 })),
           gender: t.Optional(genderSchema), birthdayPublic: t.Optional(t.Boolean()),
+          theme: t.Optional(t.Union([t.Literal('light'), t.Literal('dark')])),
+          feedOrder: t.Optional(t.Union([t.Literal('mixed'), t.Literal('newest')])),
+          filePublic: t.Optional(t.Boolean()),
         }),
       },
     )
@@ -155,6 +181,13 @@ export const meRoutes = (deps: Deps) => {
       const a = requireSeated(auth);
       await db.update(users).set({ checklistDismissedAt: new Date() }).where(eq(users.id, a.user.id));
       return { dismissed: true };
+    })
+
+    /** RFC §10.21: closing the one-time "Events and Collabs are one place now" strip. */
+    .post('/collab-intro/dismiss', async ({ auth }) => {
+      const a = requireSeated(auth);
+      await db.update(users).set({ collabIntroSeenAt: new Date() }).where(eq(users.id, a.user.id));
+      return { seen: true };
     })
 
     // What the setup page starts from: whatever is already there (an About written earlier).
@@ -252,7 +285,9 @@ export const meRoutes = (deps: Deps) => {
         await tx.execute(sql`select id from users where id = ${a.user.id}::uuid for update`);
         const mine = await tx.select({ id: passkeys.id }).from(passkeys).where(eq(passkeys.userId, a.user.id));
         if (!mine.some((p) => p.id === params.id)) throw new ApiError(404, 'not_found');
-        if (mine.length <= 1) throw new ApiError(409, 'last_passkey', 'You cannot remove your only passkey.');
+        // with a PIN (RFC §10.13) a passkey is an extra, so the last one can go; without, it is the only way in
+        const pinSet = await scalar<boolean>(tx as never, sql`select pin_hash is not null from users where id = ${a.user.id}::uuid`);
+        if (mine.length <= 1 && !pinSet) throw new ApiError(409, 'last_passkey', 'Choose a PIN first: this passkey is your only way in.');
         await tx.delete(passkeys).where(and(eq(passkeys.id, params.id), eq(passkeys.userId, a.user.id)));
       });
       return { ok: true };

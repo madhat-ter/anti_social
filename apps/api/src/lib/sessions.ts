@@ -4,6 +4,7 @@ import { RULES } from '@anti/shared';
 import { randomToken, sha256Hex } from './crypto';
 
 export type SessionUser = typeof users.$inferSelect;
+/** Who is asking: a member's row and the session they signed in with. */
 export type Auth = { user: SessionUser; tokenHash: string };
 
 const DAY = 86_400_000;

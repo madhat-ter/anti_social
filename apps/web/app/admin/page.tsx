@@ -2,7 +2,9 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { NameMarks } from '@/components/Marks';
-import { api, ApiError, errorMessage, type AdminContact, type AdminInterest, type AdminMember, type AdminSettings, type FlagItem, type Me, type OpsConsultation, type OpsConsultationDetail } from '@/lib/api';
+import { ActionMenu } from '@/components/ActionMenu';
+import { api, ApiError, errorMessage, type AdminCollabItem, type AdminContact, type AdminInterest, type AdminMember, type AdminSettings, type ConsultAsk, type FlagItem, type Me, type OpsConsultation, type OpsConsultationDetail, type Pick, type SeatRequestInfo } from '@/lib/api';
+import { minutesLabel, priceLabel } from '@/components/Consult';
 import { fmtDate, relativeTime, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { CopyButton, ErrorNote } from '@/components/ui';
@@ -24,14 +26,173 @@ function Admin({ me }: { me: Me }) {
   return (
     <>
       <h1>Admin</h1>
+      <NeedsYou />
+      {/* RFC §10.20: what waits on an admin comes first; the same row of section links as Settings */}
+      <nav className="panel-index" aria-label="Sections">
+        <a href="#reports">Reports</a>
+        <a href="#seat-requests">Seat requests</a>
+        <a href="#consulting">Consulting</a>
+        <a href="#members">Members</a>
+        <a href="#collab">Collab</a>
+        <a href="#invites">Invite codes</a>
+        <a href="#picks">Picks</a>
+        <a href="#consultations">Consultations</a>
+        <a href="#community">Community</a>
+      </nav>
       <Win title="Moderator panel" className="panel" bodyClassName="panel-body">
-        <Invites />
         <Reports />
+        <SeatRequests />
+        <ConsultAsks />
         <Members me={me} />
+        <CollabAdmin />
+        <Invites />
+        <Picks />
         <Consultations />
         <Community />
       </Win>
     </>
+  );
+}
+
+/** the sections tell this box how many things are left in them, after every load */
+const NEEDS_EVENT = 'anti:admin-needs';
+type Need = 'reports' | 'consulting' | 'seats';
+function tellNeeds(what: Need, n: number) {
+  window.dispatchEvent(new CustomEvent(NEEDS_EVENT, { detail: { what, n } }));
+}
+
+/** RFC §10.20: one line per kind of thing that waits on an admin, each a jump to its section. */
+function NeedsYou() {
+  const [n, setN] = useState<Record<Need, number | null>>({ reports: null, consulting: null, seats: null });
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ what: Need; n: number }>).detail;
+      setN((cur) => ({ ...cur, [d.what]: d.n }));
+    };
+    window.addEventListener(NEEDS_EVENT, on);
+    return () => window.removeEventListener(NEEDS_EVENT, on);
+  }, []);
+  if (n.reports === null || n.consulting === null || n.seats === null) return null;
+  const lines = [
+    n.reports > 0 && <a key="r" href="#reports">{n.reports} {n.reports === 1 ? 'report' : 'reports'} to decide</a>,
+    n.seats > 0 && <a key="s" href="#seat-requests">{n.seats} {n.seats === 1 ? 'person' : 'people'} asking for a seat</a>,
+    n.consulting > 0 && <a key="c" href="#consulting">{n.consulting} consulting {n.consulting === 1 ? 'offer' : 'offers'} waiting for a yes</a>,
+  ].filter(Boolean);
+  return (
+    <section className={lines.length ? 'banner needs-you' : 'meta needs-you'} aria-label="Needs you" role="status">
+      {lines.length
+        ? <><strong>Needs you:</strong>{' '}{lines.map((l, i) => <span key={i}>{i > 0 && ' · '}{l}</span>)}</>
+        : <>Nothing is waiting on you.</>}
+    </section>
+  );
+}
+
+/** RFC §10.4: every pick in the rotation, and a way to remove any of them. */
+function Picks() {
+  const [items, setItems] = useState<Pick[] | null>(null);
+  const [ask, setAsk] = useState<Pick | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const load = useCallback(() => {
+    api.opsPicks().then((r) => setItems(r.items), (e) => setErr(errorMessage(e)));
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  async function remove(p: Pick) {
+    try { await api.opsRemovePick(p.id); await load(); }
+    catch (e) { setErr(errorMessage(e)); }
+  }
+  return (
+    <section className="panel-sec" aria-labelledby="adm-picks" id="picks">
+      <h2 id="adm-picks">Picks</h2>
+      <p className="muted small">Everything suggested for the pick window. Removing one takes it out of the rotation for everyone; the author is told.</p>
+      <ErrorNote message={err} />
+      {items === null ? <Loading /> : items.length === 0 ? <p className="muted">No picks yet.</p> : (
+        <ul className="list">
+          {items.map((p) => (
+            <li key={p.id}>
+              <span className="grow">
+                <span className="tag">{p.kind}</span>{' '}
+                <strong>{p.title}</strong>
+                {p.author && <> · <Link href={`/u/${p.author.handle}`}>@{p.author.handle}</Link></>}
+                <span className="muted small"> · score {p.up - p.down} · {p.remarkCount} {p.remarkCount === 1 ? 'remark' : 'remarks'}</span>
+              </span>
+              <button type="button" className="btn" onClick={() => setAsk(p)}>Remove</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <AlertDialog
+        open={ask !== null}
+        title="Remove pick"
+        message={ask ? <>Remove <strong>{ask.title}</strong> from the rotation? {ask.author ? `@${ask.author.handle} is told.` : ''} This cannot be undone.</> : ''}
+        confirmLabel="Remove"
+        danger
+        onConfirm={() => { const p = ask; setAsk(null); if (p) void remove(p); }}
+        onCancel={() => setAsk(null)}
+      />
+    </section>
+  );
+}
+
+/**
+ * RFC §10.21: every event, activity and project in one list, with the admin's wipe. This is the
+ * place to reach for Remove — including events, which have no other admin door.
+ */
+function CollabAdmin() {
+  const [items, setItems] = useState<AdminCollabItem[] | null>(null);
+  const [ask, setAsk] = useState<AdminCollabItem | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => {
+    api.opsCollab().then((r) => setItems(r.items), (e) => setErr(errorMessage(e)));
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  async function remove(it: AdminCollabItem) {
+    setBusy(true);
+    setErr(null);
+    try {
+      if (it.type === 'event') await api.opsRemoveEvent(it.id);
+      else await api.opsRemoveCollab(it.id);
+      await load();
+    } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
+  }
+  const WORD: Record<AdminCollabItem['type'], string> = { event: 'event', activity: 'activity', project: 'project' };
+  return (
+    <section className="panel-sec" aria-labelledby="adm-collab" id="collab">
+      <h2 id="adm-collab">Collab</h2>
+      <p className="muted small">
+        Every event, activity and project, including hidden ones and team-only meetups. Removing one deletes it
+        for good — its team, requests, invites, updates and meetups go with it — and the host is told, not who.
+      </p>
+      <ErrorNote message={err} />
+      {items === null ? <Loading /> : items.length === 0 ? <p className="muted">Nothing in Collab yet.</p> : (
+        <ul className="list adm-collab">
+          {items.map((it) => (
+            <li key={`${it.type}:${it.id}`}>
+              <span className="grow">
+                <span className="tag">{WORD[it.type]}</span>{' '}
+                <Link href={it.type === 'event' ? `/collab/event/${it.id}` : `/collab/${it.id}`}><strong>{it.title}</strong></Link>
+                {it.host && <> · <Link href={`/u/${it.host}`}>@{it.host}</Link></>}
+                <span className="muted small">
+                  {it.startsAt ? ` · ${fmtDate(it.startsAt)}` : ''}
+                  {it.status ? ` · ${it.status}` : ''}
+                  {it.flagged ? ' · flagged' : ''}
+                </span>
+              </span>
+              <button type="button" className="btn danger" disabled={busy} onClick={() => setAsk(it)}>Remove</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <AlertDialog
+        open={ask !== null}
+        title={ask ? `Remove ${WORD[ask.type]}` : 'Remove'}
+        message={ask ? <>Remove <strong>{ask.title}</strong> for good? Its team, requests, invites, updates and meetups are deleted with it. This cannot be undone.{ask.host ? ` @${ask.host} is told (not who).` : ''}</> : ''}
+        confirmLabel="Remove"
+        danger
+        onConfirm={() => { const it = ask; setAsk(null); if (it) void remove(it); }}
+        onCancel={() => setAsk(null)}
+      />
+    </section>
   );
 }
 
@@ -47,7 +208,7 @@ function Invites() {
   }
 
   return (
-    <section className="panel-sec" aria-labelledby="adm-inv">
+    <section className="panel-sec" aria-labelledby="adm-inv" id="invites">
       <h2 id="adm-inv">Invite codes</h2>
       <p className="muted">Founder invites: no limit, nobody is listed as the inviter. Each code works once and lasts as many days as set under Community.</p>
       <div className="row">
@@ -74,9 +235,195 @@ function Invites() {
   );
 }
 
+/**
+ * RFC §10.25: people outside who asked for a seat from the landing page. They have no account and
+ * the site sends no mail: the admin makes an invite here and sends it by hand, to the contact the
+ * person gave. "Not now" erases the request. Whoever waited longest is on top.
+ */
+function SeatRequests() {
+  const [items, setItems] = useState<SeatRequestInfo[] | null>(null);
+  const [ask, setAsk] = useState<{ r: SeatRequestInfo; invite: boolean } | null>(null);
+  const [made, setMade] = useState<{ id: string; name: string; contact: string | null; code: string; expiresAt: string } | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [origin, setOrigin] = useState('');
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+
+  const load = useCallback(async () => {
+    try { const r = await api.opsSeatRequests(); setItems(r.items); tellNeeds('seats', r.waiting); } catch (e) { setErr(errorMessage(e)); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  async function decide(r: SeatRequestInfo, invite: boolean) {
+    setAsk(null); setErr(null); setMsg(null);
+    try {
+      if (invite) setMade(await api.opsInviteSeatRequest(r.id));
+      else { await api.opsDeclineSeatRequest(r.id); setMsg(`${r.name}’s request is erased.`); }
+      await load();
+    } catch (e) { setErr(errorMessage(e)); await load(); }
+  }
+
+  const waiting = items?.filter((r) => !r.invitedAt) ?? [];
+  const invited = items?.filter((r) => r.invitedAt) ?? [];
+  const reach = (r: { contact: string | null }) => r.contact
+    ? <><strong className="adm-seat-contact">{r.contact}</strong><CopyButton text={r.contact} label="Copy" /></>
+    : <span className="muted">(their contact cannot be opened: the contact key changed)</span>;
+
+  return (
+    <section className="panel-sec" aria-labelledby="adm-seats" id="seat-requests">
+      <h2 id="adm-seats">Seat requests</h2>
+      <p className="muted">
+        People with no invite and nobody inside to ask, who asked from the landing page. They have no account and the site sends
+        them nothing: make an invite and send it yourself, to the contact they gave. Some of them are having a hard time; a kind
+        line from you matters more than the code.
+      </p>
+      {made && (
+        <div className="stack adm-visit-made" role="status">
+          <p><strong>Send this to {made.name} yourself.</strong> The code is shown only once and expires {fmtDate(made.expiresAt)}. They enter it at {origin}/join.</p>
+          <ul className="list">
+            <li><span className="code">{made.code}</span><CopyButton text={made.code} label="Copy code" /></li>
+          </ul>
+          <span className="row adm-seat-reach">Reach them at {reach(made)}</span>
+        </div>
+      )}
+      {msg && <p role="status" className="muted">{msg}</p>}
+      <ErrorNote message={err} />
+      {items === null ? (err ? null : <Loading />) : items.length === 0 ? <p className="muted">Nobody is asking.</p> : (
+        <ul className="adm-reports adm-seats">
+          {waiting.map((r) => (
+            <li key={r.id}>
+              <span>
+                <strong>{r.name}</strong> <span className="tag hot">waiting</span>{' '}
+                <span className="muted small">asked {relativeTime(r.createdAt)} · not a member</span>
+              </span>
+              <span className="row adm-seat-reach">Reach them at {reach(r)}</span>
+              {r.note && <span className="adm-body">{r.note}</span>}
+              <span className="row adm-member-actions">
+                <button type="button" className="btn primary" onClick={() => setAsk({ r, invite: true })}>Make an invite</button>
+                <button type="button" className="btn" onClick={() => setAsk({ r, invite: false })}>Not now</button>
+              </span>
+            </li>
+          ))}
+          {invited.map((r) => (
+            <li key={r.id}>
+              <span>
+                <strong>{r.name}</strong> <span className="tag">invited</span>{' '}
+                <span className="muted small">
+                  {relativeTime(r.invitedAt!)}{r.invitedBy && <> by @{r.invitedBy}</>} · erased a month after. Lost the code? Make a new one under Invite codes.
+                </span>
+              </span>
+              <span className="row adm-seat-reach">Reach them at {reach(r)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <AlertDialog
+        open={ask?.invite === true}
+        title="Make an invite"
+        message={ask ? <>Make an invite for <strong>{ask.r.name}</strong>? You get a code to send them yourself; the site sends nothing. If the room is full when they join, they wait in the queue like anyone.</> : ''}
+        confirmLabel="Make an invite"
+        onConfirm={() => ask && void decide(ask.r, true)}
+        onCancel={() => setAsk(null)}
+      />
+      <AlertDialog
+        open={ask?.invite === false}
+        title="Not now"
+        message={ask ? <>Erase <strong>{ask.r.name}</strong>&rsquo;s request? Their contact goes with it and the site tells them nothing. If you can, write them a kind line first.</> : ''}
+        confirmLabel="Erase"
+        danger
+        onConfirm={() => ask && void decide(ask.r, false)}
+        onCancel={() => setAsk(null)}
+      />
+    </section>
+  );
+}
+
+/**
+ * RFC §10.18: members who switched their consulting offer on and are waiting for a yes. The badge
+ * is always there (only verified members can ask); the offer is shown in words so the decision
+ * needs one screen and no extra clicking.
+ */
+function ConsultAsks() {
+  const [items, setItems] = useState<ConsultAsk[] | null>(null);
+  const [ask, setAsk] = useState<{ a: ConsultAsk; approved: boolean } | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setErr(null);
+    try { const r = await api.opsConsultAsks(); setItems(r); tellNeeds('consulting', r.length); } catch (e) { setErr(errorMessage(e)); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  async function decide(a: ConsultAsk, approved: boolean) {
+    setAsk(null); setErr(null); setMsg(null);
+    try {
+      await api.opsDecideConsulting(a.handle, approved);
+      setMsg(approved ? `@${a.handle} can offer consulting. Their offer goes live when they switch it on.` : `@${a.handle}'s consulting is not approved. They are told.`);
+      await load();
+    } catch (e) { setErr(errorMessage(e)); }
+  }
+
+  return (
+    <section className="panel-sec" aria-labelledby="adm-asks" id="consulting">
+      <h2 id="adm-asks">Consulting</h2>
+      <p className="muted">
+        Members who finished setting up an offer and are waiting for a yes. Offering consulting needs the verified badge first, so everyone here has it.
+        Approving lasts: they pause and resume without asking again. A member who loses the badge loses this too.
+      </p>
+      {msg && <p role="status" className="muted">{msg}</p>}
+      <ErrorNote message={err} />
+      {items === null ? (err ? null : <Loading />) : items.length === 0 ? <p className="muted">Nobody is waiting.</p> : (
+        <ul className="list adm-asks">
+          {items.map((a) => (
+            <li key={a.handle}>
+              <Avatar seed={a.handle} gender={a.gender ?? null} size={40} />
+              <span className="adm-member-main">
+                <span>
+                  <Link href={`/u/${a.handle}`} className="name">{a.displayName}</Link>
+                  {' '}<span className="muted handle">@{a.handle}</span>
+                  <NameMarks admin={a.admin} verified={a.verified} />
+                  <span className="tag hot">waiting</span>
+                </span>
+                <span className="muted small">
+                  asked {relativeTime(a.askedAt)} · {minutesLabel(a.minutes)} · {priceLabel(a)}
+                  {!a.active && <> · <strong>their offer is paused</strong></>}
+                </span>
+                {a.description && <span className="adm-body">{a.description}</span>}
+              </span>
+              <span className="row adm-member-actions">
+                <button type="button" className="btn primary" onClick={() => setAsk({ a, approved: true })}>Approve</button>
+                <button type="button" className="btn" onClick={() => setAsk({ a, approved: false })}>Not now</button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <AlertDialog
+        open={ask?.approved === true}
+        title="Approve consulting"
+        message={ask ? <>Let <strong>@{ask.a.handle}</strong> offer consulting? Their offer ({minutesLabel(ask.a.minutes)}, {priceLabel(ask.a)}) goes live as soon as it is switched on. They are told.</> : ''}
+        confirmLabel="Approve"
+        onConfirm={() => ask && void decide(ask.a, true)}
+        onCancel={() => setAsk(null)}
+      />
+      <AlertDialog
+        open={ask?.approved === false}
+        title="Not this time"
+        message={ask ? <>Not approve <strong>@{ask.a.handle}</strong>? Their offer is switched off and they cannot switch it back on until an admin changes this. No reason is given; they are told the decision.</> : ''}
+        confirmLabel="Not this time"
+        danger
+        onConfirm={() => ask && void decide(ask.a, false)}
+        onCancel={() => setAsk(null)}
+      />
+    </section>
+  );
+}
+
 type Ask = { item: FlagItem; resolution: 'restored' | 'removed' } | null;
 const KIND_LABEL: Record<FlagItem['kind'], string> = {
   post: 'Post', project: 'Project', collab: 'Collab', consult_offer: 'Consultation offer', consultation: 'Consultation request',
+  file_card: 'File card',
 };
 
 /** A reported request in full: admins see contacts only here, to judge a report (RFC §10.6). */
@@ -88,7 +435,7 @@ function ConsultDetail({ id }: { id: string }) {
   if (!d) return <Loading />;
   return (
     <dl className="facts adm-consult">
-      <dt>Topic</dt><dd>{d.topic} · {d.status}{d.pricing && <> · {d.pricing === 'paid' ? d.priceNote ?? 'paid' : 'free'}</>}</dd>
+      <dt>State</dt><dd>{d.status}{d.pricing && <> · {d.pricing === 'paid' ? d.priceNote ?? 'paid' : 'free'}</>}</dd>
       <dt>Asked</dt><dd className="pre">{d.need}</dd>
       {d.when && <><dt>When</dt><dd>{d.when}</dd></>}
       <dt>Contacts</dt>
@@ -106,7 +453,7 @@ function Consultations() {
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { api.opsConsultations().then(setItems, (e) => setErr(errorMessage(e))); }, []);
   return (
-    <section className="panel-sec" aria-labelledby="adm-con">
+    <section className="panel-sec" aria-labelledby="adm-con" id="consultations">
       <h2 id="adm-con">Consultations</h2>
       <p className="muted">Who asked whom, and when. What they asked and their contacts stay between them unless one of them reports it.</p>
       <ErrorNote message={err} />
@@ -115,7 +462,7 @@ function Consultations() {
           {items.slice(0, 50).map((c) => (
             <li key={c.id}>
               <Link href={`/u/${c.requester.handle}`}>@{c.requester.handle}</Link> → <Link href={`/u/${c.consultant.handle}`}>@{c.consultant.handle}</Link>
-              {' '}<span className="muted small">{c.topic} · {c.status}{c.pricing ? ` · ${c.pricing}` : ''} · {relativeTime(c.createdAt)}</span>
+              {' '}<span className="muted small">{c.status}{c.pricing ? ` · ${c.pricing}` : ''} · {relativeTime(c.createdAt)}</span>
               {c.reported && <span className="tag danger">reported</span>}
             </li>
           ))}
@@ -133,7 +480,7 @@ function Reports() {
 
   const load = useCallback(async () => {
     setErr(null);
-    try { setItems(await api.opsFlags()); } catch (e) { setErr(errorMessage(e)); }
+    try { const r = await api.opsFlags(); setItems(r); tellNeeds('reports', r.length); } catch (e) { setErr(errorMessage(e)); }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -144,6 +491,7 @@ function Reports() {
       else if (a.item.kind === 'collab') await api.opsResolveCollab(a.item.collabId!, a.resolution);
       else if (a.item.kind === 'consult_offer') await api.opsResolveConsultOffer(a.item.offerHandle!, a.resolution);
       else if (a.item.kind === 'consultation') await api.opsResolveConsultation(a.item.consultationId!, a.resolution);
+      else if (a.item.kind === 'file_card') await api.opsResolveFileCard(a.item.cardId!, a.resolution);
       else await api.opsResolveProject(a.item.projectId!, a.resolution);
       await load();
     } catch (e) { setErr(errorMessage(e)); }
@@ -151,16 +499,18 @@ function Reports() {
 
   const link = (f: FlagItem) => f.kind === 'post'
     ? `/p/${f.postId}`
-    : f.kind === 'collab' ? `/collabs/${f.collabId}`
+    : f.kind === 'collab' ? `/collab/${f.collabId}`
     : f.kind === 'consult_offer' ? `/u/${f.offerHandle}`
     : f.kind === 'consultation' ? null
+    // RFC §10.24: the File it sits in (a card still in someone's tray has no page to open)
+    : f.kind === 'file_card' ? (f.fileOf ? `/file/${f.fileOf}` : null)
     : f.author ? `/u/${f.author}/work/${f.projectId}` : null;
 
   return (
-    <section className="panel-sec" aria-labelledby="adm-rep">
+    <section className="panel-sec" aria-labelledby="adm-rep" id="reports">
       <h2 id="adm-rep">Reports</h2>
       <div className="row between adm-rep-head">
-        <p className="muted">Posts, projects, collabs and consultations members reported. Five reports hide one automatically until you decide; a reported consultation request comes straight here.</p>
+        <p className="muted">Posts, projects, collabs, File cards and consultations members reported. Five reports hide one automatically until you decide; a reported consultation request comes straight here.</p>
         <button type="button" className="btn" onClick={() => void load()}>Refresh</button>
       </div>
       <ErrorNote message={err} />
@@ -169,11 +519,12 @@ function Reports() {
           {items.map((f) => {
             const href = link(f);
             return (
-              <li key={f.postId ?? f.projectId ?? f.collabId ?? f.consultationId ?? `offer:${f.offerHandle}`}>
+              <li key={f.postId ?? f.projectId ?? f.collabId ?? f.consultationId ?? f.cardId ?? `offer:${f.offerHandle}`}>
                 <span className="adm-meta">
                   <strong>{KIND_LABEL[f.kind]}</strong>
-                  {f.kind === 'collab' ? ' hosted by ' : f.kind === 'consultation' ? ' to ' : ' by '}{f.author ? <Link href={`/u/${f.author}`}>@{f.author}</Link> : 'a deleted member'}
+                  {f.kind === 'collab' ? ' hosted by ' : f.kind === 'consultation' ? ' to ' : ' by '}{f.author ? <Link href={`/u/${f.author}`}>@{f.author}</Link> : f.kind === 'file_card' ? 'someone outside anti' : 'a deleted member'}
                   {f.kind === 'consultation' && f.requester && <> from <Link href={`/u/${f.requester}`}>@{f.requester}</Link></>}
+                  {f.kind === 'file_card' && f.fileOf && f.fileOf !== f.author && <> for <Link href={`/u/${f.fileOf}`}>@{f.fileOf}</Link></>}
                   {' · '}{f.flags} report{f.flags === 1 ? '' : 's'}
                   {' · '}<time dateTime={f.firstFlaggedAt} title={fmtDate(f.firstFlaggedAt)}>{relativeTime(f.firstFlaggedAt)}</time>
                   {f.hidden && <span className="tag">hidden</span>}
@@ -232,8 +583,15 @@ function Reports() {
 const STATE_LABEL: Record<string, string> = {
   waitlisted: 'waiting for a seat', flagged_lurker: 'flagged as quiet', archived: 'archived', banned: 'banned',
 };
+/** RFC §10.18: how their consulting stands, in words an admin reads at a glance. */
+const CONSULTING_LABEL: Record<AdminMember['consulting'], string> = {
+  none: '', on: 'on', paused: 'paused', off: 'switched off by an admin',
+  waiting: 'waiting for approval', declined: 'not approved',
+};
 
 type MemberAsk = { kind: 'ban' | 'unban' | 'admin' | 'unadmin' | 'rename' | 'birthday'; m: AdminMember } | null;
+type MemberFilter = 'all' | 'seated' | 'waiting' | 'archived' | 'banned' | 'unverified' | 'consulting';
+const FILTERS: [MemberFilter, string][] = [['all', 'Everyone'], ['seated', 'Seated'], ['unverified', 'Not verified'], ['consulting', 'Consulting'], ['waiting', 'Waiting'], ['archived', 'Archived'], ['banned', 'Banned']];
 
 /** Everyone in the room (and the queue, archived and banned), with what an admin can do to each. */
 function Members({ me }: { me: Me }) {
@@ -245,8 +603,9 @@ function Members({ me }: { me: Me }) {
   /** a corrected birthday that makes someone under 13: confirm before their account is closed */
   const [underage, setUnderage] = useState<{ m: AdminMember; birthday: string; detail: string } | null>(null);
   /** RFC §10.7: work through who is not verified yet; contact details opened on request (logged) */
-  const [unverifiedOnly, setUnverifiedOnly] = useState(false);
+  const [filter, setFilter] = useState<MemberFilter>('all');
   const [contacts, setContacts] = useState<Record<string, AdminContact>>({});
+  const [pinCode, setPinCode] = useState<{ handle: string; code: string; expiresAt: string } | null>(null);
 
   const load = useCallback(async () => {
     try { setList(await api.opsMembers()); } catch (e) { setErr(errorMessage(e)); }
@@ -309,6 +668,23 @@ function Members({ me }: { me: Me }) {
     } catch (e) { setErr(errorMessage(e)); }
   }
 
+  /** RFC §10.18: the same yes and no as the Consulting queue, from the member's own row. */
+  async function decideConsulting(m: AdminMember, approved: boolean) {
+    setErr(null); setMsg(null);
+    try {
+      await api.opsDecideConsulting(m.handle, approved);
+      setMsg(approved ? `@${m.handle} can offer consulting.` : `@${m.handle}'s consulting is not approved. They are told.`);
+      await load();
+    } catch (e) { setErr(errorMessage(e)); }
+  }
+
+  /** RFC §10.13: a one-hour code to give the member in person or by phone; they are told; it is logged */
+  async function resetPin(m: AdminMember) {
+    setErr(null); setMsg(null);
+    try { const r = await api.opsPinReset(m.handle); setPinCode({ handle: m.handle, ...r }); }
+    catch (e) { setErr(errorMessage(e)); }
+  }
+
   async function showContact(m: AdminMember) {
     if (contacts[m.handle]) { setContacts((c) => { const n = { ...c }; delete n[m.handle]; return n; }); return; }
     setErr(null);
@@ -330,7 +706,19 @@ function Members({ me }: { me: Me }) {
   const term = q.trim().replace(/^@/, '').toLowerCase();
   const seatedState = (m: AdminMember) => m.state === 'active' || m.state === 'flagged_lurker';
   const unverified = (list ?? []).filter((m) => seatedState(m) && !m.verified);
-  const shown = (list ?? []).filter((m) => (!unverifiedOnly || (seatedState(m) && !m.verified)) && (!term
+  const inFilter = (m: AdminMember, f: MemberFilter) => {
+    switch (f) {
+      case 'seated': return seatedState(m);
+      case 'waiting': return m.state === 'waitlisted';
+      case 'archived': return m.state === 'archived';
+      case 'banned': return m.state === 'banned';
+      case 'unverified': return seatedState(m) && !m.verified;
+      case 'consulting': return m.consulting === 'on' || m.consulting === 'waiting';
+      default: return true;
+    }
+  };
+  const count = (f: MemberFilter) => (list ?? []).filter((m) => inFilter(m, f)).length;
+  const shown = (list ?? []).filter((m) => inFilter(m, filter) && (!term
     || m.handle.toLowerCase().includes(term) || m.displayName.toLowerCase().includes(term) || m.state.includes(term)));
   const seated = (m: AdminMember) => m.state === 'active' || m.state === 'flagged_lurker';
   const who = ask ? (ask.m.handle === me.handle ? 'yourself' : `@${ask.m.handle}`) : '';
@@ -339,10 +727,27 @@ function Members({ me }: { me: Me }) {
     <section className="panel-sec" aria-labelledby="adm-mem" id="members">
       <h2 id="adm-mem">Members</h2>
       <p className="muted">Everyone, including people waiting for a seat, archived and banned. Admins never lose their seat to the activity rules.</p>
-      <input type="search" aria-label="Filter members" placeholder="Filter by handle, name or state" value={q} onChange={(e) => setQ(e.target.value)} />
-      <label className="check"><input type="checkbox" checked={unverifiedOnly} onChange={(e) => setUnverifiedOnly(e.target.checked)} /> Not verified yet ({unverified.length})</label>
+      <input type="search" aria-label="Filter members" placeholder="Filter by handle or name" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="chips adm-filters" role="group" aria-label="Show">
+        {FILTERS.map(([f, label]) => (
+          <button key={f} type="button" className={`chip${filter === f ? ' on' : ''}`} aria-pressed={filter === f} onClick={() => setFilter(f)}>
+            {label}{f === 'unverified' ? ` (${unverified.length})` : f === 'all' ? '' : ` (${count(f)})`}
+          </button>
+        ))}
+      </div>
       {msg && <p role="status" className="muted">{msg}</p>}
       <ErrorNote message={err} />
+      {pinCode && (
+        <div className="pin-reset-code" role="status">
+          <p>
+            PIN reset code for <strong>@{pinCode.handle}</strong>. Give it to them in person or on the phone, not in a post.
+            It works once, until {new Date(pinCode.expiresAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}.
+            They enter it under <em>Forgot your PIN?</em> on the sign-in page.
+          </p>
+          <p className="code" aria-label="Reset code">{pinCode.code}</p>
+          <div className="row"><CopyButton text={pinCode.code} /><button type="button" className="btn" onClick={() => setPinCode(null)}>Done</button></div>
+        </div>
+      )}
       {list === null ? <Loading /> : shown.length === 0 ? <p className="muted">Nobody matches.</p> : (
         <ul className="adm-members">
           {shown.map((m) => (
@@ -363,7 +768,7 @@ function Members({ me }: { me: Me }) {
                   {' · '}{m.lastSeenAt ? `seen ${relativeTime(m.lastSeenAt)}` : 'never seen'}
                   {' · '}{m.postCount} {m.postCount === 1 ? 'post' : 'posts'}
                   {m.age !== null && <> · age {m.age}</>}
-                  {m.consulting !== 'none' && <> · consulting {m.consulting === 'off' ? 'switched off' : m.consulting}</>}
+                  {m.consulting !== 'none' && <> · consulting {CONSULTING_LABEL[m.consulting]}</>}
                   {m.invitedBy && <> · invited by @{m.invitedBy}</>}
                   {m.verified && <> · verified {fmtDate(m.verified.at)}{m.verified.by && <> by @{m.verified.by}</>}</>}
                   {!m.hasContact && seatedState(m) && <> · no contact details yet</>}
@@ -377,26 +782,27 @@ function Members({ me }: { me: Me }) {
                   </dl>
                 )}
               </span>
+              {/* one button for the thing most likely needed now; everything else in the row's menu */}
               <span className="row adm-member-actions">
+                {seatedState(m) && !m.verified && <button type="button" className="btn primary" onClick={() => void verify(m, true)}>Verify</button>}
+                {/* RFC §10.20: a consulting request waiting on an admin is the thing to do now, so it is a button */}
+                {m.consulting === 'waiting' && <button type="button" className={m.verified ? 'btn primary' : 'btn'} onClick={() => void decideConsulting(m, true)}>Approve consulting</button>}
+                {m.state === 'banned' && <button type="button" className="btn" onClick={() => setAsk({ kind: 'unban', m })}>Unban</button>}
                 {m.hasContact && <button type="button" className="btn" onClick={() => void showContact(m)}>{contacts[m.handle] ? 'Hide contact' : 'Show contact'}</button>}
-                {seatedState(m) && (m.verified
-                  ? <button type="button" className="btn" onClick={() => void verify(m, false)}>Remove verification</button>
-                  : <button type="button" className="btn primary" onClick={() => void verify(m, true)}>Verify</button>)}
-                <button type="button" className="btn" onClick={() => setAsk({ kind: 'rename', m })}>Change handle</button>
-                <button type="button" className="btn" onClick={() => setAsk({ kind: 'birthday', m })}>Change birthday</button>
-                {m.consulting === 'off'
-                  ? <button type="button" className="btn" onClick={() => void consulting(m, true)}>Allow consulting</button>
-                  : m.consulting !== 'none' && <button type="button" className="btn" onClick={() => void consulting(m, false)}>Switch consulting off</button>}
-                {m.state === 'banned' ? (
-                  <button type="button" className="btn" onClick={() => setAsk({ kind: 'unban', m })}>Unban</button>
-                ) : m.role === 'ops' ? (
-                  <button type="button" className="btn" onClick={() => setAsk({ kind: 'unadmin', m })}>Remove admin</button>
-                ) : (
-                  <>
-                    {seated(m) && <button type="button" className="btn" onClick={() => setAsk({ kind: 'admin', m })}>Make admin</button>}
-                    <button type="button" className="btn danger" onClick={() => setAsk({ kind: 'ban', m })}>Ban</button>
-                  </>
-                )}
+                {/* the menu in groups: their account, their consulting, their role, and Ban last */}
+                <ActionMenu label={`More actions for @${m.handle}`} items={[
+                  seatedState(m) && m.verified && { label: 'Remove verification', onSelect: () => void verify(m, false) },
+                  m.handle !== me.handle && m.state !== 'banned' && { label: 'Reset PIN', onSelect: () => void resetPin(m) },
+                  { label: 'Change handle', onSelect: () => setAsk({ kind: 'rename', m }) },
+                  { label: 'Change birthday', onSelect: () => setAsk({ kind: 'birthday', m }) },
+                  m.consulting === 'waiting' && { label: 'Do not approve consulting', onSelect: () => void decideConsulting(m, false) },
+                  m.consulting === 'declined' && { label: 'Approve consulting', onSelect: () => void decideConsulting(m, true) },
+                  m.consulting === 'off' && { label: 'Allow consulting', onSelect: () => void consulting(m, true) },
+                  (m.consulting === 'on' || m.consulting === 'paused') && { label: 'Switch consulting off', onSelect: () => void consulting(m, false) },
+                  m.state !== 'banned' && m.role === 'ops' && { label: 'Remove admin', onSelect: () => setAsk({ kind: 'unadmin', m }) },
+                  m.state !== 'banned' && m.role !== 'ops' && seated(m) && { label: 'Make admin', onSelect: () => setAsk({ kind: 'admin', m }) },
+                  m.state !== 'banned' && m.role !== 'ops' && { label: 'Ban', danger: true, onSelect: () => setAsk({ kind: 'ban', m }) },
+                ]} />
               </span>
             </li>
           ))}
@@ -414,7 +820,7 @@ function Members({ me }: { me: Me }) {
       <AlertDialog
         open={ask?.kind === 'unban'}
         title="Unban member"
-        message={<>Unban <strong>{who}</strong>? They can sign in again with their passkey. They get a seat if one is free; otherwise they wait in line.</>}
+        message={<>Unban <strong>{who}</strong>? They can sign in again with their handle and PIN. They get a seat if one is free; otherwise they wait in line.</>}
         confirmLabel="Unban"
         onConfirm={() => ask && void act(ask)}
         onCancel={() => setAsk(null)}
@@ -558,7 +964,7 @@ function Community() {
   );
 
   return (
-    <section className="panel-sec" aria-labelledby="adm-room">
+    <section className="panel-sec" aria-labelledby="adm-room" id="community">
       <h2 id="adm-room">Community</h2>
       {s === null && !err ? <Loading /> : (
         <form className="stack" onSubmit={save}>

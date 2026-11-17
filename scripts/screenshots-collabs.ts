@@ -81,7 +81,7 @@ try {
   // ── M1. interests: picked in Settings, shown on the profile, and a checklist item
   const page = await browse(await browser.newContext(view), nova.jar);
   await page.goto(WEB);
-  await page.getByRole('button', { name: 'Got it' }).click();
+  await page.getByRole('button', { name: 'Got it' }).click({ timeout: 3000 }).catch(() => {}); // the rules now live at the end of setup; the welcome window only shows for members from before
   await page.getByRole('link', { name: 'Pick your interests' }).waitFor();
   await page.goto(`${WEB}/settings#interests`);
   const sec = page.locator('section[aria-labelledby=interests]');
@@ -271,8 +271,9 @@ try {
   await q("update users set role = 'ops' where handle = 'boss'");
   const river = (await ivy.call('GET', '/collabs?tab=all')).items.find((x: any) => x.title === 'Saturday river cleanup');
   await zoePage.goto(`${WEB}/collabs/${river.id}`);
-  await zoePage.getByRole('button', { name: 'Report' }).click();
-  await zoePage.getByRole('button', { name: 'Report' }).last().click();
+  await zoePage.getByRole('button', { name: /More actions for this collab/ }).click();
+  await zoePage.getByRole('menuitem', { name: 'Report' }).click();
+  await zoePage.locator('dialog[open]').getByRole('button', { name: 'Report' }).click();
   await zoePage.getByText('Reported. Thanks').waitFor();
   const bossPage = await browse(await browser.newContext(view), boss.jar);
   await bossPage.goto(`${WEB}/admin`);

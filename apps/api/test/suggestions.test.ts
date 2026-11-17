@@ -75,6 +75,30 @@ describe('picks', () => {
     expect((await maya.del(`/suggestions/${p.id}`)).status).toBe(404);
   });
 
+  test('an admin removes any pick; the author is told; members cannot', async () => {
+    const w = await world();
+    const maya = await w.member('maya');
+    const boss = await w.member('boss');
+    await w.t.db.execute(sql`update users set role = 'ops' where handle = 'boss'`);
+    const p = (await maya.post('/suggestions', { kind: 'book', title: 'Piranesi' })).body;
+
+    expect((await boss.get('/ops/suggestions')).body.items.map((x: { id: string }) => x.id)).toContain(p.id);
+    expect((await boss.del(`/ops/suggestions/${p.id}`)).body).toEqual({ ok: true });
+    expect((await maya.get('/suggestions/random')).body.item).toBeNull();
+
+    const res = (await w.t.db.execute(sql`
+      select kind, payload from notifications
+       where user_id = (select id from users where handle = 'maya') and kind = 'pick_removed'`)) as any;
+    const notes = (res.rows ?? res) as any[];
+    expect(notes.length).toBe(1);
+    expect(notes[0].payload.title).toBe('Piranesi');
+
+    // the admin door is a 404 to members
+    const q = (await maya.post('/suggestions', { kind: 'place', title: 'Lido' })).body;
+    expect((await maya.del(`/ops/suggestions/${q.id}`)).status).toBe(404);
+    expect((await maya.get('/ops/suggestions')).status).toBe(404);
+  });
+
   test("a member's picks list; picks of banned members disappear", async () => {
     const w = await world();
     const maya = await w.member('maya');

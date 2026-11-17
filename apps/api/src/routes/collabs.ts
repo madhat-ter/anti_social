@@ -2,9 +2,10 @@ import { Elysia, t } from 'elysia';
 import type { Deps } from '../deps';
 import {
   collabUpdates, createCollab, decideRequest, declineInvite, deleteCollab, getCollab, inviteMember, joinCollab, leaveCollab,
-  listCollabs, memberCollabs, removeFromTeam, setTeamRole, suggestPeople, updateCollab, withdrawRequest,
+  listCollabs, memberCollabs, removeFromTeam, setTeamRole, setTeamSlot, suggestPeople, updateCollab, withdrawRequest,
 } from '../lib/collabs';
 import { authPlugin, requireSeated } from '../plugins/auth';
+import { collabPage, memberEvents, myCollab } from '../lib/collab-page';
 
 /** Collabs (RFC §10.5). All the rules live in lib/collabs.ts; these are thin handlers. */
 export const collabRoutes = (deps: Deps) => {
@@ -13,11 +14,33 @@ export const collabRoutes = (deps: Deps) => {
   return new Elysia()
     .use(authPlugin(deps))
 
+    /** RFC §10.21: one list of events, activities and projects, newest started first. */
+    .get('/collab', async ({ auth, query }) => {
+      const a = requireSeated(auth);
+      const kind = query.kind === 'event' || query.kind === 'activity' || query.kind === 'project' ? query.kind : 'all';
+      return collabPage(db, a.user.id, {
+        kind, interest: query.interest || undefined, done: query.done === '1', cursor: query.cursor || undefined, limit: query.limit,
+      });
+    }, {
+      query: t.Object({
+        kind: t.Optional(t.String()), interest: t.Optional(t.String({ maxLength: 40 })),
+        done: t.Optional(t.String()), cursor: t.Optional(t.String()), limit: t.Optional(t.String()),
+      }),
+    })
+
+    /** The "Yours" strip: hosting, in, going, and requests waiting on you. Closed to others like all of /me. */
+    .get('/me/collab', async ({ auth }) => myCollab(db, requireSeated(auth).user.id))
+
+    .get('/members/:handle/events', async ({ auth, params }) =>
+      memberEvents(db, requireSeated(auth).user.id, params.handle),
+    { params: t.Object({ handle: t.String({ maxLength: 40 }) }) })
+
     .get('/collabs', async ({ auth, query }) => {
       const a = requireSeated(auth);
       const tab = query.tab === 'all' ? 'all' : 'for-you';
-      return { items: await listCollabs(db, a.user.id, { tab, interest: query.interest || undefined }) };
-    }, { query: t.Object({ tab: t.Optional(t.String()), interest: t.Optional(t.String({ maxLength: 40 })) }) })
+      const kind = query.kind === 'activity' || query.kind === 'project' ? query.kind : undefined;
+      return { items: await listCollabs(db, a.user.id, { tab, interest: query.interest || undefined, kind }) };
+    }, { query: t.Object({ tab: t.Optional(t.String()), interest: t.Optional(t.String({ maxLength: 40 })), kind: t.Optional(t.String()) }) })
 
     .post('/collabs', async ({ auth, body }) => {
       const a = requireSeated(auth);
@@ -33,8 +56,8 @@ export const collabRoutes = (deps: Deps) => {
     .delete('/collabs/:id', async ({ auth, params }) => deleteCollab(db, requireSeated(auth).user.id, params.id))
 
     .post('/collabs/:id/join', async ({ auth, params, body }) =>
-      joinCollab(db, requireSeated(auth).user.id, params.id, body?.note),
-    { body: t.Optional(t.Object({ note: t.Optional(t.String({ maxLength: 2000 })) })) })
+      joinCollab(db, requireSeated(auth).user.id, params.id, body?.note, body?.slot),
+    { body: t.Optional(t.Object({ note: t.Optional(t.String({ maxLength: 2000 })), slot: t.Optional(t.Union([t.String({ maxLength: 30 }), t.Null()])) })) })
 
     .delete('/collabs/:id/request', async ({ auth, params }) => withdrawRequest(db, requireSeated(auth).user.id, params.id))
 
@@ -58,6 +81,11 @@ export const collabRoutes = (deps: Deps) => {
     .post('/collabs/:id/members/:handle/role', async ({ auth, params, body }) =>
       setTeamRole(db, requireSeated(auth).user.id, params.id, params.handle, body.role),
     { params: handle, body: t.Object({ role: t.Union([t.Literal('cohost'), t.Literal('member')]) }) })
+
+    /** RFC §10.21: a project role ("illustrator: @handle"), or null to free it */
+    .post('/collabs/:id/members/:handle/slot', async ({ auth, params, body }) =>
+      setTeamSlot(db, requireSeated(auth).user.id, params.id, params.handle, body.slot),
+    { params: handle, body: t.Object({ slot: t.Union([t.String({ maxLength: 30 }), t.Null()]) }) })
 
     .delete('/collabs/:id/members/:handle', async ({ auth, params }) =>
       removeFromTeam(db, requireSeated(auth).user.id, params.id, params.handle), { params: handle })

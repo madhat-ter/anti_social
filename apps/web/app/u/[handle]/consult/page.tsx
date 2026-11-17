@@ -3,8 +3,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { CONSULT_CONTACT_MAX, CONSULT_NEED_MAX, CONSULT_WHEN_MAX } from '@anti/shared';
-import { api, errorMessage, type ConsultOffer, type Interest } from '@/lib/api';
-import { interestsCached } from '@/lib/interests';
+import { api, errorMessage, type ConsultOffer } from '@/lib/api';
 import { useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { ErrorNote } from '@/components/ui';
@@ -16,13 +15,12 @@ export default function BookPage() {
   return <SeatedShell>{(me) => (isAdult(me) ? <Book /> : <p className="empty">Consultations are for members 18 and over.</p>)}</SeatedShell>;
 }
 
+/** No topic to pick: their portfolio said who they are; say what you need. */
 function Book() {
   const params = useParams<{ handle: string }>();
   const handle = decodeURIComponent(params.handle);
   const router = useRouter();
   const [o, setO] = useState<ConsultOffer | null | undefined>(undefined);
-  const [labels, setLabels] = useState<Interest[]>([]);
-  const [topic, setTopic] = useState('');
   const [need, setNeed] = useState('');
   const [when, setWhen] = useState('');
   const [contact, setContact] = useState('');
@@ -30,8 +28,7 @@ function Book() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api.consultOffer(handle).then((r) => { setO(r.offer); if (r.offer?.topics.length === 1) setTopic(r.offer.topics[0]!); }, (e) => { setErr(errorMessage(e)); setO(null); });
-    interestsCached().then(setLabels, () => {});
+    api.consultOffer(handle).then((r) => setO(r.offer), (e) => { setErr(errorMessage(e)); setO(null); });
     // start from your own contact, if you consult too
     api.myConsultOffer().then((m) => { if (m.contact) setContact((c) => c || m.contact); }, () => {});
   }, [handle]);
@@ -40,7 +37,6 @@ function Book() {
   if (!o || !o.canBook) {
     return <><ErrorNote message={err} /><p className="empty">@{handle} is not taking consultations right now. <Link href={`/u/${handle}`}>Back to their portfolio</Link></p></>;
   }
-  const label = (s: string) => labels.find((i) => i.slug === s)?.label ?? s;
 
   return (
     <Win title="book.consultation" className="consult-book" bodyClassName="stack">
@@ -48,20 +44,13 @@ function Book() {
         e.preventDefault();
         setBusy(true); setErr(null);
         try {
-          const c = await api.requestConsultation(handle, { topic, need, when, contact });
+          const c = await api.requestConsultation(handle, { need, when, contact });
           router.push(`/consultations/${c.id}`);
         } catch (x) { setErr(errorMessage(x)); setBusy(false); }
       }}>
         <h1>Book a consultation with @{handle}</h1>
         <p className="muted">{minutesLabel(o.minutes)} · usually {priceLabel(o).toLowerCase() === 'free' ? 'free' : priceLabel(o)}. They decide on each request, and whether it is free or paid.</p>
-        <fieldset>
-          <legend>Topic</legend>
-          <div className="chips" role="radiogroup" aria-label="Topic">
-            {o.topics.map((t) => (
-              <button key={t} type="button" role="radio" aria-checked={topic === t} className={`chip${topic === t ? ' on' : ''}`} onClick={() => setTopic(t)}>{label(t)}</button>
-            ))}
-          </div>
-        </fieldset>
+        {o.description && <p className="body">{o.description}</p>}
         <label>What you need help with
           <textarea value={need} onChange={(e) => setNeed(e.target.value)} maxLength={CONSULT_NEED_MAX} rows={6} required
             placeholder="The situation, what you have tried, what you hope to leave with." />
@@ -77,7 +66,7 @@ function Book() {
         </label>
         <ErrorNote message={err} />
         <div className="row">
-          <button className="btn primary" disabled={busy || !topic || !need.trim() || !contact.trim()}>{busy ? 'Sending…' : 'Send request'}</button>
+          <button className="btn primary" disabled={busy || !need.trim() || !contact.trim()}>{busy ? 'Sending…' : 'Send request'}</button>
           <Link className="btn" href={`/u/${handle}`}>Cancel</Link>
         </div>
         <p className="muted small">If nobody answers in 7 days the request expires.</p>

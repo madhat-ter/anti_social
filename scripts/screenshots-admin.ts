@@ -73,10 +73,11 @@ async function join_(page: Page, handle: string, name: string) {
   await page.locator('#su-about-text').fill(SETUP.about);
   await page.getByLabel('Prefer not to say').check();
   await page.getByLabel('Your birthday', { exact: true }).fill(SETUP.birthday);
+  await page.getByLabel('Cell phone', { exact: true }).fill(SETUP.phone);
+  await page.getByLabel('Email', { exact: true }).fill(SETUP.email);
   await page.getByRole('button', { name: 'Done' }).click();
   await page.getByPlaceholder('What is on your mind?').waitFor();
-  await page.getByRole('button', { name: 'Got it' }).waitFor();
-  await page.getByRole('button', { name: 'Got it' }).click();
+  await page.getByRole('button', { name: 'Got it' }).click({ timeout: 3000 }).catch(() => {}); // the rules now live at the end of setup; the welcome window only shows for members from before
 }
 
 /** A member who only talks to the API (no browser): joins with a fake passkey, keeps its session cookie. */
@@ -177,7 +178,11 @@ try {
   await membersSec.scrollIntoViewIfNeeded();
   await membersSec.screenshot({ path: join(OUT, `${String(++n).padStart(2, '0')}-members.png`) });
   console.log('saved members');
-  await row('omar').getByRole('button', { name: 'Ban' }).click();
+  const menuOf = async (h: string, item: string) => {
+    await row(h).getByRole('button', { name: /More actions/ }).click();
+    await row(h).getByRole('menuitem', { name: item }).click();
+  };
+  await menuOf('omar', 'Ban');
   await seef.locator('dialog[open]').waitFor();
   await shot(seef, 'ban-confirm', false);
   await seef.locator('dialog[open]').getByRole('button', { name: 'Ban' }).click();
@@ -189,17 +194,17 @@ try {
   await seef.locator('dialog[open]').getByRole('button', { name: 'Unban' }).click();
   await seef.getByText('@omar is back, with a seat.').waitFor();
   if ((await stateOf('omar')).state !== 'active') throw new Error('omar was not unbanned');
-  await row('omar').getByRole('button', { name: 'Ban' }).click(); // the spammer goes again
+  await menuOf('omar', 'Ban'); // the spammer goes again
   await seef.locator('dialog[open]').getByRole('button', { name: 'Ban' }).click();
   await seef.getByText('@omar is banned.').waitFor();
   console.log('ban, unban, ban through the UI ok');
 
-  await row('maya').getByRole('button', { name: 'Make admin' }).click();
+  await menuOf('maya', 'Make admin');
   await seef.locator('dialog[open]').getByRole('button', { name: 'Make admin' }).click();
   await seef.getByText('@maya is now an admin.').waitFor();
   if ((await stateOf('maya')).role !== 'ops') throw new Error('maya is not an admin');
 
-  await row('theo').getByRole('button', { name: 'Change handle' }).click();
+  await menuOf('theo', 'Change handle');
   const dlg = seef.locator('dialog[open]');
   await dlg.getByLabel('New handle').fill('theo_park');
   await shot(seef, 'rename-dialog', false);
@@ -239,9 +244,10 @@ try {
 
   // ── 7. remove a project from its page
   await seef.goto(`${WEB}/u/kai/work/${project.id}`);
-  await seef.getByRole('button', { name: 'Remove (admin)' }).waitFor();
+  await seef.getByRole('button', { name: 'More actions for this project' }).click();
+  await seef.getByRole('menuitem', { name: 'Remove (admin)' }).waitFor();
   await shot(seef, 'project-admin', false);
-  await seef.getByRole('button', { name: 'Remove (admin)' }).click();
+  await seef.getByRole('menuitem', { name: 'Remove (admin)' }).click();
   await seef.locator('dialog[open]').getByRole('button', { name: 'Remove' }).click();
   await seef.waitForURL(`${WEB}/u/kai`);
   if ((await q(`select 1 from projects where id = $1`, [project.id])).rows.length) throw new Error('project still there');

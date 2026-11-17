@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useId, useRef, useState } from 'react';
-import { api, errorMessage, IMAGE_MAX_BYTES, IMAGES_MAX, POST_MAX, type Image, type Post } from '@/lib/api';
-import { ErrorNote } from './ui';
+import { api, errorMessage, IMAGE_MAX_BYTES, IMAGES_MAX, POST_MAX, type Image, type PetLabel, type Post } from '@/lib/api';
+import { ErrorNote, why } from './ui';
+import { useMentions } from './Mentions';
 
 interface Att {
   key: string;
@@ -15,17 +16,21 @@ export function Composer({
   parentId,
   collabId,
   eventId,
+  pet,
   meetups,
   title,
   onCreated,
   placeholder,
   submitLabel,
+  collapsible = false,
 }: {
   parentId?: string;
   /** an update in this collab's thread (RFC §10.5) */
   collabId?: string;
   /** an update on this event's page */
   eventId?: string;
+  /** RFC §10.17: write as this pet (author stays the owner) */
+  pet?: { id: string; name: string };
   /** a collab's meetups: the update can be tied to one */
   meetups?: { id: string; title: string }[];
   /** the window title */
@@ -33,28 +38,36 @@ export function Composer({
   onCreated: (p: Post) => void;
   placeholder?: string;
   submitLabel?: string;
+  /** on phones (CSS), one line until it is tapped or holds a draft; nothing changes on wide screens */
+  collapsible?: boolean;
 }) {
   const id = useId();
+  const [opened, setOpened] = useState(false);
   const [body, setBody] = useState('');
   const [atts, setAtts] = useState<Att[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [meetup, setMeetup] = useState('');
+  /** RFC §10.17: a pet post carries one label */
+  const [petLabel, setPetLabel] = useState<PetLabel>('everyday');
   const fileRef = useRef<HTMLInputElement>(null);
   const attsRef = useRef<Att[]>([]);
   attsRef.current = atts;
+
+  // RFC §10.16: typing @ opens the members list under the box (Mentions.tsx)
+  const men = useMentions(body, setBody, `${id}-mentions`);
 
   useEffect(() => () => { attsRef.current.forEach((a) => URL.revokeObjectURL(a.preview)); }, []);
 
   // Draft autosave: text only, this device only, one draft per place you can write.
   // Restored after mount (localStorage is not available during server render).
-  const draftKey = `anti:draft:${parentId ?? (collabId ? `c:${collabId}` : eventId ? `e:${eventId}` : 'feed')}`;
+  const draftKey = `anti:draft:${parentId ?? (pet ? `pet:${pet.id}` : collabId ? `c:${collabId}` : eventId ? `e:${eventId}` : 'feed')}`;
   const [restored, setRestored] = useState(false);
   const [savedDraft, setSavedDraft] = useState(false);
   useEffect(() => {
     try {
       const d = localStorage.getItem(draftKey);
-      if (d) { setBody(d); setSavedDraft(true); }
+      if (d) { setBody(d); setSavedDraft(true); setOpened(true); }
     } catch { /* storage blocked */ }
     setRestored(true);
   }, [draftKey]);
@@ -74,14 +87,16 @@ export function Composer({
   const trimmed = body.trim();
   const over = body.length > POST_MAX;
   const hasImage = atts.some((a) => a.status === 'done');
+  // RFC §10.17: a pet post carries one picture, not a gallery
+  const maxImages = pet ? 1 : IMAGES_MAX;
   const canPost = !busy && !uploading && (trimmed.length > 0 || hasImage) && !over;
 
   function pick(files: FileList | null) {
     if (!files) return;
     setErr(null);
-    const room = IMAGES_MAX - atts.length;
+    const room = maxImages - atts.length;
     const chosen = Array.from(files);
-    if (chosen.length > room) setErr(`You can attach up to ${IMAGES_MAX} images.`);
+    if (chosen.length > room) setErr(pet ? 'A pet post carries one picture.' : `You can attach up to ${maxImages} images.`);
     for (const f of chosen.slice(0, Math.max(room, 0))) {
       if (!f.type.startsWith('image/')) { setErr(`"${f.name}" is not an image.`); continue; }
       if (f.size > IMAGE_MAX_BYTES) { setErr(`"${f.name}" is larger than 5 MB.`); continue; }
@@ -114,12 +129,13 @@ export function Composer({
         ...(parentId ? { parentId } : {}),
         ...(collabId ? { collabId } : {}),
         ...(eventId ?? meetup ? { eventId: eventId ?? meetup } : {}),
+        ...(pet ? { petId: pet.id, petLabel } : {}),
         ...(imageIds.length ? { imageIds } : {}),
       });
       atts.forEach((a) => URL.revokeObjectURL(a.preview));
       try { localStorage.removeItem(draftKey); } catch { /* storage blocked */ }
       setSavedDraft(false);
-      setBody(''); setAtts([]);
+      setBody(''); setAtts([]); setOpened(false);
       onCreated(post);
     } catch (e) {
       setErr(errorMessage(e));
@@ -130,26 +146,36 @@ export function Composer({
 
   return (
     <form
-      className="composer win"
+      className={`composer win${collapsible ? ' collapsible' : ''}${opened || atts.length > 0 ? ' open' : ''}`}
       onSubmit={(e) => { e.preventDefault(); void submit(); }}
     >
       <div className="win-bar" aria-hidden="true">
         <span className="win-close" />
-        <span className="win-title">{title ?? (parentId ? 'reply.txt' : 'new_post.txt')}</span>
+        <span className="win-title">{title ?? (pet ? `posting_as_${pet.name.toLowerCase().replace(/\s+/g, '_')}.txt` : parentId ? 'reply.txt' : 'new_post.txt')}</span>
       </div>
       <div className="win-body">
       <label htmlFor={`${id}-body`} className="sr-only">{parentId ? 'Write a reply' : 'Write a post'}</label>
-      <textarea
-        id={`${id}-body`}
-        value={body}
-        rows={parentId ? 3 : 4}
-        placeholder={placeholder ?? (parentId ? 'Write a reply...' : 'What is on your mind?')}
-        onChange={(e) => setBody(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void submit(); }
-        }}
-        aria-describedby={`${id}-count`}
-      />
+      <div className="composer-text">
+        <textarea
+          id={`${id}-body`}
+          value={body}
+          rows={parentId ? 3 : 4}
+          placeholder={placeholder ?? (pet ? `What is ${pet.name} up to?` : parentId ? 'Write a reply...' : 'What is on your mind?')}
+          onChange={(e) => {
+            setBody(e.target.value);
+            if (e.target.value) setOpened(true);
+            men.track(e.target.value, e.target.selectionStart ?? e.target.value.length);
+          }}
+          onFocus={() => setOpened(true)}
+          {...men.boxProps}
+          onKeyDown={(e) => {
+            if (men.onKeyDown(e)) return;
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void submit(); }
+          }}
+          aria-describedby={`${id}-count`}
+        />
+        {men.list}
+      </div>
       {atts.length > 0 && (
         <ul className="thumbs" aria-label="Attached images">
           {atts.map((a, i) => (
@@ -173,6 +199,16 @@ export function Composer({
           </select>
         </label>
       )}
+      {pet && (
+        <div className="row chips composer-label" role="radiogroup" aria-label="Kind of update">
+          {(['everyday', 'advice', 'health', 'help'] as const).map((l) => (
+            <button key={l} type="button" role="radio" aria-checked={petLabel === l}
+              className={`chip${petLabel === l ? ' on' : ''}`} onClick={() => setPetLabel(l)}>
+              {l === 'everyday' ? 'Everyday' : l === 'advice' ? 'Advice' : l === 'health' ? 'Health' : 'Help'}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="row composer-bar">
         <input
           ref={fileRef}
@@ -180,11 +216,11 @@ export function Composer({
           type="file"
           accept="image/*"
           multiple
-          disabled={atts.length >= IMAGES_MAX}
+          disabled={atts.length >= maxImages}
           className="sr-only"
           onChange={(e) => pick(e.target.files)}
         />
-        <label htmlFor={`${id}-file`} className={`btn attach${atts.length >= IMAGES_MAX ? ' disabled' : ''}`} aria-disabled={atts.length >= IMAGES_MAX}>
+        <label htmlFor={`${id}-file`} className={`btn attach${atts.length >= maxImages ? ' disabled' : ''}`} aria-disabled={atts.length >= maxImages} {...why(atts.length >= maxImages && (pet ? 'One picture per pet post' : `Up to ${maxImages} pictures`))}>
           + Image
         </label>
         <span className="grow" />

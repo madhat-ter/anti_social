@@ -7,6 +7,7 @@ import { ApiError } from '../lib/errors';
 import { birthdayCols, cursorBefore, listPosts, paginate, parseLimit, toBirthday, UUID_RE, type Birthday, type Page } from '../lib/posts';
 import { authPlugin, requireSeated, requireUser } from '../plugins/auth';
 import { consultsSql, isAdult } from '../lib/consultations';
+import { listOwnerPets } from '../lib/pets';
 
 const pageQuery = t.Object({ cursor: t.Optional(t.String()), limit: t.Optional(t.String()) });
 const SEATED = sql`('active', 'flagged_lurker')`;
@@ -39,7 +40,7 @@ const memberSelect = sql`
   select u.id, coalesce(u.activated_at, u.created_at)::text as cursor_ts,
     u.handle, u.display_name, u.bio, u.state, u.role, u.gender, (u.verified_at is not null) as verified, ${birthdayCols('u', 'm')}, inv.handle as inv_handle,
     to_char(u.activated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as activated_iso,
-    (select count(*)::int from posts p where p.author_id = u.id and p.deleted_at is null and p.hidden_at is null) as post_count,
+    (select count(*)::int from posts p where p.author_id = u.id and p.pet_id is null and p.deleted_at is null and p.hidden_at is null) as post_count,
     pf.headline, pf.open_to_work, ${consultsSql('u')} as consults,
     array(select ui.interest from user_interests ui join interests i on i.slug = ui.interest where ui.user_id = u.id order by i.label) as interests
   from users u
@@ -57,6 +58,7 @@ const forViewer = (m: MemberSummary, adult: boolean): MemberSummary => (adult ? 
 
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => '\\' + c);
 
+
 type NotifRow = {
   id: string; kind: string; cursor_ts: string; created_iso: string; read_iso: string | null;
   a_handle: string | null; a_display: string | null; a_gender: string | null;
@@ -66,6 +68,8 @@ type NotifRow = {
   x_to: string | null; x_title: string | null; x_done: string | null; x_total: string | null;
   c_id: string | null; c_title: string | null; x_project: string | null;
   x_consult: string | null; x_topic: string | null; x_pricing: string | null; x_was: string | null;
+  /** requests_waiting: how many people are waiting on that one thing */
+  x_count: string | null; x_guest: string | null;
 };
 
 async function unreadCount(db: Db, userId: string): Promise<number> {
@@ -96,8 +100,11 @@ export const socialRoutes = (deps: Deps) => {
       const contains = `%${like}%`;
       const prefix = `${like}%`;
       const [postPage, memberRows] = await Promise.all([
-        listPosts(db, a.user.id, sql`p.deleted_at is null and p.hidden_at is null
-          and p.search @@ websearch_to_tsquery('simple', ${q})`, { limit: '20' }),
+        listPosts(db, a.user.id, sql`p.deleted_at is null and p.hidden_at is null and p.pet_id is null
+          and (p.search @@ websearch_to_tsquery('simple', ${q})
+               -- RFC §10.22: a monologue is found by its title too
+               or exists (select 1 from monologues mo3 where mo3.post_id = p.id
+                            and to_tsvector('simple', mo3.title) @@ websearch_to_tsquery('simple', ${q})))`, { limit: '20' }),
         rows<MemberRow>(db, sql`
           ${memberSelect}
           where u.state in ${SEATED}
@@ -130,18 +137,35 @@ export const socialRoutes = (deps: Deps) => {
       return { cap: Number(r!.cap), used: Number(r!.used) };
     })
 
+    // RFC §10.16: the @ list in the composer. Small and members-only; static route before :handle.
+    .get('/members/mention', async ({ auth, query }) => {
+      const a = requireSeated(auth);
+      const q = (query.q ?? '').trim().slice(0, 40);
+      const like = escapeLike(q);
+      const found = await rows<{ handle: string; display_name: string; gender: string | null }>(db, sql`
+        select u.handle, u.display_name, u.gender::text as gender
+          from users u
+         where u.state in ${SEATED}
+           and u.id <> ${a.user.id}::uuid
+           ${q ? sql`and (u.handle ilike ${`${like}%`} escape '\\' or u.display_name ilike ${`%${like}%`} escape '\\')` : sql``}
+         order by (u.handle ilike ${`${like}%`} escape '\\') desc, coalesce(u.activated_at, u.created_at) desc
+         limit 8`);
+      return { items: found.map((r) => ({ handle: r.handle, displayName: r.display_name, gender: r.gender })) };
+    }, { query: t.Object({ q: t.Optional(t.String()) }) })
+
     .get('/members/:handle', async ({ auth, params }) => {
       const a = requireSeated(auth);
       const m = await findMember(params.handle);
       if (!m) throw new ApiError(404, 'not_found');
-      return forViewer(toMember(m), isAdult(a.user));
+      // RFC §10.17: the pets on this member's profile
+      return { ...forViewer(toMember(m), isAdult(a.user)), pets: await listOwnerPets(db, m.id) };
     })
 
     .get('/members/:handle/posts', async ({ auth, params, query }) => {
       const a = requireSeated(auth);
       const m = await findMember(params.handle);
       if (!m) throw new ApiError(404, 'not_found');
-      return listPosts(db, a.user.id, sql`p.author_id = ${m.id}::uuid and p.deleted_at is null and p.hidden_at is null`, query);
+      return listPosts(db, a.user.id, sql`p.author_id = ${m.id}::uuid and p.pet_id is null and p.deleted_at is null and p.hidden_at is null`, query);
     }, { query: pageQuery })
 
     .get('/notifications', async ({ auth, query }) => {
@@ -153,11 +177,14 @@ export const socialRoutes = (deps: Deps) => {
           to_char(n.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_iso,
           to_char(n.read_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as read_iso,
           u.handle as a_handle, u.display_name as a_display, u.gender as a_gender,
-          p.id as p_id, coalesce(p.root_id, p.id) as p_root, p.body as p_body, (p.deleted_at is not null) as p_deleted,
+          p.id as p_id, coalesce(p.root_id, p.id) as p_root,
+          -- RFC §10.22: a monologue with no note is named by its title
+          coalesce(nullif(p.body, ''), (select mo.title from monologues mo where mo.post_id = p.id), p.body) as p_body, (p.deleted_at is not null) as p_deleted,
           ev.id as e_id, ev.title as e_title,
           n.payload->>'to' as x_to, n.payload->>'title' as x_title, n.payload->>'done' as x_done, n.payload->>'total' as x_total,
           co.id as c_id, coalesce(co.title, n.payload->>'title') as c_title, n.payload->>'projectId' as x_project,
-          n.payload->>'consultationId' as x_consult, n.payload->>'topic' as x_topic, n.payload->>'pricing' as x_pricing, n.payload->>'was' as x_was
+          n.payload->>'consultationId' as x_consult, n.payload->>'topic' as x_topic, n.payload->>'pricing' as x_pricing, n.payload->>'was' as x_was,
+          n.payload->>'count' as x_count, n.payload->>'guestName' as x_guest
         from notifications n
         left join users u on u.id = case when n.payload->>'actorId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'actorId')::uuid end
         left join posts p on p.id = case when n.payload->>'postId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'postId')::uuid end
@@ -178,11 +205,17 @@ export const socialRoutes = (deps: Deps) => {
           collab: r.c_id ? { id: r.c_id, title: r.c_title ?? '' } : null,
           draftId: r.kind === 'collab_finished' ? r.x_project : null,
           collabTitle: r.kind === 'collab_removed' ? r.x_title : null,
+          eventTitle: r.kind === 'event_removed' ? r.x_title : null,
           newHandle: r.kind === 'handle_changed' ? r.x_to : null,
           projectTitle: r.kind === 'project_removed' ? r.x_title : null,
-          pickTitle: r.kind === 'pick_remark' || r.kind === 'remark_removed' ? r.x_title : null,
+          // RFC §10.24: a card made for you, or your card put in someone's File
+          cardTitle: r.kind.startsWith('file_card_') ? r.x_title : null,
+          // …by someone outside anti, on the share page: the name they typed (there is no actor)
+          guestName: r.kind === 'file_card_received' || r.kind === 'seat_request' ? r.x_guest : null,
+          pickTitle: r.kind === 'pick_remark' || r.kind === 'remark_removed' || r.kind === 'pick_removed' ? r.x_title : null,
           consultation: r.x_consult ? { id: r.x_consult, topic: r.x_topic ?? '', pricing: r.x_pricing, was: r.x_was } : null,
           checklist: r.kind === 'checklist_reminder' ? { done: Number(r.x_done ?? 0), total: Number(r.x_total ?? 5) } : null,
+          count: r.kind === 'requests_waiting' ? Number(r.x_count ?? 1) : null,
         })),
         nextCursor,
         unreadCount: await unreadCount(db, uid),

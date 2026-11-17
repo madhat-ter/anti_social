@@ -6,19 +6,24 @@ import { startRegistration } from '@simplewebauthn/browser';
 import { DISPLAY_NAME_MAX, GENDERS, GENDER_LABEL, INTERESTS_MAX, type Gender } from '@anti/shared';
 import { InterestPicker } from '@/components/Interests';
 import { VerifiedBadge } from '@/components/Marks';
+import { ChoosePin } from '@/components/Pin';
+import { applyTheme } from '@/lib/theme';
 import { api, errorMessage, formatMoney, type InviteInfo, type Me, type PasskeyInfo, type PaymentRecord } from '@/lib/api';
 import { fmtDate, useMe, useTitle } from '@/lib/hooks';
 import { CopyButton, ErrorNote } from '@/components/ui';
+import { SeatedShell } from '@/components/Shell';
 import { PayButton } from '@/components/Billing';
 import { PushToggle } from '@/components/PushToggle';
-import { Loading, Win } from '@/components/retro';
+import { AlertDialog, Loading, Win } from '@/components/retro';
 import { Avatar } from '@/components/Avatar';
 
 export default function Settings() {
   useTitle('Settings');
   const router = useRouter();
   const { me, loading, error, setMe } = useMe();
-  useEffect(() => { if (me?.setupNeeded) router.replace('/setup'); }, [me, router]);
+  useEffect(() => {
+    if (me?.setupNeeded) router.replace('/setup');
+  }, [me, router]);
 
   if (loading) return <Loading />;
   if (error) return <ErrorNote message={errorMessage(error)} />;
@@ -26,22 +31,50 @@ export default function Settings() {
   if (me.setupNeeded) return <Loading what="Redirecting" />;
   const seated = me.state === 'active' || me.state === 'flagged_lurker';
 
-  return (
-    <div className="stack">
-      <div className="row"><Link href="/" className="ui">Back to the feed</Link></div>
+  const page = (
+    <>
       <h1>Settings</h1>
+      {/* one long window: a row of links that stays under the header on wide screens */}
+      <nav className="panel-index" aria-label="Sections">
+        <a href="#profile">Profile</a>
+        <a href="#face">Face</a>
+        <a href="#look">Appearance</a>
+        <a href="#feed">Feed</a>
+        <a href="#bday">Birthday</a>
+        <a href="#interests">Interests</a>
+        {me.contactEnabled && <a href="#contact">Contact</a>}
+        <a href="#pin">PIN</a>
+        <a href="#pk">Passkeys</a>
+        <a href="#push">Notifications</a>
+        {seated && <a href="#inv">Invites</a>}
+        <a href="#pay">Payments</a>
+        <a href="#dz">Account</a>
+      </nav>
       <Win title="Control panel" className="panel" bodyClassName="panel-body">
         <Profile me={me} onSaved={setMe} />
         <Face me={me} onSaved={setMe} />
+        <AppearanceSec me={me} onSaved={setMe} />
+        <FeedSec me={me} onSaved={setMe} />
         <BirthdaySec me={me} onSaved={setMe} />
         <InterestsSec me={me} onSaved={setMe} />
         <ContactSec me={me} onSaved={setMe} />
+        <PinSec me={me} />
         <Passkeys />
         <PushToggle />
         {seated && <Invites />}
         <Payments me={me} seated={seated} />
         <Danger me={me} onGone={() => { router.push('/'); router.refresh(); }} />
       </Win>
+      <p className="muted small">How the feed is ordered, and why it is not ranked: <Link href="/feed-rules">how the feed works</Link>.</p>
+    </>
+  );
+  // RFC §10.20: a seated member keeps the menu, the side windows and the phone tabs here like on every
+  // other page. Someone not seated (lapsed, paying the stay fee) has no rooms to go to, so they get the page alone.
+  if (seated) return <SeatedShell me={me}>{() => page}</SeatedShell>;
+  return (
+    <div className="stack">
+      <div className="row"><Link href="/" className="ui">Back to the feed</Link></div>
+      {page}
     </div>
   );
 }
@@ -52,7 +85,7 @@ function Profile({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   return (
-    <form className="panel-sec" onSubmit={async (e) => {
+    <form className="panel-sec" id="profile" onSubmit={async (e) => {
       e.preventDefault(); setErr(null); setMsg(null);
       try { onSaved(await api.updateMe({ displayName: displayName.trim(), bio })); setMsg('Saved.'); }
       catch (x) { setErr(errorMessage(x)); }
@@ -155,9 +188,92 @@ function InterestsSec({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
   return (
     <section className="panel-sec" aria-labelledby="interests">
       <h2 id="interests">Interests</h2>
-      <p className="muted small">Pick up to {INTERESTS_MAX} ({picked.length} now). Collabs and events with the same interests find you, and you find them.</p>
+      <p className="muted small">Pick up to {INTERESTS_MAX} ({picked.length} now). Activities, projects and events with the same interests find you, and you find them.</p>
       <InterestPicker value={picked} onChange={(n) => void change(n)} max={INTERESTS_MAX} />
       <ErrorNote message={err} />
+    </section>
+  );
+}
+
+/** RFC §10.14: light (everyone starts here, whatever the device says) or dark; applies at once, on every device. */
+function AppearanceSec({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
+  const [err, setErr] = useState<string | null>(null);
+  const current = me.theme === 'dark' ? 'dark' : 'light';
+  async function pick(theme: 'light' | 'dark') {
+    if (theme === current) return;
+    setErr(null);
+    applyTheme(theme); // at once; the account follows
+    try { onSaved(await api.updateMe({ theme })); }
+    catch (e) { applyTheme(current); setErr(errorMessage(e)); }
+  }
+  return (
+    <section className="panel-sec" aria-labelledby="look">
+      <h2 id="look">Appearance</h2>
+      <fieldset className="setup-choices">
+        <legend className="ui">Theme</legend>
+        {(['light', 'dark'] as const).map((t) => (
+          <label key={t} className="check setup-choice">
+            <input type="radio" name="settings-theme" value={t} checked={current === t} onChange={() => void pick(t)} />
+            <span className={`theme-swatch ${t}`} aria-hidden="true" />
+            <span>{t === 'light' ? 'Light' : 'Dark'}</span>
+          </label>
+        ))}
+        <p className="muted small">Saved to your account, so it follows you to every device. Anti stays light until you choose Dark here, even if your phone is set to dark.</p>
+      </fieldset>
+      <ErrorNote message={err} />
+    </section>
+  );
+}
+
+/** RFC §10.23: the home feed mixed (everyone starts here) or strictly newest first; on the account. */
+function FeedSec({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
+  const [err, setErr] = useState<string | null>(null);
+  const current = me.feedOrder === 'newest' ? 'newest' : 'mixed';
+  async function pick(feedOrder: 'mixed' | 'newest') {
+    if (feedOrder === current) return;
+    setErr(null);
+    try { onSaved(await api.updateMe({ feedOrder })); }
+    catch (e) { setErr(errorMessage(e)); }
+  }
+  const choices = [
+    ['mixed', 'Mixed', 'The newest post on top, the rest of what’s new mixed, so no one fills your screen.'],
+    ['newest', 'Newest first', 'Everything in the order it was posted.'],
+  ] as const;
+  return (
+    <section className="panel-sec" aria-labelledby="feed">
+      <h2 id="feed">Feed</h2>
+      <fieldset className="setup-choices">
+        <legend className="ui">Feed order</legend>
+        {choices.map(([v, label, says]) => (
+          <label key={v} className="check setup-choice">
+            <input type="radio" name="settings-feed-order" value={v} checked={current === v} onChange={() => void pick(v)} />
+            <span><b>{label}</b> <span className="muted small">{says}</span></span>
+          </label>
+        ))}
+        <p className="muted small">Saved to your account. It takes effect the next time you open the feed. Likes never move a post either way.</p>
+      </fieldset>
+      <ErrorNote message={err} />
+    </section>
+  );
+}
+
+/** RFC §10.13: change your PIN (the current one first); every other device is signed out. */
+function PinSec({ me }: { me: Me }) {
+  const [done, setDone] = useState(false);
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="panel-sec" aria-labelledby="pin">
+      <h2 id="pin">PIN</h2>
+      <p className="muted">You sign in with your handle, <strong>@{me.handle}</strong>, and a 6-digit PIN. Changing it signs you out on every other device.</p>
+      {done && <p role="status">Your PIN is changed. Other devices are signed out.</p>}
+      {open
+        ? <ChoosePin needCurrent={me.pinSet !== false} birthday={me.birthday} submitLabel="Change PIN" submit={async (pin, current) => {
+            await api.setPin(pin, current);
+            setOpen(false); setDone(true);
+          }}>
+            <button type="button" className="btn" onClick={() => setOpen(false)}>Cancel</button>
+          </ChoosePin>
+        : <div className="row"><button type="button" className="btn" onClick={() => { setOpen(true); setDone(false); }}>Change PIN</button></div>}
     </section>
   );
 }
@@ -166,6 +282,7 @@ function Passkeys() {
   const [list, setList] = useState<PasskeyInfo[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [label, setLabel] = useState('');
+  const [ask, setAsk] = useState<PasskeyInfo | null>(null);
   const load = useCallback(async () => {
     try { setList(await api.passkeys()); } catch (e) { setErr(errorMessage(e)); }
   }, []);
@@ -188,14 +305,25 @@ function Passkeys() {
   return (
     <section className="panel-sec" aria-labelledby="pk">
       <h2 id="pk">Passkeys</h2>
+      <p className="muted">Optional. A passkey lets this device sign you in with your fingerprint or face instead of the PIN.</p>
       <ul className="list">
         {list.map((p) => (
           <li key={p.id}>
             <span>{p.deviceLabel || 'Passkey'}<br /><small className="muted">Added {fmtDate(p.createdAt)}{p.lastUsedAt ? `, last used ${fmtDate(p.lastUsedAt)}` : ''}</small></span>
-            <button className="btn danger" onClick={() => remove(p.id)} disabled={list.length <= 1}>Remove</button>
+            <button className="btn danger" onClick={() => setAsk(p)}>Forget this passkey</button>
           </li>
         ))}
       </ul>
+      {/* RFC §10.20: forgetting a passkey asks first; that device then signs in with the PIN */}
+      <AlertDialog
+        open={ask !== null}
+        title="Forget passkey"
+        message={ask ? <>Forget <strong>{ask.deviceLabel || 'this passkey'}</strong>? That device will sign in with your handle and PIN instead.</> : ''}
+        confirmLabel="Forget it"
+        danger
+        onConfirm={() => { const p = ask; setAsk(null); if (p) void remove(p.id); }}
+        onCancel={() => setAsk(null)}
+      />
       <div className="row">
         <input aria-label="Device label" placeholder="Label (optional)" value={label} onChange={(e) => setLabel(e.target.value)} />
         <button className="btn" onClick={add}>Add passkey</button>
@@ -226,7 +354,7 @@ function Invites() {
         <div className="stack" role="status">
           <p className="muted">Copy this code now. It is shown only once. Expires {fmtDate(fresh.expiresAt)}.</p>
           <p className="code">{fresh.code}</p>
-          <div className="row"><CopyButton text={fresh.code} /><button className="btn" onClick={() => setFresh(null)}>Hide</button></div>
+          <div className="row"><CopyButton text={fresh.code} /><button className="btn" onClick={() => setFresh(null)}>Done</button></div>
         </div>
       )}
       <div className="row"><button className="btn primary" onClick={create}>Create invite</button></div>

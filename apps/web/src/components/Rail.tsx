@@ -1,89 +1,62 @@
 'use client';
 /**
- * Desktop side windows (shown only on wide screens, see .shell in globals.css):
- * you, the room's seats, and the next few events. Each is small, glanceable, and links on.
+ * Desktop side windows (shown only on wide screens, see .shell in globals.css): the next few
+ * events, the pick, Pet Corner, and today's birthdays. Each is small, glanceable, and links on.
+ * (No "you" window since 2026-11-09: your profile is in the menu; inviting is in Settings.)
+ * (Seats became Pet Corner, RFC §10.17; the seat chart lives on Members and Admin.)
  */
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { RULES } from '@anti/shared';
-import { api, type AnEvent, type Me, type MemberSummary } from '@/lib/api';
-import { membersCached, seatCapCached } from '@/lib/members';
-import { Avatar } from './Avatar';
+import { api, type AnEvent, type Me } from '@/lib/api';
 import { BirthdaysWindow } from './Birthday';
-import { NameMarks } from './Marks';
 import { Win } from './retro';
+import { PickWindow, RAIL_QUERY, useWide } from './Picks';
+import { PetCorner } from './Pets';
+import { bnLang } from '@/lib/lang';
 
-function You({ me }: { me: Me }) {
-  return (
-    <Win title="you" as="section" bodyClassName="rail-you">
-      <Link href={`/u/${me.handle}`} className="rail-you-link">
-        <Avatar seed={me.handle} gender={me.gender} size={56} />
-        <span>
-          <span className="rail-name">{me.displayName}<NameMarks admin={me.role === 'ops'} verified={!!me.verifiedAt} size=".85em" /></span>
-          <span className="ui muted">@{me.handle}</span>
-        </span>
-      </Link>
-      <Link className="btn" href="/settings">Invite someone</Link>
-    </Win>
-  );
-}
-
-function Seats({ me }: { me: Me }) {
-  const [members, setMembers] = useState<MemberSummary[] | null>(null);
-  const [seatCap, setSeatCap] = useState<number>(RULES.seat_cap);
-  useEffect(() => { membersCached().then(setMembers, () => setMembers(null)); }, []);
-  useEffect(() => { seatCapCached().then(setSeatCap); }, []);
-  const cap = Math.max(seatCap, members?.length ?? 0);
-  return (
-    <Win title="seats" as="section" bodyClassName="stack rail-seats">
-      <div className="seat-chart small" role="img" aria-label={members ? `${members.length} of ${cap} seats taken` : 'Seats'}>
-        {Array.from({ length: cap }, (_, i) => {
-          const m = members?.[i];
-          return <span key={i} className={!m ? 'open' : m.handle === me.handle ? 'taken me' : 'taken'} />;
-        })}
-      </div>
-      <p className="ui">
-        {members ? <><strong>{members.length}</strong> of {cap} taken</> : 'Counting…'}
-        {' '}<Link href="/members">See who</Link>
-      </p>
-    </Win>
-  );
-}
-
-function NextEvents() {
+function ComingUp() {
   const [events, setEvents] = useState<AnEvent[] | null>(null);
   useEffect(() => { api.events('upcoming', null, 3).then((p) => setEvents(p.items), () => setEvents([])); }, []);
   return (
-    <Win title="next_events" as="section" bodyClassName="stack">
+    <Win title="coming_up" as="section" bodyClassName="stack">
       {events === null ? <p className="ui muted">Loading…</p> : events.length === 0 ? (
-        <p className="muted small">Nothing planned. <Link href="/events/new">Host something</Link>.</p>
+        <p className="muted small">Nothing coming up. <Link href="/collab/new?kind=event">Start something</Link>.</p>
       ) : (
         <ul className="rail-events">
           {events.map((e) => {
             const d = new Date(e.startsAt);
             return (
               <li key={e.id}>
-                <Link href={`/events/${e.id}`}>
+                <Link href={`/collab/event/${e.id}`}>
                   <span className="rail-date"><span className="d">{d.getDate()}</span><span className="m">{d.toLocaleDateString(undefined, { month: 'short' })}</span></span>
-                  <span className="rail-ev-title">{e.title}</span>
+                  <span className="rail-ev-title" {...bnLang(e.title)}>{e.title}</span>
                 </Link>
               </li>
             );
           })}
         </ul>
       )}
-      <Link className="ui" href="/events">All events</Link>
+      <Link className="ui" href="/collab?kind=event">All events</Link>
     </Win>
   );
 }
 
 export function Rail({ me }: { me: Me }) {
+  const path = usePathname() ?? '/';
+  // the rail is on screen from 1180px (globals.css); below that the pick window sits in the feed
+  const shown = useWide(RAIL_QUERY);
   return (
+    // the owner dropped the "you" window (2026-11-09): the next events take the top; your profile is in the menu.
+    // The pick window moved here from under the menu (2026-11-09) so the menu column never scrolls.
+    // A window that repeats the page you are on (events on Events, seats on Members) stays away.
     <aside className="rail" aria-label="At a glance">
-      <You me={me} />
-      <Seats me={me} />
-      <BirthdaysWindow />
-      <NextEvents />
+      {/* Pet Corner opens the rail, except while you are already inside it (/pets or a pet's page) */}
+      {!path.startsWith('/pets') && !path.startsWith('/pet/') && <PetCorner me={me} />}
+      {/* RFC §10.21: one window, "coming up", and it stays away from its own page */}
+      {!path.startsWith('/collab') && <ComingUp />}
+      {shown && <PickWindow />}
+      {path !== '/members' && <BirthdaysWindow />}
     </aside>
   );
 }

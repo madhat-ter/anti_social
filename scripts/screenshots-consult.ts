@@ -97,7 +97,7 @@ try {
   await ana.call('PATCH', '/me/portfolio', { headline: 'Furniture & product designer', location: 'Patan', skills: ['Sketching', 'Prototyping', 'Woodwork'] });
   const ben = await apiMember('ben', 'Ben Rai', 'man');
   const kai = await apiMember('kai', 'Kai Gurung', 'man');
-  await kai.call('PUT', '/me/consult-offer', { active: true, topics: ['photography'], description: 'Shooting on a budget.', minutes: 30, pricing: 'free', contact: 'Signal @kai' });
+  await kai.call('PUT', '/me/consult-offer', { active: true, description: 'Shooting on a budget.', minutes: 30, pricing: 'free', contact: 'Signal @kai' });
 
   // ── the offer: set up on the Consultations page
   const anaPage = await browse(await browser.newContext(view), ana.jar);
@@ -105,7 +105,6 @@ try {
   await anaPage.goto(`${WEB}/consultations?tab=offer`);
   const form = anaPage.locator('form.consult-offer-form');
   await form.waitFor();
-  for (const label of ['Design', 'Art']) await form.getByRole('button', { name: label, exact: true }).click();
   await form.getByLabel('About your sessions').fill('Portfolio reviews before you apply, first-job advice, and how I would approach your brief. Bring work in progress.');
   await form.getByLabel('Session length').selectOption({ label: '45 min' });
   await form.getByLabel('Paid').check();
@@ -122,7 +121,9 @@ try {
   await welcomeOff(benPage);
   await benPage.goto(`${WEB}/members`);
   await benPage.getByText('consults').first().waitFor();
-  await benPage.getByLabel('Only people who offer consultations').check();
+  // the filter chips appear once the room has more than three people; this one has three
+  const consultsChip = benPage.getByRole('button', { name: /^Offers consultations/ });
+  if (await consultsChip.count()) await consultsChip.click();
   await shot(benPage, 'members-consults');
   await benPage.goto(`${WEB}/u/ana`);
   const sec = benPage.locator('section.pf-consult');
@@ -132,7 +133,6 @@ try {
   await sec.screenshot({ path: file('portfolio-consulting-section') }); console.log('saved portfolio-consulting-section');
   await sec.getByRole('link', { name: 'Book a consultation' }).click();
   await benPage.waitForURL(/\/u\/ana\/consult$/);
-  await benPage.getByRole('radio', { name: 'Design' }).click();
   await benPage.getByLabel('What you need help with').fill('I am applying to two furniture studios next month. Could you look at my portfolio and tell me which three projects to lead with? I have six, most from school.');
   await benPage.getByLabel('When suits you').fill('Weekday evenings after 6, or Saturday morning');
   await benPage.getByLabel('How they can reach you').fill('Telegram @benrai · or ben.rai.design@proton.me');
@@ -157,7 +157,7 @@ try {
 
   // ── Ben agrees to the price → contacts swap
   await benPage.goto(`${WEB}/notifications`);
-  await benPage.getByText(/accepted your request on Design and set a price/).waitFor();
+  await benPage.getByText(/accepted your request and set a price/).waitFor();
   await shot(benPage, 'notif-accepted');
   await benPage.goto(reqUrl);
   await benPage.getByRole('button', { name: 'I agree to pay this' }).waitFor();
@@ -187,7 +187,7 @@ try {
   // ── a report, and what admins see
   const boss = await apiMember('boss', 'Sam Okoro', 'man');
   await q("update users set role = 'ops' where handle = 'boss'");
-  const second = await ben.call('POST', '/members/kai/consultations', { topic: 'photography', need: 'Which second-hand lens should I buy?', when: '', contact: 'Telegram @benrai' });
+  const second = await ben.call('POST', '/members/kai/consultations', { need: 'Which second-hand lens should I buy?', when: '', contact: 'Telegram @benrai' });
   await kai.call('POST', `/consultations/${second.id}/accept`, { pricing: 'free' });
   await kai.call('POST', `/consultations/${second.id}/flag`, { reason: 'Kept asking me to work for free on his projects.' });
   const bossPage = await browse(await browser.newContext(view), boss.jar);

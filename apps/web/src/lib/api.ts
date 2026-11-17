@@ -1,5 +1,5 @@
-import type { Gender } from '@anti/shared';
-export type { Gender };
+import type { Gender, MonologueKind } from '@anti/shared';
+export type { Gender, MonologueKind };
 
 export type UserState = 'waitlisted' | 'active' | 'flagged_lurker' | 'archived' | 'banned' | 'deleted';
 
@@ -34,11 +34,24 @@ export interface Me {
   contact: { phone: string | null; email: string | null; updatedAt: string | null } | null;
   /** when an admin verified you (the badge shows by your name) */
   verifiedAt: string | null;
+  /** RFC §10.13: false for members who joined with a passkey and have not chosen a PIN yet */
+  pinSet?: boolean;
+  /** RFC §10.14: light unless they chose dark in Settings (the device's own setting is ignored) */
+  theme?: 'light' | 'dark';
+  /** RFC §10.23: the home feed mixed (everyone's default) or strictly newest first */
+  feedOrder?: 'mixed' | 'newest';
+  /** RFC §10.24: your File can be opened by anyone with its link */
+  filePublic?: boolean;
+  /** RFC §10.21: the one-time "Events and Collabs are one place now" strip was closed */
+  collabIntroSeen?: boolean;
 }
 
 /** One reported post or project in the moderation queue. */
 export interface FlagItem {
-  kind: 'post' | 'project' | 'collab' | 'consult_offer' | 'consultation';
+  kind: 'post' | 'project' | 'collab' | 'consult_offer' | 'consultation' | 'file_card';
+  /** file_card (RFC §10.24): the card, and whose File it is in or was sent to */
+  cardId?: string;
+  fileOf?: string | null;
   /** consult_offer: whose offer */
   offerHandle?: string;
   /** consultation: the request (author = the consultant, requester = who asked) */
@@ -62,8 +75,8 @@ export interface AdminMember {
   invitedBy: string | null; postCount: number;
   /** whole years (admins only) */
   age: number | null;
-  /** consultations: never set up, on, paused, or switched off by an admin */
-  consulting: 'none' | 'on' | 'paused' | 'off';
+  /** consultations: never set up, on, paused, switched off by an admin, waiting for approval, or declined */
+  consulting: 'none' | 'on' | 'paused' | 'off' | 'waiting' | 'declined';
   /** RFC §10.7 */
   verified: { at: string; by: string | null } | null;
   hasContact: boolean;
@@ -103,7 +116,8 @@ export class ApiError extends Error {
 /** `role` 'ops' = an admin (shown with the OG mark by the name, RFC §10.7). */
 /** Month and day only, and only when they show it; never the year (RFC §10.3). */
 export interface Birthday { month: number; day: number }
-export type Author = { handle: string; displayName: string; state: UserState; role?: 'member' | 'ops'; gender?: Gender | null; birthday?: Birthday | null; verified?: boolean } | null;
+/** `isNew`: in their first three weeks; the feed says "new here" and never folds their posts */
+export type Author = { handle: string; displayName: string; state: UserState; role?: 'member' | 'ops'; gender?: Gender | null; birthday?: Birthday | null; verified?: boolean; isNew?: boolean } | null;
 export interface Image { id: string; url: string; width: number; height: number }
 export interface Post {
   /** an update in a collab's thread / on an event's page (RFC §10.5) */
@@ -118,9 +132,18 @@ export interface Post {
   parentId: string | null;
   rootId: string | null;
   replyCount: number;
-  likeCount: number;
+  /** only on your own posts; null on everyone else's (likes are never a public score) */
+  likeCount: number | null;
   likedByMe: boolean;
+  /** the author's first feed post: the reply button reads "Say hello" */
+  firstPost?: boolean;
+  /** replies only: the post at the top of the thread (RFC §10.12, "Replied to Mina's post: …") */
+  replyTo?: { rootId: string; author: { handle: string; displayName: string } | null; snippet: string } | null;
   images: Image[];
+  /** RFC §10.22: set when the post is a monologue (drawn as a cassette); the body is its note */
+  monologue?: Monologue | null;
+  /** RFC §10.16: @handles in the body that belong to a seated member (lowercased) */
+  mentions?: string[];
   canEdit: boolean;
   canDelete: boolean;
   canReport: boolean;
@@ -129,7 +152,37 @@ export interface Post {
   /** hidden after reports: only admins reviewing it ever see such a post */
   hidden?: boolean;
 }
+/** RFC §10.22: a monologue's recording */
+export interface Monologue {
+  title: string; kind: MonologueKind; durationMs: number;
+  /** the waveform: MONOLOGUE.peaks bars, 0..100 */
+  peaks: number[]; url: string; source: 'recorded' | 'uploaded';
+}
 export type SuggestionKind = 'movie' | 'book' | 'place' | 'food';
+/** RFC §10.17: a pet is a content identity owned by one member; not an account. */
+export type PetSpecies = 'dog' | 'cat' | 'bird';
+export type PetLabel = 'everyday' | 'advice' | 'health' | 'help';
+export interface Pet {
+  id: string;
+  name: string;
+  species: PetSpecies;
+  avatar: { variant: number; url: string | null };
+  owner: { handle: string; displayName: string };
+}
+export interface PetPost {
+  id: string;
+  body: string;
+  createdAt: string;
+  label: PetLabel;
+  images: Image[];
+  /** only the owner sees the count, like posts */
+  likeCount: number | null;
+  likedByMe: boolean;
+  replyCount: number;
+  pet: Pet;
+  canDelete: boolean;
+  canReport: boolean;
+}
 /** A member's pick: a movie, book, place or food they suggest. */
 export interface Pick {
   id: string;
@@ -199,6 +252,48 @@ export interface ProjectSummary {
 export interface ProjectImageInput { id: string; layout: ProjectLayout; heading: string; text: string; caption: string }
 export type ProjectInput = Partial<ProjectFields> & { images?: ProjectImageInput[] };
 
+/** RFC §10.24, the File: a member's drawer of 12 pages, one card a page. */
+export interface FilePhoto { id: string; url: string; width: number; height: number; caption: string }
+export interface FileCard {
+  id: string; headline: string; description: string; photos: FilePhoto[];
+  /** who made it; null when that member is gone, or when it came from outside anti */
+  maker: { handle: string; displayName: string; gender: Gender | null } | null;
+  /** the name typed by someone outside anti who made it on the share page (not a member, not an identity) */
+  guest?: string | null;
+  /** made by the File's owner for themselves */
+  own: boolean;
+  /** you made it: you may edit or delete it */
+  mine: boolean;
+  /** the page it sits on, or null when it is not in the File */
+  page: number | null;
+  /** who it was made for, when that is not the maker */
+  for: { handle: string; displayName: string; gender: Gender | null } | null;
+  /** 'own'; or for a card made for someone: 'draft' (not sent), 'sent' (not in their File) or 'placed' */
+  state: 'own' | 'draft' | 'sent' | 'placed';
+  /** the maker allows it on the recipient's public share page */
+  publicOk: boolean;
+  /** hidden after reports: only its owner, its maker and admins still see it */
+  hidden?: boolean;
+  /** you may report it */
+  canReport?: boolean;
+  /** you are an admin and may remove it */
+  canModerate?: boolean;
+  createdAt: string; updatedAt: string;
+}
+/** pages 0–6 are the owner's own (0 is "Me"), 7–11 hold cards made for them */
+export interface FilePage { position: number; side: 'own' | 'gift'; label: string; card: FileCard | null }
+export interface FileView {
+  owner: { handle: string; displayName: string; gender: Gender | null };
+  mine: boolean; pages: FilePage[];
+  /** your own File only: is its share link switched on? */
+  shared?: boolean;
+}
+export interface FileCardInput {
+  headline?: string; description?: string; photos?: { id: string; caption: string }[]; page?: number | null;
+  /** make it for this member instead of yourself */
+  forHandle?: string | null; publicOk?: boolean;
+}
+
 export interface MemberSummary {
   handle: string;
   displayName: string;
@@ -217,6 +312,8 @@ export interface MemberSummary {
   invitedBy: { handle: string } | null;
   activatedAt: string | null;
   postCount: number;
+  /** RFC §10.17: the pets shown on this profile (GET /members/:handle) */
+  pets?: Pet[];
   /** from the portfolio: shown under the name in lists */
   headline: string;
   openToWork: boolean;
@@ -235,20 +332,51 @@ export interface Notification {
   newHandle?: string | null;
   /** project_removed: the project's title */
   projectTitle?: string | null;
+  /** file_card_received / file_card_placed: the card's headline */
+  cardTitle?: string | null;
+  /** file_card_received from outside anti: the name its maker typed (there is no actor); seat_request: the name the asker typed */
+  guestName?: string | null;
   /** pick_remark / remark_removed: the pick's title */
   pickTitle?: string | null;
   /** checklist_reminder: how far along "Finish your profile" is */
   checklist?: { done: number; total: number } | null;
+  /** requests_waiting: how many people are waiting to join that one thing */
+  count?: number | null;
   /** collab_*: the collab */
   collab?: { id: string; title: string } | null;
   /** collab_removed: its title */
   collabTitle?: string | null;
+  /** event_removed: its title */
+  eventTitle?: string | null;
   /** collab_finished: your draft project */
   draftId?: string | null;
-  /** consult_*: the request (its topic; pricing on consult_accepted; what it was waiting for on consult_expired) */
-  consultation?: { id: string; topic: string; pricing: string | null; was: string | null } | null;
+  /** consult_*: the request (pricing on consult_accepted; what it was waiting for on consult_expired; `topic` only on notifications from before 2026-11-09) */
+  consultation?: { id: string; topic?: string; pricing: string | null; was: string | null } | null;
 }
 export interface Page<T> { items: T[]; nextCursor: string | null }
+/** RFC §10.11: one visit to the feed. Posts newer than `since` are new; the feed stops at that line. */
+export interface FeedVisit {
+  since: string;
+  /** the line is a week back: nothing was ever caught up to (or it was long ago) */
+  capped: boolean;
+  newPosts: number;
+  /** null after a reload (the browser kept the first one) */
+  visitId: number | null;
+  /** older posts that two or more people replied to since the line; a row at the newest reply */
+  threads: FeedThreadRow[];
+  /** public events announced since the line; a row at the moment they were made */
+  events: FeedEventRow[];
+  /**
+   * RFC §10.23: set when this visit's new posts come mixed (the seed fixes the mix for the visit);
+   * posts after `until` wait behind "N new posts". Absent from the Monologue page's line.
+   */
+  mix?: { seed: number; until: string } | null;
+  /** shown on the end card: one you are going to first, else the soonest you can see */
+  nextEvent: { id: string; title: string; startsAt: string; going: number; imGoing: boolean } | null;
+}
+export type FeedPerson = { handle: string; displayName: string; gender: Gender | null } | null;
+export interface FeedThreadRow { rootId: string; at: string; repliers: number; postedAt: string; author: FeedPerson }
+export interface FeedEventRow { id: string; at: string; title: string; startsAt: string; going: number; joinMode: 'open' | 'approve'; host: FeedPerson }
 export type RsvpStatus = 'going' | 'waitlisted' | 'cancelled';
 export interface EventPerson { handle: string; displayName: string; state: UserState; attended: boolean; gender?: Gender | null; admin?: boolean; verified?: boolean }
 export interface AnEvent {
@@ -257,6 +385,11 @@ export interface AnEvent {
   goingCount: number; waitlistCount: number; attendedCount: number;
   priceNote: string | null; externalPaymentUrl: string | null; cancelledAt: string | null;
   host: (CollabPerson & { state: UserState }) | null; isHost: boolean;
+  /** RFC §10.21: co-hosts edit, decide, invite and mark attendance; only the host cancels */
+  cohosts?: CollabPerson[];
+  canManage?: boolean;
+  /** the viewer is an admin: may remove this event for good */
+  canModerate?: boolean;
   my: { status: RsvpStatus; waitlistPosition: number | null; attended: boolean } | null;
   started: boolean; rsvpOpen: boolean; canEdit: boolean; canConfirmAttendance: boolean;
   collab: { id: string; title: string } | null; audience: 'anyone' | 'team'; canPostUpdate: boolean;
@@ -281,53 +414,86 @@ export interface AdminInterest {
 }
 export type CollabStatus = 'recruiting' | 'closed' | 'finished';
 export type CollabRole = 'host' | 'cohost' | 'member';
+/** RFC §10.21: the three kinds of thing in one place (`event` lives in its own table) */
+export type CollabKind = 'event' | 'activity' | 'project';
 /** Anyone the API names: the OG mark (`admin`) and the verified badge go right after the name (RFC §10.7). */
 export interface CollabPerson { handle: string; displayName: string; gender?: Gender | null; admin?: boolean; verified?: boolean }
 export interface CollabSummary {
-  id: string; title: string; status: CollabStatus; joinMode: 'open' | 'approve';
-  interests: string[]; roles: string[]; teamCount: number; teamMax: number;
+  id: string; title: string; kind: 'activity' | 'project'; meets: string;
+  status: CollabStatus; joinMode: 'open' | 'approve';
+  interests: string[]; roles: string[]; teamCount: number; teamMax: number | null;
   host: CollabPerson | null; cover: { url: string; width: number; height: number } | null;
   match: number; my: { role: CollabRole | null; request: 'pending' | 'declined' | null; invited: boolean };
   createdAt: string;
 }
 export interface Collab extends CollabSummary {
   description: string; requirements: string; priceNote: string | null; paymentUrl: string | null;
-  team: (CollabPerson & { role: CollabRole; joinedAt: string })[];
+  /** the roles and who holds each one (a project's slots) */
+  slots: { role: string; handle: string | null }[];
+  team: (CollabPerson & { role: CollabRole; slot: string | null; joinedAt: string })[];
   canManage: boolean;
-  requests: (CollabPerson & { note: string | null; at: string })[] | null;
+  requests: (CollabPerson & { note: string | null; slot: string | null; at: string })[] | null;
   invites: CollabPerson[] | null;
   meetups: { id: string; title: string; startsAt: string; audience: 'anyone' | 'team'; goingCount: number; past: boolean }[];
   hidden: boolean; canReport: boolean; canModerate: boolean;
+  /** RFC §10.21: the quiet nudge is still unanswered */
+  quiet: boolean;
 }
 export interface CollabInput {
-  title: string; description: string; requirements: string; roles: string[]; teamMax: number;
+  kind?: 'activity' | 'project';
+  title: string; description: string; requirements: string; roles: string[]; teamMax: number | null;
+  meets?: string;
   joinMode: 'open' | 'approve'; priceNote: string | null; paymentUrl: string | null; interests: string[];
   coverId?: string | null; status?: CollabStatus;
+  /** "Make it regular": invites everyone who came to this past event */
+  fromEventId?: string;
 }
 export interface CollabSuggestion extends CollabPerson { shared: string[]; match: number }
+/** One row of the Collab page: an event or a collab, with when it was started. */
+export type CollabPageItem =
+  | ({ type: 'event'; createdAt: string } & AnEvent)
+  | ({ type: 'collab' } & CollabSummary);
+export interface WaitingOn { type: CollabKind; id: string; title: string; count: number }
+export interface MyCollab { hosting: CollabPageItem[]; in: CollabPageItem[]; going: CollabPageItem[]; waiting: WaitingOn[] }
+/** Admin → Collab: every event, activity and project, hidden and cancelled ones included. */
+export interface AdminCollabItem {
+  type: CollabKind;
+  id: string; title: string; host: string | null;
+  createdAt: string;
+  startsAt: string | null;
+  status: CollabStatus | null;
+  /** a cancelled event, or a collab hidden after reports */
+  flagged: boolean;
+}
 
 // ─── Consultations (RFC §10.6) ──────────────────────────────────────────────
 export type ConsultPricing = 'free' | 'paid';
 export type ConsultStatus = 'pending' | 'accepted' | 'revealed' | 'done' | 'declined' | 'expired' | 'closed';
+/** RFC §10.18: consulting needs the verified badge, then one admin's approval. */
+export type ConsultApproval = 'none' | 'waiting' | 'approved' | 'declined';
 export interface ThanksNote extends CollabPerson { text: string; at: string; hidden: boolean }
 /** What a member (18+) sees on someone's portfolio. Never the contact or the payment link. */
 export interface ConsultOffer {
-  handle: string; topics: string[]; description: string; minutes: number;
+  handle: string; description: string; minutes: number;
   pricing: ConsultPricing; priceNote: string | null; sessionsDone: number;
   thanks: ThanksNote[]; thanksCount: number;
   mine: boolean; canBook: boolean; canReport: boolean;
   active: boolean; blocked: boolean; hidden: boolean;
+  /** owner only */
+  approval: ConsultApproval;
 }
 export interface MyConsultOffer {
-  active: boolean; topics: string[]; description: string; minutes: number;
+  active: boolean; description: string; minutes: number;
   pricing: ConsultPricing; priceNote: string | null; paymentUrl: string | null; contact: string;
   blocked: boolean; hidden: boolean; allowed: boolean; exists: boolean;
+  /** RFC §10.18: the badge comes first, then an admin's approval */
+  verified: boolean; approval: ConsultApproval;
 }
-export type ConsultOfferInput = Partial<Omit<MyConsultOffer, 'blocked' | 'hidden' | 'allowed' | 'exists'>>;
+export type ConsultOfferInput = Partial<Omit<MyConsultOffer, 'blocked' | 'hidden' | 'allowed' | 'exists' | 'verified' | 'approval'>>;
 export interface Consultation {
   id: string; role: 'consultant' | 'requester';
   consultant: CollabPerson; requester: CollabPerson;
-  topic: { slug: string; label: string }; need: string; when: string; minutes: number;
+  need: string; when: string; minutes: number;
   status: ConsultStatus; pricing: ConsultPricing | null; priceNote: string | null; paymentUrl: string | null;
   contacts: { consultant: string; requester: string } | null; contactsUntil: string | null; expiresAt: string | null;
   createdAt: string; decidedAt: string | null; revealedAt: string | null; doneAt: string | null; closedAt: string | null;
@@ -336,15 +502,22 @@ export interface Consultation {
   can: { accept: boolean; decline: boolean; agree: boolean; close: boolean; hideContacts: boolean; done: boolean; thank: boolean; hideThanks: boolean; report: boolean };
   reported: boolean;
 }
-export interface ConsultRequestInput { topic: string; need: string; when: string; contact: string }
+export interface ConsultRequestInput { need: string; when: string; contact: string }
 /** Admins: who consulted whom and when. Never the contacts or what was asked. */
 export interface OpsConsultation {
-  id: string; consultant: CollabPerson; requester: CollabPerson; topic: string; status: ConsultStatus;
+  id: string; consultant: CollabPerson; requester: CollabPerson; status: ConsultStatus;
   pricing: ConsultPricing | null; createdAt: string; reported: boolean;
+}
+/** RFC §10.18: a member waiting for a yes on their consulting. */
+export interface ConsultAsk extends CollabPerson {
+  askedAt: string; description: string; minutes: number;
+  pricing: ConsultPricing; priceNote: string | null;
+  /** their offer is saved but paused: approving changes nothing until they switch it on */
+  active: boolean;
 }
 /** Admins, on a reported request only: all of it. */
 export interface OpsConsultationDetail {
-  id: string; consultant: CollabPerson; requester: CollabPerson; topic: string; need: string; when: string;
+  id: string; consultant: CollabPerson; requester: CollabPerson; need: string; when: string;
   status: ConsultStatus; pricing: ConsultPricing | null; priceNote: string | null; paymentUrl: string | null;
   contacts: { consultant: string | null; requester: string | null };
   createdAt: string; revealedAt: string | null; doneAt: string | null; closedAt: string | null; thanks: string | null;
@@ -380,6 +553,12 @@ export const IMAGES_MAX = POST_MAX_IMAGES;
 export const IMAGE_MAX_BYTES = SHARED_IMAGE_MAX_BYTES;
 export const EDIT_WINDOW_MS = EDIT_WINDOW_MINUTES * 60 * 1000;
 
+/** RFC 10.25: someone outside who asked for a seat; only admins get these */
+export type SeatRequestInfo = {
+  id: string; name: string; contact: string | null; note: string; createdAt: string;
+  invitedAt: string | null; invitedBy: string | null;
+};
+
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   let res: Response;
   const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
@@ -405,7 +584,7 @@ const post = <T,>(p: string, b: unknown = {}) => call<T>('POST', p, b);
 
 export const api = {
   me: () => get<Me>('/me'),
-  updateMe: (b: { displayName?: string; bio?: string; gender?: Gender; birthdayPublic?: boolean }) => call<Me>('PATCH', '/me', b),
+  updateMe: (b: { displayName?: string; bio?: string; gender?: Gender; birthdayPublic?: boolean; theme?: 'light' | 'dark'; feedOrder?: 'mixed' | 'newest'; filePublic?: boolean }) => call<Me>('PATCH', '/me', b),
   checklist: () => get<ChecklistState>('/me/checklist'),
   interests: () => get<{ items: Interest[] }>('/interests'),
   setInterests: (interests: string[]) => call<{ interests: string[] }>('PUT', '/me/interests', { interests }),
@@ -422,6 +601,22 @@ export const api = {
     call<Me | { closed: true }>('PUT', '/me/setup', b),
   deleteMe: () => call<{ ok: true }>('DELETE', '/me'),
   checkInvite: (code: string) => post<{ valid: boolean; wouldWaitlist: boolean }>('/invites/check', { code }),
+  /** RFC 10.25: asking for a seat from the landing page, with no account */
+  seatRequestsOpen: () => get<{ open: boolean }>('/public/seat-requests'),
+  askForSeat: (b: { name: string; contact: string; note: string; website: string }) => post<{ ok: true }>('/public/seat-requests', b),
+  opsSeatRequests: () => get<{ items: SeatRequestInfo[]; waiting: number }>('/ops/seat-requests'),
+  opsInviteSeatRequest: (id: string) =>
+    post<{ id: string; name: string; contact: string | null; code: string; expiresAt: string }>(`/ops/seat-requests/${encodeURIComponent(id)}/invite`, {}),
+  opsDeclineSeatRequest: (id: string) => post<{ removed: true }>(`/ops/seat-requests/${encodeURIComponent(id)}/decline`, {}),
+  // RFC §10.13: joining and signing in with a handle and a 6-digit PIN
+  join: (b: { code: string; handle: string; displayName: string; pin: string }) =>
+    post<{ state: UserState; recoveryCode: string }>('/auth/join', b),
+  pinLogin: (b: { handle: string; pin: string }) => post<{ state: UserState }>('/auth/pin/login', b),
+  /** `code`: the recovery code, or an admin's one-hour reset code */
+  pinReset: (b: { handle: string; code: string; pin: string }) =>
+    post<{ state: UserState; recoveryCode: string | null }>('/auth/pin/reset', b),
+  setPin: (pin: string, currentPin?: string) => call<{ ok: true }>('PUT', '/me/pin', currentPin ? { pin, currentPin } : { pin }),
+  opsPinReset: (handle: string) => post<{ code: string; expiresAt: string }>(`/ops/users/${encodeURIComponent(handle)}/pin-reset`, {}),
   registerOptions: (b: { code: string; handle: string; displayName: string }) => post<Challenge>('/auth/register/options', b),
   registerVerify: (b: { challengeId: string; response: unknown }) =>
     post<{ state: UserState; recoveryCode: string }>('/auth/register/verify', b),
@@ -438,14 +633,38 @@ export const api = {
   createInvite: () => post<{ code: string; expiresAt: string }>('/me/invites', {}),
   rejoin: () => post<{ ok: true }>('/me/waitlist/rejoin', {}),
 
-  feed: (cursor?: string | null, limit = 20) => get<Page<Post>>(`/feed${qs({ cursor, limit })}`),
-  createPost: (b: { body: string; parentId?: string; imageIds?: string[]; collabId?: string; eventId?: string }) => post<Post>('/posts', b),
+  /** `visit`: start a visit (first page only); `since`: resume one after a reload (RFC §10.11) */
+  feed: (cursor?: string | null, limit = 20, v: { visit?: boolean; since?: string; seed?: number; until?: string } = {}) =>
+    get<Page<Post> & { visit?: FeedVisit }>(`/feed${qs({ cursor, limit, visit: v.visit ? 1 : undefined, since: v.since, seed: v.seed, until: v.until })}`),
+  caughtUp: (through: string, visitId?: number | null) =>
+    post<{ seenThrough: string | null }>('/feed/caught-up', visitId == null ? { through } : { through, visitId }),
+  createPost: (b: {
+    body: string; parentId?: string; imageIds?: string[]; collabId?: string; eventId?: string; petId?: string; petLabel?: PetLabel;
+    /** RFC §10.22: post an uploaded recording as a monologue */
+    monologue?: { audioId: string; title: string; kind: MonologueKind; mine: true };
+  }) => post<Post>('/posts', b),
   thread: (id: string) => get<Thread>(`/posts/${encodeURIComponent(id)}`),
-  editPost: (id: string, body: string) => call<Post>('PATCH', `/posts/${encodeURIComponent(id)}`, { body }),
+  /** a monologue's title and kind can change in the same window as its note */
+  editPost: (id: string, body: string, mono?: { title: string; kind: MonologueKind }) =>
+    call<Post>('PATCH', `/posts/${encodeURIComponent(id)}`, mono ? { body, ...mono } : { body }),
+  /** RFC §10.22: the Monologue page (feed rules, its own line), one kind or all */
+  monologues: (cursor?: string | null, limit = 20, o: { kind?: MonologueKind | null; visit?: boolean; since?: string } = {}) =>
+    get<Page<Post> & { visit?: FeedVisit }>(`/monologues${qs({ cursor, limit, kind: o.kind ?? undefined, visit: o.visit ? 1 : undefined, since: o.since })}`),
+  monologuesCaughtUp: (through: string) => post<{ ok: true }>('/monologues/caught-up', { through }),
+  memberMonologues: (handle: string) => get<Page<Post>>(`/members/${encodeURIComponent(handle)}/monologues`),
+  /** the sound first; it waits (for this member only) until it is posted */
+  uploadAudio: (file: Blob, name: string, durationMs: number, peaks: number[], source: 'recorded' | 'uploaded') => {
+    const fd = new FormData();
+    fd.append('file', file, name);
+    fd.append('durationMs', String(durationMs));
+    fd.append('peaks', JSON.stringify(peaks));
+    fd.append('source', source);
+    return call<{ id: string; url: string; durationMs: number; peaks: number[] }>('POST', '/monologues/audio', fd);
+  },
   deletePost: (id: string) => call<{ ok: true }>('DELETE', `/posts/${encodeURIComponent(id)}`),
-  like: (id: string) => post<{ likeCount: number; likedByMe: boolean }>(`/posts/${encodeURIComponent(id)}/like`, {}),
+  like: (id: string) => post<{ likeCount: number | null; likedByMe: boolean }>(`/posts/${encodeURIComponent(id)}/like`, {}),
   flagPost: (id: string, reason?: string) => post<{ flagged: true }>(`/posts/${encodeURIComponent(id)}/flag`, reason ? { reason } : {}),
-  unlike: (id: string) => call<{ likeCount: number; likedByMe: boolean }>('DELETE', `/posts/${encodeURIComponent(id)}/like`),
+  unlike: (id: string) => call<{ likeCount: number | null; likedByMe: boolean }>('DELETE', `/posts/${encodeURIComponent(id)}/like`),
   upload: (file: File) => {
     const fd = new FormData();
     fd.append('file', file);
@@ -453,7 +672,31 @@ export const api = {
   },
   search: (q: string) => get<{ members: MemberSummary[]; posts: Post[] }>(`/search${qs({ q })}`),
   members: (cursor?: string | null, limit = 30) => get<Page<MemberSummary>>(`/members${qs({ cursor, limit })}`),
+  /** RFC §10.16: the @ list in the composer (up to 8 seated members) */
+  mentionMembers: (q: string) => get<{ items: { handle: string; displayName: string; gender: Gender | null }[] }>(`/members/mention${qs({ q })}`),
   member: (handle: string) => get<MemberSummary>(`/members/${encodeURIComponent(handle)}`),
+  /** RFC §10.17: Pet Corner — the newest pet posts; a pet's page; your own pets */
+  pets: (cursor?: string | null, limit = 20) => get<Page<PetPost>>(`/pets${qs({ cursor, limit })}`),
+  myPets: () => get<{ items: Pet[] }>('/pets/mine'),
+  // RFC §10.21: one Collab place
+  collabPage: (p: { kind?: 'all' | CollabKind; interest?: string | null; done?: boolean; cursor?: string | null; limit?: number } = {}) =>
+    get<Page<CollabPageItem>>(`/collab${qs({
+      kind: !p.kind || p.kind === 'all' ? undefined : p.kind, interest: p.interest, done: p.done ? 1 : undefined,
+      cursor: p.cursor, limit: p.limit,
+    })}`),
+  myCollab: () => get<MyCollab>('/me/collab'),
+  memberEvents: (handle: string) => get<{ upcoming: AnEvent[]; past: AnEvent[] }>(`/members/${encodeURIComponent(handle)}/events`),
+  dismissCollabIntro: () => post<{ seen: true }>('/me/collab-intro/dismiss', {}),
+  setCollabSlot: (id: string, handle: string, slot: string | null) =>
+    post<Collab>(`/collabs/${encodeURIComponent(id)}/members/${encodeURIComponent(handle)}/slot`, { slot }),
+  addEventCohost: (id: string, handle: string) => post<EventDetail>(`/events/${encodeURIComponent(id)}/cohosts`, { handle }),
+  removeEventCohost: (id: string, handle: string) =>
+    call<EventDetail>('DELETE', `/events/${encodeURIComponent(id)}/cohosts/${encodeURIComponent(handle)}`),
+  pet: (id: string) => get<{ pet: Pet; posts: PetPost[] }>(`/pets/${encodeURIComponent(id)}`),
+  createPet: (b: { name: string; species: PetSpecies; avatarVariant?: number; avatarId?: string }) => post<Pet>('/pets', b),
+  updatePet: (id: string, b: { name?: string; species?: PetSpecies; avatarVariant?: number; avatarId?: string; removeAvatar?: boolean }) =>
+    call<Pet>('PATCH', `/pets/${encodeURIComponent(id)}`, b),
+  deletePet: (id: string) => call<{ ok: true; posts: number }>('DELETE', `/pets/${encodeURIComponent(id)}`),
   randomPick: (exclude: string[] = []) => get<{ item: Pick | null }>(`/suggestions/random${qs({ exclude: exclude.join(',') })}`),
   votePick: (id: string, vote: 1 | -1, remark?: string | null) =>
     call<Pick>('PUT', `/suggestions/${encodeURIComponent(id)}/vote`, remark === undefined ? { vote } : { vote, remark }),
@@ -463,6 +706,9 @@ export const api = {
     call<{ removed: true }>('DELETE', `/ops/suggestions/${encodeURIComponent(id)}/remarks/${encodeURIComponent(handle)}`),
   suggest: (b: { kind: SuggestionKind; title: string; note?: string | null }) => post<Pick>('/suggestions', b),
   deletePick: (id: string) => call<{ ok: true }>('DELETE', `/suggestions/${encodeURIComponent(id)}`),
+  /** RFC §10.4: admins see every pick and can remove any of them */
+  opsPicks: () => get<{ items: Pick[] }>('/ops/suggestions'),
+  opsRemovePick: (id: string) => call<{ ok: true }>('DELETE', `/ops/suggestions/${encodeURIComponent(id)}`),
   memberPicks: (handle: string) => get<{ items: Pick[] }>(`/members/${encodeURIComponent(handle)}/suggestions`),
   portfolio: (handle: string) => get<Portfolio>(`/members/${encodeURIComponent(handle)}/portfolio`),
   updatePortfolio: (b: PortfolioInput) => call<Portfolio>('PATCH', '/me/portfolio', b),
@@ -472,6 +718,26 @@ export const api = {
   updateProject: (id: string, b: ProjectInput) => call<Project>('PATCH', `/me/projects/${encodeURIComponent(id)}`, b),
   deleteProject: (id: string) => call<{ ok: true }>('DELETE', `/me/projects/${encodeURIComponent(id)}`),
   orderProjects: (ids: string[]) => post<{ ok: true }>('/me/projects/order', { ids }),
+  // RFC §10.24, the File
+  file: (handle: string) => get<FileView>(`/members/${encodeURIComponent(handle)}/file`),
+  /** the share link's view: no sign-in, only what the member (and each card's maker) made public */
+  publicFile: (handle: string) => get<FileView>(`/public/file/${encodeURIComponent(handle)}`),
+  /** a card from someone outside anti, sent from the share page: name, headline, description, captions (a JSON list), photos */
+  sendGuestCard: (handle: string, form: FormData) => call<{ ok: true }>('POST', `/public/file/${encodeURIComponent(handle)}/cards`, form),
+  myFileCards: () => get<{ items: FileCard[] }>('/me/file/cards'),
+  createFileCard: (b: FileCardInput) => post<FileCard>('/me/file/cards', b),
+  updateFileCard: (id: string, b: FileCardInput) => call<FileCard>('PATCH', `/me/file/cards/${encodeURIComponent(id)}`, b),
+  deleteFileCard: (id: string) => call<{ ok: true }>('DELETE', `/me/file/cards/${encodeURIComponent(id)}`),
+  setFilePage: (position: number, b: { label?: string; cardId?: string | null }) => call<{ ok: true }>('PUT', `/me/file/pages/${position}`, b),
+  orderFilePages: (order: number[]) => post<{ ok: true }>('/me/file/pages/order', { order }),
+  sendFileCard: (id: string) => post<FileCard>(`/me/file/cards/${encodeURIComponent(id)}/send`, {}),
+  fileMade: () => get<{ items: FileCard[] }>('/me/file/made'),
+  fileTray: () => get<{ items: FileCard[] }>('/me/file/tray'),
+  declineFileCard: (id: string) => post<{ ok: true }>(`/me/file/tray/${encodeURIComponent(id)}/decline`, {}),
+  flagFileCard: (id: string, reason?: string) => post<{ flagged: true }>(`/file/cards/${encodeURIComponent(id)}/flag`, reason ? { reason } : {}),
+  opsResolveFileCard: (id: string, resolution: 'restored' | 'removed') =>
+    post<{ resolution: string }>(`/ops/file/cards/${encodeURIComponent(id)}/resolve`, { resolution }),
+  opsRemoveFileCard: (id: string) => post<{ removed: true }>(`/ops/file/cards/${encodeURIComponent(id)}/remove`, {}),
   flagProject: (id: string, reason?: string) => post<{ flagged: true }>(`/projects/${encodeURIComponent(id)}/flag`, reason ? { reason } : {}),
   memberPosts: (handle: string, cursor?: string | null, limit = 20) =>
     get<Page<Post>>(`/members/${encodeURIComponent(handle)}/posts${qs({ cursor, limit })}`),
@@ -500,7 +766,10 @@ export const api = {
   createCollab: (b: CollabInput) => post<Collab>('/collabs', b),
   updateCollab: (id: string, b: Partial<CollabInput>) => call<Collab>('PATCH', `/collabs/${encodeURIComponent(id)}`, b),
   deleteCollab: (id: string) => call<{ ok: true }>('DELETE', `/collabs/${encodeURIComponent(id)}`),
-  joinCollab: (id: string, note?: string) => post<{ joined?: true; requested?: true }>(`/collabs/${encodeURIComponent(id)}/join`, note ? { note } : {}),
+  joinCollab: (id: string, note?: string, slot?: string) =>
+    post<{ joined?: true; requested?: true }>(`/collabs/${encodeURIComponent(id)}/join`, {
+      ...(note ? { note } : {}), ...(slot ? { slot } : {}),
+    }),
   withdrawCollabRequest: (id: string) => call<{ ok: true }>('DELETE', `/collabs/${encodeURIComponent(id)}/request`),
   decideCollabRequest: (id: string, handle: string, accept: boolean) =>
     post<Collab>(`/collabs/${encodeURIComponent(id)}/requests/${encodeURIComponent(handle)}/${accept ? 'accept' : 'decline'}`, {}),
@@ -540,10 +809,18 @@ export const api = {
   opsResolveConsultOffer: (handle: string, resolution: 'restored' | 'removed') =>
     post<{ resolution: string }>(`/ops/consult-offers/${encodeURIComponent(handle)}/resolve`, { resolution }),
   opsSetConsulting: (handle: string, on: boolean) => post<{ switchedOn?: true; switchedOff?: true }>(`/ops/users/${encodeURIComponent(handle)}/consulting`, { on }),
+  /** RFC §10.18: who is waiting for a yes, and the yes or no */
+  opsConsultAsks: () => get<ConsultAsk[]>('/ops/consult-asks'),
+  opsDecideConsulting: (handle: string, approved: boolean) =>
+    post<{ handle: string; approved: boolean }>(`/ops/users/${encodeURIComponent(handle)}/consult-approval`, { approved }),
 
   pushConfig: () => get<{ enabled: boolean; publicKey: string | null }>('/push/config'),
   pushSubscribe: (b: { endpoint: string; keys: { p256dh: string; auth: string } }) => post<{ ok: true }>('/push/subscriptions', b),
   pushUnsubscribe: (endpoint: string) => call<{ ok: true }>('DELETE', '/push/subscriptions', { endpoint }),
+
+  /** RFC §10.21: everything in Collab, and an admin's wipe of any of it */
+  opsCollab: () => get<{ items: AdminCollabItem[] }>('/ops/collab'),
+  opsRemoveEvent: (id: string) => post<{ removed: true }>(`/ops/events/${encodeURIComponent(id)}/remove`, {}),
 
   opsFlags: () => get<FlagItem[]>('/ops/flags'),
   opsResolvePost: (id: string, resolution: 'restored' | 'removed') =>
@@ -597,7 +874,7 @@ const MESSAGES: Record<string, string> = {
   passkey_invalid: 'That passkey was not recognised.',
   account_unavailable: 'This account is unavailable.',
   recovery_failed: 'Handle or recovery code is incorrect.',
-  last_passkey: 'You cannot remove your last passkey. Add another first.',
+  last_passkey: 'Choose a PIN first: this passkey is your only way in.',
   invite_limit: 'You have reached your invite limit.',
   invite_penalty: 'You cannot create invites right now.',
   invite_not_allowed_state: 'Your account cannot create invites right now.',
@@ -640,6 +917,8 @@ const MESSAGES: Record<string, string> = {
   attendance_closed: 'Attendance can be confirmed from the start time until 14 days after.',
   consult_age: 'Consultations are for members 18 and over.',
   consult_blocked: 'An admin switched your consulting off. You can still finish the sessions already agreed.',
+  consult_unverified: 'Offering consulting needs the verified badge first. Ask an admin to verify you.',
+  consult_not_approved: 'An admin has not approved your consulting. Ask them directly if you want to talk about it.',
   consult_open_limit: 'You already have 3 open requests with them. Finish or close one first.',
   own_offer: 'That is your own offer.',
   not_consultant: 'Only the person asked can do that.',

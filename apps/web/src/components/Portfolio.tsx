@@ -15,15 +15,17 @@ import {
   PF_TAG_MAX, PROJECTS_MAX, PROJECT_IMAGES_MAX,
 } from '@anti/shared';
 import {
-  api, errorMessage, IMAGE_MAX_BYTES, type MemberSummary, type PfAccent, type PfEntry, type PfLink, type PfStyle, type Portfolio,
+  api, errorMessage, IMAGE_MAX_BYTES, type MemberSummary, type Pet, type PfAccent, type PfEntry, type PfLink, type PfStyle, type Portfolio,
   type PortfolioFields, type ProjectSummary,
 } from '@/lib/api';
 import { Avatar } from './Avatar';
+import { PetsRow } from './Pets';
 import { BirthdayTag } from './Birthday';
 import { NameMarks } from './Marks';
 import { InterestTags } from './Interests';
 import { Win } from './retro';
 import { ErrorNote } from './ui';
+import { bnLang } from '@/lib/lang';
 
 export const nn = (i: number) => String(i + 1).padStart(2, '0');
 /** Classes that give a window the portfolio's look (see "the look" in globals.css). */
@@ -46,10 +48,13 @@ const copyOf = (p: Portfolio): PortfolioFields => ({
 /** The cover while editing: unchanged, removed, or a fresh upload (with a local preview). */
 type CoverDraft = { id: string | null | undefined; preview: string | null; uploading: boolean };
 
-export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, consulting }: {
+export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, consulting, pets, onPets }: {
   member: MemberSummary; pf: Portfolio; projects: ProjectSummary[];
   /** the Consulting section (RFC §10.6), between the work and the links */
   consulting?: ReactNode;
+  /** RFC §10.17: the member's pets, and the owner-only Add Pet button */
+  pets?: Pet[];
+  onPets?: (pets: Pet[]) => void;
   onSaved: (p: Portfolio) => void;
   /** owner only: the contents list in its new order */
   onReorder: (ids: string[]) => void;
@@ -93,7 +98,9 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
 
   // what the cover strip shows right now
   const coverUrl = editing ? (cover.id === null ? null : cover.preview ?? pf.cover?.url ?? null) : pf.cover?.url ?? null;
-  const hasCv = editing || !!v.about || v.skills.length > 0 || v.tools.length > 0 || v.experience.length > 0 || v.education.length > 0;
+  const cvLeft = editing || !!v.about || v.skills.length > 0 || v.tools.length > 0;
+  const cvRight = editing || v.experience.length > 0 || v.education.length > 0;
+  const hasCv = cvLeft || cvRight;
   const hasLinks = editing || v.links.length > 0;
 
   return (
@@ -116,13 +123,13 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
       <header className="pf-hero">
         <Avatar seed={member.handle} gender={member.gender} size={112} label={`${member.displayName}'s avatar`} />
         <div className="pf-hero-main">
-          <h1>
+          <h1 {...bnLang(member.displayName)}>
             {member.displayName}
             <NameMarks admin={member.role === 'ops'} verified={member.verified} size=".8em" />
             <BirthdayTag b={member.birthday} />
             {member.state === 'archived' && <span className="tag" title="This member's seat was released">archived</span>}
           </h1>
-          <p className="mono muted">@{member.handle}</p>
+          <p className="meta">@{member.handle}</p>
           {editing ? (
             <div className="pf-hero-edit">
               <label>Headline
@@ -148,7 +155,7 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
             {member.invitedBy && <span>Invited by <Link href={`/u/${member.invitedBy.handle}`}>@{member.invitedBy.handle}</Link></span>}
             {member.interests.length > 0 && <InterestTags slugs={member.interests} />}
             {member.activatedAt && <span>Member since {new Date(member.activatedAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}</span>}
-            <span>{member.postCount} {member.postCount === 1 ? 'post' : 'posts'}</span>
+            {member.postCount > 0 && <span>{member.postCount} {member.postCount === 1 ? 'post' : 'posts'}</span>}
           </p>
           {pf.mine && !editing && (
             <div className="row pf-actions">
@@ -157,6 +164,7 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
             </div>
           )}
         </div>
+        <PetsRow pets={pets ?? []} mine={pf.mine} onChange={onPets ?? (() => {})} />
       </header>
 
       {editing && (
@@ -205,8 +213,9 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
       )}
 
       {hasCv && (
-        <div className="pf-cv">
-          <div className="pf-col">
+        // one column when either half would be empty (an empty box read as broken)
+        <div className={`pf-cv${cvLeft && cvRight ? '' : ' one'}`}>
+          {cvLeft && <div className="pf-col">
             {(editing || v.about) && (
               <section className="pf-sec" aria-labelledby={`${id}-about`}>
                 <h2 id={`${id}-about`}>About</h2>
@@ -235,8 +244,8 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
                   : <Tags items={v.tools} />}
               </section>
             )}
-          </div>
-          <div className="pf-col">
+          </div>}
+          {cvRight && <div className="pf-col">
             {(editing || v.experience.length > 0) && (
               <section className="pf-sec" aria-labelledby={`${id}-exp`}>
                 <h2 id={`${id}-exp`}>Experience</h2>
@@ -251,7 +260,7 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
                   : <Entries items={v.education} />}
               </section>
             )}
-          </div>
+          </div>}
         </div>
       )}
 

@@ -25,6 +25,7 @@ const ITEMS: Item[] = [
 export function Checklist({ me, refreshKey = 0 }: { me: Me; refreshKey?: number }) {
   const [c, setC] = useState<ChecklistState | null>(null);
   const [asking, setAsking] = useState(false);
+  const [open, setOpen] = useState(false);
   const load = useCallback(() => { api.checklist().then(setC, () => setC(null)); }, []);
   useEffect(() => { load(); }, [load, refreshKey]);
 
@@ -42,11 +43,23 @@ export function Checklist({ me, refreshKey = 0 }: { me: Me; refreshKey?: number 
     ta?.focus();
   };
 
+  const doIt = (i: Item) =>
+    i.action === 'pick' ? <button type="button" className="link-btn" onClick={() => setAsking(true)}>{i.label}</button>
+      : i.action === 'post' ? <button type="button" className="link-btn" onClick={writePost}>{i.label}</button>
+      : <Link href={i.href!(me.handle)}>{i.label}</Link>;
+  const next = ITEMS.find((i) => !c.items[i.key])!;
+
+  // folded to one line (the count and the next thing to do) on every screen, so the feed is the
+  // first screen; "Show all" opens the list (owner's call, 2026-11-09)
   return (
-    <Win title="checklist.txt" as="aside" className="checklist" onClose={() => void hide()} bodyClassName="stack">
-      <div className="row between">
+    <Win title="checklist.txt" as="aside" className={`checklist${open ? ' open' : ''}`} onClose={() => void hide()} bodyClassName="stack">
+      <div className="row between ck-top">
         <h2>Finish your profile</h2>
-        <span className="ui muted">{done} of {ITEMS.length} done</span>
+        {!open && <p className="ck-next">Next: {doIt(next)}</p>}
+        <span className="row ck-head">
+          <span className="meta">{done} of {ITEMS.length} done</span>
+          <button type="button" className="link-btn ck-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? 'Less' : 'Show all'}</button>
+        </span>
       </div>
       <ul className="checklist-items">
         {ITEMS.map((i) => {
@@ -56,10 +69,7 @@ export function Checklist({ me, refreshKey = 0 }: { me: Me; refreshKey?: number 
               <span className={`ck${ok ? ' on' : ''}`} aria-hidden="true" />
               <span className="checklist-text">
                 <span className="sr-only">{ok ? 'Done: ' : 'To do: '}</span>
-                {ok ? <s>{i.label}</s>
-                  : i.action === 'pick' ? <button type="button" className="link-btn" onClick={() => setAsking(true)}>{i.label}</button>
-                  : i.action === 'post' ? <button type="button" className="link-btn" onClick={writePost}>{i.label}</button>
-                  : <Link href={i.href!(me.handle)}>{i.label}</Link>}
+                {ok ? <s>{i.label}</s> : doIt(i)}
                 <span className="muted small">{i.hint}</span>
               </span>
             </li>
@@ -67,7 +77,7 @@ export function Checklist({ me, refreshKey = 0 }: { me: Me; refreshKey?: number 
         })}
       </ul>
       <div className="row dlg-actions">
-        <button type="button" className="btn" onClick={() => void hide()}>Hide this</button>
+        <button type="button" className="btn" onClick={() => void hide()}>Hide for good</button>
       </div>
       <SuggestDialog open={asking} onClose={() => setAsking(false)} onCreated={() => { setAsking(false); load(); }} />
     </Win>

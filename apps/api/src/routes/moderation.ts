@@ -6,13 +6,16 @@ import type { Deps } from '../deps';
 import { ApiError } from '../lib/errors';
 import { generateInviteCode } from '../lib/crypto';
 import {
-  banUser, flagCollab, flagPost, flagProject, flagQueue, removeCollab, removePost, removeProject, resolveCollabFlags, resolveFlags,
-  resolveProjectFlags, userIdByHandle,
+  banUser, flagCollab, flagPost, flagProject, flagQueue, removeCollab, removeEvent, removePost, removeProject, resolveCollabFlags,
+  resolveFlags, resolveProjectFlags, userIdByHandle,
 } from '../lib/moderation';
-import { opsConsultation, opsConsultations, resolveConsultationFlags, resolveOfferFlags, switchOff, switchOn } from '../lib/consultations';
+import { adminCollab } from '../lib/collab-page';
+import { consultQueue, decideConsulting, opsConsultation, opsConsultations, resolveConsultationFlags, resolveOfferFlags, switchOff, switchOn } from '../lib/consultations';
 import { adminMembers, getAdminSettings, renameMember, setMemberBirthday, setMemberRole, unbanMember, updateAdminSettings, openMemberContact, setVerified } from '../lib/admin';
 import { UUID_RE } from '../lib/posts';
+import { flagCard, removeCard, resolveCardFlags } from '../lib/file';
 import { hit } from '../lib/ratelimit';
+import { createPinReset } from '../lib/pin';
 import { authPlugin, requireSeated, requireUser } from '../plugins/auth';
 import type { Auth } from '../lib/sessions';
 
@@ -21,9 +24,9 @@ import type { Auth } from '../lib/sessions';
  * ops CLI). To members the endpoints do not exist: 404.
  */
 function requireOps(auth: Auth | null): Auth {
-  const a = requireUser(auth);
-  if (a.user.role !== 'ops') throw new ApiError(404, 'not_found');
-  return a;
+  if (!auth) throw new ApiError(401, 'unauthenticated');
+  if (auth.user.role !== 'ops') throw new ApiError(404, 'not_found');
+  return auth;
 }
 
 export const moderationRoutes = (deps: Deps) => {
@@ -47,6 +50,23 @@ export const moderationRoutes = (deps: Deps) => {
       return { flagged: r.flagged };
     }, { body: t.Optional(t.Object({ reason: t.Optional(t.String({ maxLength: 800 })) })) })
 
+    // RFC §10.24: a card in someone's File, or one sent to you
+    .post('/file/cards/:id/flag', async ({ auth, params, body }) => {
+      const a = requireSeated(auth);
+      await hit(db, 'flag', a.user.id);
+      return flagCard(db, a.user.id, params.id, body?.reason);
+    }, { body: t.Optional(t.Object({ reason: t.Optional(t.String({ maxLength: 800 })) })) })
+
+    .post('/ops/file/cards/:id/resolve', async ({ auth, params, body }) => {
+      requireOps(auth);
+      return resolveCardFlags(db, storage, params.id, body.resolution);
+    }, { body: t.Object({ resolution: t.Union([t.Literal('restored'), t.Literal('removed')]) }) })
+
+    .post('/ops/file/cards/:id/remove', async ({ auth, params }) => {
+      const a = requireOps(auth);
+      return removeCard(db, storage, params.id, a.user.id);
+    })
+
     .post('/collabs/:id/flag', async ({ auth, params, body }) => {
       const a = requireSeated(auth);
       if (!UUID_RE.test(params.id)) throw new ApiError(404, 'not_found');
@@ -64,6 +84,19 @@ export const moderationRoutes = (deps: Deps) => {
       const a = requireOps(auth);
       if (!UUID_RE.test(params.id)) throw new ApiError(404, 'not_found');
       return removeCollab(db, params.id, a.user.id);
+    })
+
+    /** RFC §10.21: an admin can wipe any event, a meetup included. */
+    .post('/ops/events/:id/remove', async ({ auth, params }) => {
+      const a = requireOps(auth);
+      if (!UUID_RE.test(params.id)) throw new ApiError(404, 'not_found');
+      return removeEvent(db, params.id, a.user.id);
+    })
+
+    /** Every event, activity and project, for the admin's Collab section (hidden and cancelled ones too). */
+    .get('/ops/collab', async ({ auth }) => {
+      requireOps(auth);
+      return { items: await adminCollab(db) };
     })
 
     // ─── Consultations (RFC §10.6) ───
@@ -89,6 +122,16 @@ export const moderationRoutes = (deps: Deps) => {
       const u = await userIdByHandle(db, params.handle);
       return body.on ? switchOn(db, u.id) : switchOff(db, u.id, a.user.id);
     }, { body: t.Object({ on: t.Boolean() }) })
+
+    /** RFC §10.18: who switched their offer on and is waiting for a yes; then the decision. */
+    .get('/ops/consult-asks', async ({ auth }) => {
+      requireOps(auth);
+      return consultQueue(db);
+    })
+    .post('/ops/users/:handle/consult-approval', async ({ auth, params, body }) => {
+      const a = requireOps(auth);
+      return decideConsulting(db, params.handle, body.approved, a.user.id);
+    }, { body: t.Object({ approved: t.Boolean() }) })
 
     .get('/ops/flags', async ({ auth }) => {
       requireOps(auth);
@@ -137,6 +180,12 @@ export const moderationRoutes = (deps: Deps) => {
       const a = requireOps(auth);
       return setVerified(db, params.handle, body.on, a.user.id);
     }, { body: t.Object({ on: t.Boolean() }) })
+
+    /** RFC §10.13: a one-hour code for a member who forgot their PIN; never for yourself; logged. */
+    .post('/ops/users/:handle/pin-reset', async ({ auth, params }) => {
+      const a = requireOps(auth);
+      return createPinReset(db, a.user.id, params.handle);
+    })
 
     /** RFC §10.7: a member's contact details; every opening is logged. */
     .get('/ops/users/:handle/contact', async ({ auth, params }) => {

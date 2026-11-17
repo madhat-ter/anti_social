@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
-import { rows } from '@anti/db';
+import { rows, type Db } from '@anti/db';
 import { setOps, banUser } from '../src/lib/moderation';
 import { sweepConsultations } from '../src/lib/consultations';
 import { cleanup, setup, TEST_SETUP } from './client';
@@ -9,11 +9,13 @@ afterEach(cleanup);
 
 async function world() {
   const w = await setup({ seatCap: 30 });
-  const member = async (handle: string, birthday = TEST_SETUP.birthday) => {
+  /** an 18+ member; by default with the badge and an admin's approval (RFC §10.18) */
+  const member = async (handle: string, birthday = TEST_SETUP.birthday, trust = true) => {
     const c = w.client();
     expect((await c.register(await w.mint(), handle, handle, { setup: false })).status).toBe(200);
     const s = await c.put('/me/setup', { ...TEST_SETUP, birthday });
     expect(s.status).toBe(200);
+    if (trust) await skipTrustGate(w.t.db, handle);
     return c;
   };
   const kinds = async (handle: string) => (await rows<{ kind: string }>(w.t.db, sql`
@@ -25,11 +27,20 @@ async function world() {
   return { ...w, member, kinds, age };
 }
 
+/**
+ * These tests are about §10.6 (requests, contacts, time limits), not §10.18, so a member is given
+ * the badge and an admin's approval straight in the database. §10.18 has its own tests below.
+ */
+async function skipTrustGate(db: Db, handle: string) {
+  await db.execute(sql`update users set verified_at = now(), consult_approved_at = now()
+    where lower(handle) = lower(${handle})`);
+}
+
 const offer = {
-  active: true, topics: ['design', 'photography'], description: 'Portfolio reviews and first-job advice.',
+  active: true, description: 'Portfolio reviews and first-job advice.',
   minutes: 60, pricing: 'free', contact: 'Telegram @ana_designs',
 };
-const ask = { topic: 'design', need: 'Can you look at my portfolio before I apply?', when: 'Weekday evenings', contact: 'WhatsApp +977 98000 00000' };
+const ask = { need: 'Can you look at my portfolio before I apply?', when: 'Weekday evenings', contact: 'WhatsApp +977 98000 00000' };
 
 /** a 14-year-old, today */
 const minorBirthday = () => { const d = new Date(); return `${d.getUTCFullYear() - 14}-01-01`; };
@@ -42,14 +53,13 @@ describe('consultation offers', () => {
 
     expect((await ana.get('/me/consult-offer')).body).toMatchObject({ exists: false, active: false, allowed: true });
     for (const bad of [
-      { topics: [] }, { topics: ['nope'] }, { contact: '' }, { minutes: 50 }, { pricing: 'maybe' },
+      { contact: '' }, { minutes: 50 }, { pricing: 'maybe' },
       { pricing: 'paid', priceNote: '' }, { paymentUrl: 'http://pay.example' }, { description: 'x'.repeat(501) },
-      { topics: ['design', 'photography', 'writing', 'music', 'film', 'art'] },
     ]) {
       expect((await ana.put('/me/consult-offer', { ...offer, ...bad })).body.error).toBe('consult_invalid');
     }
     const saved = (await ana.put('/me/consult-offer', { ...offer, pricing: 'paid', priceNote: 'NPR 2,000 / hour', paymentUrl: 'https://pay.example/ana' })).body;
-    expect(saved).toMatchObject({ exists: true, active: true, topics: ['design', 'photography'], pricing: 'paid', contact: offer.contact });
+    expect(saved).toMatchObject({ exists: true, active: true, pricing: 'paid', contact: offer.contact });
 
     const seen = (await ben.get('/members/ana/consult-offer')).body.offer;
     expect(seen).toMatchObject({ handle: 'ana', pricing: 'paid', priceNote: 'NPR 2,000 / hour', sessionsDone: 0, canBook: true, mine: false, thanks: [] });
@@ -76,14 +86,15 @@ describe('consultation offers', () => {
     await ana.put('/me/consult-offer', offer);
     const kid = await w.member('kid', minorBirthday());
     expect((await kid.get('/me/consult-offer')).body.allowed).toBe(false);
+    // age comes before the badge: an under-18 is turned away as under-18 (RFC §10.18)
     expect((await kid.put('/me/consult-offer', offer)).body.error).toBe('consult_age');
     expect((await kid.get('/members/ana/consult-offer')).body.offer).toBeNull();
     expect((await kid.get('/members/ana')).body.consults).toBe(false);
     expect((await kid.post('/members/ana/consultations', ask)).body.error).toBe('consult_age');
     expect((await kid.get('/consultations')).body.error).toBe('consult_age');
     // an under-18 member's offer row (made before an admin corrected a birthday) is never live
-    await w.t.db.execute(sql`insert into consult_offers (user_id, active, topics, contact)
-      select id, true, '["design"]'::jsonb, 'x' from users where handle = 'kid'`);
+    await w.t.db.execute(sql`insert into consult_offers (user_id, active, contact)
+      select id, true, 'x' from users where handle = 'kid'`);
     expect((await ana.get('/members/kid/consult-offer')).body.offer).toBeNull();
   });
 });
@@ -96,11 +107,11 @@ describe('consultation requests', () => {
     await ana.put('/me/consult-offer', offer);
 
     expect((await ana.post('/members/ana/consultations', ask)).body.error).toBe('own_offer');
-    for (const bad of [{ topic: 'writing' }, { need: ' ' }, { contact: '' }, { when: 'x'.repeat(201) }]) {
+    for (const bad of [{ need: ' ' }, { contact: '' }, { when: 'x'.repeat(201) }]) {
       expect((await ben.post('/members/ana/consultations', { ...ask, ...bad })).body.error).toBe('consult_invalid');
     }
     const r = (await ben.post('/members/ana/consultations', ask)).body;
-    expect(r).toMatchObject({ role: 'requester', status: 'pending', topic: { slug: 'design', label: 'Design' }, minutes: 60, contacts: null });
+    expect(r).toMatchObject({ role: 'requester', status: 'pending', minutes: 60, contacts: null });
     expect(r.can).toMatchObject({ close: true, accept: false, agree: false });
     expect(r.expiresAt).toBeTruthy();
 
@@ -174,7 +185,7 @@ describe('consultation requests', () => {
     expect(await w.kinds('ana')).toEqual(['consult_request', 'consult_done', 'consult_thanks']);
     expect(await w.kinds('ben')).toEqual(['consult_accepted']);
     const n = (await ben.get('/notifications')).body.items.find((x: any) => x.kind === 'consult_accepted');
-    expect(n).toMatchObject({ consultation: { id, topic: 'Design', pricing: 'free' }, actor: { handle: 'ana' } });
+    expect(n).toMatchObject({ consultation: { id, pricing: 'free' }, actor: { handle: 'ana' } });
 
     // hiding contacts on a done session keeps it done
     const hid = (await ana.post(`/consultations/${id}/close`)).body;
@@ -280,6 +291,176 @@ describe('consultation requests', () => {
     await ben.post(`/consultations/${id}/done`);
     await ben.put(`/consultations/${id}/thanks`, { text: 'Thank you.' });
     expect((await rows(w.t.db, sql`select 1 from contributions`)).length).toBe(0);
+  });
+});
+
+describe('approving consulting (RFC §10.18)', () => {
+  const world2 = async () => {
+    const w = await world();
+    const boss = await w.member('boss');
+    await setOps(w.t.db, 'boss', true);
+    return { ...w, boss };
+  };
+  const verify = (w: Awaited<ReturnType<typeof world>>, handle: string) =>
+    w.t.db.execute(sql`update users set verified_at = now() where lower(handle) = ${handle}`);
+
+  test('an unverified member cannot switch on, and sees why', async () => {
+    const w = await world2();
+    const ana = await w.member('ana', TEST_SETUP.birthday, false);
+    const me = (await ana.get('/me/consult-offer')).body;
+    expect(me).toMatchObject({ allowed: true, verified: false, approval: 'none' });
+    // saving the details is fine; switching on is not
+    expect((await ana.put('/me/consult-offer', { ...offer, active: false })).status).toBe(200);
+    const refused = await ana.put('/me/consult-offer', offer);
+    expect(refused.status).toBe(403);
+    expect(refused.body.error).toBe('consult_unverified');
+    // nothing reached the admin's queue
+    expect((await w.boss.get('/ops/consult-asks')).body).toEqual([]);
+    // and nobody can book it: the offer is not live, though the owner still sees their own
+    const ben = await w.member('ben', TEST_SETUP.birthday, false);
+    expect((await ana.get('/members/ana/consult-offer')).body.offer).toMatchObject({ mine: true, active: false });
+    expect((await ben.get('/members/ana/consult-offer')).body.offer).toBeNull();
+    expect((await ben.post('/members/ana/consultations', ask)).status).toBe(404);
+  });
+
+  test('switching on asks an admin once; the offer goes live only after a yes', async () => {
+    const w = await world2();
+    const ana = await w.member('ana', TEST_SETUP.birthday, false);
+    await verify(w, 'ana');
+
+    const asked = (await ana.put('/me/consult-offer', offer)).body;
+    expect(asked).toMatchObject({ active: true, verified: true, approval: 'waiting' });
+    expect(await w.kinds('boss')).toContain('consult_asked');
+    // saved but not live: nobody can book yet
+    const ben = await w.member('ben', TEST_SETUP.birthday, false);
+    expect((await ben.get('/members/ana/consult-offer')).body.offer).toBeNull();
+    expect((await ben.post('/members/ana/consultations', ask)).status).toBe(404);
+    expect((await ben.get('/members?consults=1')).body.items).toEqual([]);
+
+    // the admin's queue shows who, the badge and the offer
+    const q = (await w.boss.get('/ops/consult-asks')).body;
+    expect(q).toEqual([expect.objectContaining({ handle: 'ana', verified: true, minutes: 60, pricing: 'free', active: true, description: offer.description })]);
+
+    // pressing switch on again does not flood the queue with a second notice
+    await ana.put('/me/consult-offer', { ...offer, description: 'Portfolio reviews, now with a shorter note.' });
+    expect((await w.kinds('boss')).filter((k) => k === 'consult_asked')).toHaveLength(1);
+
+    // approve: it is live at once, because the offer is already switched on
+    expect((await w.boss.post('/ops/users/ana/consult-approval', { approved: true })).body).toEqual({ handle: 'ana', approved: true });
+    expect((await ana.get('/me/consult-offer')).body).toMatchObject({ approval: 'approved', active: true });
+    expect(await w.kinds('ana')).toContain('consult_approved');
+    expect((await ben.get('/members/ana/consult-offer')).body.offer).toMatchObject({ canBook: true, handle: 'ana' });
+    expect((await ben.post('/members/ana/consultations', ask)).status).toBe(200);
+    expect((await w.boss.get('/ops/consult-asks')).body).toEqual([]);
+
+    // approval sticks: pausing and resuming does not ask again
+    await ana.put('/me/consult-offer', { active: false });
+    const back = (await ana.put('/me/consult-offer', { active: true })).body;
+    expect(back).toMatchObject({ active: true, approval: 'approved' });
+    expect((await w.boss.get('/ops/consult-asks')).body).toEqual([]);
+    expect((await ben.get('/members/ana/consult-offer')).body.offer).not.toBeNull();
+  });
+
+  test('a decline switches the offer off and cannot be asked again; an admin can change it', async () => {
+    const w = await world2();
+    const ana = await w.member('ana', TEST_SETUP.birthday, false);
+    await verify(w, 'ana');
+    await ana.put('/me/consult-offer', offer);
+
+    expect((await w.boss.post('/ops/users/ana/consult-approval', { approved: false })).body).toEqual({ handle: 'ana', approved: false });
+    expect((await ana.get('/me/consult-offer')).body).toMatchObject({ approval: 'declined', active: false });
+    expect(await w.kinds('ana')).toContain('consult_not_approved');
+    // no reason is given, and only an admin can change it
+    const refused = await ana.put('/me/consult-offer', { ...offer, active: true });
+    expect(refused.status).toBe(403);
+    expect(refused.body.error).toBe('consult_not_approved');
+    expect((await w.boss.get('/ops/consult-asks')).body).toEqual([]);
+    expect((await w.boss.get('/ops/members')).body.find((m: any) => m.handle === 'ana').consulting).toBe('declined');
+
+    // an admin approves the same member later: they are welcome to switch on again
+    expect((await w.boss.post('/ops/users/ana/consult-approval', { approved: true })).body.approved).toBe(true);
+    const after = (await ana.put('/me/consult-offer', { ...offer, active: true })).body;
+    expect(after).toMatchObject({ approval: 'approved', active: true });
+  });
+
+  test('switching off while waiting takes the request back', async () => {
+    const w = await world2();
+    const ana = await w.member('ana', TEST_SETUP.birthday, false);
+    await verify(w, 'ana');
+    await ana.put('/me/consult-offer', offer);
+    expect((await w.boss.get('/ops/consult-asks')).body).toHaveLength(1);
+    const off = (await ana.put('/me/consult-offer', { active: false })).body;
+    expect(off).toMatchObject({ active: false, approval: 'none' });
+    expect((await w.boss.get('/ops/consult-asks')).body).toEqual([]);
+  });
+
+  test('an admin cannot approve someone they have not verified', async () => {
+    const w = await world2();
+    const ana = await w.member('ana', TEST_SETUP.birthday, false);
+    const r = await w.boss.post('/ops/users/ana/consult-approval', { approved: true });
+    expect(r.status).toBe(409);
+    expect(r.body.error).toBe('consult_unverified');
+  });
+
+  test('losing the badge stops consulting and wipes the approval', async () => {
+    const w = await world2();
+    const ana = await w.member('ana'); // verified and approved
+    await ana.put('/me/consult-offer', offer);
+    const ben = await w.member('ben');
+    const id = (await ben.post('/members/ana/consultations', ask)).body.id;
+    await ana.post(`/consultations/${id}/accept`, {}); // under way, contacts swapped
+
+    expect((await w.boss.post('/ops/users/ana/verify', { on: false })).body).toEqual({ handle: 'ana', verified: false });
+    expect((await ana.get('/me/consult-offer')).body).toMatchObject({ active: false, verified: false, approval: 'none' });
+    // nobody new can book
+    expect((await ben.get('/members/ana/consult-offer')).body.offer).toBeNull();
+    expect((await ben.post('/members/ana/consultations', ask)).status).toBe(404);
+    // the session already agreed carries on
+    expect((await ben.get(`/consultations/${id}`)).body.status).toBe('revealed');
+
+    // giving the badge back does not make them bookable again: a fresh decision is needed
+    await w.boss.post('/ops/users/ana/verify', { on: true });
+    expect((await ana.get('/me/consult-offer')).body).toMatchObject({ verified: true, approval: 'none', active: false });
+    expect((await ben.post('/members/ana/consultations', ask)).status).toBe(404);
+    await ana.put('/me/consult-offer', { active: true });
+    expect((await w.boss.get('/ops/consult-asks')).body).toHaveLength(1);
+  });
+
+  test('a member of the queue is not counted for the "consults" tag or filter', async () => {
+    const w = await world2();
+    const ana = await w.member('ana', TEST_SETUP.birthday, false);
+    await verify(w, 'ana');
+    await ana.put('/me/consult-offer', offer);
+    expect((await w.boss.get('/members/ana')).body.consults).toBe(false);
+    await w.boss.post('/ops/users/ana/consult-approval', { approved: true });
+    expect((await w.boss.get('/members/ana')).body.consults).toBe(true);
+    expect((await w.boss.get('/members?consults=1')).body.items.map((m: any) => m.handle)).toEqual(['ana']);
+  });
+
+  test('only an admin sees the queue', async () => {
+    const w = await world2();
+    const ana = await w.member('ana');
+    expect((await ana.get('/ops/consult-asks')).status).toBe(404);
+    expect((await ana.post('/ops/users/ana/consult-approval', { approved: true })).status).toBe(404);
+  });
+
+  test('offers that were live before this rule go to the queue', async () => {
+    const w = await world2();
+    const ana = await w.member('ana', TEST_SETUP.birthday, false);
+    await verify(w, 'ana');
+    await ana.put('/me/consult-offer', offer);
+    // the state the old rule could leave behind: switched on, never asked
+    await w.t.db.execute(sql`update users set consult_requested_at = null, consult_approved_at = null
+      where lower(handle) = 'ana'`);
+    const ben = await w.member('ben', TEST_SETUP.birthday, false);
+    expect((await ben.get('/members/ana/consult-offer')).body.offer).toBeNull();
+
+    // the backfill in 0031_consult_approval.sql, run again on this row
+    await w.t.db.execute(sql`update users set consult_requested_at = now()
+      where consult_requested_at is null and consult_approved_at is null
+        and id in (select user_id from consult_offers where active)`);
+    expect((await ana.get('/me/consult-offer')).body.approval).toBe('waiting');
+    expect((await w.boss.get('/ops/consult-asks')).body.map((a: any) => a.handle)).toEqual(['ana']);
   });
 });
 

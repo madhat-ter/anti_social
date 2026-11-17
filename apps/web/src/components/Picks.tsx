@@ -10,8 +10,9 @@ import { PICK_NO_REPEAT, PICK_ROTATE_MS, SUGGESTION_NOTE_MAX, SUGGESTION_REMARK_
 import { api, errorMessage, type Pick, type PickRemark, type SuggestionKind } from '@/lib/api';
 import { Avatar } from './Avatar';
 import { NameMarks } from './Marks';
-import { Win } from './retro';
-import { ErrorNote } from './ui';
+import { AlertDialog, Win } from './retro';
+import { ErrorNote, why } from './ui';
+import { bnLang } from '@/lib/lang';
 
 export const KINDS: { kind: SuggestionKind; label: string; placeholder: string }[] = [
   { kind: 'movie', label: 'Movie', placeholder: 'Perfect Days' },
@@ -71,6 +72,9 @@ export function PickCard({ p, showAuthor = true, onChange, onEditing }: {
   const [err, setErr] = useState<string | null>(null);
   const [listing, setListing] = useState(false);
   const holding = writing || listing;
+  // greyed out on your own pick: say why; otherwise a plain hint
+  const off = p.mine ? 'You suggested this one: the others vote.' : null;
+  const voteTitle = (own: string) => (off ? why(off) : { title: own });
   useEffect(() => { onEditing?.(holding); }, [holding, onEditing]);
   // a different pick on screen: start clean
   useEffect(() => { setWriting(false); setErr(null); }, [p.id]);
@@ -94,27 +98,27 @@ export function PickCard({ p, showAuthor = true, onChange, onEditing }: {
   return (
     <figure className="pick">
       <figcaption className="pick-kind"><KindIcon kind={p.kind} /> {labelOf(p.kind)}</figcaption>
-      <p className="pick-title">{p.title}</p>
+      <p className="pick-title" {...bnLang(p.title)}>{p.title}</p>
       {p.note && <p className="pick-note">{p.note}</p>}
       {showAuthor && p.author && (
         <Link href={`/u/${p.author.handle}`} className="pick-by">
-          <Avatar seed={p.author.handle} gender={p.author.gender} size={28} /> <span className="ui">@{p.author.handle}<NameMarks admin={p.author.admin} verified={p.author.verified} size=".85em" /></span>
+          <Avatar seed={p.author.handle} gender={p.author.gender} size={28} /> <span className="meta">@{p.author.handle}<NameMarks admin={p.author.admin} verified={p.author.verified} size=".85em" /></span>
         </Link>
       )}
       <div className="pick-votes">
         <div className="pick-score-row">
           <div className="vote-bar" role="group" aria-label="Tried it? Vote">
             <button type="button" className="vote-btn" aria-label="Upvote: tried it, good" aria-pressed={p.myVote === 1}
-              disabled={busy || p.mine || !onChange} title={p.mine ? 'Your pick' : 'Tried it: good'} onClick={() => void vote(1)}>
+              disabled={busy || p.mine || !onChange} {...voteTitle('Tried it: good')} onClick={() => void vote(1)}>
               <VoteArrow dir="up" filled={p.myVote === 1} />
             </button>
             <span className="vote-score" title={`${p.up} up, ${p.down} down`}>{p.up - p.down}</span>
             <button type="button" className="vote-btn" aria-label="Downvote: tried it, not for me" aria-pressed={p.myVote === -1}
-              disabled={busy || p.mine || !onChange} title={p.mine ? 'Your pick' : 'Tried it: not for me'} onClick={() => void vote(-1)}>
+              disabled={busy || p.mine || !onChange} {...voteTitle('Tried it: not for me')} onClick={() => void vote(-1)}>
               <VoteArrow dir="down" filled={p.myVote === -1} />
             </button>
           </div>
-          <span className="ui muted small pick-counts">{p.up} up · {p.down} down</span>
+          {p.up + p.down > 0 && <span className="meta pick-counts">{p.up} up · {p.down} down</span>}
         </div>
         {lr?.remark && (
           <p className="pick-remark">
@@ -130,7 +134,7 @@ export function PickCard({ p, showAuthor = true, onChange, onEditing }: {
       </div>
       {!p.mine && onChange && (
         <div className="pick-tried">
-          {!p.myVote && <span className="ui muted small">Tried it? Vote up or down.</span>}
+          {!p.myVote && <span className="meta">Tried it? Vote up or down.</span>}
           {p.myVote && !writing && (
             <button type="button" className="link-btn" onClick={() => { setText(p.myRemark ?? ''); setWriting(true); }}>
               {p.myRemark ? 'Edit your remark' : 'Add a remark'}
@@ -205,7 +209,7 @@ function RemarksDialog({ open, pickId, title, onClose, onChanged }: {
                   </span>
                   {data.canModerate && r.remark && (
                     confirming === r.handle
-                      ? <button type="button" className="btn danger" onClick={() => void remove(r.handle)}>Remove?</button>
+                      ? <button type="button" className="btn danger" onClick={() => void remove(r.handle)}>Yes, remove</button>
                       : <button type="button" className="link-btn" onClick={() => setConfirming(r.handle)}>Remove (admin)</button>
                   )}
                 </li>
@@ -219,7 +223,9 @@ function RemarksDialog({ open, pickId, title, onClose, onChanged }: {
   );
 }
 
-/** Wide screens show the window in the left column; narrow screens in the feed. */
+/** From this width the side rail (right column) is on screen: the pick window and birthdays live there. */
+export const RAIL_QUERY = '(min-width: 1180px)';
+/** Whether a media query matches; null until the first render on the client. */
 export function useWide(query = '(min-width: 900px)') {
   const [wide, setWide] = useState<boolean | null>(null);
   useEffect(() => {
@@ -254,6 +260,7 @@ export function PickWindow({ className }: { className?: string }) {
   const [item, setItem] = useState<Pick | null | undefined>(undefined); // undefined = loading
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [hover, setHover] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -273,6 +280,18 @@ export function PickWindow({ className }: { className?: string }) {
   }, []);
 
   useEffect(() => { void next(); }, [next]);
+
+  /** RFC §10.4: take your own pick out of the rotation (admins do it from Admin → Picks). */
+  async function removeMine() {
+    if (!item) return;
+    setBusy(true); setErr(null);
+    try {
+      await api.deletePick(item.id);
+      seen.current = seen.current.filter((x) => x !== item.id);
+      setItem(undefined);
+      await next();
+    } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
+  }
 
   const paused = hover || editing || asking || !visible;
   useEffect(() => {
@@ -297,8 +316,22 @@ export function PickWindow({ className }: { className?: string }) {
       <ErrorNote message={err} />
       <div className="row between">
         <button type="button" className="btn" onClick={() => void next()} disabled={busy || !item}>Another</button>
-        <button type="button" className="btn primary" onClick={() => setAsking(true)}>+ Suggest</button>
+        <span className="row">
+          {item?.mine && (
+            <button type="button" className="link-btn" onClick={() => setRemoving(true)} disabled={busy}>Delete my pick</button>
+          )}
+          <button type="button" className="btn primary" onClick={() => setAsking(true)}>+ Suggest</button>
+        </span>
       </div>
+      <AlertDialog
+        open={removing}
+        title="Delete your pick"
+        message={<>Delete <strong>{item?.title}</strong>? It leaves the rotation, and its votes and remarks go with it.</>}
+        confirmLabel="Delete"
+        danger
+        onConfirm={() => { setRemoving(false); void removeMine(); }}
+        onCancel={() => setRemoving(false)}
+      />
       <SuggestDialog
         open={asking}
         onClose={() => setAsking(false)}

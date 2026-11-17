@@ -7,15 +7,18 @@ import { usePaged, useMe, useTitle } from '@/lib/hooks';
 import { ErrorNote } from '@/components/ui';
 import { SeatedShell } from '@/components/Shell';
 import { Composer } from '@/components/Composer';
-import { PostList } from '@/components/PostList';
+import { FeedList, useFeedVisit } from '@/components/Feed';
 import { AccountUpdates, ArchivedCard, usePollMe, WaitlistCard } from '@/components/Lifecycle';
 import { CheckoutNotice } from '@/components/Billing';
 import { Avatar } from '@/components/Avatar';
 import { Welcome, wasWelcomed } from '@/components/Welcome';
 import { Checklist } from '@/components/Checklist';
 import { BirthdayLine } from '@/components/Birthday';
-import { PickWindow, useWide } from '@/components/Picks';
-import { AlertIcon, Loading, Win } from '@/components/retro';
+import { PickWindow, RAIL_QUERY, useWide } from '@/components/Picks';
+import { PetFeedBlock } from '@/components/Pets';
+import { HELPLINE } from '@anti/shared';
+import { HelloIcon, Loading, Win } from '@/components/retro';
+import { SeatAsk } from '@/components/SeatAsk';
 import { NameMarks } from '@/components/Marks';
 
 /** One face per seat. The whole network fits on one screen. */
@@ -35,52 +38,120 @@ function Landing() {
         <span className="outline" aria-hidden="true">Social<span className="stop">.</span></span>
       </h1>
 
-      <p className="hero-sub">
-        A small network that would rather you went outside. You need an invite to get in, and there are
-        only a hundred seats. No messages, no algorithm, no follower counts.
-      </p>
+      {/* RFC §10.25: the page speaks to someone who feels alone. Four lines, said one at a time. */}
+      <div className="hero-sub">
+        <div className="hero-say">
+          <p>You may feel there&rsquo;s no one for you.</p>
+          <p>We won&rsquo;t pretend: no one is coming to fix everything.</p>
+          <p>But you&rsquo;re not the only one feeling this.</p>
+          {/* two sentences that break between them, never inside one */}
+          <p><span>We have each other.</span> <span>Some days, that&rsquo;s enough to stay.</span></p>
+        </div>
+        {/* anti is invite-only and nobody answers it at 3am: someone in danger tonight needs a number that does */}
+        <p className="hero-help">
+          If tonight is the hard one, talk to someone now: <strong>{HELPLINE.name}</strong>,{' '}
+          <a href={`tel:${HELPLINE.tel}`}>{HELPLINE.phone}</a> ({HELPLINE.hours}). In an emergency, call{' '}
+          <a href={`tel:${HELPLINE.emergency}`}>{HELPLINE.emergency}</a>.
+        </p>
+      </div>
 
       <div className="zoom">
         {/* System 6 window-open "zoom rects" */}
         <span className="zoom-rect" aria-hidden="true" />
         <span className="zoom-rect" aria-hidden="true" />
         <span className="zoom-rect" aria-hidden="true" />
-        <Win title="Alert" as="div" bodyClassName="dlg-body">
-          <AlertIcon />
+        {/* a welcome, not a warning: the old "delete Social Life" joke left with the old message */}
+        <Win title="Welcome" as="div" bodyClassName="dlg-body">
+          <HelloIcon />
           <div className="stack dlg-main">
-            <p className="dlg-msg">Are you sure you want to delete &ldquo;Social Life&rdquo;?</p>
+            <p className="dlg-msg">There&rsquo;s a seat here for you.</p>
             <div className="row dlg-actions">
               <Link className="btn" href="/login">Sign in</Link>
-              <Link className="btn default" href="/join">Join with an invite</Link>
+              <Link className="btn default" href="/join">I have an invite</Link>
             </div>
           </div>
         </Win>
       </div>
 
+      {/* a stranger with nothing in hand, and nobody inside to ask: they can ask us */}
+      <SeatAsk />
+
       <section className="seats" aria-label="The hundred seats">
         <div className="seat-grid" aria-hidden="true">
           {SEATS.map((s, i) => (
             <span key={s} className="seat" style={{ '--d': `${seatDelay(i)}ms` } as React.CSSProperties}>
-              <Avatar seed={s} size={44} />
+              {/* half women, half men, scattered the same way the seats fill */}
+              <Avatar seed={s} gender={((i * 37) % 100) % 2 ? 'woman' : 'man'} size={44} />
             </span>
           ))}
         </div>
-        <p className="seats-caption">Every face is a seat. When someone stops showing up, their seat goes to the next person waiting.</p>
+        <p className="seats-caption">Every face is a person. The room is small on purpose, so you get noticed.</p>
       </section>
 
+      {/* the same three rules as before, said as what they do for the person reading */}
       <ul className="rules">
-        <li><b>No DMs</b><span>Replies are public. If you want to talk, host an event and meet.</span></li>
-        <li><b>No algorithm</b><span>One feed, newest first. You will reach the end of it.</span></li>
-        <li><b>Show up</b><span>Disappear for 30 days and your seat goes to someone who will.</span></li>
+        <li><b>In the open</b><span>No private messages. Everything is said where everyone can see, so no one can corner you.</span></li>
+        <li><b>No algorithm</b><span>Nothing here is built to keep you scrolling. One feed, likes never move a post, and you will reach the end.</span></li>
+        <li><b>Small on purpose</b><span>A hundred seats, so people know your name. Away for 30 days and your seat passes to someone waiting; you can ask for it back.</span></li>
       </ul>
     </div>
   );
 }
 
-function FeedView({ onPosted }: { onPosted: () => void }) {
+/**
+ * New posts since the feed loaded, found by the same poll rhythm as the unread count (every 30 s
+ * while the tab is in front, and on focus). They wait behind a "3 new posts" pill rather than
+ * jumping the list, so nothing moves under a reader's thumb.
+ */
+function useNewPosts(p: ReturnType<typeof usePaged<Post>>, until: string | null) {
+  const [pending, setPending] = useState<Post[]>([]);
+  const items = p.items;
+  // RFC §10.23: in a mixed visit, posts up to `until` are in the mix (maybe on a later page); only later ones are new
+  const after = until ? Date.parse(until) : Number.NEGATIVE_INFINITY;
+  useEffect(() => {
+    if (p.loading) return;
+    let alive = true;
+    const check = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const page = await api.feed(null);
+        if (!alive) return;
+        const have = new Set(items.map((x) => x.id));
+        setPending((cur) => {
+          const known = new Set([...have, ...cur.map((x) => x.id)]);
+          const fresh = page.items.filter((x) => !x.parentId && !known.has(x.id) && Date.parse(x.createdAt) > after);
+          return fresh.length ? [...fresh, ...cur] : cur;
+        });
+      } catch { /* next tick */ }
+    };
+    const t = setInterval(() => void check(), 30_000);
+    window.addEventListener('focus', check);
+    return () => { alive = false; clearInterval(t); window.removeEventListener('focus', check); };
+  }, [items, p.loading, after]);
+  const show = () => {
+    p.setItems((cur) => { const ids = new Set(cur.map((x) => x.id)); return [...pending.filter((x) => !ids.has(x.id)), ...cur]; });
+    setPending([]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  /** a post you just wrote is not "new" to you */
+  const forget = (id: string) => setPending((cur) => cur.filter((x) => x.id !== id));
+  return { pending, show, forget };
+}
+
+function FeedView({ me, onPosted }: { me: Me; onPosted: () => void }) {
   useTitle('Feed');
-  const wide = useWide();
-  const p = usePaged<Post>('feed', (c) => api.feed(c));
+  // the side rail (pick window, birthdays) is only on screen from 1180px; narrower, both sit in the feed
+  const wide = useWide(RAIL_QUERY);
+  // one pet stop per visit, somewhere between the 4th and 10th post (RFC §10.17)
+  const [petAfter] = useState(() => 4 + Math.floor(Math.random() * 7));
+  const fv = useFeedVisit(me.handle);
+  // the first page starts (or resumes) a visit and brings back its "new since" line (RFC §10.11)
+  const p = usePaged<Post>('feed', async (c) => {
+    const page = await api.feed(c, 20, c ? {} : fv.params());
+    if (page.visit) fv.got(page.visit);
+    return page;
+  });
+  const fresh = useNewPosts(p, fv.visit?.mix?.until ?? null);
   useEffect(() => {
     if (window.location.hash !== '#compose') return;
     const ta = document.querySelector<HTMLTextAreaElement>('#compose textarea');
@@ -92,14 +163,30 @@ function FeedView({ onPosted }: { onPosted: () => void }) {
       {wide === false && <BirthdayLine />}
       <div id="compose">
         <Composer
+          collapsible
           onCreated={(post) => {
             p.setItems((cur) => [post, ...cur.filter((x) => x.id !== post.id)]);
+            fresh.forget(post.id);
             onPosted();
           }}
         />
       </div>
-      {wide === false && <PickWindow className="feed-pick" />}
-      <PostList p={p} empty="It is quiet in here. Write the first post: the other seats will see it next time they come in." />
+      {fresh.pending.length > 0 && (
+        <button type="button" className="new-posts" onClick={fresh.show} aria-live="polite">
+          {fresh.pending.length} new {fresh.pending.length === 1 ? 'post' : 'posts'} <span aria-hidden="true">↑</span>
+        </button>
+      )}
+      {/* without the side rail (phones, tablets): the pick window sits after the first few posts, not before the first one */}
+      <FeedList
+        p={p}
+        visit={fv.visit}
+        mine={me.handle}
+        empty="It is quiet in here. Write the first post: the other seats will see it next time they come in."
+        interludes={wide === false ? [
+          { after: 3, node: <PickWindow className="feed-pick" /> },
+          { after: petAfter, node: <PetFeedBlock me={me} /> },
+        ] : undefined}
+      />
     </>
   );
 }
@@ -135,7 +222,7 @@ export default function Home() {
           <>
             <Intro me={m} refreshKey={posted} />
             <CheckoutNotice refresh={refresh} />
-            <FeedView onPosted={() => { setPosted((n) => n + 1); if (me.state === 'flagged_lurker') void refresh(); }} />
+            <FeedView me={m} onPosted={() => { setPosted((n) => n + 1); if (me.state === 'flagged_lurker') void refresh(); }} />
           </>
         )}
       </SeatedShell>
@@ -149,7 +236,7 @@ export default function Home() {
           <Avatar seed={me.handle} gender={me.gender} size={64} />
           <div>
             <h1>{me.displayName}<NameMarks admin={me.role === 'ops'} verified={!!me.verifiedAt} size=".8em" /></h1>
-            <p className="ui muted">@{me.handle}</p>
+            <p className="meta">@{me.handle}</p>
           </div>
         </div>
         <CheckoutNotice refresh={refresh} />

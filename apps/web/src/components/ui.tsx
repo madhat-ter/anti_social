@@ -25,6 +25,14 @@ export function ErrorNote({ message }: { message: string | null }) {
   return message ? <p className="error" role="alert">{message}</p> : null;
 }
 
+/**
+ * A greyed-out control says why: the reason shows on hover (CSS, `[data-why]` in globals.css) and is read
+ * out by screen readers. A native title would take a second to appear and never shows on a disabled button
+ * in some browsers. `why(false)` gives nothing, so it can be spread unconditionally.
+ */
+export const why = (reason: string | false | null | undefined): Record<string, string> =>
+  reason ? { 'data-why': reason, 'aria-description': reason } : {};
+
 /** Shows a one-time secret with copy button and required acknowledgement. */
 export function RecoveryCodeStep({ code, onDone }: { code: string; onDone: () => void }) {
   const [saved, setSaved] = useState(false);
@@ -34,7 +42,7 @@ export function RecoveryCodeStep({ code, onDone }: { code: string; onDone: () =>
       <Win title="recovery_code.txt" bodyClassName="stack">
         <div className="dlg-body">
           <AlertIcon />
-          <p>This is the only way back in if you lose every passkey. It is shown once. Write it down or put it in a password manager.</p>
+          <p>If you forget your PIN, this code lets you choose a new one (an admin can also help). It is shown once. Write it down or put it in a password manager.</p>
         </div>
         <p className="code" aria-label="Recovery code">{code}</p>
         <div className="row between">

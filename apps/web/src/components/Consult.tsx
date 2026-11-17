@@ -6,7 +6,7 @@
 import Link from 'next/link';
 import { useEffect, useId, useState } from 'react';
 import {
-  ageOn, CONSULT_CONTACT_MAX, CONSULT_DESCRIPTION_MAX, CONSULT_MIN_AGE, CONSULT_MINUTES, CONSULT_PRICE_NOTE_MAX, CONSULT_TOPICS_MAX,
+  ageOn, CONSULT_CONTACT_MAX, CONSULT_DESCRIPTION_MAX, CONSULT_MIN_AGE, CONSULT_MINUTES, CONSULT_PRICE_NOTE_MAX,
   localToday,
 } from '@anti/shared';
 import {
@@ -14,7 +14,6 @@ import {
 } from '@/lib/api';
 import { relativeTime } from '@/lib/hooks';
 import { Avatar } from './Avatar';
-import { InterestPicker, InterestTags } from './Interests';
 import { NameMarks } from './Marks';
 import { AlertDialog } from './retro';
 import { ErrorNote } from './ui';
@@ -52,8 +51,8 @@ export function ConsultCard({ c }: { c: Consultation }) {
         <span className="consult-main">
           <span className="consult-title">
             {c.role === 'consultant'
-              ? <>@{them.handle}<NameMarks admin={them.admin} verified={them.verified} size=".85em" /> asks about <b>{c.topic.label}</b></>
-              : <>You asked @{them.handle}<NameMarks admin={them.admin} verified={them.verified} size=".85em" /> about <b>{c.topic.label}</b></>}
+              ? <><b>{them.displayName}</b><NameMarks admin={them.admin} verified={them.verified} size=".85em" /> asks for a consultation</>
+              : <>You asked <b>{them.displayName}</b><NameMarks admin={them.admin} verified={them.verified} size=".85em" /> for a consultation</>}
             {' '}<ConsultStatusTag c={c} />
           </span>
           <span className="muted small consult-need">{c.need}</span>
@@ -65,6 +64,13 @@ export function ConsultCard({ c }: { c: Consultation }) {
 }
 
 // ─── The offer editor (on the Consultations page) ───────────────────────────
+
+/** What the editor says after a save: live, waiting for an admin, or paused. */
+function saidFor(o: MyConsultOffer, active: boolean, wasActive: boolean): string {
+  if (active && o.approval === 'waiting') return 'Saved. An admin will look at it; it goes live when they approve it.';
+  if (active) return 'Saved. Your portfolio shows a Book a consultation button.';
+  return wasActive ? 'Paused. Nobody can send a new request.' : 'Saved, not switched on yet.';
+}
 
 export function OfferEditor({ initial, onSaved }: { initial: MyConsultOffer; onSaved: (o: MyConsultOffer) => void }) {
   const id = useId();
@@ -79,27 +85,51 @@ export function OfferEditor({ initial, onSaved }: { initial: MyConsultOffer; onS
     try {
       const o = await api.saveConsultOffer({ ...d, active, priceNote: d.priceNote || null, paymentUrl: d.paymentUrl || null });
       setD({ ...o }); onSaved(o);
-      setSaid(active ? 'Saved. Your portfolio shows a Book a consultation button.' : initial.active ? 'Paused. Nobody can send a new request.' : 'Saved, not switched on yet.');
+      setSaid(saidFor(o, active, initial.active));
     } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
   }
 
+  // RFC §10.18: the badge comes first, and an admin's approval after it. Both are one plain line.
+  if (!initial.verified) {
+    return (
+      <div className="stack card consult-offer-form">
+        <div className="row between">
+          <h2>Your offer</h2>
+          <span className="tag">off</span>
+        </div>
+        <p className="muted">Offering consulting needs the verified badge first. An admin gives it after checking your contact details; ask them in person or by phone.</p>
+      </div>
+    );
+  }
   if (initial.blocked) {
     return <div className="banner" role="status">An admin switched your consulting off. Sessions you already agreed to can still be finished.</div>;
+  }
+  if (initial.approval === 'declined') {
+    return (
+      <div className="stack card consult-offer-form">
+        <div className="row between">
+          <h2>Your offer</h2>
+          <span className="tag">not approved</span>
+        </div>
+        <p className="muted">An admin has not approved your consulting. Ask them directly if you want to talk about it; only an admin can change this.</p>
+      </div>
+    );
   }
   return (
     <form className="stack card consult-offer-form" onSubmit={(e) => { e.preventDefault(); void save(true); }}>
       <div className="row between">
         <h2>Your offer</h2>
-        <span className={`tag${initial.active ? ' on' : ''}`}>{initial.active ? 'on' : initial.exists ? 'paused' : 'off'}</span>
+        <span className={`tag${initial.active ? ' on' : ''}`}>
+          {initial.approval === 'waiting' ? 'waiting for approval' : initial.active ? 'on' : initial.exists ? 'paused' : 'off'}
+        </span>
       </div>
+      {initial.approval === 'waiting' ? (
+        <div className="banner" role="status">Waiting for an admin to approve your consulting. Your details are saved; nobody can book you until they do.</div>
+      ) : !initial.active && <div className="banner" role="status">Approved. Switch your offer on when you are ready to take requests.</div>}
       {initial.hidden && <div className="banner" role="status">Hidden after reports until an admin looks. People cannot book you meanwhile.</div>}
-      <p className="muted small">Members can book a session with you. You decide on each request, and for each one whether it is free or paid. Anti never handles the money.</p>
+      <p className="muted small">Members who read your portfolio can book a session with you about what you do. You decide on each request, and for each one whether it is free or paid. Anti never handles the money.</p>
 
-      <fieldset>
-        <legend>What you consult on (up to {CONSULT_TOPICS_MAX})</legend>
-        <InterestPicker value={d.topics ?? []} onChange={(t) => set('topics', t)} max={CONSULT_TOPICS_MAX} />
-      </fieldset>
-      <label>About your sessions
+      <label>About your sessions (optional)
         <textarea value={d.description ?? ''} maxLength={CONSULT_DESCRIPTION_MAX} rows={4}
           placeholder="Portfolio reviews, first-job advice, how I would approach your brief…" onChange={(e) => set('description', e.target.value)} />
         <span className="counter">{(d.description ?? '').length} / {CONSULT_DESCRIPTION_MAX}</span>
@@ -136,8 +166,12 @@ export function OfferEditor({ initial, onSaved }: { initial: MyConsultOffer; onS
       <ErrorNote message={err} />
       {said && <p className="muted" role="status">{said}</p>}
       <div className="row">
-        <button className="btn primary" disabled={busy}>{busy ? 'Saving…' : initial.active ? 'Save' : 'Switch on'}</button>
-        {initial.active && <button type="button" className="btn" disabled={busy} onClick={() => void save(false)}>Pause</button>}
+        <button className="btn primary" disabled={busy}>
+          {busy ? 'Saving…' : initial.active ? 'Save' : initial.approval === 'waiting' ? 'Save' : 'Switch on'}
+        </button>
+        {initial.active && <button type="button" className="btn" disabled={busy} onClick={() => void save(false)}>
+          {initial.approval === 'waiting' ? 'Cancel the request' : 'Pause'}
+        </button>}
         {!initial.active && initial.exists && <button type="button" className="btn" disabled={busy} onClick={() => void save(false)}>Save, keep paused</button>}
       </div>
     </form>
@@ -166,7 +200,12 @@ export function ConsultingSection({ handle, viewerAdult }: { handle: string; vie
     return (
       <section className="pf-consult" aria-labelledby="pf-consult-h">
         <h2 id="pf-consult-h" className="pf-sec-h">Consulting</h2>
-        <p className="muted">{o.blocked ? 'An admin switched your consulting off.' : 'Paused: only you can see this.'} <Link href="/consultations?tab=offer">Your offer</Link></p>
+        <p className="muted">
+          {o.blocked ? 'An admin switched your consulting off.'
+            : o.approval === 'waiting' ? 'Waiting for an admin to approve your consulting: only you can see this.'
+            : 'Paused: only you can see this.'}
+          {' '}<Link href="/consultations?tab=offer">Your offer</Link>
+        </p>
       </section>
     );
   }
@@ -180,12 +219,11 @@ export function ConsultingSection({ handle, viewerAdult }: { handle: string; vie
           : o.canBook && <Link className="btn primary" href={`/u/${handle}/consult`}>Book a consultation</Link>}
       </div>
       {o.hidden && <p className="tag danger">hidden after reports</p>}
-      <InterestTags slugs={o.topics} />
       {o.description && <p className="body pf-consult-desc">{o.description}</p>}
       <dl className="pf-consult-facts">
         <div><dt>Session</dt><dd>{minutesLabel(o.minutes)}</dd></div>
         <div><dt>Usually</dt><dd>{priceLabel(o)}</dd></div>
-        <div><dt>Sessions done</dt><dd>{o.sessionsDone}</dd></div>
+        <div><dt>Sessions done</dt><dd>{o.sessionsDone > 0 ? o.sessionsDone : <span className="muted">none yet</span>}</dd></div>
       </dl>
       {thanks.length > 0 && (
         <ul className="pf-thanks">

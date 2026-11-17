@@ -1,13 +1,11 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { S3Client } from 'bun';
 import { eq } from 'drizzle-orm';
 import { mediaBlobs, type Db } from '@anti/db';
 
-/**
- * Blob storage for user media.
- * TODO(R2): add an R2/S3-backed implementation for production; the API only talks to this interface.
- */
+/** Blob storage for user media (images, and since RFC §10.22 the monologues' recordings). */
 export interface Storage {
   put(key: string, bytes: Uint8Array, contentType: string): Promise<void>;
   get(key: string): Promise<{ bytes: Uint8Array; contentType: string } | null>;
@@ -26,8 +24,12 @@ export function resolveUploadDir(env: Record<string, string | undefined> = proce
   return isAbsolute(v) ? v : resolve(REPO_ROOT, v);
 }
 
-const TYPES: Record<string, string> = { webp: 'image/webp', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif' };
-const typeOf = (key: string) => TYPES[key.split('.').pop()!.toLowerCase()] ?? 'application/octet-stream';
+const TYPES: Record<string, string> = {
+  webp: 'image/webp', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  // RFC §10.22: recordings
+  webm: 'audio/webm', ogg: 'audio/ogg', mp3: 'audio/mpeg', m4a: 'audio/mp4',
+};
+export const typeOf = (key: string) => TYPES[key.split('.').pop()!.toLowerCase()] ?? 'application/octet-stream';
 
 export class LocalDiskStorage implements Storage {
   constructor(private dir: string) {}
@@ -60,7 +62,7 @@ export class LocalDiskStorage implements Storage {
 
 /**
  * Images kept in Postgres (`media_blobs`). For hosts without a persistent disk (free tiers).
- * Fine for a small test community; move to R2 before images add up past the database plan.
+ * Fine for a small test community; move to R2 before media adds up past the database plan.
  */
 export class DbStorage implements Storage {
   constructor(private db: Db) {}
@@ -84,11 +86,64 @@ export class DbStorage implements Storage {
   }
 }
 
-/** STORAGE=db keeps images in Postgres; anything else (default) uses the local disk. */
+/** Cloudflare R2 (S3-compatible), through Bun's own S3 client: no extra package. */
+export class R2Storage implements Storage {
+  private s3: S3Client;
+  constructor(o: { accountId: string; accessKeyId: string; secretAccessKey: string; bucket: string }) {
+    this.s3 = new S3Client({
+      accessKeyId: o.accessKeyId, secretAccessKey: o.secretAccessKey, bucket: o.bucket,
+      endpoint: `https://${o.accountId}.r2.cloudflarestorage.com`,
+    });
+  }
+
+  async put(key: string, bytes: Uint8Array, contentType: string) {
+    if (!isValidKey(key)) throw new Error('invalid storage key');
+    await this.s3.write(key, bytes, { type: contentType });
+  }
+
+  async get(key: string) {
+    if (!isValidKey(key)) return null;
+    const f = this.s3.file(key);
+    if (!(await f.exists())) return null;
+    return { bytes: new Uint8Array(await f.arrayBuffer()), contentType: typeOf(key) };
+  }
+
+  async delete(key: string) {
+    if (!isValidKey(key)) return;
+    await this.s3.delete(key);
+  }
+}
+
+/**
+ * New files go to `primary`; reads fall back to `older`, so switching STORAGE to r2 keeps every
+ * image already stored in the database showing. Deletes reach both.
+ */
+export class LayeredStorage implements Storage {
+  constructor(private primary: Storage, private older: Storage) {}
+  put(key: string, bytes: Uint8Array, contentType: string) { return this.primary.put(key, bytes, contentType); }
+  async get(key: string) { return (await this.primary.get(key)) ?? this.older.get(key); }
+  async delete(key: string) { await Promise.all([this.primary.delete(key), this.older.delete(key)]); }
+}
+
+/**
+ * STORAGE=db keeps media in Postgres; STORAGE=r2 puts new media in Cloudflare R2 (R2_ACCOUNT_ID,
+ * R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET) and still reads what the database holds;
+ * anything else (default) uses the local disk.
+ */
 export function loadStorage(db: Db, env: Record<string, string | undefined> = process.env): Storage {
   const mode = env.STORAGE ?? 'disk';
   if (mode === 'db') return new DbStorage(db);
-  if (mode !== 'disk') throw new Error(`STORAGE must be 'disk' or 'db', got '${mode}'`);
+  if (mode === 'r2') {
+    const need = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'] as const;
+    const missing = need.filter((k) => !env[k]);
+    if (missing.length) throw new Error(`STORAGE=r2 needs ${missing.join(', ')}`);
+    const r2 = new R2Storage({
+      accountId: env.R2_ACCOUNT_ID!, accessKeyId: env.R2_ACCESS_KEY_ID!,
+      secretAccessKey: env.R2_SECRET_ACCESS_KEY!, bucket: env.R2_BUCKET!,
+    });
+    return new LayeredStorage(r2, new DbStorage(db));
+  }
+  if (mode !== 'disk') throw new Error(`STORAGE must be 'disk', 'db' or 'r2', got '${mode}'`);
   return new LocalDiskStorage(resolveUploadDir(env));
 }
 

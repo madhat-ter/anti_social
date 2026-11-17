@@ -8,7 +8,8 @@
  * - style-src keeps 'unsafe-inline': React writes style="" attributes, which nonces can't cover.
  *   Styles can't run code, so this is the usual trade-off.
  * - everything else (fetches, images, fonts, frames, forms) comes from this site only; the API is
- *   same-origin through the /api proxy, uploads preview as blob: URLs.
+ *   same-origin through the /api proxy, uploads preview as blob: URLs (images, and a monologue's
+ *   recording before it is posted: media-src).
  * Pages render per request so each gets its own nonce (the root layout awaits connection()).
  */
 import { NextResponse, type NextRequest } from 'next/server';
@@ -22,6 +23,8 @@ export function proxy(request: NextRequest) {
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data:",
+    // RFC §10.22: a recording you just made or picked plays from a blob: URL before it is posted
+    "media-src 'self' blob:",
     "font-src 'self'",
     "connect-src 'self'",
     "worker-src 'self'",

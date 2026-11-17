@@ -59,10 +59,27 @@ export const COLLAB_TEAM_MIN = 2;
 export const COLLAB_TEAM_MAX = 20;
 export const COLLAB_NOTE_MAX = 300;
 export const COLLAB_PRICE_NOTE_MAX = 100;
-/** recruiting collabs one member can host at a time */
+/** recruiting collabs one member can host at a time (activities and projects together, RFC §10.21) */
 export const COLLAB_HOSTING_MAX = 3;
 /** open invitations per collab */
 export const COLLAB_INVITES_MAX = 20;
+// ─── One Collab (RFC §10.21): an event, an activity or a project ────────────
+export const COLLAB_KINDS = ['event', 'activity', 'project'] as const;
+export type CollabKind = (typeof COLLAB_KINDS)[number];
+/** the kinds that live in the `collabs` table (events are still `events`) */
+export const COLLAB_TABLE_KINDS = ['activity', 'project'] as const;
+/** the activity's plain "When we meet" line */
+export const COLLAB_MEETS_MAX = 120;
+/** an activity's optional size limit */
+export const ACTIVITY_SIZE_MAX = 1000;
+/** a request to join nobody answers gets a reminder after this many days… */
+export const REQUEST_REMIND_DAYS = 3;
+/** …and closes after this many, telling the person it was not answered in time */
+export const REQUEST_EXPIRE_DAYS = 7;
+/** a project with nothing new for this long asks its host once: finish, keep going, or close */
+export const QUIET_PROJECT_DAYS = 21;
+/** an activity with nothing new for this long asks: keep it running, or end it */
+export const QUIET_ACTIVITY_DAYS = 42;
 /** events get the same tags, requirements and ask-to-join (RFC §10.5) */
 export const EVENT_REQUIREMENTS_MAX = 500;
 export const EVENT_INTERESTS_MAX = 5;
@@ -73,7 +90,6 @@ export type CollabStatus = (typeof COLLAB_STATUSES)[number];
 // ─── Consultations (RFC §10.6): book a member's time; contacts swap on acceptance ───
 /** Both sides must be at least this old: contact details and money between strangers. */
 export const CONSULT_MIN_AGE = 18;
-export const CONSULT_TOPICS_MAX = 5;
 export const CONSULT_DESCRIPTION_MAX = 500;
 /** session lengths a consultant can offer, in minutes */
 export const CONSULT_MINUTES = [30, 45, 60, 90, 120] as const;
@@ -191,7 +207,8 @@ export const PROJECT_LAYOUTS = ['full', 'left', 'right'] as const;
 export type ProjectLayout = (typeof PROJECT_LAYOUTS)[number];
 
 // ─── Posts & media (RFC-0001 §10) ───────────────────────────────────────────
-export const POST_MAX_CHARS = 500;
+/** raised from 500 on 2026-11-09 (owner's call); the DB check in schema.ts must match */
+export const POST_MAX_CHARS = 1500;
 export const POST_MAX_IMAGES = 4;
 export const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 export const IMAGE_MAX_DIMENSION = 2048;
@@ -200,6 +217,59 @@ export const POSTS_PER_HOUR = 20;
 export const PAGE_DEFAULT_LIMIT = 20;
 export const PAGE_MAX_LIMIT = 50;
 export const SEARCH_QUERY_MAX = 100;
+
+/**
+ * RFC §10.22, monologues: a post that is a recording (a song, a thought, a yap) drawn as a
+ * cassette. Five minutes at most, recorded on the site or uploaded; no limit on how many.
+ */
+export const MONOLOGUE = {
+  /** the longest recording, recorded or uploaded */
+  maxSeconds: 300,
+  /** the shortest worth posting */
+  minSeconds: 1,
+  /** an uploaded file (a song made elsewhere) */
+  maxBytes: 15 * 1024 * 1024,
+  titleMax: 80,
+  /** the waveform under the cassette: this many bars, each 0..100 */
+  peaks: 96,
+  /** recordings waiting to be posted, per member */
+  maxPending: 5,
+} as const;
+export const MONOLOGUE_KINDS = ['song', 'thought', 'yap'] as const;
+export type MonologueKind = (typeof MONOLOGUE_KINDS)[number];
+export const MONOLOGUE_KIND_LABEL: Record<MonologueKind, string> = { song: 'Song', thought: 'Thought', yap: 'Yap' };
+
+/**
+ * RFC §10.11, the feed: newest first, never ranked. These numbers drive the display rules on top
+ * of it, and live here (not in `settings`) because the browser's fold must use the same ones as
+ * the server. First guesses tied to anti's other rules; tune them from the feed_visits numbers.
+ * The "new here" window is `new_member_exempt_days` in `settings`, shared with the lurker rule.
+ */
+export const FEED = {
+  /** a visit starts when the feed opens after this long with no feed activity on the device */
+  visitGapMinutes: 30,
+  /** "new since" never reaches further back than this */
+  newWindowDays: 7,
+  /** an author's posts after this many on one day fold into "N more from X today" */
+  foldAfter: 2,
+  /** an older post gets a "people replied" row when at least this many others replied */
+  threadMinRepliers: 2,
+  /** …within this long of the post */
+  threadWindowHours: 72,
+  /** RFC §10.15: a text post this short (and on at most this many lines) is set large, as a note */
+  shortMaxChars: 140,
+  shortMaxLines: 3,
+  /** a longer text post shows this many lines in a list, then "Read more" */
+  clampLines: 6,
+  /** RFC §10.23, the mix: a new post's odds in the lottery halve every this many hours of age */
+  mixHalfLifeHours: 12,
+  /** …and the same person is kept at least this many posts apart where the others allow it */
+  mixGap: 3,
+} as const;
+
+/** RFC §10.23: how a member's home feed is ordered. Mixed for everyone unless they choose otherwise. */
+export const FEED_ORDERS = ['mixed', 'newest'] as const;
+export type FeedOrder = (typeof FEED_ORDERS)[number];
 
 
 // ─── Events (RFC-0001 §10) ──────────────────────────────────────────────────
@@ -217,3 +287,63 @@ export const ATTENDANCE_WINDOW_DAYS = 14;
 export const EVENT_MAX_DAYS_AHEAD = 365;
 /** Without an end time, an event counts as "happening now" for this many hours after it starts. */
 export const EVENT_DEFAULT_HOURS = 3;
+
+/**
+ * RFC §10.24, the File: a drawer of 12 pages, one card each. The first 7 are the member's own
+ * (page 0 is "Me": always first, never renamed); the last 5 hold cards other members made for them.
+ */
+export const FILE = {
+  pages: 12,
+  ownPages: 7,
+  giftPages: 5,
+  /** a tab's label, shown in capitals */
+  labelMax: 14,
+  meLabel: 'ME',
+  headlineMax: 60,
+  descriptionMax: 1200,
+  photosMax: 20,
+  captionMax: 140,
+  /** own cards a member may keep that are not on a page */
+  draftsMax: 12,
+  /** cards one member may have waiting in another member's tray */
+  trayPerMaker: 3,
+  /**
+   * A card from someone outside anti, made on a member's public share page: a typed name instead
+   * of an account, fewer photos, and no limit on how many may wait in a tray.
+   */
+  guestNameMax: 40,
+  guestPhotosMax: 5,
+  /** an outside card that waits, unplaced, this many days is erased */
+  guestTrayDays: 30,
+} as const;
+/** pages 0–6 hold your own cards, 7–11 cards made for you */
+export const fileSide = (position: number): 'own' | 'gift' => (position < FILE.ownPages ? 'own' : 'gift');
+/**
+ * RFC §10.25: asking for a seat from the landing page, with no invite and nobody inside to ask.
+ * No account: a typed name, one way to be reached, a few words if they want.
+ */
+export const SEAT_REQUEST = {
+  nameMax: 40,
+  contactMin: 3,
+  contactMax: 120,
+  noteMax: 500,
+  /** so a flood cannot bury the real ones: past this many unread, the form asks people to come back later */
+  waitingMax: 200,
+  /** a request answered with an invite is erased this many days later */
+  keepDays: 30,
+} as const;
+
+/**
+ * RFC §10.25: the help line under the landing page's message, for someone who is in danger
+ * tonight. anti is invite-only and nobody answers it at 3am, so the page must not leave that
+ * person with nothing. Change it here and nowhere else; check the number by calling it.
+ */
+export const HELPLINE = {
+  name: 'Kaan Pete Roi',
+  /** as printed */
+  phone: '09612-119911',
+  /** as dialled */
+  tel: '+8809612119911',
+  hours: 'every day, 3pm to 3am',
+  emergency: '999',
+} as const;

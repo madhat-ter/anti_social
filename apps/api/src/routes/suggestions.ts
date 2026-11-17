@@ -141,6 +141,31 @@ export const suggestionRoutes = (deps: Deps) => {
       return { ok: true };
     })
 
+    /** Admins: every live pick, newest first, for the Admin page. */
+    .get('/ops/suggestions', async ({ auth }) => {
+      const a = requireSeated(auth);
+      if (a.user.role !== 'ops') throw new ApiError(404, 'not_found');
+      const found = await rows<PickRow>(db, sql`${select(a.user.id)} order by s.created_at desc limit 200`);
+      return { items: found.map((r) => toPick(r, a.user.id)) };
+    })
+
+    /** Admins: remove any pick from the rotation. Its author is told (unless it is their own). */
+    .delete('/ops/suggestions/:id', async ({ auth, params }) => {
+      const a = requireSeated(auth);
+      if (a.user.role !== 'ops') throw new ApiError(404, 'not_found');
+      if (!UUID.test(params.id)) throw new ApiError(404, 'not_found');
+      const [r] = await rows<{ author_id: string; title: string }>(db, sql`
+        select author_id, title from suggestions where id = ${params.id}::uuid and deleted_at is null`);
+      if (!r) throw new ApiError(404, 'not_found');
+      await db.execute(sql`update suggestions set deleted_at = now() where id = ${params.id}::uuid`);
+      if (r.author_id !== a.user.id) {
+        await db.execute(sql`insert into notifications (user_id, kind, payload)
+          values (${r.author_id}::uuid, 'pick_removed',
+                  ${JSON.stringify({ suggestionId: params.id, title: r.title, actorId: a.user.id })}::jsonb)`);
+      }
+      return { ok: true };
+    })
+
     /**
      * "Tried it": vote 1 (good) or -1 (not for me). `remark`: omitted = keep yours, null or ""
      * = remove it, text = set it. The suggester is told about a new or changed remark, not about

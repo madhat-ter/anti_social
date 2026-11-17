@@ -5,6 +5,9 @@ import type { PaymentProvider } from './payments';
 import { expireStaleCheckouts, processRefunds } from './billing';
 import { fanOutPush, NoPushSender, type PushSender } from './push';
 import { sweepConsultations } from './consultations';
+import { sweepCollabs } from './collabs-sweep';
+import { sweepGuestCards } from './file';
+import { sweepSeatRequests } from './seat-requests';
 
 export type JobDeps = { storage: Storage; payments: PaymentProvider; push?: PushSender };
 
@@ -87,6 +90,12 @@ export const JOBS: Job[] = [
     run: async (tx) => sweepConsultations(tx),
   },
   {
+    // RFC §10.21: requests that wait are reminded and then closed; quiet things ask their host once.
+    name: 'collab_sweep',
+    everyMs: HOUR,
+    run: async (tx) => sweepCollabs(tx),
+  },
+  {
     // Web Push fan-out of new notifications (RFC §12: near real time).
     name: 'push',
     everyMs: 10_000,
@@ -104,11 +113,24 @@ export const JOBS: Job[] = [
         delete from post_images
          where post_id is null and created_at < now() - make_interval(hours => ${ORPHAN_UPLOAD_HOURS})
         returning r2_key`);
+      // RFC §10.22: recordings that were never posted (re-recorded, or the page was closed)
+      const sounds = await rows<{ r2_key: string }>(tx, sql`
+        delete from monologues
+         where post_id is null and created_at < now() - make_interval(hours => ${ORPHAN_UPLOAD_HOURS})
+        returning audio_key as r2_key`);
+      orphans.push(...sounds);
+      // RFC §10.24: cards from outside anti that nobody put in their File for a month
+      orphans.push(...(await sweepGuestCards(tx)).map((r2_key) => ({ r2_key })));
       // Blobs are removed after the rows; a failed blob delete leaves an unreferenced file, never a dangling row.
       for (const o of orphans) await storage.delete(o.r2_key).catch((e) => console.error('orphan delete failed', o.r2_key, e));
       const limits = await rows<{ n: number }>(tx, sql`
         with d as (delete from rate_limits where window_start < now() - interval '2 days' returning 1) select count(*)::int as n from d`);
-      return { sessions: sessions[0]?.n ?? 0, challenges: challenges[0]?.n ?? 0, uploads: orphans.length, rateLimits: limits[0]?.n ?? 0 };
+      // RFC §10.11: the feed's visit log is behavioural data; two months is enough to read a trend
+      const visits = await rows<{ n: number }>(tx, sql`
+        with d as (delete from feed_visits where started_at < now() - interval '60 days' returning 1) select count(*)::int as n from d`);
+      // RFC 10.25: a seat request answered with an invite is erased a month later
+      const seatRequests = await sweepSeatRequests(tx);
+      return { seatRequests, sessions: sessions[0]?.n ?? 0, challenges: challenges[0]?.n ?? 0, uploads: orphans.length, rateLimits: limits[0]?.n ?? 0, feedVisits: visits[0]?.n ?? 0 };
     },
   },
 ];
@@ -137,7 +159,10 @@ export function startScheduler(db: Db, deps: JobDeps, jobs: Job[] = JOBS) {
     const t0 = Date.now();
     try {
       const r = await runJob(db, job, deps);
-      if (r.status === 'ran') console.log(`[job] ${job.name} ran in ${Date.now() - t0}ms`, r.result);
+      // A frequent job that did nothing stays quiet: the 10-second push job used to write six lines
+      // every run, which buried everything else in the host's log (2026-11-12 outage, unreadable).
+      const idle = job.everyMs < HOUR && Object.values(r.status === 'ran' ? r.result : {}).every((v) => v === 0);
+      if (r.status === 'ran' && !idle) console.log(`[job] ${job.name} ran in ${Date.now() - t0}ms`, r.result);
     } catch (e) {
       console.error(`[job] ${job.name} failed`, e);
     } finally {

@@ -11,6 +11,8 @@ export const LIMITS = {
   inviteCheck: { limit: 10, windowSec: 60 },
   /** WebAuthn ceremonies per IP. */
   auth: { limit: 60, windowSec: 60 },
+  /** RFC §10.13: PIN sign-ins and PIN resets per IP, on top of each account's own lock */
+  pinGuess: { limit: 60, windowSec: 3600 },
   like: { limit: 300, windowSec: 3600 },
   flag: { limit: 30, windowSec: 86_400 },
   upload: { limit: 60, windowSec: 3600 },
@@ -22,6 +24,10 @@ export const LIMITS = {
   consultRequest: { limit: 10, windowSec: 86_400 },
   /** members adding their own interest tags */
   interestAdd: { limit: 5, windowSec: 86_400 },
+  /** RFC §10.24: cards sent from the public share page, per IP (there is no account to count) */
+  guestCard: { limit: 3, windowSec: 3600 },
+  /** RFC 10.25: asking for a seat from the landing page, per IP */
+  seatRequest: { limit: 3, windowSec: 3600 },
 } as const;
 export type LimitName = keyof typeof LIMITS;
 

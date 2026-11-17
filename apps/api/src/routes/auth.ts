@@ -15,6 +15,8 @@ import {
   generateRecoveryCode, hashRecoveryCode, normalizeRecoveryCode, verifyRecoveryCode,
 } from '../lib/crypto';
 import { checkInvite } from './invites';
+import { checkNewPin, hashPin, pinSignIn, resetPin } from '../lib/pin';
+import { clientIp, hit } from '../lib/ratelimit';
 
 const challengeBody = t.Object({ challengeId: t.String(), response: t.Any() });
 
@@ -32,22 +34,77 @@ export const authRoutes = (deps: Deps) => {
     return mobile ? { sessionToken: token } : {};
   }
 
+  /** The invite, handle and display name a newcomer gave, checked; the same for PIN and passkey joins. */
+  async function checkJoin(raw: { code: string; handle: string; displayName: string }) {
+    const code = normalizeInviteCode(raw.code);
+    const handle = raw.handle.trim();
+    const displayName = raw.displayName.trim();
+    if (!(await checkInvite(db, code))) throw new ApiError(400, 'invite_invalid', 'Invite code is invalid, used, or expired.');
+    const bad = validateHandle(handle);
+    if (bad) throw new ApiError(400, 'handle_invalid', bad);
+    if (displayName.length < 1 || displayName.length > DISPLAY_NAME_MAX) {
+      throw new ApiError(400, 'display_name_invalid', `Display name must be 1-${DISPLAY_NAME_MAX} characters.`);
+    }
+    const taken = await scalar<boolean>(db, sql`select exists (select 1 from users where lower(handle) = lower(${handle}))`);
+    if (taken) throw new ApiError(409, 'handle_taken', 'That handle is taken.');
+    return { code, handle, displayName };
+  }
+
+  const ip = (request: Request, server: unknown) =>
+    clientIp(request, server as Parameters<typeof clientIp>[1], cfg.trustProxy ?? false);
+
   return new Elysia({ prefix: '/auth' })
     .use(authPlugin(deps))
+    // RFC §10.13: joining with an invite and a 6-digit PIN (no passkey); the recovery code is shown once
+    .post(
+      '/join',
+      async ({ body, cookie, headers }) => {
+        const { code, handle, displayName } = await checkJoin(body);
+        checkNewPin(body.pin);
+        const userId = crypto.randomUUID();
+        const recovery = generateRecoveryCode();
+        const [recoveryCodeHash, pinHash] = await Promise.all([hashRecoveryCode(recovery.normalized), hashPin(body.pin)]);
+        let state: UserState;
+        try {
+          state = await db.transaction(async (tx) => {
+            await tx.insert(users).values({ id: userId, handle, displayName, state: 'waitlisted', recoveryCodeHash, pinHash });
+            return (await scalar<UserState>(tx as never, sql`select redeem_invite(${code}, ${userId}::uuid)`)) as UserState;
+          });
+        } catch (e) {
+          if (isUniqueViolation(e)) throw new ApiError(409, 'handle_taken', 'That handle is taken.');
+          rethrowDb(e);
+        }
+        const extra = await startSession(cookie as CookieJar, headers, userId);
+        return { state, recoveryCode: recovery.display, ...extra };
+      },
+      { body: t.Object({ code: t.String({ maxLength: 64 }), handle: t.String({ maxLength: 64 }), displayName: t.String({ maxLength: 200 }), pin: t.String({ maxLength: 12 }) }) },
+    )
+    .post(
+      '/pin/login',
+      async ({ body, cookie, headers, request, server }) => {
+        await hit(db, 'pinGuess', ip(request, server));
+        const u = await pinSignIn(db, body.handle, body.pin);
+        const extra = await startSession(cookie as CookieJar, headers, u.id);
+        return { state: u.state, ...extra };
+      },
+      { body: t.Object({ handle: t.String({ maxLength: 64 }), pin: t.String({ maxLength: 12 }) }) },
+    )
+    // "Forgot your PIN?": the recovery code or an admin's one-hour reset code
+    .post(
+      '/pin/reset',
+      async ({ body, cookie, headers, request, server }) => {
+        await hit(db, 'pinGuess', ip(request, server));
+        const u = await resetPin(db, body.handle, body.code, body.pin);
+        const extra = await startSession(cookie as CookieJar, headers, u.id);
+        return { state: u.state, recoveryCode: u.recoveryCode, ...extra };
+      },
+      { body: t.Object({ handle: t.String({ maxLength: 64 }), code: t.String({ maxLength: 128 }), pin: t.String({ maxLength: 12 }) }) },
+    )
+    // passkey joining stays for older clients and tests; the app joins with a PIN
     .post(
       '/register/options',
       async ({ body }) => {
-        const code = normalizeInviteCode(body.code);
-        const handle = body.handle.trim();
-        const displayName = body.displayName.trim();
-        if (!(await checkInvite(db, code))) throw new ApiError(400, 'invite_invalid', 'Invite code is invalid, used, or expired.');
-        const bad = validateHandle(handle);
-        if (bad) throw new ApiError(400, 'handle_invalid', bad);
-        if (displayName.length < 1 || displayName.length > DISPLAY_NAME_MAX) {
-          throw new ApiError(400, 'display_name_invalid', `Display name must be 1-${DISPLAY_NAME_MAX} characters.`);
-        }
-        const taken = await scalar<boolean>(db, sql`select exists (select 1 from users where lower(handle) = lower(${handle}))`);
-        if (taken) throw new ApiError(409, 'handle_taken', 'That handle is taken.');
+        const { code, handle, displayName } = await checkJoin(body);
 
         const userId = crypto.randomUUID();
         const options = await registrationOptions(cfg, { id: userId, handle, displayName });

@@ -67,13 +67,22 @@ type Row = {
 export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_snippet' | 'root_id' | 'event_title'>): PushMessage | null {
   const p = typeof r.payload === 'string' ? JSON.parse(r.payload) : (r.payload ?? {});
   const ev = r.event_title ? `"${r.event_title}"` : 'an event';
-  const eventUrl = p.eventId ? `/events/${p.eventId}` : '/events';
+  // RFC §10.21: one Collab place; events keep their own pages under it
+  const eventUrl = p.eventId ? `/collab/event/${p.eventId}` : '/collab';
   const collab = p.title ? `"${p.title}"` : 'a collab';
-  const collabUrl = p.collabId ? `/collabs/${p.collabId}` : '/collabs';
+  const collabUrl = p.collabId ? `/collab/${p.collabId}` : '/collab';
+  const collabOrEventUrl = p.collabId ? collabUrl : eventUrl;
   const consultUrl = p.consultationId ? `/consultations/${p.consultationId}` : '/consultations';
   const m = (title: string, body: string, url: string): PushMessage => ({ title, body, url, tag: `${r.kind}:${p.postId ?? p.eventId ?? p.collabId ?? p.consultationId ?? ''}` });
   switch (r.kind) {
     case 'reply': return m(`@${r.actor ?? 'someone'} replied`, r.post_snippet ?? '', p.postId ? `/p/${r.root_id ?? p.postId}#${p.postId}` : '/notifications');
+    // RFC §10.16: someone wrote your @handle in a post
+    case 'mention': return m(`@${r.actor ?? 'someone'} mentioned you`, r.post_snippet ?? '', p.postId ? `/p/${r.root_id ?? p.postId}#${p.postId}` : '/notifications');
+    case 'invitee_first_post': return m(`@${r.actor ?? 'someone'} posted for the first time`, r.post_snippet ? `${r.post_snippet} Say hello?` : 'Say hello?', p.postId ? `/p/${p.postId}` : '/notifications');
+    // RFC §10.13: someone is guessing your PIN, or an admin made you a reset code
+    case 'pin_locked': return m('Someone tried your PIN', 'Five wrong PINs in a row, so your account is resting for a while. If it was not you, change your PIN.', '/settings#pin');
+    case 'pin_blocked': return m('Your PIN is locked for today', 'Too many wrong PINs. Use your recovery code, or ask an admin for a reset code.', '/settings#pin');
+    case 'pin_reset_code': return m('An admin made you a PIN reset code', 'If you did not ask for one, tell another admin.', '/notifications');
     case 'activated': return m('You have a seat', 'Welcome in.', '/');
     case 'seat_offered': return m('A seat is being held for you', 'You have 72 hours to take it.', '/');
     case 'seat_offer_expired': return m('Your seat offer expired', 'You can rejoin the queue.', '/');
@@ -85,17 +94,28 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
     case 'event_cancelled': return m('Event cancelled', `${ev} was cancelled.`, eventUrl);
     case 'checklist_reminder': return m('Finish your profile', `${p.done ?? 0} of ${p.total ?? 5} done. A few minutes makes this place yours.`, '/');
     case 'pick_remark': return m(`@${r.actor ?? 'someone'} tried your pick`, p.title ? `A remark on "${p.title}".` : 'They left a remark.', '/');
+    // RFC §10.4: an admin took a pick out of the rotation
+    case 'pick_removed': return m('An admin removed your pick', p.title ? `"${p.title}" is no longer in the rotation.` : 'It is no longer in the rotation.', '/');
     case 'collab_request': return m(`@${r.actor ?? 'someone'} wants to join`, collab, collabUrl);
     case 'collab_joined': return m(`@${r.actor ?? 'someone'} joined`, collab, collabUrl);
     case 'collab_accepted': return m('You are on the team', collab, collabUrl);
-    case 'collab_declined': return m('Not this time', `${collab} has found its people. Plenty more to find.`, '/collabs');
+    case 'collab_declined': return m('Not this time', `${collab} has found its people. Plenty more to find.`, '/collab');
     case 'collab_update': return m(`@${r.actor ?? 'someone'} posted an update`, r.post_snippet ? `In ${collab}: ${r.post_snippet}` : collab, p.postId ? `/p/${p.postId}` : collabUrl);
     case 'collab_meetup': return m('A meetup is planned', `For ${collab}: ${ev}`, eventUrl);
     case 'collab_finished': return m('Finished. Well done.', `A draft project for ${collab} is waiting in your portfolio.`, collabUrl);
+    // RFC §10.21: nothing waits forever
+    case 'requests_waiting': return m(`${p.count ?? 1} waiting on you`, `To join ${collab}.`, collabOrEventUrl);
+    case 'request_expired': return m('Your request was not answered in time', `${collab} waited a week. Nothing was decided either way.`, collabOrEventUrl);
+    case 'collab_quiet': return m(
+      p.kind === 'activity' ? 'Six quiet weeks' : 'Three quiet weeks',
+      p.kind === 'activity' ? `Keep ${collab} running, or end it?` : `Finish ${collab}, keep going, or close it?`,
+      collabUrl);
     case 'event_update': return m(`@${r.actor ?? 'someone'} posted an update`, `On ${ev}.`, eventUrl);
     case 'event_request': return m(`@${r.actor ?? 'someone'} asked to come`, ev, eventUrl);
     case 'event_accepted': return m('You are in', `You are on the list for ${ev}.`, eventUrl);
-    case 'event_declined': return m('Not this time', `${ev} is full of people already. Plenty more in Events.`, '/events');
+    case 'event_declined': return m('Not this time', `${ev} is full of people already. Plenty more in Collab.`, '/collab');
+    // RFC §10.21: an admin wiped the event
+    case 'event_removed': return m('An admin removed your event', p.title ? `"${p.title}" is gone.` : 'It is gone.', '/collab');
     case 'event_invite': return m(`@${r.actor ?? 'someone'} invited you`, `Come to ${ev}?`, eventUrl);
     case 'collab_invite': return m(`@${r.actor ?? 'someone'} invited you`, `Join ${collab}?`, collabUrl);
     // RFC §10.6: consultations. Never a contact in a push, only that something changed.
@@ -107,7 +127,18 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
     case 'consult_done': return m('Session marked done', p.topic ? `On ${p.topic}.` : 'Thanks for taking part.', consultUrl);
     case 'consult_thanks': return m(`@${r.actor ?? 'someone'} said thanks`, 'A thank-you is on your portfolio.', consultUrl);
     case 'consult_closed': return m('A consultation was closed', 'The contacts are hidden again.', consultUrl);
+    // RFC §10.18: consulting needs the badge, then an admin's yes
+    case 'consult_asked': return m(`@${r.actor ?? 'someone'} wants to offer consulting`, 'Their offer is waiting for your approval.', '/admin');
+    case 'consult_approved': return m('Your consulting is approved', 'Switch your offer on, or it stays as you left it.', '/consultations?tab=offer');
+    case 'consult_not_approved': return m('Consulting not approved', 'An admin has not approved your consulting.', '/consultations?tab=offer');
     case 'verified': return m('You are verified', 'The badge now shows by your name.', '/settings');
+    // RFC §10.24: the File
+    // a card from outside anti has no actor: the name its maker typed, marked as not a member
+    case 'file_card_received': return m(`${p.guestName ? `${p.guestName} (not a member)` : `@${r.actor ?? 'someone'}`} made a card for your File`, p.title ? `"${p.title}" is waiting for you.` : 'It is waiting for you.', '/file');
+    case 'file_card_removed': return m('A card you made was removed', p.title ? `An admin removed "${p.title}".` : 'An admin removed it.', '/file');
+    case 'file_card_placed': return m(`@${r.actor ?? 'someone'} put your card in their File`, p.title ? `"${p.title}"` : '', r.actor ? `/file/${r.actor}` : '/file');
+    // RFC §10.25: someone outside asked for a seat from the landing page (admins only)
+    case 'seat_request': return m(`${p.guestName ?? 'Someone'} asked for a seat`, 'Their request is waiting for you in Admin.', '/admin#seat-requests');
     default: return null;
   }
 }

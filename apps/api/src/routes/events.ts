@@ -164,6 +164,12 @@ export const eventRoutes = (deps: Deps) => {
     return e;
   }
   const view = async (viewer: string, id: string): Promise<EventView> => (await getEvent(db, viewer, id))!;
+  /** RFC §10.21: the host, or one of the co-hosts (who are always people going). */
+  async function manages(tx: Db, e: { id: string; host_id: string }, uid: string): Promise<boolean> {
+    if (e.host_id === uid) return true;
+    return !!(await scalar<boolean>(tx, sql`select exists (select 1 from event_hosts
+      where event_id = ${e.id}::uuid and user_id = ${uid}::uuid)`));
+  }
   /** The event if the viewer may see it (team-only meetups: the team), else 404. */
   async function mustSee(viewer: string, id: string): Promise<EventView> {
     const ev = UUID_RE.test(id) ? await getEvent(db, viewer, id) : null;
@@ -171,14 +177,14 @@ export const eventRoutes = (deps: Deps) => {
     return ev;
   }
 
-  /** The full page: who is going for everyone; the waitlist, requests and invites for the host. */
+  /** The full page: who is going for everyone; the waitlist, requests and invites for the managers. */
   async function hostView(viewer: string, id: string) {
     const ev = await mustSee(viewer, id);
     const people = await rows<{ handle: string; display_name: string; state: string; gender: string | null; status: string; attended: boolean; admin: boolean; verified: boolean }>(db, sql`
       select u.handle, u.display_name, u.state, u.gender, r.status, (u.role = 'ops') as admin, (u.verified_at is not null) as verified, (r.attended_confirmed_at is not null) as attended
         from event_rsvps r join users u on u.id = r.user_id
        where r.event_id = ${ev.id}::uuid and u.state <> 'deleted'
-         and (r.status = 'going' or (r.status = 'waitlisted' and ${ev.isHost}))
+         and (r.status = 'going' or (r.status = 'waitlisted' and ${ev.canManage}))
        order by r.status, r.created_at, r.user_id`);
     const person = (p: (typeof people)[number]) => ({ handle: p.handle, displayName: p.display_name, state: p.state, gender: p.gender ?? null, attended: !!p.attended, admin: !!p.admin, verified: !!p.verified });
     type P = { handle: string; displayName: string; gender: string | null; admin: boolean; verified: boolean };
@@ -186,7 +192,7 @@ export const eventRoutes = (deps: Deps) => {
     const marks = (x: PRow): P => ({ handle: x.handle, displayName: x.display_name, gender: x.gender, admin: !!x.admin, verified: !!x.verified });
     let requests: (P & { note: string | null; at: string })[] | null = null;
     let invites: P[] | null = null;
-    if (ev.isHost) {
+    if (ev.canManage) {
       requests = (await rows<PRow & { note: string | null; at: string }>(db, sql`
         select u.handle, u.display_name, u.gender, (u.role = 'ops') as admin, (u.verified_at is not null) as verified,
                q.note, to_char(q.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as at
@@ -202,7 +208,7 @@ export const eventRoutes = (deps: Deps) => {
     return {
       ...ev,
       going: people.filter((p) => p.status === 'going').map(person),
-      waitlist: ev.isHost ? people.filter((p) => p.status === 'waitlisted').map(person) : null,
+      waitlist: ev.canManage ? people.filter((p) => p.status === 'waitlisted').map(person) : null,
       requests, invites,
     };
   }
@@ -281,7 +287,7 @@ export const eventRoutes = (deps: Deps) => {
       await db.transaction(async (txx) => {
         const tx = txx as unknown as Db;
         const e = await lock(tx, params.id);
-        if (e.host_id !== a.user.id) throw new ApiError(403, 'not_host', 'Only the host can do that.');
+        if (!(await manages(tx, e, a.user.id))) throw new ApiError(403, 'not_host', 'Only the host and co-hosts can do that.');
         if (e.cancelled) throw new ApiError(409, 'event_cancelled', 'This event was cancelled.');
         if (e.started) throw new ApiError(409, 'event_started', 'This event has already started.');
         const v = clean(body, { startsAt: new Date(Number(e.starts_ms)), endsAt: e.ends_ms === null ? null : new Date(Number(e.ends_ms)) });
@@ -360,6 +366,8 @@ export const eventRoutes = (deps: Deps) => {
         if (mine !== 'going' && mine !== 'waitlisted') return;
         if (e.started) throw new ApiError(409, 'event_started', 'This event has already started.');
         await tx.execute(sql`update event_rsvps set status = 'cancelled' where event_id = ${e.id}::uuid and user_id = ${uid}::uuid`);
+        // a co-host is always someone going (RFC §10.21)
+        await tx.execute(sql`delete from event_hosts where event_id = ${e.id}::uuid and user_id = ${uid}::uuid`);
         if (mine === 'going' && !e.cancelled) await promoteEventWaitlist(tx, e.id);
       });
       return view(uid, params.id);
@@ -402,7 +410,7 @@ export const eventRoutes = (deps: Deps) => {
       await db.transaction(async (txx) => {
         const tx = txx as unknown as Db;
         const e = await lock(tx, params.id);
-        if (e.host_id !== uid) throw new ApiError(403, 'not_host', 'Only the host can do that.');
+        if (!(await manages(tx, e, uid))) throw new ApiError(403, 'not_host', 'Only the host and co-hosts can do that.');
         const done = await rows(tx, sql`update event_requests set status = ${params.decision === 'accept' ? 'accepted' : 'declined'}, decided_at = now()
           where event_id = ${e.id}::uuid and user_id = ${who.id}::uuid and status = 'pending' returning 1`);
         if (!done.length) throw new ApiError(404, 'not_found', 'No pending request from them.');
@@ -421,7 +429,7 @@ export const eventRoutes = (deps: Deps) => {
     .get('/events/:id/suggestions', async ({ auth, params }) => {
       const uid = requireSeated(auth).user.id;
       const ev = await mustSee(uid, params.id);
-      if (!ev.isHost) throw new ApiError(403, 'not_host', 'Only the host can do that.');
+      if (!ev.canManage) throw new ApiError(403, 'not_host', 'Only the host and co-hosts can do that.');
       const found = await rows<{ handle: string; display_name: string; gender: string | null; admin: boolean; verified: boolean; shared: string[] | null; n: number }>(db, sql`
         select u.handle, u.display_name, u.gender, (u.role = 'ops') as admin, (u.verified_at is not null) as verified,
           array(select ui.interest from user_interests ui join event_interests ei on ei.interest = ui.interest and ei.event_id = e.id
@@ -444,7 +452,7 @@ export const eventRoutes = (deps: Deps) => {
     .post('/events/:id/invites', async ({ auth, params, body }) => {
       const uid = requireSeated(auth).user.id;
       const ev = await mustSee(uid, params.id);
-      if (!ev.isHost) throw new ApiError(403, 'not_host', 'Only the host can do that.');
+      if (!ev.canManage) throw new ApiError(403, 'not_host', 'Only the host and co-hosts can do that.');
       if (!ev.rsvpOpen) throw new ApiError(409, 'event_started', 'This event is over or cancelled.');
       const who = await memberByHandle(db, body.handle.replace(/^@/, ''));
       if (who.id === uid) throw new ApiError(409, 'host_rsvp', 'You are hosting this event.');
@@ -470,6 +478,36 @@ export const eventRoutes = (deps: Deps) => {
       return view(uid, ev.id);
     })
 
+    /** RFC §10.21: the host picks a co-host from the going list. Cancelling stays the host's alone. */
+    .post('/events/:id/cohosts', async ({ auth, params, body }) => {
+      const uid = requireSeated(auth).user.id;
+      await db.transaction(async (txx) => {
+        const tx = txx as unknown as Db;
+        const e = await lock(tx, params.id);
+        if (e.host_id !== uid) throw new ApiError(403, 'not_host', 'Only the host can do that.');
+        if (e.cancelled) throw new ApiError(409, 'event_cancelled', 'This event was cancelled.');
+        const who = await memberByHandle(tx, body.handle.replace(/^@/, ''));
+        if (who.id === uid) throw new ApiError(409, 'host_rsvp', 'You are hosting this event.');
+        const coming = await scalar<boolean>(tx, sql`select exists (select 1 from event_rsvps
+          where event_id = ${e.id}::uuid and user_id = ${who.id}::uuid and status = 'going')`);
+        if (!coming) throw new ApiError(409, 'not_going', `@${who.handle} is not going, so they cannot co-host.`);
+        await tx.execute(sql`insert into event_hosts (event_id, user_id) values (${e.id}::uuid, ${who.id}::uuid) on conflict do nothing`);
+      });
+      return hostView(uid, params.id);
+    }, { body: t.Object({ handle: t.String({ maxLength: 40 }) }) })
+
+    .delete('/events/:id/cohosts/:handle', async ({ auth, params }) => {
+      const uid = requireSeated(auth).user.id;
+      await db.transaction(async (txx) => {
+        const tx = txx as unknown as Db;
+        const e = await lock(tx, params.id);
+        if (e.host_id !== uid) throw new ApiError(403, 'not_host', 'Only the host can do that.');
+        const who = await memberByHandle(tx, params.handle);
+        await tx.execute(sql`delete from event_hosts where event_id = ${e.id}::uuid and user_id = ${who.id}::uuid`);
+      });
+      return hostView(uid, params.id);
+    }, { params: t.Object({ id: t.String(), handle: t.String({ maxLength: 40 }) }) })
+
     /** Updates on the event's page (RFC §10.5), newest first. */
     .get('/events/:id/updates', async ({ auth, params, query }) => {
       const a = requireSeated(auth);
@@ -477,13 +515,13 @@ export const eventRoutes = (deps: Deps) => {
       return listPosts(db, a.user.id, sql`p.event_id = ${params.id}::uuid and p.parent_id is null and p.deleted_at is null and p.hidden_at is null`, query);
     }, { query: t.Object({ cursor: t.Optional(t.String()), limit: t.Optional(t.String()) }) })
 
-    // Host confirms who actually came. Set semantics: listed handles are attended, the rest are not.
+    // A manager confirms who actually came. Set semantics: listed handles are attended, the rest are not.
     .post('/events/:id/attendance', async ({ auth, params, body }) => {
       const a = requireSeated(auth);
       await db.transaction(async (txx) => {
         const tx = txx as unknown as Db;
         const e = await lock(tx, params.id);
-        if (e.host_id !== a.user.id) throw new ApiError(403, 'not_host', 'Only the host can do that.');
+        if (!(await manages(tx, e, a.user.id))) throw new ApiError(403, 'not_host', 'Only the host and co-hosts can do that.');
         if (e.cancelled) throw new ApiError(409, 'event_cancelled', 'This event was cancelled.');
         if (!e.attendance_open) {
           throw new ApiError(409, 'attendance_closed', e.started ? 'Attendance can only be confirmed for 14 days after the event.' : 'Attendance opens when the event starts.');

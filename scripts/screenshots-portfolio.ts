@@ -67,8 +67,7 @@ async function join_(page: Page, handle: string, name: string) {
   await page.getByRole('button', { name: 'Continue' }).click();
   await finishSetup(page);
   await page.getByPlaceholder('What is on your mind?').waitFor();
-  await page.getByRole('button', { name: 'Got it' }).waitFor();
-  await page.getByRole('button', { name: 'Got it' }).click();
+  await page.getByRole('button', { name: 'Got it' }).click({ timeout: 3000 }).catch(() => {}); // the rules now live at the end of setup; the welcome window only shows for members from before
 }
 
 /** A poster-like image to upload: big type on a flat ground. */
@@ -225,7 +224,8 @@ try {
   if (await theo.getByRole('link', { name: 'Edit project' }).count()) throw new Error('visitor sees the edit link');
   await shot(theo, 'project-visitor');
   // a visitor can report a project, like a post
-  await theo.getByRole('button', { name: 'Report project' }).click();
+  await theo.getByRole('button', { name: 'More actions for this project' }).click();
+  await theo.getByRole('menuitem', { name: 'Report' }).click();
   await theo.locator('dialog[open]').waitFor();
   await shot(theo, 'project-report-dialog', false);
   await theo.getByRole('button', { name: 'Cancel' }).click();

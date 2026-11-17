@@ -92,7 +92,9 @@ describe('collabs', () => {
     // open mode, and a full team
     const open = (await ana.post('/collabs', { ...base, joinMode: 'open', teamMax: 2 })).body.id;
     expect((await cat.post(`/collabs/${open}/join`, {})).body).toEqual({ joined: true });
-    expect((await ben.post(`/collabs/${open}/join`, {})).body.error).toBe('collab_full');
+    // RFC §10.21: a team that reaches its size marks itself "team set", so the next join is refused
+    // as not recruiting rather than as full
+    expect((await ben.post(`/collabs/${open}/join`, {})).body.error).toBe('not_recruiting');
     expect((await ana.patch(`/collabs/${open}`, { teamMax: 3 })).body.teamMax).toBe(3);
     expect((await ana.patch(`/collabs/${id}`, { teamMax: 2, title: 'Zine' })).body.title).toBe('Zine');
     expect((await ana.post(`/collabs/${open}/join`, {})).body.error).toBe('already_member');

@@ -1,7 +1,8 @@
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { api, errorMessage, type Me } from '@/lib/api';
 import { isSeated, setUnreadInTitle, useMe } from '@/lib/hooks';
 import { ErrorNote } from './ui';
@@ -10,8 +11,10 @@ import { Avatar } from './Avatar';
 import { NameMarks } from './Marks';
 import { Loading } from './retro';
 import { Rail } from './Rail';
-import { PickWindow, useWide } from './Picks';
 import { isAdult } from './Consult';
+import { PhoneBar, TopBell, TopFile } from './PhoneBar';
+import { Shortcuts } from './Shortcuts';
+import { PinGate } from './Pin';
 
 export const UNREAD_EVENT = 'anti:unread';
 /** a consultation changed: the menu badge re-counts what waits on you */
@@ -27,9 +30,6 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
   const me = given ?? own.me;
   const loading = given ? false : own.loading;
   const seated = isSeated(me);
-  const wide = useWide();
-  const shellRef = useRef<HTMLDivElement>(null);
-  useStickyColumns(shellRef);
 
   const needsSetup = !!me?.setupNeeded;
   useEffect(() => {
@@ -41,13 +41,15 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
   if (loading) return <Loading />;
   if (own.error && !given) return <ErrorNote message={errorMessage(own.error)} />;
   if (!me || !seated || needsSetup) return <Loading what="Redirecting" />;
+  // RFC §10.13: joined with a passkey, no PIN yet: choosing one comes first (once)
+  if (me.pinSet === false) return <PinGate me={me} />;
 
   // phones/tablets: nav on top, one column. Wide screens: menu | content | side windows (CSS).
   return (
-    <div className="shell" ref={shellRef}>
+    <div className="shell">
       <div className="shell-left">
         <NavBar me={me} />
-        {wide && <PickWindow />}
+        <Shortcuts />
       </div>
       <div className="shell-main">
         <LurkerBanner me={me} />
@@ -96,60 +98,55 @@ function NavBar({ me }: { me: Me }) {
     };
   }, []);
 
+  // phones (PhoneBar.tsx): the bell goes into the sticky header, the tabs along the bottom; CSS decides which shell shows
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setSlot(document.getElementById('top-actions')); }, []);
+  const phone = (
+    <>
+      <PhoneBar me={me} unread={unread} waiting={waiting} adult={adult} />
+      {/* RFC §10.24: the File button sits beside the bell */}
+      {slot && createPortal(<><TopFile /><TopBell unread={unread} /></>, slot)}
+    </>
+  );
+
   const mine = `/u/${me.handle}`;
+  // the rooms first; your drawers (Notifications, Settings, Admin) as a group at the bottom of the menu window
   const items: { href: string; label: string; match: (p: string) => boolean; badge?: number; cls?: string }[] = [
     { href: '/', label: 'Feed', match: (p) => p === '/' || p.startsWith('/p/') },
-    { href: '/collabs', label: 'Collabs', match: (p) => p.startsWith('/collabs') },
-    { href: '/events', label: 'Events', match: (p) => p.startsWith('/events') },
+    // the same order as the phone's tabs (RFC §10.20); Events and Collabs are one place (§10.21)
+    { href: '/collab', label: 'Collab', match: (p) => p.startsWith('/collab') },
+    // RFC §10.22
+    { href: '/monologue', label: 'Monologue', match: (p) => p.startsWith('/monologue') },
     ...(adult ? [{ href: '/consultations', label: 'Consultations', match: (p: string) => p.startsWith('/consultations'), badge: waiting }] : []),
     { href: '/members', label: 'Members', match: (p) => p === '/members' },
     { href: '/search', label: 'Search', match: (p) => p === '/search' },
-    { href: '/notifications', label: 'Notifications', match: (p) => p === '/notifications', badge: unread },
-    { href: '/settings', label: 'Settings', match: (p) => p === '/settings' },
-    ...(me.role === 'ops' ? [{ href: '/admin', label: 'Admin', match: (p: string) => p === '/admin', cls: 'nav-admin' }] : []),
+    // RFC §10.24: your File
+    { href: '/file', label: 'File', match: (p: string) => p.startsWith('/file'), cls: 'nav-drawer nav-drawer-first' },
+    { href: '/pets', label: 'Pet Corner', match: (p: string) => p.startsWith('/pets') || p.startsWith('/pet/'), cls: 'nav-drawer' },
+    { href: '/notifications', label: 'Notifications', match: (p: string) => p === '/notifications', badge: unread, cls: 'nav-drawer' },
+    { href: '/settings', label: 'Settings', match: (p: string) => p === '/settings', cls: 'nav-drawer' },
+    ...(me.role === 'ops' ? [{ href: '/admin', label: 'Admin', match: (p: string) => p === '/admin', cls: 'nav-drawer nav-admin' }] : []),
   ];
 
   return (
-    <nav className="nav" aria-label="Main">
-      {items.map((i) => (
-        <Link key={i.href} href={i.href} className={i.cls} aria-current={i.match(path) ? 'page' : undefined}>
-          {i.label}
-          {!!i.badge && i.badge > 0 && (
-            <span className="badge" aria-label={i.href === '/consultations' ? `${i.badge} waiting on you` : `${i.badge} unread`}>{i.badge > 99 ? '99+' : i.badge}</span>
-          )}
+    <>
+      <nav className="nav" aria-label="Main">
+        {items.map((i) => (
+          <Link key={i.href} href={i.href} className={i.cls} aria-current={i.match(path) ? 'page' : undefined}>
+            {i.label}
+            {!!i.badge && i.badge > 0 && (
+              <span className="badge" aria-label={i.href === '/consultations' ? `${i.badge} waiting on you` : `${i.badge} unread`}>{i.badge > 99 ? '99+' : i.badge}</span>
+            )}
+          </Link>
+        ))}
+        <Link href={mine} className="nav-me" aria-current={path === mine ? 'page' : undefined}>
+          <Avatar seed={me.handle} gender={me.gender} size={28} />
+          {/* name: "Your profile @maya" — always contains the visible "@maya" (desktop shows it) */}
+          <span className="sr-only">Your profile </span>
+          <span className="nav-me-label">@{me.handle}<NameMarks admin={me.role === 'ops'} verified={!!me.verifiedAt} size=".9em" /></span>
         </Link>
-      ))}
-      <Link href={mine} className="nav-me" aria-current={path === mine ? 'page' : undefined}>
-        <Avatar seed={me.handle} gender={me.gender} size={28} />
-        {/* name: "Your profile @maya" — always contains the visible "@maya" (desktop shows it) */}
-        <span className="sr-only">Your profile </span>
-        <span className="nav-me-label">@{me.handle}<NameMarks admin={me.role === 'ops'} verified={!!me.verifiedAt} size=".9em" /></span>
-      </Link>
-    </nav>
+      </nav>
+      {phone}
+    </>
   );
-}
-
-/**
- * The side columns stay in view while the page scrolls. One that fits the screen sticks under the
- * header; a taller one (short or zoomed screens, an admin's longer menu) scrolls with the page and
- * sticks once its bottom is in view, so it is never cut off and never needs its own scrollbar.
- */
-function useStickyColumns(ref: React.RefObject<HTMLDivElement | null>) {
-  useEffect(() => {
-    const root = ref.current;
-    if (!root) return;
-    const fit = () => {
-      for (const el of root.querySelectorAll<HTMLElement>(':scope > .shell-left, :scope > .rail')) {
-        el.style.top = '';
-        const top = parseFloat(getComputedStyle(el).top) || 0;
-        const room = window.innerHeight - top - 16;
-        if (el.offsetHeight > room) el.style.top = `${window.innerHeight - el.offsetHeight - 16}px`;
-      }
-    };
-    fit();
-    const ro = new ResizeObserver(fit);
-    root.querySelectorAll(':scope > .shell-left, :scope > .rail').forEach((el) => ro.observe(el));
-    window.addEventListener('resize', fit);
-    return () => { ro.disconnect(); window.removeEventListener('resize', fit); };
-  }, [ref]);
 }

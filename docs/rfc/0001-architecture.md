@@ -17,7 +17,7 @@ Stack: Next.js web client → Elysia (Bun) API → PostgreSQL (Drizzle + a few P
 
 **Goals**
 - Invite-only onboarding with a hard cap of 100 seats, enforced atomically in the database.
-- Passkey-only authentication; the user's identity is their handle plus their passkey(s).
+- ~~Passkey-only authentication~~ (2026-11-09, §10.13: a handle and a 6-digit PIN; passkeys optional); the user's identity is their handle.
 - Automated archival of inactive members and lurkers; paid reinstatement and paid stay exemptions.
 - Public feed (posts, replies, likes, images) and events (host, RSVP, attend).
 - One API serving web now and mobile later.
@@ -48,7 +48,7 @@ Stack: Next.js web client → Elysia (Bun) API → PostgreSQL (Drizzle + a few P
 | Waitlist decay | Waitlisted user not seen for 60 days is removed from the queue. |
 | Ban penalty | Inviter of a banned user loses invite privileges for 30 days. |
 | Flags | 5 distinct members flagging a post hides it until an admin reviews it. Admins can also remove any post or project directly. |
-| Posts | 500 chars, ≤ 4 images × 5 MB (EXIF stripped), edit within 15 min (marked "edited"), delete anytime, 20 posts/hour. |
+| Posts | 1500 chars (raised from 500 on 2026-11-09), ≤ 4 images × 5 MB (EXIF stripped), edit within 15 min (marked "edited"), delete anytime, 20 posts/hour. |
 | Equal permissions | Every member has the same capabilities, except admins (role `ops`): they moderate, ban and unban, change handles, mint invites without limit and set the room's size. Admins carry the OG mark (§10.7; it replaced the "admin" tag) and are exempt from the inactivity and lurker rules. See §10.2. |
 | Handles | Chosen at sign-up; members cannot change them. Admins can change anyone's handle (their own included); the face, drawn from the handle, changes with it. |
 
@@ -280,7 +280,7 @@ export const posts = pgTable('posts', {
   authorId: uuid('author_id'),                         // null after author deletion
   parentId: uuid('parent_id'),                         // reply → parent post
   rootId: uuid('root_id'),                             // thread root
-  body: text('body').notNull(),                        // CHECK length <= 500
+  body: text('body').notNull(),                        // CHECK length <= 1500
   editedAt: timestamp('edited_at', { withTimezone: true }),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
   hiddenAt: timestamp('hidden_at', { withTimezone: true }),     // flag threshold reached
@@ -633,6 +633,9 @@ admin; the web app shows an **Admin** menu item and page to admins only (members
 - **Reports**: the flag queue; Keep it / Restore / Remove. Admins can also remove **any** post (post
   menu: "Remove (admin)") or project (project page) without reports. Removing closes any open
   reports and tells the author (`post_removed`, `project_removed` with the title).
+- **Collab** (RFC §10.21): every event, activity and project, hidden and cancelled ones included,
+  each with **Remove** — a wipe of that thing and everything in it. An event can also be removed
+  from its own page's ⋯ menu.
 - **Members**: everyone but deleted accounts, seated first and admins on top. Per person:
   - **Ban** (not admins) and **Unban**: `unban_user()` re-seats them if a seat is free, else they
     queue as a new invitee; their passkeys were kept, so they sign in as before. `set_state`
@@ -663,10 +666,14 @@ settings stay open. People still waiting for a seat see only their status page, 
   *is* the portfolio's About (same rule in the portfolio editor), so a portfolio is never empty. The
   short 160-character bio is unchanged and optional.
 - **Gender**: Woman / Man / Non-binary / Prefer not to say. It only shapes the drawn face and is never
-  shown as text; it can change any time in Settings. Faces are generated from handle + gender: women
-  never get facial hair and draw from bob, curly, side, long and bun (some get lashes or earrings);
-  men keep the short styles and may have a beard or moustache; non-binary and prefer-not-to-say get
-  any hairstyle and no facial hair. Without a gender (not set up yet) the original face is drawn.
+  shown as text; it can change any time in Settings. Faces are generated from handle + gender, from
+  three hair sets that never overlap (redrawn 2026-11-09 after a woman's face came out looking like a
+  man's): women draw from bob, long, bun, full curls, ponytail and braids, always get lashes (or
+  earrings where glasses hide the lashes) and never facial hair; men draw from flat, spiky, cap,
+  quiff, buzz and short curls and may have a beard or moustache; non-binary, prefer-not-to-say and
+  "not set up yet" draw from side, mop, wavy, beanie and crown with none of those markers. The
+  landing page's hundred seats are half women, half men. `/dev/faces` shows 200 + 200 + 100 samples
+  for checking. Every change to the sets redraws every face; it was done once while the room was small.
 - **Birthday**: a date; under 13 the app asks "is that right?" and then the account is closed (the
   birthday is never stored); future dates and ages over 120 are refused. Members can't change it;
   admins can correct it (same under-13 rule, with a confirmation). Only month and day are ever shared,
@@ -694,7 +701,10 @@ and skips the last 5 seen. Members who tried a pick vote **good** (+1) or **not 
 to 200 characters. Rotation is weighted: score = 1 + (up - down)/4 clamped to [1/4, 4], drawn with
 `-ln(random)/score`, so nothing disappears. The window shows the tally and the newest remark; **All
 remarks** lists everyone's vote and remark (profiles too). The suggester is notified of remarks, not
-votes. Admins remove remarks (the vote stays, the writer is told). Never a lurker contribution.
+votes. Admins remove remarks (the vote stays, the writer is told). The author removes their own
+pick from the pick window ("Remove my pick", after a confirmation) or from the Picks tab of their
+profile; admins see every pick under **Admin → Picks** and remove any of them, and the author is
+told. Never a lurker contribution.
 
 ### 10.5 Collabs, interests, upgraded events (added 2026-11-08)
 
@@ -727,6 +737,8 @@ handles money). Status: recruiting → closed ("team set") → finished.
   their part, "Team of N", how long it ran) unless their portfolio is full.
 - **Reports**: like posts and projects; 5 open reports hide a collab from everyone but its team and
   admins until ops restore or remove it. Admins remove any collab; the host is told, not by whom.
+  Removing is a wipe, not a hide (§10.21): the collab and everything in it — team, requests,
+  invites, reports, updates and its meetups with their RSVPs — is deleted for good.
 
 **Events** gain the same tools: interests, requirements ("what to bring or know"), **who can come**
 (anyone, or ask with a note and the host accepts: `event_requests`), **invites** with suggestions
@@ -752,12 +764,14 @@ choice, one pair at a time.
 - **Money**: anti never handles it. Offers and acceptances carry a price note and, optionally, the
   consultant's own `https://` payment link (shown only to the requester once there is a price). No
   Stripe Connect, no ID checks, no refunds.
-- **Offer** (`consult_offers`, opt-in): 1–5 topics from the interests list, a description ≤ 500,
-  a session length (30/45/60/90/120 min), Free or Paid (a starting point; price note required for
-  Paid), and a private **contact** ≤ 300. Switching it on needs topics and a contact. Pausing stops
-  new requests; it is live only while active, not blocked by an admin, not hidden after reports,
-  and its owner is a seated adult.
-- **Request** (`consultations`): topic, what you need help with ≤ 1000, when suits you ≤ 200, your
+- **Offer** (`consult_offers`, opt-in): a switch, an optional description ≤ 500, a session length
+  (30/45/60/90/120 min), Free or Paid (a starting point; price note required for Paid), and a
+  private **contact** ≤ 300. Switching it on needs a contact. There are no topics (removed
+  2026-11-09, owner's call): a member consults on what they are in life right now, which the
+  portfolio already says; someone who reads it and is interested books. Pausing stops new
+  requests; it is live only while active, not blocked by an admin, not hidden after reports, and
+  its owner is a seated adult who is verified and approved (§10.18).
+- **Request** (`consultations`): what you need help with ≤ 1000, when suits you ≤ 200, your
   contact ≤ 300. At most 3 open with the same consultant, 10 sent a day. States:
   `pending` → `accepted` (Paid: waits for the requester's **"I agree to pay this"**) → `revealed`
   → `done`; or `declined` (no reason given), `expired` (7 days unanswered, or 7 days without
@@ -769,7 +783,7 @@ choice, one pair at a time.
   directly; the hourly `consultations` job expires requests (with notifications) and wipes copies.
 - **Done and thanks**: either side marks Done. The requester may leave a public thank-you ≤ 300 (no
   stars or scores); the consultant can hide it. The portfolio shows "N sessions done".
-- **Portfolio**: a **Consulting** section (topics, length, usual price, description, sessions done,
+- **Portfolio**: a **Consulting** section (length, usual price, description, sessions done,
   newest 3 thank-yous plus "All", **Book a consultation**). Member lists carry a "consults" tag and
   a filter (`GET /members?consults=1`). The menu has **Consultations** (Received / Sent / Your offer)
   with a badge for requests waiting on you.
@@ -801,8 +815,10 @@ every opening logged).
   `verified_by`), after checking the member however they like (usually through the contact details);
   Admin → Members has Verify / Remove verification and a "Not verified yet (N)" filter. Verifying
   notifies the member (`verified`); taking it back is silent. Admins are not verified
-  automatically. The badge unlocks nothing; it is a mark of trust. A verified member who later
-  changes their contact details keeps the badge, and admins see "contact changed since verified".
+  automatically. The badge unlocks nothing; it is a mark of trust (§10.18 asks for it first, before
+  an admin's separate yes). A verified member who later changes their contact details keeps the
+  badge, and admins see "contact changed since verified". Taking it back also stops their consulting
+  and wipes that approval (§10.18).
 - **Contact details**: every member gives a **cell phone** (7–15 digits, optional leading +, country
   code encouraged) and an **email** (basic shape), as setup step 4. Members who finished setup
   before this are sent back to setup once; the rest is filled in and the birthday cannot change
@@ -813,6 +829,744 @@ every opening logged).
   ("Show contact"); every opening is recorded (`contact_views`) and the recent openings show with
   them. Without `CONTACT_KEY` in production the feature is off (nothing is asked or stored). No
   address is collected. `delete_account` erases them and the badge.
+
+### 10.9 The UX pass (2026-11-09)
+
+A critique of every screen (from the walkthrough screenshots) turned into five changes, built as
+five commits. The rules it left behind, for anything added later:
+
+- **Phones (under 900px) have a different shell** (`PhoneBar.tsx`). The menu column becomes a bell
+  with the unread count in the sticky header (the clock is desktop-only) and five tabs along the
+  bottom: Feed, Events, Collabs, Members, *you* (your face, with the unread badge). (Four since
+  §10.21: Feed, Collab, Members, You.) Drawers (your
+  profile, Search, Consultations, Settings, Admin) open in a sheet from the fifth tab. Settings and
+  setup are standalone pages with no shell, and stay that way. The first screen is posts: the feed
+  composer is one line until tapped or holding a draft, the checklist folds to a line with a count,
+  and the pick window waits until after the third post.
+- **Type.** The bitmap face (`--font-ui`) is for chrome only: window titles, tabs, buttons, menus,
+  form labels, tags. Anything a reader has to parse (handles, times, counts, places, meta lines) is
+  set in the reading face via `.meta` (0.9rem, `--gray-strong`). New meta text uses `.meta`, never
+  `.ui`.
+- **Dates.** `relativeTime` within a week ("5m", "3h", "2d"), then "Thu, Nov 5" (year only when
+  it is not this year). `fmtDate` for exact moments drops the current year. Event cards say the
+  weekday and time, since the date chip already says the day; event detail keeps the full date.
+- **Zeros are invitations.** "Reply", not "0 replies"; "Like" with no count; "Be the first to go";
+  no "0 up · 0 down"; "none yet"; a portfolio with no posts says nothing about posts.
+- **One primary action per screen.** Rarer and destructive actions go in the "⋯" menu
+  (`ActionMenu.tsx`): a collab shows Join/Ask or Edit plus a menu; an event shows Edit plus a menu;
+  an admin member row shows Verify (when due), Unban, Show contact plus a menu, and filter chips.
+  A host sees what waits on them (requests, inviting) in a line under the collab title.
+- **Liveness.** The feed polls for new posts on the unread-count rhythm (30 s while visible, and on
+  focus) and holds them behind a "3 new posts" pill. The members page has a search and chips (new
+  this month, offers consultations, each interest somebody has).
+- **Onboarding.** The three house rules close the setup page, and the welcome window is marked
+  seen when setup is done (it still shows once for members from before). The About box carries
+  three questions and talks in sentences, not word counts, until the minimum is near. The landing
+  tells a stranger how an invite is obtained and makes both alert buttons answer the question.
+  Settings has a row of section links that stays under the header on wide screens.
+
+`scripts/screenshots-phone.ts` walks the phone shell, the pill and the member filters.
+
+**The desktop pass (same day, later).** A second critique, of the wide screens, added:
+
+- **The feed opens on posts here too.** The checklist is one line on every screen: the title, the
+  next thing to do (a link), the count and "Show all".
+- **The menu column is only the menu.** Rows are tighter; your drawers (Notifications, Settings,
+  Admin) are a smaller group under a double rule; under it, "? Keyboard shortcuts". It fits a
+  1366×768 laptop without scrolling (it still has its own scroll if it ever does not). The pick
+  window lives in the right column, which opens with the next events (the "you" window is gone:
+  your profile is in the menu). Under 1180px there is no right column, so the pick window and the
+  birthday line sit in the feed, as on phones.
+- **The side windows scroll on their own** (owner's call, 2026-11-09). The right column is never
+  taller than the screen: it scrolls under the header, like the menu, so a short laptop window can
+  still reach the last window instead of losing it below the fold. The scroll does not carry on
+  into the feed.
+- **No window repeats its page:** no next-events window on Events, no seats window on Members.
+- **No empty boxes.** The portfolio's About/Skills | Experience/Education box is one column when
+  either half would be empty.
+- **A greyed-out control says why.** `why(reason)` in `ui.tsx` sets `data-why`, shown as a
+  black slip on hover or keyboard focus (CSS) and read out via `aria-description`; native `title`
+  tooltips were slow and do not show on disabled buttons everywhere.
+- **Keyboard** (`Shortcuts.tsx`): N write a post, / search (the page's own search box when it has
+  one), J/K next and previous post, Enter open it, Esc leave a text box, ? the list. Ignored while
+  typing, with modifiers, or while a dialog is open.
+
+`scripts/screenshots-desktop.ts` checks each of these at laptop sizes.
+
+### 10.10 Screen time (added 2026-11-09, removed 2026-11-11)
+
+Removed on the owner's word. It was half an hour of looking, then an hour locked out, behind an
+admin switch that was off by default. Everything went: the timer in the header, the nudges, the
+lock screen and the API's wall, the heartbeat endpoints, the Admin → Community switch, the
+constants, the tests and the screenshot script. Migration 0034 drops the `screen_time` table and
+the `screen_time` setting. Nothing on the site counts a member's time any more; the number stays so
+the sections after it keep theirs.
+
+### 10.11 The feed: newest first, with an end (added 2026-11-09)
+
+(Since 2026-11-12 the new posts above the line come **mixed** by default, §10.23; the rest of
+this section still holds, and "Newest first" in Settings brings back the order described here.)
+
+Built from a read of how big platforms and small community sites order their feeds, and what
+users and builders say about it. The feed is **not ranked**: no
+score, no likes or replies moving a post, nothing learned from what anyone looks at. At a hundred
+seats every post can be read; the real problems are the frequent poster who drowns out the rest,
+not knowing where you left off, and a newcomer posting into silence. The fixes are display rules on
+top of `(created_at desc, id desc)`, each one written on `/feed-rules`:
+
+- **Likes are the author's alone.** `likeCount` is a number only on your own posts, `null` on
+  everyone else's (feed, threads, the like endpoints). Likes never change position. (The
+  MusicLab result: visible counts make popularity snowball.)
+- **"new here" and "First post".** Posts by members in their first `new_member_exempt_days` (21)
+  carry "new here" by the name; a member's first root post outside collabs and events wears a
+  "First post" badge and its reply button reads "Say hello". The inviter gets
+  `invitee_first_post` (once per member, ever; not for replies or updates).
+- **The line.** A visit starts when the feed opens after `FEED.visitGapMinutes` (30) with no feed
+  activity in that tab (`sessionStorage`; a reload resumes it with `since=`). `GET /feed?visit=1`
+  returns `visit {since, capped, newPosts, visitId, threads, events, nextEvent}`; `since` is
+  `users.feed_seen_through`, never more than `FEED.newWindowDays` (7) back. The 30-second poll
+  sends neither parameter and never starts a visit.
+- **The end.** The feed loads on its own only until it reaches the line; there the end card says
+  "You're caught up. That's everything since Tue 9:14 pm." (or "Nothing new…"), the next event,
+  "Go outside.", and a *Show older posts* button; below the line only buttons load more. Once the
+  card has been on screen, `POST /feed/caught-up {through, visitId}` moves `feed_seen_through` to
+  the newest post in the list: clamped to now, forward only.
+- **The fold.** On one local day an author's posts after the first `FEED.foldAfter` (2) collapse
+  into "3 more from Mina today", opened in place (`foldBusy` in `packages/shared/src/feed.ts`, pure
+  and unit-tested). Never folded: your own posts, newcomers, anyone's first post.
+- **Rows in time.** An older post (made up to 72 h before the line) that `FEED.threadMinRepliers`
+  (2) other people replied to since the line gets one row, "Mina's post from Monday: 3 people
+  replied since you were here", at the newest reply. Guards from the small sites that rank: the
+  author's and your own replies don't count, nor replies more than 72 h after the post, and rows
+  are counted from replies that still exist (reply-then-delete removes it). A new public event by
+  someone else gets a row at the moment it was made. Rows only sit above the line; the post itself
+  never moves.
+- **The log.** `feed_visits` (user, since, new posts waiting, when the end card was reached) is
+  the only behavioural data the feed keeps: the owner reads backlog sizes and how many visits reach
+  the end. Pruned after 60 days by the daily cleanup, gone with the member.
+- **Not built:** a "By person" view (what you missed, grouped per member, quietest first). Build it
+  only if the 90th-percentile backlog stays above 150 posts, or fewer than half of the visits with
+  60+ new posts reach the end, or five members ask for it. Never an A/B
+  test; time on site and sessions are never objectives.
+
+The landing page keeps "no algorithm"; its rule now reads "One feed, newest first. Likes never move
+a post. A line shows where you left off, and you will reach the end of it." Tests:
+`apps/api/test/feed.test.ts`, `apps/api/test/fold.test.ts`; screenshots:
+`scripts/screenshots-feed.ts`.
+
+### 10.12 Posts and replies look different (added 2026-11-09)
+
+The owner found posts and replies hard to tell apart: both were the same card. Decided with the
+owner, six points, all as proposed:
+
+- **Everywhere replies show**: the thread page, a member's profile list and search (the feed
+  itself shows posts only).
+- **The thread's post is heavier**: a framed card with a shadow, larger text and a "Post" label
+  (`PostCard variant="lead"`).
+- **Replies are lighter**: a 36px face (30px on phones) instead of 52, smaller text, dashed
+  dividers, and they hang off one line on the left joined to the post by a short tick
+  (`variant="reply"`, `.thread-replies`).
+- **Flat, one level.** A reply to a reply stays in the same list with "replying to @x"; no deeper
+  nesting (it breaks on phones, and threads here are short).
+- **In lists, a reply says what it answers**: "↳ Replied to Mina's post: 'Anyone up for a hike…'",
+  linking into the thread, drawn in the same small style. The API adds `replyTo {rootId, author,
+  snippet}` to every reply (the snippet is empty when the post was deleted or hidden).
+- `scripts/screenshots-replies.ts` shoots the same scene before (`SHOTS=before`) and after.
+
+### 10.13 Signing in with a handle and a PIN (added 2026-11-09)
+
+Members found passkeys hectic, so the way in is now the invite code once, then a handle and a
+6-digit PIN. Decided with the owner, thirteen points, all as proposed:
+
+- **Joining**: invite code → handle and display name → a PIN typed twice → the recovery code,
+  shown once ("I saved it") → setup. `POST /auth/join {code, handle, displayName, pin}`; no
+  passkey step. (`/auth/register/options|verify` stay for older clients and tests.)
+- **Signing in**: `POST /auth/pin/login {handle, pin}` (handle case-insensitive, `@` allowed). A
+  wrong PIN and an unknown handle get the same `401 pin_invalid`. Banned: `account_unavailable`,
+  only after the right PIN. Sessions stay 7 days.
+- **Guessing**: 5 wrong in a row → the account rests 15 minutes (`423 pin_resting`, detail = the
+  time), doubling with each further rest until a right PIN; 10 wrong in a day → `423 pin_blocked`
+  until a recovery code or an admin's code. The count is per account, under a row lock; on top,
+  `pinGuess` allows 60 tries per IP per hour. The member is told (`pin_locked`, `pin_blocked`).
+  PINs are argon2id hashes; `pinProblem` (packages/shared) refuses one digit six times, straight
+  runs, repeated pairs or triples, and the member's birthday as six digits.
+- **Forgot your PIN**: `POST /auth/pin/reset {handle, code, pin}` with the recovery code (also
+  removes passkeys, signs out everywhere, returns a new recovery code) or an admin's reset code
+  (one hour, one use, unlocks, signs out everywhere). Admin → Members → *Reset PIN*
+  (`POST /ops/users/:handle/pin-reset`): never for yourself; a new code retires the older one;
+  the member is told (`pin_reset_code`); `pin_resets` is the log of who reset whom.
+  The ops console makes the same code for anyone (`bun run ops -- pin-reset <handle>`, added
+  2026-11-16): it is how the only admin gets back in with no recovery code. It needs the
+  database address, so it is the owner's; the log row has no name on it and the member is still told.
+  On a host with no shell (Render's free plan) the same code comes from `PIN_RESET_HANDLE=<handle>`
+  (added 2026-11-17): on boot the API prints the code to its own log, the way `BOOTSTRAP_INVITES`
+  prints founder codes. Only someone who can set the service's variables can do it, and they hold
+  the database already. A restart inside 24 hours makes no second code unless the first ran out
+  unused; the variable is removed once the member is back in.
+- **Changing it**: Settings → PIN, `PUT /me/pin {pin, currentPin}`; every other device is signed out.
+- **Passkeys are an extra**: under Settings, optional; with a PIN the last one can be removed.
+  "Use a passkey" stays on the sign-in page.
+- **Existing members** (joined with a passkey, `pinSet: false` on `/me`): the next passkey
+  sign-in, and every page until then, asks them to choose a PIN first. Admins sign in the same way.
+- Constants: `PIN_LENGTH`, `PIN_RULES` in `packages/shared/src/pin.ts`. Tests:
+  `apps/api/test/pin.test.ts`; screenshots: `scripts/screenshots-pin.ts`.
+
+### 10.14 Dark mode, by choice (added 2026-11-09)
+
+Some members want a dark page; Anti stays a white-paper site for everyone else. Decided with the
+owner, four points, all as proposed:
+
+- **Light by default, whatever the device says.** Settings → Appearance: Light or Dark, applied at
+  once, no "match my device" option (`prefers-color-scheme` is never read).
+- **Saved on the account** (`users.theme`, `PATCH /me {theme}`), so it follows the member to every
+  device, and copied into an `anti_theme` cookie: the root layout reads it (with the session
+  cookie) and renders `<html data-theme="dark">`, so a dark page never flashes white.
+- **Signed out: always light**, cookie or not.
+- **Portfolios keep their own look**: a "paper" portfolio stays white inside a dark page, "ink"
+  stays black; the menu, side windows and posts follow the viewer.
+- The theme is one block, `:root[data-theme="dark"]` in `globals.css` (every colour is a
+  variable). Tests: `apps/api/test/theme.test.ts`; screenshots: `scripts/screenshots-theme.ts`.
+
+### 10.15 Every post its own card, shaped by what it is (added 2026-11-09)
+
+The owner found the feed ran together: a status right under a photo read like its caption or a
+reply to it. Decided with the owner, seven points, all as proposed:
+
+- **Framed cards**: each post is its own box (2px ink border, small offset shadow) with a clear
+  gap before the next, the same window look as the rest of the site (`PostCard framed`,
+  `.posts.cards`).
+- **The shape tells what it is, no labels** (`postShape` in `packages/shared/src/feed.ts`):
+  - *photo* (any image): the picture runs the card's full width, the words under it as a caption;
+  - *short* (at most `FEED.shortMaxChars` 140 characters on at most 3 lines, no image): set large, as a note;
+  - *text*: normal size, folded after `FEED.clampLines` (6) lines with "Read more", which opens
+    it in place (shown only when the fold actually hides something at that width).
+- **Reply and Like sit in a strip** across the bottom of the card, so the actions close the post.
+- **Where**: the feed and a member's profile list. The thread page keeps §10.12; search, event
+  and collab update lists stay compact.
+- **Phones**: the same framed card with the page's small inset each side.
+- Tests: `apps/api/test/post-shape.test.ts`; screenshots: `scripts/screenshots-feed-types.ts`
+  (`SHOTS=before` for the old look).
+
+### 10.16 Mentions: type @, no button (added 2026-11-09)
+
+Decided with the owner, all as proposed:
+
+- **Typing @ is the trigger.** In every post box (feed composer, replies, collab and event
+  updates) an unfinished `@word` opens a list of up to 8 seated members under the box: handle
+  prefix first, then display name, each row a drawn face, the name and `@handle`. ↑/↓ moves,
+  Enter or Tab picks, Esc closes, clicking a row picks it. **There is no mention button.**
+- **The body stays plain text.** `@handle` is written as typed; the members it really names are
+  stored in `post_mentions` (post_id, user_id) when the post is saved. Links therefore survive a
+  handle change, and an edit can diff old against new.
+- **Only real mentions become links.** The post carries the handles back; only those render as a
+  link to `/u/<handle>`. An unknown @word, or an @ inside an email or URL, stays plain text.
+- **One notification per person per post** (`kind = 'mention'`, in-app and Web Push): "@theo
+  mentioned you". Replying to someone and also mentioning them sends only the reply notice.
+  Mentioning yourself does nothing.
+- **Edits** notify only people newly added in the 15-minute window; removing a mention drops the
+  link and sends nothing.
+- **Limits:** seated members only (`active`, `flagged_lurker`), case-insensitive, at most 10 per
+  post. A mention is not a contribution for the lurker rule.
+- **The picker's list** comes from `GET /members/mention?q=` (members-only, 8 rows).
+- Tests: `apps/api/test/mentions.test.ts`; screenshots: `scripts/screenshots-latest.ts`
+  (`15-mention-list`) and `.screenshots/mentions/`.
+
+### 10.17 Pet Corner: pets as sub-accounts (added 2026-11-09)
+
+The right-hand seats window becomes **Pet Corner**: a live feed of the room's pets. Decided with
+the owner, every answer as proposed:
+
+- **A pet is a content identity, not an account.** It has no seat, no PIN and cannot sign in; it
+  belongs to one member, up to **3 pets each**, and posts as itself.
+- **Add Pet** sits at the right end of your own profile's cover banner, opposite your face, name
+  and headline (only you see it). It opens a window: name, species (**Dog**, **Cat** or **Bird**),
+  and an optional photo.
+- **Default looks are drawn in code**: endless per species — any variant number draws a new face,
+  seeded from it and the species, in the same hand-drawn 1-bit ink as member faces. A pet keeps
+  its look; an uploaded photo replaces it.
+- **Each pet has `/pet/<id>`**: a small header (avatar, name, species, "pet of @owner") and its
+  posts. The owner also sees Edit and Delete there.
+- **Posting as a pet happens on the pet's page**, where the composer says "Posting as Max"; the
+  main feed composer stays the member's. A pet post carries one label — **Everyday**, **Advice**,
+  **Health** or **Help** — and at most **one picture** (1500 characters, 15-minute edit).
+- **Pet Corner** shows the newest pet posts: on wide screens in the right rail (where the seats
+  window was), and below 1180px on its own **`/pets`** page. Each card shows the pet's avatar, its
+  name, "pet of @owner", the label, the words and any picture. On phones the feed also gets **one
+  Pet Corner stop**: one random pet post between the 4th and 10th post, once per visit, the way the
+  pick window sits after the third; its heading opens `/pets` and its card opens the pet's page.
+- **Others can like, reply and report** a pet post. Replies stay inside Pet Corner; five reports
+  hide a pet post like any other; the **owner is notified in their own inbox** for replies and
+  likes. A pet post is **never a lurker contribution**. Admins get **Remove (admin)** on any pet
+  post (the owner is told), as on any other post.
+- **Deleting a pet** removes the pet and all its posts, images and replies, after a confirmation
+  that says how many posts will go.
+- **The seats window only disappears from the rail.** The seat chart and count stay on the
+  Members page and in Admin.
+- The owner's profile gains a small row of their pets (avatars linking to each pet page). Pet
+  posts do not offer @mentions: mentions name members, not pets.
+
+### 10.18 Consulting needs the badge, then an admin's yes (added 2026-11-10)
+
+Grilled with the owner (three rounds, every answer as proposed). Offering consulting used to be one
+switch. Now it takes two things first: the **verified badge** (§10.7), and after that **one admin's
+approval**. Both are given once.
+
+- **The gate**: switching an offer on needs the badge (`consult_unverified`). With the badge, the
+  first switch-on **saves the offer and puts the member in the admin's queue** — the offer is so
+  stored (the details typed while waiting are kept) but not live, so nobody can book and no
+  "consults" tag appears. Only when an admin says yes does it go live, at once if it is already
+  switched on.
+- **Approved once, in `users`**: `consult_approved_at` / `consult_approved_by`, with
+  `consult_requested_at` (waiting) and `consult_declined_at` (said no). Pausing and resuming after a
+  yes asks nobody again; switching off while waiting takes the request back. An offer is live only
+  while all of §10.6's conditions hold **and** the owner is verified and approved.
+- **Declined**: the offer is switched off, the member is told, no reason is given (as with a
+  declined request), and they cannot ask again — only an admin can change it, from the queue or
+  Members. It adds nothing to the profile: only admins see it, as "not approved".
+- **A member who is not verified** still sees Consultations and **Your offer**, but the form is one
+  plain line in place of the fields: the badge comes first, ask an admin. They keep the form while
+  they are verified but waiting, so they can tidy the details.
+- **Losing the badge** (§10.7, Remove verification) stops consulting and **wipes the approval**: the
+  offer goes off, and giving the badge back does not make them bookable without a fresh decision.
+  The same happens on a ban or deletion, which already close everything (§10.6).
+- **Requests already under way carry on** when approval or the badge goes: only new bookings stop.
+- **Admin → Consulting** lists everyone waiting, oldest first, with name, badge, description, session
+  length, Free or Paid and whether their offer is switched on, and **Approve** / **Not now**. The
+  same two actions are in the Members row menu, and Members has a "Consulting (N)" filter chip and
+  says "waiting for approval" / "not approved" beside the person. Admins get no new role: `/ops/*`
+  is unchanged, and `requireOps` still 404s to members.
+- **Offers that were already live** when this shipped were paused into the queue by the migration
+  (`0031_consult_approval.sql`): every active offer whose owner has no approval is now waiting, so
+  the rule is true from the first minute. Nothing was deleted; each one goes live again on approval.
+
+Notifications: `consult_asked` (to every admin, once per member, not once per save),
+`consult_approved` and `consult_not_approved` (to the member). Push texts carry neither a contact nor
+a reason.
+
+### 10.19 The Bangla font stays, its credit line goes (added 2026-11-10)
+
+The owner asked for two things at once: the font stays, the credit line at the foot of the landing
+page goes. Only the credit was removed; nothing about the font changed.
+
+- **The font is unchanged.** Golesta Borno still draws every Bangla character, from
+  `apps/web/app/fonts/golesta-borno/` (regular and italic, `unicode-range` limited to Bengali, so it
+  only downloads on pages that have Bangla). Do not swap it out or re-upload the files elsewhere.
+- **The credit line is gone**: the `Web font: lipighor.com` footer on the landing page
+  (`apps/web/app/page.tsx`), its `.landing-foot` rule and the `foot` grid area it occupied
+  (`apps/web/app/globals.css`). The landing page therefore ends at the three house rules. **Do not
+  bring it back unless the owner asks.** The licence file (`LICENSE-Readme.txt`) still ships beside
+  the font and is the only place the name remains; that file is not to be edited or removed.
+- **The screenshot script no longer looks for the link**: `scripts/screenshots-bangla.ts` dropped its
+  "landing backlink ok" step. Its remaining job is unchanged: prove the Bangla is drawn in Golesta
+  Borno and the English around it is not, using Chrome's own font report.
+- The owner asked that this change carry no screenshots.
+
+### 10.20 Fewer hidden steps, one way of doing things (added 2026-11-11)
+
+The owner asked for every nested button to be found and the site made quicker to get around
+without becoming harder to understand. A map of every menu, tab, dialog and fold showed that
+nothing a member does daily was buried: posting, replying, liking, events and members were already
+one tap away. The problems were **inconsistency** (the same word or button behaving differently
+in different places) and **missing safety steps**. The owner accepted every recommendation ("do all
+the recommended stuff you think best", then "ok run run run" for the follow-ups). The rules:
+
+- **Everyday things are shallow; destructive things stay a step away.** Deleting a project or
+  banning a member may take several clicks; that protects people and is not to be "fixed".
+- **Every delete and every report asks first.** Five did not, and now do: deleting or reporting a
+  pet post (the same two dialogs a member post has, the report with an optional reason), deleting a
+  pick from your profile, forgetting a passkey, and taking someone off a collab team.
+  `scripts/screenshots-nav.ts` clicks each one and checks that a confirm opens and Cancel leaves
+  things as they were.
+- **A menu with one item is a button.** The event page's ⋯ held only "Cancel this event"; it is now a
+  red **Cancel event** button beside Edit (with its confirm).
+- **A host's week-to-week actions are buttons.** On a collab, Stop recruiting / Recruit again / Mark
+  finished sit beside Edit. The ⋯ keeps only Leave, Report, Delete and Remove (admin).
+- **Admin tools always live in the ⋯ menu and confirm once.** Remove (admin) on pet cards and project
+  pages moved into ⋯, as on posts and collabs; reporting a project moved there too, as on a post.
+  (Pick remarks keep their two-step button inside the remarks dialog, now reading "Yes, remove".)
+- **Owners delete where they look.** The project page has **Delete project** beside Edit project,
+  not only inside the editor.
+- **Words say what they do.** "Remove" became *Delete pick*, *Delete my pick*, *Forget this passkey*,
+  *Remove from team*; the pet page's *Delete* became a red *Delete pet*; the invite code's *Hide*
+  became *Done*.
+- **Settings is a normal page.** A seated member keeps the menu, side windows and phone tabs there.
+  Someone not seated (lapsed, paying the stay fee) still gets the page on its own, since they have no
+  rooms to go to. The section row gained *Notifications*, and the foot links to `/feed-rules`.
+- **Each thing has one door on the phone.** Notifications are the header bell only, no longer also
+  in the "You" sheet; the "You" badge now counts only consultations waiting on you. The desktop menu
+  follows the phone's order: Feed, Events, Collabs, …
+- **Admin starts with what waits.** A **Needs you** line at the top counts reports to decide and
+  consulting offers waiting for a yes, each a jump to its section; a row of section links like
+  Settings; and the sections reordered: Reports, Consulting, Members, then the rest. In a member's
+  row a waiting consulting request is a visible **Approve consulting** button. The row's ⋯ is grouped
+  (account, consulting, role) with Ban last, and Ban stays in the menu on purpose.
+- **The post box's @ list is announced properly.** The textarea is a `combobox` (it already set
+  `aria-expanded`, which a plain textarea may not); found by the axe check in the screenshot script.
+
+Left as they are, on purpose: the header (§10.9), the phone tab bar, the inline post box, and the
+differently worded "show more" controls (each says what it reveals). Replies on a pet's page still
+open inline, because that page is a pet's own small thread and not the feed.
+
+### 10.21 One Collab: events, activities, projects (added 2026-11-11)
+
+Grilled with the owner (Q1–Q30, every recommendation accepted) after research into Meetup, Luma,
+Partiful, Heylo, Discord, Strava, Mighty Networks and form-design studies (NN/g, Baymard). Events
+and Collabs stop being two places. **Collab** is one section holding three kinds; the build plan
+for it is `docs/tasks/collab-merge.md`. This section replaces the "separate pages" parts of §10.5
+and the Events/Collabs tabs of §10.9; everything else in §10.5 still holds.
+
+**The three kinds** (each shown with its one-line example wherever someone chooses):
+- **Event**: happens once, at a time and a place (*a picnic on Saturday*). RSVP, a size limit and
+  a waitlist, as before.
+- **Activity**: keeps going, no end (*a Sunday run club*). People join the group. It has a plain
+  **"When we meet"** line ("Sundays 7am, by the lake") and no repeating-event schedule: when a
+  date needs sign-ups or a headcount, someone on the team taps **Plan a meetup** for that one
+  date. No size limit unless the host sets one. Joining is **open** by default. States:
+  **Running → Ended**; ending keeps the page and updates readable and closes joining. No
+  portfolio draft.
+- **Project**: has a finish (*making a zine together*). Team of 2–20, roles to fill, **ask to
+  join** by default. Recruiting → Team set → Finished; finishing gives the team portfolio drafts,
+  only for people on the team at the finish (unchanged).
+
+Every collab that existed before became a **Project**; the host can switch it. Activity ↔ Project
+can switch in Edit, except that an activity with more than 20 people can't become a project (Edit
+says why: a project team holds up to 20). An Event never switches kind.
+
+**Where it lives.** The phone bar is **Feed, Collab, Members, You** (four tabs; the freed slot
+stays empty, since a tab bar is for places, not actions; §10.22 fills it with Monologue, a place); the desktop menu matches. The Collab
+page, top to bottom:
+1. **Yours**: what you host, what you're in, what you're going to, and requests waiting on you.
+   Shown only when there is something in it.
+2. **Coming up**: the next dated events, soonest first, including meetups open to anyone.
+3. **For you**: recruiting activities and projects that share your interests.
+4. One row of chips, **All · Events · Activities · Projects**, plus the interest filter, over one
+   list of cards. Past events and finished or ended things sit behind a link at its foot.
+
+Old `/events…` and `/collabs…` addresses forward permanently to the new pages. The first time each
+member from before opens Collab, a strip says "Events and Collabs are one place now"; closing it
+is saved to the account.
+
+**Starting something.** One **+ Start** button on the Collab page: three choices, then one short
+page. Only the basics show (Event: title, when, where, a few words; Activity: title, when you
+meet, a few words, interests; Project: title, what it is, who you're looking for, interests).
+Everything else is behind **one** "More options" fold, never a fold inside a fold, and every
+setting can be changed later.
+
+**Cards.** One card shape with a small kind label; the second line changes by kind: an event's
+date and "3 spots left" or "Full · join the waitlist"; an activity's "Sundays 7am · 12 in"; a
+project's "Looking for illustrator, printer · 3 of 6". On the left, an event shows its date (the
+month, the big day on the red dot, as the old Events list did); an activity or project shows its
+cover, or its first letter on red without one (owner, 2026-11-11: no letter square for events).
+
+**One join button whose words follow the rules.** Event: *I'm going* / *Ask to come* / *Join the
+waitlist*; Activity: *Join* / *Ask to join*; Project: *Ask to join* (or *Join* when the host made
+it open). Once you are in it reads **You're in ✓**, and tapping it offers *Leave*.
+
+**Project roles are slots.** "Looking for illustrator, printer" are slots; asking to join you may
+tap the one you'd take; the page shows "illustrator: @handle". When every slot is filled or the
+team is full, the project shows **Team set** by itself; the host can still reopen it.
+
+**Events gain co-hosts**: they edit, accept requests, invite and mark attendance (cancelling stays
+with the host). On an event of yours that has happened: **Run it again** (a new event filled in,
+only the date to set) and **Make it regular** (a new Activity filled in from the event, inviting
+everyone who came).
+
+**Nothing waits forever.** A request to join (any kind) unanswered for 3 days reminds whoever
+decides; at 7 days it closes and the person is told it wasn't answered in time, not that they were
+declined. A project with nothing new for 3 weeks asks its host once: "Finish it, keep going, or
+close?"; an activity after 6 weeks: "Keep it running, or end it?".
+
+**Unchanged:** the posting rule (hosting an event with an attendee and going count; being on a
+team does not, posting updates does), meetups (team only by default, or anyone, which then shows
+in Coming up), updates threads, invites skipping the ask, reports, interests. The profile tab reads
+**Collab** and lists the activities and projects someone is in and the events they host, never the
+events they are only going to. A host runs at most 3 open activities and projects together; events
+are not counted.
+
+**An admin's power reaches all three.** **Admin → Collab** lists every event, activity and project
+(hidden, cancelled and team-only ones included) with **Remove**; an event can also be removed from
+its own page's ⋯ menu. Remove is a wipe, not a hide: the thing goes with its team (or RSVPs),
+requests, invites, updates and, for a collab, its meetups. The host is told, without who. The host's
+own **Delete** stays a hide, so a host cannot wipe a team by accident.
+
+### 10.22 Monologues: a recording, drawn as a cassette (added 2026-11-11)
+
+Grilled with the owner in four rounds (research first: Clubhouse and Airchat, listening vs reading,
+NPR's *This I Believe*, browser recording, R2, cover-song law). A **monologue** is a post that is a
+recording: a **Song**, a **Thought** or a **Yap**. The point is to say one thing well, so the
+format does the work: a title, a kind, five minutes, listen back before posting.
+
+**The rules.**
+- Any seated member can post one; **no limit on how many** (owner's call; the hourly posting cap of
+  every post still applies). Never as a pet, never inside a collab or event, never as a reply.
+- At most **5 minutes**, recorded on the site or uploaded as a file (MP3, M4A, OGG or WebM, up to
+  15 MB). A **title** (up to 80 characters) and a **kind** are required; a written **note** is
+  optional and works like any post body (mentions, links, the 15-minute edit window).
+- Before posting: listen back, re-record as often as you like. Posting means ticking **"This is
+  mine to share: my own words, or my own song."** Own work only: small sites have no blanket music
+  licence, so covers are not allowed; admins remove what breaks it.
+- Once posted the **sound can't be changed**, only deleted. Title, kind and note can be edited in
+  the usual window. Deleting it, an admin removing it, or the member closing their account **erases
+  the recording** (not just hides it). Recordings never posted are swept after a day.
+- **Written replies only** for now. Likes, replies and mentions notify as on any post; a new
+  monologue notifies nobody. **No play counts**, anywhere (§10.11). It counts as a post for the
+  lurker rule. Search finds it by title and note. No transcripts (they need a paid service).
+
+**Where it lives.** In the **feed**, newest first like everything else; on its own tab,
+**Monologue**, which fills the phone bar's empty fifth slot (Feed · Collab · Monologue · Members ·
+You; the desktop menu matches); and on a profile, a **shelf of tape spines** (kind, title, length,
+newest on top), shown only once someone has posted one. The Monologue page follows the feed's rules
+(newest first, a "new since" line of its own, an end card), with chips **All · Songs · Thoughts ·
+Yaps** and the only **+ Record** button. A monologue opens at the usual post page (`/p/<id>`).
+
+**The look.** One cassette shape for every kind, bold ink like the rest of the site, white on black
+in dark mode. The cassette **is the card and the whole player** (owner, after two looks at the
+build): no post box around it and nothing under it but the note and Reply / Like, with a small name
+line above. Its parts do the work:
+- the **label**: the kind in the SIDE box, the title (two lines at most) in the site's own type,
+  the **time left** in the corner (the full length before it plays, counting down while it does),
+  and under the title the **waveform**: tap it to jump;
+- the **play sign** sits in the bottom part, between the two holes where a real tape's head opening
+  is (▶, ❚❚ while playing); tapping **anywhere** on the cassette plays or pauses;
+- the **two reels turn** while it plays (spokes and a red notch make it plain) and the tape winds
+  from the left reel to the right one;
+- a **speed sticker** in the bottom-right corner steps **1× → 1.5× → 2×**.
+
+It has the site's hard shadow, stays straight (never tilted), is about 430 pixels wide on a
+computer and full width on a phone. One tape plays at a time; nothing plays by itself. On the
+recording screen, Record / Stop is its own button under the cassette.
+
+**On a computer** (owner, 2026-11-11; YouTube's and Spotify's habits): **Space** plays or pauses: the
+tape playing, else the one last played, else the post in focus (J / K), else the first on screen. On
+the cassette Space is always play/pause, even with the speed sticker or waveform focused. **← →**
+jump 5 seconds and **Shift + > / <** go faster or slower, once a tape has been played. The
+keyboard's own **play/pause media key**, headphone buttons and the system's media pop-up work too
+(Media Session API). The ? list shows the keys. The reels **turn even with animations turned off**
+(Windows "Animation effects" off reads as reduced motion), just slower: their turning is how you
+see it is playing, and it only starts when you press play.
+**How it is built.** The recording is uploaded first (`POST /monologues/audio`: the server checks
+the file really is audio by its first bytes, the size, and the length the browser measured) and
+waits for its owner; posting is `POST /posts` with `monologue: { audioId, title, kind, mine }`, so
+likes, replies, mentions, reports and the lurker rule are the ordinary post code. Table
+`monologues` (migration 0033). Media answers byte-range requests, which Safari needs to play audio.
+`STORAGE=r2` puts new files in Cloudflare R2 and still reads what the database holds; until the
+owner sets R2 up, recordings live in the database like images do.
+
+### 10.23 The feed is mixed: newest on top, the rest fair (added 2026-11-12)
+
+The owner's problem with strict newest first (§10.11): when one member posts ten monologues in a
+row, they sit on top and bury the one good post someone made just before. The fold already shrinks
+the ten to two and a row, but those still come first. Decided with the owner after a read of how
+shuffles are done (Spotify spreading one artist through a shuffle, Apple's "less random to feel
+more random", Bluesky's Friendship Feed taking turns between people, Efraimidis–Spirakis weighted
+sampling, and the complaints about Instagram's and Tumblr's reordering: losing your place, posts
+that seem to vanish). Sixteen questions, all as proposed, plus the owner's word that **mixed is the
+default for everyone**:
+
+- **What is mixed:** only what is new since your last visit, above the "new since" line. The single
+  newest post at the moment the visit starts stays first. Under the line, older posts keep time
+  order and their day headers; the end card and *Show older posts* are as before.
+- **How** (`mixFeed` in `packages/shared/src/feed.ts`, pure and tested): the rest draw lots, newer
+  posts with better tickets (a post's weight halves every `FEED.mixHalfLifeHours`, 12, counted from
+  the newest post); then the same person is spread out: each place takes the best-drawn post whose
+  author is not among the last `FEED.mixGap` (3) placed, narrowing only when nobody else is left,
+  and someone with too many posts left to fit apart goes sooner. Never twice in a row while anyone
+  else is waiting. The fold still applies (2 a day, then one row), and the row takes one place.
+- **Only time and who posted.** Likes, replies and clicks never move a post; no learning, no
+  A/B tests. The landing page keeps "no algorithm".
+- **Stable for a visit.** The server draws a seed when the visit starts and returns
+  `visit.mix {seed, until}`; the browser keeps it with the visit, so reloads and later pages get the
+  same order (`seed=`, `until=` on resume; mixed pages carry their own cursor, then an ordinary one
+  takes over under the line). A new visit (30 minutes away) draws a new seed. Posts made after
+  `until` wait behind "N new posts" and go on top, newest first; your own new post goes on top at once.
+- **Rows** ("3 people replied since you were here", new events) get a seeded place among the new
+  posts instead of a place in time. The mixed part has no day headers: one line, "12 new since
+  yesterday, 5:17 PM · mixed, newest on top", links to `/feed-rules#mixed`, and each card keeps its
+  time. Nothing new: plain newest first, no label.
+- **Only the home feed.** Profiles, the Monologue tab, collabs and search stay newest first.
+- **A way back:** Settings → Feed → *Feed order*: **Mixed** (default) or **Newest first**, on the
+  account (`users.feed_order`, migration 0035; `PATCH /me {feedOrder}`).
+- Tests: `apps/api/test/feed-mix.test.ts`; screenshots: `scripts/screenshots-feed-mix.ts`
+  (`SHOTS=before` for the old order).
+
+### 10.24 The File: a drawer of cards (added 2026-11-12)
+
+The owner's idea, from a poster of a filing drawer: every member has a **File**, drawn as that
+drawer. Tabs stand up at the back and the front, one page lies open, and each page holds one
+**card**. Decided with the owner in two rounds (21 questions, all as proposed, except the split:
+**7 pages of your own and 5 for cards others made**, where 6 + 6 was proposed).
+
+- **The drawer.** 12 pages, always. Pages 0–6 are the member's own: page 0 is **Me** (always
+  first, open by default, never renamed); pages 1–6 carry a label the member types (14 characters,
+  shown in capitals) and can be reordered. Pages 7–11 hold only cards **other people made for
+  them**; their tab shows the maker's handle (or, for a card from outside anti, the name its
+  maker typed). The seven own tabs stand at the back, the five gift
+  tabs at the front, the open tab is black. An empty page keeps a blank tab that only the owner can
+  open. One card a page.
+- **The card.** A headline (60), 1–20 photos, each with an optional caption (140), and a
+  description (1,200). On its page it is a preview; tapping it opens it full screen (headline on
+  top; photos left and description right on a wide screen, stacked on a phone). The photos are a
+  swipeable carousel, cropped square from the centre, with dots and "3 / 20". Tapping a photo shows
+  it whole as a polaroid with its caption underneath.
+- **Own cards.** "Make a card" for yourself; it goes on one of your seven pages, or waits off the
+  File (at most 12 waiting). Taking a card off a page keeps it; deleting erases it and its photos.
+- **Cards made for someone** (step 2). "For someone" picks any seated member. Until sent it is the
+  maker's draft; once sent it waits in the recipient's private tray. Only the recipient can place
+  it, on a gift page, one card per maker at a time; a maker has at most 3 waiting per person.
+  Placing notifies the maker; declining or removing is silent. The maker can edit or delete it any
+  time; an edit takes it off the File and back to the tray for a new yes.
+- **Where it lives** (step 3). On phones a File button in the header beside the bell (the owner
+  asked for it: the header is now the wordmark, the File button and the bell); on computers an
+  entry in the side menu; an "Open File" link on each profile. Members see every File. A public
+  share link `/f/<handle>`, **off by default**
+  (switched on in the File itself, see below), shows only the File and the member's name and face, always light; a gift card shows
+  there only if its maker allowed public sharing; previews work when the link is pasted, search
+  engines are asked not to list it.
+- **Quiet.** Cards are never feed items, have no likes or replies, and never count for the 30-day
+  seat rule. Reports and admin removal as for posts (step 4). When a member leaves, their File, the
+  cards made for them and the cards they made for others are erased.
+- **How it is built.** `file_cards` (maker, for, headline, description; `sent_at`, `declined_at`,
+  `public_ok`, `hidden_at` for the later steps), `file_card_photos` (the upload moved in, as project
+  images are), `file_pages` (user, position 0–11, label, card; rows appear on the first write),
+  migration 0036. `apps/api/src/lib/file.ts`, `routes/file.ts`; `apps/web/src/components/File.tsx`,
+  `/file` (yours) and `/file/<handle>`. Limits in `FILE` (`packages/shared/src/rules.ts`).
+  Tests: `apps/api/test/file.test.ts`; screenshots: `scripts/screenshots-file.ts`.
+- **Step 2, as built.** `POST /me/file/cards` with `forHandle` makes the maker's draft (at most 12
+  unsent); `POST /me/file/cards/:id/send` hands it over and rings the recipient
+  (`file_card_received`). `GET /me/file/tray` is the recipient's private tray; placing rings the
+  maker once per version of the card (`file_card_placed`); taking it off a page returns it to the
+  tray; `POST /me/file/tray/:id/decline` removes it for good, silently. The maker's list
+  (`GET /me/file/made`) only ever says draft, "in their File" or "not in their File". The tick
+  "they may show this card on their public share link" (`public_ok`) is set by the maker.
+- **Step 3, as built.** `TopFile` beside `TopBell` in the phone header; "File" in the side menu;
+  "Open … File" on each profile. `users.file_public` (migration 0037, `PATCH /me {filePublic}`,
+  Settings → File, with the link and a copy button). `/f/<handle>` is a server page (title,
+  description, `og:image` from the "Me" card's first photo, `robots: noindex`) around the same
+  drawer in a read-only mode; it removes the dark theme while it is open. It reads
+  `GET /public/file/:handle` (no session; 404 unless shared) and its photos come from
+  `GET /public/file/:handle/media/:key`, which serves a blob only if it is a photo of a card
+  that File shows publicly: the owner's own placed cards, and placed gift cards with `public_ok`.
+  A gift card without it is an empty, unnamed page outside.
+- **Step 4, as built.** `POST /file/cards/:id/flag` (a card you can see: on a page of a File, or
+  sent to you; never your own making) into `file_card_flags` (migration 0038). Five open reports
+  hide the card from everyone but its owner, its maker and admins, and ring the admins
+  (`flag_threshold`). Admin → Reports lists "File card" with whose File it is in;
+  `POST /ops/file/cards/:id/resolve` restores or removes, `POST /ops/file/cards/:id/remove` (also
+  "Remove (admin)" on the full card) removes any placed or sent card; the maker gets
+  `file_card_removed`. A banned or gone maker's cards are not shown anywhere (they return with an
+  unban); a closed account's cards are erased (step 1).
+- **The flip** (asked for 2026-11-12, after step 3: "I want it to flip like a real file page").
+  Tapping a tab flips the page the way a card file does: to a page further back, the open page
+  tips forward on its bottom edge and falls away toward you; to one further front, the new page
+  swings up from lying toward you. CSS 3D (`perspective`, `rotateX`), about half a second; with
+  animations turned off it still flips, just quicker. Frames: `.screenshots/file/flip/`.
+- **Sharing from the File itself** (asked for 2026-11-12: "we need to go to settings for it, give
+  the option in the file section"). The member's own File has a **Share** button beside
+  "+ Make a card". One tap switches the link on and hands it over: the phone's share sheet where
+  there is one, the clipboard on a computer. While the link is on, a strip under the heading shows
+  the address, Share / Copy link, "Open it" and "Stop sharing" (one tap, no question: it can be
+  switched back on). The link is still off until the member taps. `GET /members/:handle/file`
+  tells the member alone whether it is on (`shared`). The switch that used to sit in Settings was
+  removed the next day (owner: one place only), so the File is where sharing is switched on and
+  off. Screenshots: `scripts/screenshots-file-share.ts`.
+- **Cards from outside anti** (asked for 2026-11-12: "when the link is opened by someone outside
+  the community they can also gift a card"; decided in two rounds, 15 questions, all as proposed
+  except that the owner wanted **no limit on how many may wait in a tray**, where 5 was proposed).
+  - *Who.* No account, no email: a name they type (40), required. Everywhere the card appears it
+    says "Riya (not a member)": the tray, the card, the share page, the bell. No names are
+    blocked; the mark is what stops a typed name passing for a member. No handle, face or profile.
+  - *What.* The same card, at most **5 photos**. One screen on the share page ("+ Make a card
+    for Maya"): name, headline, photos, description, Send. No drafts. Once sent it cannot be
+    changed or taken back (nothing proves it is the same person later), and the form says so.
+  - *Where it goes.* The member's private tray, with a bell notification, exactly like a
+    member's card: only they see it, only they place it, on a gift page. The tab shows the typed
+    name (first 14 letters). There is no one-per-person rule for these (a name is not a person),
+    so all five gift pages may hold outside cards. Placed, it **always** shows on the share page
+    (that is where its maker made it); nobody is told when it is placed or turned down.
+  - *One switch.* The button is on the share page whenever the link is on. Stop sharing turns
+    both off.
+  - *Spam.* At most **3 cards an hour from one internet connection**, counted across all Files
+    (people on one wifi share them), and a hidden field that only robots fill in (they are
+    answered "sent" and nothing is kept). No puzzle to solve. No cap on the tray.
+  - *Tidying.* Turning an outside card down erases it and its photos at once. One that waits off
+    the File for **30 days** (since it was sent, or since it last came off a page) is erased by
+    the nightly clean-up. Placed cards stay.
+  - *Reports.* As for any card: five reports hide it, an admin restores or removes it, an admin
+    can remove it outright. Nobody is told when it goes. Admin → Reports says "by someone
+    outside anti" and gives the typed name.
+  - *As built.* `file_cards.maker_id` may be null, then `guest_name` holds the name (migration
+    0039, one or the other, checked). `POST /public/file/:handle/cards` (multipart: `name`,
+    `headline`, `description`, `captions` as a JSON list, `photos`, and the trap `website`)
+    checks `users.file_public` first (404 otherwise), then the words, then counts the hit
+    (`guestCard` in `lib/ratelimit.ts`), then stores the photos through the same pipeline as any
+    upload and the card with `sent_at` and `public_ok` set. If anything fails nothing is kept.
+    The browser shrinks the photos first (longest side 1,600, JPEG) so the whole card travels in
+    one request under 4 MB. `checkGuestCard`, `addGuestCard`, `sweepGuestCards` in
+    `apps/api/src/lib/file.ts`; `GuestCardForm` in `File.tsx`. Tests:
+    `apps/api/test/file-guest.test.ts`; screenshots: `scripts/screenshots-file-guest.ts`.
+- **Progress.** All four steps built 2026-11-12, and the flip, and sharing from the File; cards
+  from outside built 2026-11-13.
+
+### 10.25 The landing page speaks to someone who feels alone (added 2026-11-17)
+
+The owner said what anti is for: fewer teenagers ending their lives. The landing page is where a
+stranger meets it, so it now says that in the owner's own words (36 of them):
+
+> You may feel there's no one for you. / We won't pretend: no one is coming to fix everything. /
+> But you're not the only one feeling this. / We have each other. Some days, that's enough to stay.
+
+The owner's first draft said "there is no one for you, and it is actually true". That line was
+changed on purpose: to a teenager in a dark place it reads as proof they are alone. The honesty
+was kept in "no one is coming to fix everything". Do not sharpen it back.
+
+Everything else on the page was brought into line with it. The owner's answers (2026-11-17):
+
+1. **A teenager with no invite and nobody inside to ask can ask for a seat.** A button under the
+   welcome window opens a short form where it stands: a name, one way to reach them, a few words
+   if they want. No account. An admin decides.
+2. **A help line sits under the message**, one quiet line: the site is invite-only and nobody
+   answers it at 3am, so the page must not leave someone in danger with nothing. It is in one
+   place, `HELPLINE` in `packages/shared/src/rules.ts`: Kaan Pete Roi, 09612-119911, every day
+   3pm to 3am, and 999 for an emergency (Bangladesh). The number and hours were taken from
+   LifeLine International's member page; the help line's own website no longer answers. **The
+   owner should ring it once to be sure**, and whenever it changes, change it there.
+3. **The "delete Social Life" joke is gone.** A warning triangle and the word "delete" do not
+   belong under words meant for someone thinking of ending their life. The window now says
+   "Welcome": "There's a seat here for you", with **Sign in** and **I have an invite**.
+4. **The 30-day rule stays; only its words changed**, so they lead with care: "Every face is a
+   person. The room is small on purpose, so you get noticed." The three rules under the page are
+   the same rules said as what they do for the reader: *In the open* (no private messages, so no
+   one can corner you), *No algorithm* (nothing built to keep you scrolling), *Small on purpose*
+   (a hundred seats; away 30 days and the seat passes on; you can ask for it back).
+
+Kept as they were: the big ANTI SOCIAL wordmark, the retro windows, the red dot, the hundred
+faces.
+
+**Asking for a seat, as built.**
+
+- *What is kept.* `seat_requests` (migration 0040): the typed name (40), the way to reach them
+  (3–120 characters, **sealed** with `CONTACT_KEY` like members' contact details, §10.7), a note
+  (500, optional). Without `CONTACT_KEY` the form is off and the page shows the old "ask someone
+  inside" line instead, rather than keeping a stranger's contact in the clear.
+- *Who sees it.* Admins only: **Admin → Seat requests**, whoever waited longest on top, and a
+  line in "Needs you". Every admin's bell rings with the typed name, never the contact.
+- *An admin's yes* is **Make an invite**: a founder invite (nobody listed as inviter) whose code
+  is shown once, beside the contact. **The site sends nothing**; the admin writes to the person by
+  hand. If the room is full when they join, they queue like anyone (§5.1). The request then
+  shows as "invited" and is erased **30 days** later by the nightly clean-up.
+- *An admin's "Not now"* erases the request and its bell lines at once. The person is told
+  nothing by the site, so the dialog asks the admin to write them a kind line first.
+- *Nothing is promised on the page.* After sending: "A person will read it. There are only a
+  hundred seats, so it can take a while", and it points back at the help line.
+- *Spam.* 3 requests an hour from one internet connection, a hidden field only robots fill
+  (answered "sent", nothing kept), and no more than 200 unread requests at once.
+- *Age.* The form does not ask it. The 13-and-over rule still closes an account at setup (§10.3).
+- *Code.* `apps/api/src/lib/seat-requests.ts`, `routes/seats.ts`; `SeatAsk.tsx`, the landing in
+  `apps/web/app/page.tsx`, `SeatRequests` in the Admin page. Tests:
+  `apps/api/test/seat-requests.test.ts`; screenshots: `scripts/screenshots-landing.ts`.
+
+**Still open (the owner's to decide).** Events invite members to meet in person. If members are
+teenagers, meeting strangers needs its own rules; nothing was changed about that here.
 
 ## 11. API surface (Elysia)
 
@@ -826,16 +1580,22 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST /auth/login/options` | P | Discoverable login options |
 | `POST /auth/login/verify` | P | Verify, start session |
 | `POST /auth/recover/options` / `verify` | P | Recovery-code flow; rotates code |
+| `POST /auth/join` | P | Join with an invite and a 6-digit PIN (§10.13); returns the recovery code once |
+| `POST /auth/pin/login` | P (rate-limited) | Handle + PIN; rests and locks per §10.13 |
+| `POST /auth/pin/reset` | P (rate-limited) | Recovery code or admin's reset code + new PIN |
+| `PUT /me/pin` | U | Choose or change the PIN (current PIN needed once one is set) |
+| `POST /ops/users/:handle/pin-reset` | O | One-hour PIN reset code for a member (not yourself; logged) |
 | `POST /auth/logout` | U | End session |
 | `GET /me` | U | Profile, state, waitlist position / offer, lurker countdown, `setupNeeded`, gender, own birthday |
 | `GET/PUT /me/setup` | U | Setup: About you, gender, birthday (under 13 + `confirmUnderage`: account closed) |
 | `GET /me/checklist`, `POST /me/checklist/dismiss` | A | "Finish your profile" items, and closing it |
 | `GET/POST/DELETE /me/passkeys` | U | Manage passkeys |
-| `PATCH /me` | U | Display name, bio, gender, "show my birthday" |
+| `PATCH /me` | U | Display name, bio, gender, "show my birthday", theme, feed order (§10.23) |
 | `DELETE /me` | U | Self-deletion |
 | `GET/POST /me/invites` | A | List / create (≤ 2 open, no penalty) |
 | `POST /me/waitlist/rejoin` | U (archived) | Join priority queue |
-| `GET /feed` | A | Global feed |
+| `GET /feed` | A | Global feed; `visit=1` / `since=` on the first page add the visit (§10.11); the visit's new posts come mixed unless the member chose newest first, `seed=` / `until=` resume the mix (§10.23) |
+| `POST /feed/caught-up` | A (not V) | The end card was seen: move the "new since" line forward (§10.11) |
 | `POST /posts` | A | Create post or reply |
 | `GET /posts/:id` | A | Post + thread |
 | `PATCH /posts/:id` | A | Edit (15 min) |
@@ -848,15 +1608,32 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `GET /members/:handle/portfolio`, `PATCH /me/portfolio` | A | Portfolio (CV fields, look, cover) |
 | `GET /members/:handle/projects[/:id]` | A | Contents list (with the look) and one project |
 | `POST /me/projects`, `PATCH/DELETE /me/projects/:id`, `POST /me/projects/order` | A | Projects |
+| `GET /members/:handle/file` | A | A member's File: 12 pages, each with its card or empty (§10.24) |
+| `GET/POST /me/file/cards`, `PATCH/DELETE /me/file/cards/:id` | A (not V) | Your own cards: list, make (`page` places it), change, delete (§10.24) |
+| `PUT /me/file/pages/:position`, `POST /me/file/pages/order` | A (not V) | Rename a page, put a card on it or take it off; reorder your pages 1–6 (§10.24) |
+| `POST /me/file/cards/:id/send`, `GET /me/file/made` | A (not V) | Send a card you made for someone; the cards you made for others (§10.24) |
+| `GET /me/file/tray`, `POST /me/file/tray/:id/decline` | A (not V) | Cards made for you that wait for your yes; turn one down, silently (§10.24) |
+| `GET /public/file/:handle`, `GET /public/file/:handle/media/:key` | none | A File its member shares by link, and its photos; 404 unless shared (§10.24) |
+| `POST /public/file/:handle/cards` | none | A card from someone outside anti, into that member's tray; 404 unless shared; 3 an hour per IP (§10.24) |
+| `GET /public/seat-requests`, `POST /public/seat-requests` | none | Is the "Ask for a seat" form on; a request from the landing page (name, contact, note); 3 an hour per IP (§10.25) |
+| `GET /ops/seat-requests`, `POST /ops/seat-requests/:id/invite`, `POST /ops/seat-requests/:id/decline` | O | Who asked for a seat; make an invite for one (code shown once); "Not now" erases it (§10.25) |
+| `POST /file/cards/:id/flag` | A (not V) | Report a card you can see (§10.24) |
+| `POST /ops/file/cards/:id/resolve`, `POST /ops/file/cards/:id/remove` | ops | Restore or remove a reported card; remove any placed or sent card (§10.24) |
 | `POST /projects/:id/flag`, `POST /ops/projects/:id/resolve` | A / O | Report a project; ops restore or remove |
 | `GET/POST /events`, `GET/PATCH/DELETE /events/:id` | A | Events |
 | `POST/DELETE /events/:id/rsvp` | A | RSVP (approve events: only accepted or invited people) |
+| `POST/DELETE /events/:id/cohosts[/:handle]` | A (host) | RFC §10.21: a co-host from the going list, or back again |
 | `POST/DELETE /events/:id/request`, `POST /events/:id/requests/:handle/accept\|decline` | A / host | Ask to come; the host decides |
 | `GET /events/:id/suggestions`, `POST /events/:id/invites`, `POST /events/:id/invite/decline` | host / A | People who might fit; invites |
 | `GET /events/:id/updates` | A | The event's updates (post with `POST /posts { eventId }`) |
 | `GET/POST /interests`, `PUT /me/interests` | A | The tag list; add a missing one; your picks |
 | `GET/POST /ops/interests`, `DELETE /ops/interests/:slug` | O | Who added what; add; remove everywhere |
 | `GET/POST /collabs`, `GET/PATCH/DELETE /collabs/:id` | A | Collabs (`?tab=for-you\|all&interest=`) |
+| `GET /collab` | A | RFC §10.21: one list of events, activities and projects (`?kind=all\|event\|activity\|project&interest=&done=0\|1&cursor=`) |
+| `GET /me/collab` | A (not V) | The "Yours" strip: hosting, in, going, requests waiting on you |
+| `GET /members/:handle/events` | A | The events that member hosts (upcoming, then the latest past 10) |
+| `POST /me/collab-intro/dismiss` | A | Close the one-time "Events and Collabs are one place now" strip |
+| `POST /collabs/:id/members/:handle/slot` | A / managers | A project role ("illustrator: @handle"), or null to free it |
 | `POST /collabs/:id/join`, `DELETE /collabs/:id/request`, `POST /collabs/:id/requests/:handle/accept\|decline` | A / managers | Join or ask; decide |
 | `GET /collabs/:id/suggestions`, `POST /collabs/:id/invites`, `POST /collabs/:id/invite/accept\|decline` | managers / A | Invites |
 | `POST /collabs/:id/leave`, `POST /collabs/:id/members/:handle/role`, `DELETE /collabs/:id/members/:handle` | A / host, managers | The team |
@@ -867,6 +1644,8 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST /consultations/:id/accept\|decline\|agree\|close\|done`, `PUT /consultations/:id/thanks`, `POST /consultations/:id/thanks/hidden` | A, 18+ (the two people) | The request's steps |
 | `POST /consultations/:id/flag`, `POST /members/:handle/consult-offer/flag` | A, 18+ | Reports |
 | `GET /ops/consultations[/:id]`, `POST /ops/consultations/:id/resolve`, `POST /ops/consult-offers/:handle/resolve`, `POST /ops/users/:handle/consulting` | O | Who consulted whom; reported requests in full; switch consulting off/on |
+| `GET /ops/consult-asks`, `POST /ops/users/:handle/consult-approval` | O | Who is waiting for consulting approval; approve or decline it (§10.18) |
+| `GET /ops/collab`, `POST /ops/events/:id/remove`, `POST /ops/collabs/:id/remove` | O | RFC §10.21: everything in Collab (hidden and cancelled too); wipe any event, activity or project |
 | `POST /events/:id/attendance` | A (host) | Confirm attendees |
 | `GET /notifications`, `POST /notifications/read` | U | In-app inbox |
 | `POST/DELETE /push/subscriptions` | U | Web Push |
@@ -885,16 +1664,17 @@ Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_
 | `POST /ops/users/:handle/birthday` | O | Correct a birthday (under 13 + `confirmUnderage`: account closed) |
 | `GET/PATCH /ops/settings` | O | Seat cap, open invites per member, invite expiry |
 
-To members, every `/ops/*` path is a 404. Ops also has a CLI (`bun run ops:mint-invites --count 10`, `bun run ops -- grant <handle>`) that calls the same service code; on hosts without a shell, `BOOTSTRAP_INVITES` and `OPS_HANDLES` do the first-boot equivalents (`OPS_HANDLES` only while no admin exists).
+To members, every `/ops/*` path is a 404. Ops also has a CLI (`bun run ops:mint-invites --count 10`, `bun run ops -- grant <handle>`, `bun run ops -- wipe <handle...> [--yes]` to delete a demo account and its content for real) that calls the same service code; on hosts without a shell, `BOOTSTRAP_INVITES` and `OPS_HANDLES` do the first-boot equivalents (`OPS_HANDLES` only while no admin exists).
 
 ## 12. Scheduled jobs
 
 | Job | Frequency | What |
 |---|---|---|
 | `run_lifecycle()` | Hourly | Archival, lurker detection/resolution/grace, waitlist decay, promotion (§8.2) |
-| Session + challenge cleanup | Daily | Delete expired `sessions`, `auth_challenges` |
+| Session + challenge cleanup | Daily | Delete expired `sessions`, `auth_challenges`; `feed_visits` older than 60 days (§10.11) |
 | Upload quarantine sweep | Daily | Delete orphaned R2 quarantine objects > 24 h |
 | Notification fan-out | On insert (in-process queue) | Send Web Push for push-worthy kinds |
+| `collab_sweep` | Hourly | RFC §10.21: remind a waiting request at 3 days, close it at 7 (or when its event starts), and ask a quiet project (3 weeks) or activity (6 weeks) once |
 
 Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock(<job id>)` and skips if not acquired, so multiple API instances are safe.
 
@@ -905,7 +1685,7 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 - **Sessions**: hashed tokens; revoke-all on recovery and ban; CSRF mitigated by `SameSite=Lax` + Origin check on mutating requests.
 - **Rate limits** (per user, Postgres- or memory-backed): posts 20/h, likes 300/h, flags 30/day, join requests (collabs and events) 10/day, invites per §3, auth endpoints per IP.
 - **Content**: body length CHECK in DB; images re-encoded server-side (removes EXIF/GPS and polyglot payloads).
-- **Privacy**: no real name collected. A cell phone and an email are required since §10.7, seen only by the member and admins, stored encrypted with a key outside the database, every admin opening logged, erased with the account; nothing else asks for them (sign-in stays passkey-only). IP addresses not persisted beyond rate-limit windows. Event location can be RSVP-only.
+- **Privacy**: no real name collected. A cell phone and an email are required since §10.7, seen only by the member and admins, stored encrypted with a key outside the database, every admin opening logged, erased with the account; nothing else asks for them (sign-in is a handle and a PIN, §10.13). IP addresses not persisted beyond rate-limit windows. Event location can be RSVP-only.
 - **Gaming the lurker rule**: likes don't count; deleted posts remove their contribution; a reply to your own post does not count (replies to anyone else do, in any thread); portfolio and project edits never count.
 - **Portfolio**: every field optional, no real-name field; links must be `https://` and may not carry credentials; the look is a fixed set of classes, never member CSS; the cover and project images go through the same re-encoding as post images.
 - **Audit**: `user_state_events` and `payments` are append-only for operational and financial auditing.
@@ -939,13 +1719,17 @@ Runner: `@elysiajs/cron` in the API; each tick does `select pg_try_advisory_lock
 9. **M9 — Setup** (2026-11-08, §10.3): the compulsory setup page and the setup gate; faces drawn by gender everywhere; birthdays (tags, side window, admin ages and corrections); the "Finish your profile" checklist.
 10. **M10 — Collabs** (2026-11-08, §10.5), in four steps: interests; collabs with joining, requests and invites; updates, meetups and finishing into portfolio drafts; upgraded events and collab reports.
 11. **M11 — Trust** (2026-11-08, §10.7): the OG mark for admins, the verified badge, contact details for admins (encrypted, openings logged).
+12. **M13 — The feed** (2026-11-09, §10.11), in three steps: like counts for the author only, "new here", "First post" and the inviter's notice; the "new since" line, the end card and the visit log; the fold, conversation and event rows, and `/feed-rules`.
+13. **M14 — Posts and replies** (2026-11-09, §10.12): the thread's post framed and labelled, replies small on a thread line, replies in lists saying what they answer.
+14. **M15 — PIN sign-in** (2026-11-09, §10.13): joining and signing in with a handle and a 6-digit PIN, rests and locks, recovery and admin reset codes, passkeys optional.
+15. **M16 — Dark mode** (2026-11-09, §10.14): Settings → Appearance, light by default whatever the device says, saved on the account, no white flash.
 
 ## Appendix A — Decision log
 
 | # | Decision |
 |---|---|
 | Q1 | Separate Elysia API + Next.js client from day one (Eden Treaty). |
-| Q2 | Passkey-only; multiple passkeys per account + one-time recovery code. |
+| Q2 | ~~Passkey-only~~ (2026-11-09: handle + 6-digit PIN, §10.13; passkeys optional); one-time recovery code. |
 | Q3 | ≤ 2 open invites per active member, 7-day expiry; invite tree recorded. |
 | Q4 | Cap full → FIFO waitlist. |
 | Q5 | Activity = any authenticated request, `last_seen` once/day; 7-day sessions. |

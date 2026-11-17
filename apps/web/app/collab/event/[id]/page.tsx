@@ -1,0 +1,408 @@
+'use client';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import { api, errorMessage, type EventDetail, type Post } from '@/lib/api';
+import { Composer } from '@/components/Composer';
+import { bnLang } from '@/lib/lang';
+import { PostList } from '@/components/PostList';
+import { usePaged } from '@/lib/hooks';
+import { InterestTags } from '@/components/Interests';
+import { COLLAB_NOTE_MAX } from '@anti/shared';
+import type { CollabSuggestion } from '@/lib/api';
+import { fmtDate, useTitle } from '@/lib/hooks';
+import { SeatedShell } from '@/components/Shell';
+import { ErrorNote } from '@/components/ui';
+import { eventWhen, spotsText } from '@/components/Events';
+import { AlertDialog, Loading } from '@/components/retro';
+import { Avatar } from '@/components/Avatar';
+import { NameMarks } from '@/components/Marks';
+import { ActionMenu } from '@/components/ActionMenu';
+
+export default function EventPage() {
+  useTitle('Event');
+  return <SeatedShell>{() => <EventView />}</SeatedShell>;
+}
+
+function EventView() {
+  const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const [ev, setEv] = useState<EventDetail | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [askCancel, setAskCancel] = useState(false);
+  const [askRemove, setAskRemove] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [note, setNote] = useState('');
+
+  const load = useCallback(async () => {
+    try { setEv(await api.event(id)); } catch (e) { setErr(errorMessage(e)); }
+  }, [id]);
+  useEffect(() => { void load(); }, [load]);
+
+  async function act(fn: () => Promise<unknown>) {
+    setBusy(true); setErr(null);
+    try { await fn(); await load(); } catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
+  }
+
+  if (!ev) return err ? <><ErrorNote message={err} /><p><Link href="/collab">Back to Collab</Link></p></> : <Loading />;
+
+  const going = ev.my?.status === 'going';
+  const waiting = ev.my?.status === 'waitlisted';
+  const full = ev.capacity !== null && ev.goingCount >= ev.capacity;
+
+  const start = new Date(ev.startsAt);
+  return (
+    <>
+      <p>{ev.collab ? <Link href={`/collab/${ev.collab.id}`} className="ui">Back to {ev.collab.title}</Link> : <Link href="/collab" className="ui">Back to Collab</Link>}</p>
+      <article className="stack event-detail">
+        {/* the top of an event is an ink ticket: a stub with the date, a headline, a stamp, the facts in columns */}
+        <div className={`ticket${ev.cancelledAt ? ' is-cancelled' : ''}`}>
+          <div className="ticket-stub" aria-hidden>
+            <span className="ts-date">
+              <span className="ts-wd">{start.toLocaleDateString(undefined, { weekday: 'short' })}</span>
+              <span className="ts-day">{start.getDate()}</span>
+              <span className="ts-m">{start.toLocaleDateString(undefined, { month: 'short' })}</span>
+            </span>
+            <span className="ts-time">{start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</span>
+            <span className="ts-code">
+              <Barcode seed={ev.id} />
+              <span className="ts-admit">admit one</span>
+            </span>
+          </div>
+          <div className="ticket-body">
+            <header>
+              <div className="ticket-kicker">
+                <span className="ticket-kind">
+                  {ev.collab ? 'Meetup' : 'Event'}
+                  {ev.audience === 'team' && <span className="tag" title="Only the collab's team can see this">team only</span>}
+                </span>
+                <TicketStamp ev={ev} />
+              </div>
+              <h1 {...bnLang(ev.title)}>{ev.title}</h1>
+              <InterestTags slugs={ev.interests} />
+            </header>
+            {ev.description && (
+              <p className={`body ticket-deck${ev.description.length > 110 ? ' drop' : ''}`} {...bnLang(ev.description)}>{ev.description}</p>
+            )}
+            <dl className="ticket-facts">
+              <div><dt>When</dt><dd>{eventWhen(ev.startsAt, ev.endsAt)}</dd></div>
+              <div>
+                <dt>Where</dt>
+                <dd>
+                  {ev.location ?? <span className="muted">Shared with people who are going.</span>}
+                  {ev.locationRsvpOnly && ev.location && <span className="tag" title="Only the host and people going can see this">private</span>}
+                </dd>
+              </div>
+              {ev.collab && <div><dt>Meetup for</dt><dd><Link href={`/collab/${ev.collab.id}`}>{ev.collab.title}</Link></dd></div>}
+              {ev.host && (
+                <div>
+                  <dt>{ev.cohosts && ev.cohosts.length > 0 ? 'Hosts' : 'Host'}</dt>
+                  <dd>
+                    <Link href={`/u/${ev.host.handle}`}>@{ev.host.handle}<NameMarks admin={ev.host.admin} verified={ev.host.verified} size=".85em" /></Link>
+                    {(ev.cohosts ?? []).map((c) => (
+                      <span key={c.handle}>, <Link href={`/u/${c.handle}`}>@{c.handle}<NameMarks admin={c.admin} verified={c.verified} size=".85em" /></Link></span>
+                    ))}
+                  </dd>
+                </div>
+              )}
+              <div><dt>Spots</dt><dd>{spotsText(ev)}</dd></div>
+              {ev.joinMode === 'approve' && <div><dt>Joining</dt><dd>Ask with a note; the host decides</dd></div>}
+              {(ev.priceNote || ev.externalPaymentUrl) && (
+                <div>
+                  <dt>Cost</dt>
+                  <dd>
+                    {ev.priceNote}{ev.priceNote && ev.externalPaymentUrl ? '. ' : ''}
+                    {ev.externalPaymentUrl && <><a href={ev.externalPaymentUrl} target="_blank" rel="noopener noreferrer nofollow">Payment link</a> (paid to the host, not anti)</>}
+                  </dd>
+                </div>
+              )}
+              {ev.requirements && <div className="wide"><dt>Bring / know</dt><dd className="body pre">{ev.requirements}</dd></div>}
+            </dl>
+          </div>
+        </div>
+
+        <ErrorNote message={err} />
+        {ev.invited && !going && !waiting && ev.rsvpOpen && (
+          <div className="banner" role="status">
+            @{ev.host?.handle ?? 'The host'} invited you.{' '}
+            <button className="btn primary" disabled={busy} onClick={() => act(() => api.rsvp(id))}>{full ? 'Join the waitlist' : "I'm going"}</button>{' '}
+            <button className="btn" disabled={busy} onClick={() => act(() => api.declineEventInvite(id))}>No thanks</button>
+          </div>
+        )}
+        <div className="row">
+          {!ev.isHost && ev.rsvpOpen && !going && !waiting && ev.joinMode === 'approve' && !ev.invited && ev.request === null && !asking && (
+            <button className="btn primary" disabled={busy} onClick={() => setAsking(true)}>Ask to come</button>
+          )}
+          {!ev.isHost && !going && !waiting && ev.request === 'pending' && (
+            <>
+              <span className="muted">You asked to come. The host will decide.</span>
+              <button className="btn" disabled={busy} onClick={() => act(() => api.withdrawEventRequest(id))}>Withdraw</button>
+            </>
+          )}
+          {!ev.isHost && !going && !waiting && ev.request === 'declined' && <span className="muted">This one is full of people already. Plenty more in Collab.</span>}
+          {!ev.isHost && ev.rsvpOpen && !going && !waiting && !ev.invited && ev.joinMode === 'open' && (
+            <button className="btn primary" disabled={busy} onClick={() => act(() => api.rsvp(id))}>
+              {full ? 'Join the waitlist' : "I'm going"}
+            </button>
+          )}
+          {!ev.isHost && ev.rsvpOpen && (going || waiting) && (
+            <button className="btn" disabled={busy} onClick={() => act(() => api.leaveEvent(id))}>
+              {going ? "Can't make it" : 'Leave the waitlist'}
+            </button>
+          )}
+          {ev.canEdit && <Link className="btn" href={`/collab/event/${id}/edit`}>Edit</Link>}
+          {/* RFC §10.21: on an event of yours that has happened, one tap to its next life */}
+          {ev.isHost && ev.started && !ev.cancelledAt && (
+            <>
+              <Link className="btn" href={`/collab/new?kind=event&from=${id}`}>Run it again</Link>
+              {!ev.collab && <Link className="btn" href={`/collab/new?kind=activity&from=${id}`}>Make it regular</Link>}
+            </>
+          )}
+          {/* RFC §10.20: one action is a button, not a menu with one item in it; the confirm still guards it */}
+          {ev.isHost && !ev.cancelledAt && (
+            <button type="button" className="btn danger" disabled={busy} onClick={() => setAskCancel(true)}>Cancel event</button>
+          )}
+          {/* RFC §10.21: an admin can wipe any event, a co-host's or a stranger's, meetup or not */}
+          <ActionMenu label={`More actions for this event`} items={[
+            ev.canModerate && { label: 'Remove (admin)', danger: true, disabled: busy, onSelect: () => setAskRemove(true) },
+          ]} />
+        </div>
+        {asking && (
+          <form className="stack card" onSubmit={(e) => { e.preventDefault(); void act(() => api.askToCome(id, note.trim() || undefined)).then(() => setAsking(false)); }}>
+            <label>A note for the host (optional)
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={COLLAB_NOTE_MAX} rows={3} placeholder="Why you would like to come, or what you would bring." />
+            </label>
+            <div className="row">
+              <button className="btn primary" disabled={busy}>Send</button>
+              <button type="button" className="btn" onClick={() => setAsking(false)}>Cancel</button>
+            </div>
+          </form>
+        )}
+        {waiting && <p className="muted small">You are #{ev.my!.waitlistPosition} on the waitlist. If a spot opens you move up automatically and get a notification.</p>}
+      </article>
+      <AlertDialog
+        open={askCancel}
+        title="Cancel event"
+        message="Cancel this event? Everyone who said they were going gets a notification."
+        confirmLabel="Cancel event"
+        cancelLabel="Keep it"
+        danger
+        onConfirm={() => { setAskCancel(false); void act(() => api.cancelEvent(id)); }}
+        onCancel={() => setAskCancel(false)}
+      />
+      <AlertDialog
+        open={askRemove}
+        title="Remove event"
+        message="Remove this event for good? Its RSVPs, requests, invites and updates are deleted with it. This cannot be undone. The host is told (not who)."
+        confirmLabel="Remove"
+        danger
+        onConfirm={async () => {
+          setAskRemove(false);
+          setBusy(true);
+          try { await api.opsRemoveEvent(id); router.push('/collab'); }
+          catch (e) { setErr(errorMessage(e)); setBusy(false); }
+        }}
+        onCancel={() => setAskRemove(false)}
+      />
+
+      {ev.canConfirmAttendance
+        ? <Attendance ev={ev} onSaved={load} />
+        : (
+          <People
+            title={`Going (${ev.goingCount})`} people={ev.going} showAttended={ev.started}
+            hostHandle={ev.host?.handle ?? null}
+            cohosts={ev.isHost ? (ev.cohosts ?? []) : null}
+            busy={busy}
+            onToggleCohost={(handle, on) => void act(() => (on ? api.addEventCohost(id, handle) : api.removeEventCohost(id, handle)))}
+          />
+        )}
+      {ev.waitlist && ev.waitlist.length > 0 && <People title={`Waitlist (${ev.waitlist.length})`} people={ev.waitlist} showAttended={false} />}
+      {ev.canManage && ev.rsvpOpen && <HostPanel ev={ev} busy={busy} act={act} />}
+      <EventUpdates ev={ev} />
+    </>
+  );
+}
+
+/** Your place at this event, inked on the ticket like a rubber stamp (the same words the cards' tag uses). */
+function TicketStamp({ ev }: { ev: EventDetail }) {
+  let word: string | null = null;
+  if (ev.cancelledAt) word = 'Cancelled';
+  else if (ev.isHost) word = 'Hosting';
+  else if (ev.my?.status === 'going') word = ev.my.attended ? 'Attended' : 'Going';
+  else if (ev.my?.status === 'waitlisted') word = `Waitlist #${ev.my.waitlistPosition}`;
+  if (!word) return null;
+  return <span className={`ticket-stamp${ev.cancelledAt ? ' big' : ''}`}>{word}</span>;
+}
+
+/** A made-up barcode, the same for the same event every time (drawn from its id). Decoration only. */
+function Barcode({ seed }: { seed: string }) {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+  const bars: { x: number; w: number }[] = [];
+  let x = 0;
+  for (let i = 0; i < 34; i++) {
+    h = Math.imul(h ^ (h >>> 13), 0x5bd1e995);
+    const w = 1 + ((h >>> 3) & 3) % 3;
+    bars.push({ x, w });
+    x += w + 1 + ((h >>> 7) & 1);
+  }
+  return (
+    <svg className="ts-bars" viewBox={`0 0 ${x} 20`} preserveAspectRatio="none" focusable="false">
+      {bars.map((b) => <rect key={b.x} x={b.x} y={0} width={b.w} height={20} fill="currentColor" />)}
+    </svg>
+  );
+}
+
+function People({ title, people, showAttended, hostHandle, cohosts, busy, onToggleCohost }: {
+  title: string; people: EventDetail['going']; showAttended: boolean;
+  /** the host sees who could co-host; others get the plain list */
+  hostHandle?: string | null;
+  cohosts?: EventDetail['cohosts'] | null;
+  busy?: boolean;
+  onToggleCohost?: (handle: string, on: boolean) => void;
+}) {
+  return (
+    <section className="stack">
+      <h2 className="section-h">{title}</h2>
+      {people.length === 0 ? <p className="muted">Nobody yet. Be the first.</p> : (
+        <ul className="crowd">
+          {people.map((p) => {
+            const isCohost = !!cohosts?.some((c) => c.handle === p.handle);
+            return (
+              <li key={p.handle}>
+                <Link href={`/u/${p.handle}`}>
+                  <Avatar seed={p.handle} gender={p.gender} size={64} />
+                  <span className="crowd-name">{p.displayName}<NameMarks admin={p.admin} verified={p.verified} size=".85em" /></span>
+                </Link>
+                {isCohost && <span className="tag on">co-host</span>}
+                {showAttended && p.attended && <span className="tag on">came</span>}
+                {cohosts && hostHandle && p.handle.toLowerCase() !== hostHandle.toLowerCase() && onToggleCohost && (
+                  <ActionMenu
+                    label={`More for @${p.handle}`}
+                    items={[{
+                      label: isCohost ? 'Remove as co-host' : 'Make co-host',
+                      disabled: busy,
+                      danger: isCohost,
+                      onSelect: () => onToggleCohost(p.handle, !isCohost),
+                    }]}
+                  />
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** Host-only, from the start until 14 days after: tick who actually came. */
+function Attendance({ ev, onSaved }: { ev: EventDetail; onSaved: () => Promise<void> }) {
+  const [picked, setPicked] = useState(() => new Set(ev.going.filter((p) => p.attended).map((p) => p.handle)));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const toggle = (h: string) => setPicked((s) => {
+    const n = new Set(s);
+    if (n.has(h)) n.delete(h); else n.add(h);
+    return n;
+  });
+  return (
+    <section className="card stack">
+      <h2>Who came?</h2>
+      <p className="muted small">Confirming attendance counts as taking part for each person you tick, and for you as host. You can change this until {fmtDate(new Date(new Date(ev.startsAt).getTime() + 14 * 86_400_000).toISOString())}.</p>
+      {ev.going.length === 0 ? <p className="muted">Nobody RSVP&apos;d.</p> : (
+        <ul className="list">
+          {ev.going.map((p) => (
+            <li key={p.handle}>
+              <label className="check">
+                <input type="checkbox" checked={picked.has(p.handle)} onChange={() => { toggle(p.handle); setSaved(false); }} />
+                {p.displayName}<NameMarks admin={p.admin} verified={p.verified} size=".85em" /> <span className="muted">@{p.handle}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+      <ErrorNote message={err} />
+      <div className="row">
+        <button className="btn primary" disabled={busy || ev.going.length === 0} onClick={async () => {
+          setBusy(true); setErr(null);
+          try { await api.confirmAttendance(ev.id, [...picked]); await onSaved(); setSaved(true); }
+          catch (e) { setErr(errorMessage(e)); } finally { setBusy(false); }
+        }}>Save attendance</button>
+        {saved && <span className="muted" role="status">Saved.</span>}
+      </div>
+    </section>
+  );
+}
+
+/** Updates on the event's page: the host and people going post (for a meetup, the team); anyone replies. */
+function EventUpdates({ ev }: { ev: EventDetail }) {
+  const p = usePaged<Post>(`event-updates:${ev.id}`, (cur) => api.eventUpdates(ev.id, cur));
+  if (!ev.canPostUpdate && p.items.length === 0 && !p.loading) return null;
+  return (
+    <section className="stack">
+      <h2 className="section-h">Updates</h2>
+      {ev.canPostUpdate && (
+        <Composer eventId={ev.id} title="update.txt" placeholder={ev.collab ? 'Notes, photos, what you got done.' : 'Photos, plans, a change of place.'}
+          submitLabel="Post update" onCreated={(post) => p.setItems((cur) => [post, ...cur])} />
+      )}
+      <PostList p={p} context="none" byDay={false} empty="No updates yet." />
+    </section>
+  );
+}
+
+/** The host, before it starts: requests to answer, and people to invite. */
+function HostPanel({ ev, busy, act }: { ev: EventDetail; busy: boolean; act: (fn: () => Promise<unknown>) => Promise<void> }) {
+  const [sugs, setSugs] = useState<CollabSuggestion[] | null>(null);
+  const [handle, setHandle] = useState('');
+  useEffect(() => { api.eventSuggestions(ev.id).then((r) => setSugs(r.items), () => setSugs([])); }, [ev.id, ev.invites?.length, ev.goingCount]);
+  const requests = ev.requests ?? [];
+  const invites = ev.invites ?? [];
+  return (
+    <>
+      {(ev.joinMode === 'approve' || requests.length > 0) && (
+        <section className="card stack">
+          <h2>Asking to come ({requests.length})</h2>
+          {requests.length === 0 ? <p className="muted">No requests waiting.</p> : (
+            <ul className="list collab-requests">
+              {requests.map((r) => (
+                <li key={r.handle} className="stack">
+                  <Link href={`/u/${r.handle}`} className="who"><Avatar seed={r.handle} gender={r.gender} size={32} /> {r.displayName}<NameMarks admin={r.admin} verified={r.verified} size=".85em" /> <span className="muted">@{r.handle}</span></Link>
+                  {r.note && <p className="body">{r.note}</p>}
+                  <div className="row">
+                    <button className="btn primary" disabled={busy} onClick={() => act(() => api.decideEventRequest(ev.id, r.handle, true))}>Accept</button>
+                    <button className="btn" disabled={busy} onClick={() => act(() => api.decideEventRequest(ev.id, r.handle, false))}>Decline</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="muted small">Accepted people go on the list (or the waitlist when it is full). Declining sends a kind note.</p>
+        </section>
+      )}
+      <section className="card stack">
+        <h2>Invite people</h2>
+        <p className="muted small">{ev.audience === 'team' ? 'Your teammates who are not coming yet.' : 'People who share this event\u2019s interests. An invite skips asking.'}</p>
+        {sugs === null ? <Loading /> : sugs.length === 0
+          ? <p className="muted">{ev.interests.length || ev.audience === 'team' ? 'Nobody to suggest right now.' : 'Add interests to the event to see people who might fit.'}</p>
+          : (
+            <ul className="list">
+              {sugs.map((s) => (
+                <li key={s.handle} className="row between">
+                  <span className="who"><Avatar seed={s.handle} gender={s.gender} size={32} /> <Link href={`/u/${s.handle}`}>{s.displayName}<NameMarks admin={s.admin} verified={s.verified} size=".85em" /></Link> <InterestTags slugs={s.shared} /></span>
+                  <button className="btn" disabled={busy} onClick={() => act(() => api.inviteToEvent(ev.id, s.handle))}>Invite</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        <form className="row" onSubmit={(e) => { e.preventDefault(); const h = handle.trim(); if (h) void act(() => api.inviteToEvent(ev.id, h)).then(() => setHandle('')); }}>
+          <input aria-label="Invite by handle" value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="@handle" maxLength={40} />
+          <button className="btn" disabled={busy || !handle.trim()}>Invite</button>
+        </form>
+        {invites.length > 0 && <p className="muted small">Invited, not answered yet: {invites.map((i) => `@${i.handle}`).join(', ')}</p>}
+      </section>
+    </>
+  );
+}

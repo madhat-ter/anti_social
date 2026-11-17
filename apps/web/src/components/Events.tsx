@@ -1,13 +1,11 @@
 'use client';
-import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import {
   EVENT_DESCRIPTION_MAX, EVENT_LOCATION_MAX, EVENT_PRICE_NOTE_MAX, EVENT_TITLE_MAX, EVENT_CAPACITY_MAX,
   EVENT_INTERESTS_MAX, EVENT_REQUIREMENTS_MAX,
 } from '@anti/shared';
-import { InterestPicker, InterestTags } from './Interests';
+import { InterestPicker } from './Interests';
 import { errorMessage, type AnEvent, type EventInput } from '@/lib/api';
-import { NameMarks } from './Marks';
 import { ErrorNote } from './ui';
 
 /** "Sat, Nov 14 · 10:00 AM – 12:00 PM" in the viewer's time zone. */
@@ -21,11 +19,26 @@ export function eventWhen(startsAt: string, endsAt: string | null): string {
   return sameDay ? `${day}, ${t(s)} – ${t(e)}` : `${day}, ${t(s)} – ${e.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${t(e)}`;
 }
 
+/** On a card the date chip already says the day, so this is the weekday and the time: "Friday, 7:00 PM" or "Friday, 7:00 – 9:00 PM". */
+export function eventTime(startsAt: string, endsAt: string | null): string {
+  const s = new Date(startsAt);
+  const wd = s.toLocaleDateString(undefined, { weekday: 'long' });
+  const t = (d: Date) => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  if (!endsAt) return `${wd}, ${t(s)}`;
+  const e = new Date(endsAt);
+  return e.toDateString() === s.toDateString() ? `${wd}, ${t(s)} – ${t(e)}` : `${wd}, ${t(s)} – ${e.toLocaleDateString(undefined, { weekday: 'short' })} ${t(e)}`;
+}
+
+/** Who is coming. A zero is an invitation, not a count. */
 export function spotsText(e: AnEvent): string {
-  if (e.started) return e.attendedCount > 0 ? `${e.attendedCount} attended` : `${e.goingCount} going`;
-  if (e.capacity === null) return `${e.goingCount} going`;
+  if (e.started) {
+    if (e.attendedCount > 0) return `${e.attendedCount} attended`;
+    return e.goingCount > 0 ? `${e.goingCount} going` : 'Nobody signed up';
+  }
+  if (e.capacity === null) return e.goingCount > 0 ? `${e.goingCount} going` : 'Be the first to go';
   const left = Math.max(e.capacity - e.goingCount, 0);
-  return left > 0 ? `${e.goingCount} going, ${left} of ${e.capacity} spots left` : `Full, ${e.waitlistCount} on the waitlist`;
+  if (left === 0) return `Full, ${e.waitlistCount} on the waitlist`;
+  return e.goingCount > 0 ? `${e.goingCount} going, ${left} of ${e.capacity} spots left` : `${e.capacity} spots, be the first`;
 }
 
 export function MyStatus({ e }: { e: AnEvent }) {
@@ -33,30 +46,6 @@ export function MyStatus({ e }: { e: AnEvent }) {
   if (!e.my || e.my.status === 'cancelled') return null;
   if (e.my.status === 'going') return <span className="tag on">{e.my.attended ? 'attended' : 'going'}</span>;
   return <span className="tag">waitlist #{e.my.waitlistPosition}</span>;
-}
-
-export function EventCard({ e }: { e: AnEvent }) {
-  const start = new Date(e.startsAt);
-  return (
-    <li className="event-card">
-      <Link href={`/events/${e.id}`} className="event-link">
-        <span className="date-chip" aria-hidden>
-          <span className="m">{start.toLocaleDateString(undefined, { month: 'short' })}</span>
-          <span className="d">{start.getDate()}</span>
-        </span>
-        <span className="event-main">
-          <span className="event-title">{e.title} <MyStatus e={e} />{e.audience === 'team' && <span className="tag">team only</span>}{e.cancelledAt && <span className="tag danger">cancelled</span>}</span>
-          {e.collab && <span className="muted small">Meetup for {e.collab.title}</span>}
-          {e.joinMode === 'approve' && <span className="muted small">Ask to come</span>}
-          <InterestTags slugs={e.interests ?? []} />
-          <span className="muted small">{eventWhen(e.startsAt, e.endsAt)}</span>
-          <span className="muted small">{e.location ?? 'Location shared with people going'}</span>
-          <span className="muted small">{spotsText(e)}</span>
-          {e.host && <span className="muted small">Hosted by @{e.host.handle}<NameMarks admin={e.host.admin} verified={e.host.verified} size=".9em" /></span>}
-        </span>
-      </Link>
-    </li>
-  );
 }
 
 // ─── Create / edit form ─────────────────────────────────────────────────────
@@ -89,12 +78,15 @@ export function EventForm({ initial, submitLabel, onSubmit }: {
   const [joinMode, setJoinMode] = useState<'open' | 'approve'>(initial?.joinMode ?? 'open');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // RFC §10.21: everything beyond the basics is in one fold, open when editing something inside it
+  const [more, setMore] = useState(!!(initial && (initial.endsAt || initial.capacity || initial.locationRsvpOnly
+    || initial.requirements || initial.interests.length || initial.priceNote || initial.externalPaymentUrl || initial.joinMode === 'approve')));
 
   async function submit(ev: FormEvent) {
     ev.preventDefault();
     setErr(null);
     const cap = capacity.trim() ? Number(capacity) : null;
-    if (cap !== null && (!Number.isInteger(cap) || cap < 1)) { setErr('Capacity must be a whole number, or empty for no limit.'); return; }
+    if (cap !== null && (!Number.isInteger(cap) || cap < 1)) { setErr('Capacity must be a whole number, or empty for no limit.'); setMore(true); return; }
     if (!startsAt) { setErr('Pick a start time.'); return; }
     setBusy(true);
     try {
@@ -109,7 +101,6 @@ export function EventForm({ initial, submitLabel, onSubmit }: {
     }
   }
 
-  const previewStart = startsAt ? new Date(startsAt) : null;
   return (
     <form className="win" onSubmit={submit}>
       <div className="win-bar" aria-hidden="true">
@@ -117,57 +108,46 @@ export function EventForm({ initial, submitLabel, onSubmit }: {
         <span className="win-title">{initial ? 'edit_event' : 'new_event'}</span>
       </div>
       <div className="win-body stack">
-      <figure className="poster-preview" aria-label="Preview of how the event will look in Events">
-        <span className="date-chip" aria-hidden>
-          <span className="m">{previewStart ? previewStart.toLocaleDateString(undefined, { month: 'short' }) : 'Date'}</span>
-          <span className="d">{previewStart ? previewStart.getDate() : '?'}</span>
-        </span>
-        <span className="event-main">
-          <span className="event-title">{title.trim() || 'Your event'}</span>
-          <span className="muted small">{startsAt ? eventWhen(fromLocalInput(startsAt)!, fromLocalInput(endsAt)) : 'Pick a time'}</span>
-          <span className="muted small">{rsvpOnly ? 'Location shared with people going' : location.trim() || 'Somewhere'}</span>
-          <span className="muted small">{capacity.trim() ? `${capacity} spots` : 'No limit on spots'}</span>
-        </span>
-        <figcaption className="ui muted">Preview</figcaption>
-      </figure>
-      <label>Title<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={EVENT_TITLE_MAX} required /></label>
-      <label>What is it?
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={EVENT_DESCRIPTION_MAX} rows={4} />
-      </label>
-      <div className="row two">
-        <label>Starts<input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} required /></label>
-        <label>Ends (optional)<input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} /></label>
-      </div>
-      <label>Where<input value={location} onChange={(e) => setLocation(e.target.value)} maxLength={EVENT_LOCATION_MAX} required /></label>
-      <label className="check">
-        <input type="checkbox" checked={rsvpOnly} onChange={(e) => setRsvpOnly(e.target.checked)} />
-        Only show the location to people who are going
-      </label>
-      <label>What to bring or know (optional)
-        <textarea value={requirements} onChange={(e) => setRequirements(e.target.value)} maxLength={EVENT_REQUIREMENTS_MAX} rows={2} placeholder="Comfortable shoes. Some Spanish helps." />
-      </label>
-      <fieldset className="stack event-fs">
-        <legend>Interests <span className="muted small">(optional, up to {EVENT_INTERESTS_MAX}; helps you invite people who fit)</span></legend>
-        <InterestPicker value={interests} onChange={setInterests} max={EVENT_INTERESTS_MAX} />
-      </fieldset>
-      <fieldset className="stack event-fs">
-        <legend>Who can come</legend>
-        <label className="check"><input type="radio" name="join-mode" checked={joinMode === 'open'} onChange={() => setJoinMode('open')} /> Anyone: they just say they are going</label>
-        <label className="check"><input type="radio" name="join-mode" checked={joinMode === 'approve'} onChange={() => setJoinMode('approve')} /> People ask with a note, you accept</label>
-      </fieldset>
-      <label>Capacity (empty = no limit)
-        <input type="number" min={1} max={EVENT_CAPACITY_MAX} value={capacity} onChange={(e) => setCapacity(e.target.value)} />
-      </label>
-      <details>
-        <summary className="muted">Cost (optional)</summary>
-        <div className="stack" style={{ marginTop: '.6rem' }}>
-          <p className="muted small">Events are free on anti. If there is a cost, say so here and collect it yourself.</p>
-          <label>Price note<input value={priceNote} onChange={(e) => setPriceNote(e.target.value)} maxLength={EVENT_PRICE_NOTE_MAX} placeholder="$15 at the door" /></label>
-          <label>Payment link<input type="url" value={payUrl} onChange={(e) => setPayUrl(e.target.value)} placeholder="https://" /></label>
+        <label>Title<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={EVENT_TITLE_MAX} required placeholder="A picnic on Saturday" /></label>
+        <div className="row two">
+          <label>Starts<input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} required /></label>
+          <label>Where<input value={location} onChange={(e) => setLocation(e.target.value)} maxLength={EVENT_LOCATION_MAX} required /></label>
         </div>
-      </details>
-      <ErrorNote message={err} />
-      <div className="row dlg-actions"><button className="btn primary" disabled={busy}>{busy ? 'Saving…' : submitLabel}</button></div>
+        <label>What is it?
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={EVENT_DESCRIPTION_MAX} rows={4} />
+        </label>
+
+        <details open={more} onToggle={(e) => setMore((e.target as HTMLDetailsElement).open)}>
+          <summary className="muted">More options</summary>
+          <div className="stack" style={{ marginTop: '.6rem' }}>
+            <label>Ends (optional)<input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} /></label>
+            <label>Capacity (empty = no limit)
+              <input type="number" min={1} max={EVENT_CAPACITY_MAX} value={capacity} onChange={(e) => setCapacity(e.target.value)} />
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={rsvpOnly} onChange={(e) => setRsvpOnly(e.target.checked)} />
+              Only show the location to people who are going
+            </label>
+            <fieldset className="stack">
+              <legend>Who can come</legend>
+              <label className="check"><input type="radio" name="join-mode" checked={joinMode === 'open'} onChange={() => setJoinMode('open')} /> Anyone: they just say they are going</label>
+              <label className="check"><input type="radio" name="join-mode" checked={joinMode === 'approve'} onChange={() => setJoinMode('approve')} /> People ask with a note, you accept</label>
+            </fieldset>
+            <label>What to bring or know
+              <textarea value={requirements} onChange={(e) => setRequirements(e.target.value)} maxLength={EVENT_REQUIREMENTS_MAX} rows={2} placeholder="Comfortable shoes. Some Spanish helps." />
+            </label>
+            <fieldset className="stack">
+              <legend>Interests <span className="muted small">(up to {EVENT_INTERESTS_MAX}; helps you invite people who fit)</span></legend>
+              <InterestPicker value={interests} onChange={setInterests} max={EVENT_INTERESTS_MAX} />
+            </fieldset>
+            <label>Price note<input value={priceNote} onChange={(e) => setPriceNote(e.target.value)} maxLength={EVENT_PRICE_NOTE_MAX} placeholder="$15 at the door" /></label>
+            <label>Payment link<input type="url" value={payUrl} onChange={(e) => setPayUrl(e.target.value)} placeholder="https://" /></label>
+            <p className="muted small">Events are free on anti. If there is a cost, say so here and collect it yourself.</p>
+          </div>
+        </details>
+
+        <ErrorNote message={err} />
+        <div className="row dlg-actions"><button className="btn primary" disabled={busy}>{busy ? 'Saving…' : submitLabel}</button></div>
       </div>
     </form>
   );

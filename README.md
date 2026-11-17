@@ -1,6 +1,8 @@
 # anti-site
 
-An invite-only, 100-seat, Twitter-like social app. Passkey-only auth (WebAuthn): no email, no password. People join with an invite code, pick a handle (only an admin can change it later), register a passkey, and are shown a one-time recovery code. Then everyone fills in a short setup once: a few words about themselves, a gender (it only shapes their drawn face) and a birthday (13 or older). When all seats are taken, new members are waitlisted.
+An invite-only, 100-seat, Twitter-like social app. Sign-in is a handle and a 6-digit PIN (passkeys optional): no email, no password. People join with an invite code, pick a handle (only an admin can change it later), choose a PIN, and are shown a one-time recovery code.
+
+Working on the code (people or AI tools): read [AGENTS.md](AGENTS.md) first. Then everyone fills in a short setup once: a few words about themselves, a gender (it only shapes their drawn face) and a birthday (13 or older). When all seats are taken, new members are waitlisted.
 
 Architecture and product rules: [docs/rfc/0001-architecture.md](docs/rfc/0001-architecture.md).
 
@@ -67,6 +69,10 @@ docs/rfc         Design docs
 - **Collabs (done):** ongoing projects and activities members do together. Interest tags (members pick up to 10, and add their own when one is missing; admins can remove them); a Collabs page with "For you" (matching interests) and "All"; open or ask-to-join with a note; invites to people who share the interests; co-hosts; a public updates thread with photos (kept out of the feed, counts toward the posting rule); meetups (team only or open to anyone); finishing gives every member a draft portfolio project. Events gained interests, "what to bring", ask-to-come, invites and an updates thread. Collabs can be reported like posts. RFC §10.5; `scripts/screenshots-collabs.ts` walks through it.
 
 - **Trust (done):** admins carry an OG mark instead of an "admin" tag; admins give a verified badge to members they have checked; every member gives a cell phone and an email that only admins see (encrypted with `CONTACT_KEY`, every opening logged). RFC §10.7.
+
+- **UX pass (done, 2026-11-09):** a phone shell (bottom tabs, bell in the header, a feed that opens on posts), the bitmap face kept to the chrome with a reading face for meta text, one date format, zeros turned into invitations, one primary action per screen with a "⋯" menu for the rest, a "new posts" pill, member search and filters, house rules at the end of setup. RFC §10.9; `scripts/screenshots-phone.ts` walks it. A desktop pass followed: a one-line checklist, a menu column that fits a laptop (the pick window moved right), no window repeating its page, no half-empty portfolio box, greyed-out buttons that say why, and keyboard shortcuts (`?` lists them); `scripts/screenshots-desktop.ts` walks it.
+
+- **Bangla (done, 2026-11-09; credit line removed 2026-11-10):** every Bangla character on the site (posts, names, About, titles, events, collabs) is drawn in Golesta Borno (Lipighor, served unmodified from `apps/web/app/fonts/golesta-borno/` with its licence). English in the same sentence stays in the site's fonts; the Bangla font only downloads when a page has Bangla. There is no credit line or backlink on the site (RFC §10.19). `scripts/screenshots-bangla.ts` checks it with Chrome's own font report.
 
 A free test copy runs on Vercel + Render (no domain, fake payments); see [docs/deploy-free.md](docs/deploy-free.md). A real launch (domain, Stripe live keys, image storage) follows [docs/deploy.md](docs/deploy.md).
 

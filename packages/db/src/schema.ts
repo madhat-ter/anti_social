@@ -50,10 +50,57 @@ export const users = pgTable('users', {
   /** verified by an admin who checked the member; the badge shows by their name */
   verifiedAt: tstz('verified_at'),
   verifiedBy: uuid('verified_by').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
+  // ── RFC §10.18: consulting is offered only after the badge, and only once an admin approves
+  /** the member switched their offer on and it is waiting for an admin */
+  consultRequestedAt: tstz('consult_requested_at'),
+  /** an admin approved their consulting; it lasts until they take it back or the badge goes */
+  consultApprovedAt: tstz('consult_approved_at'),
+  consultApprovedBy: uuid('consult_approved_by').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
+  /** an admin said no; only an admin can undo it */
+  consultDeclinedAt: tstz('consult_declined_at'),
+  /** RFC §10.11: the newest feed post this member scrolled past to the "caught up" card; only moves forward */
+  feedSeenThrough: tstz('feed_seen_through'),
+  // ── RFC §10.13: signing in with a handle and a 6-digit PIN (argon2id hash; null until chosen)
+  pinHash: text('pin_hash'),
+  /** wrong PINs in a row since the last lock or success */
+  pinFails: integer('pin_fails').notNull().default(0),
+  /** locks since the last success: each one doubles the rest (15 min, 30, 60…) */
+  pinLocks: integer('pin_locks').notNull().default(0),
+  pinLockedUntil: tstz('pin_locked_until'),
+  /** wrong PINs on `pin_fail_day`; at the day's limit the account waits for a reset */
+  pinFailDay: date('pin_fail_day'),
+  pinFailsDay: integer('pin_fails_day').notNull().default(0),
+  pinBlockedAt: tstz('pin_blocked_at'),
+  /** RFC §10.14: 'light' (everyone starts here, whatever the device says) or 'dark', chosen in Settings */
+  theme: text('theme').notNull().default('light'),
+  /** RFC §10.21: when the member closed the one-time "Events and Collabs are one place now" strip */
+  collabIntroSeenAt: tstz('collab_intro_seen_at').defaultNow(),
+  /** RFC §10.22: the Monologue page's own "new since" line (the feed's is feedSeenThrough) */
+  monologuesSeenThrough: tstz('monologues_seen_through'),
+  /** RFC §10.23: 'mixed' (everyone starts here) or 'newest' (strict newest first), chosen in Settings */
+  feedOrder: text('feed_order').notNull().default('mixed'),
+  /** RFC §10.24: the member's File can be opened by anyone with its link (/f/<handle>); off by default */
+  filePublic: boolean('file_public').notNull().default(false),
 }, (t) => [
+  check('users_theme', sql`${t.theme} in ('light', 'dark')`),
+  check('users_feed_order', sql`${t.feedOrder} in ('mixed', 'newest')`),
   index('users_state_idx').on(t.state),
   uniqueIndex('users_handle_lower').on(sql`lower(${t.handle})`),
 ]);
+
+/**
+ * RFC §10.13: a one-hour code an admin gives a member who forgot their PIN (or is locked out).
+ * Only the hash is kept; the row stays as the log of who reset whom.
+ */
+export const pinResets = pgTable('pin_resets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  codeHash: text('code_hash').notNull(),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  expiresAt: tstz('expires_at').notNull(),
+  usedAt: tstz('used_at'),
+}, (t) => [index('pin_resets_user').on(t.userId, t.createdAt)]);
 
 /** RFC §10.7: every time an admin opens a member's contact details. */
 export const contactViews = pgTable('contact_views', {
@@ -77,6 +124,22 @@ export const userSeenDays = pgTable('user_seen_days', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   day: date('day').notNull(),
 }, (t) => [primaryKey({ columns: [t.userId, t.day] })]);
+
+/**
+ * RFC §10.11: one row per feed visit (a visit starts after 30 quiet minutes). The only behavioural
+ * log the feed keeps: backlog size and whether the end card was reached, so the owner can tell
+ * whether members get through the feed. Pruned after 60 days; gone with the member.
+ */
+export const feedVisits = pgTable('feed_visits', {
+  id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  startedAt: tstz('started_at').notNull().defaultNow(),
+  /** the frozen "new since" line for this visit */
+  since: tstz('since').notNull(),
+  /** posts waiting above the line when the visit started */
+  newPosts: integer('new_posts').notNull(),
+  caughtUpAt: tstz('caught_up_at'),
+}, (t) => [index('feed_visits_user').on(t.userId, t.startedAt)]);
 
 export const settings = pgTable('settings', {
   key: text('key').primaryKey(),
@@ -125,6 +188,26 @@ export const invites = pgTable('invites', {
   revokedAt: tstz('revoked_at'),
 }, (t) => [index('invites_created_by').on(t.createdBy)]);
 
+/**
+ * RFC §10.25: someone outside asking for a seat from the landing page. Not a user: a typed name,
+ * one sealed way to reach them, a few words. Only admins read it; "Not now" deletes the row.
+ */
+export const seatRequests = pgTable('seat_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  /** sealed with CONTACT_KEY, like members' contact details (RFC §10.7) */
+  contactEnc: text('contact_enc').notNull(),
+  note: text('note').notNull().default(''),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  /** an admin made an invite for them; the row is erased 30 days after */
+  invitedAt: tstz('invited_at'),
+  invitedBy: uuid('invited_by').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('seat_requests_created').on(t.createdAt),
+  check('seat_requests_name_len', sql`char_length(${t.name}) between 1 and 40`),
+  check('seat_requests_note_len', sql`char_length(${t.note}) <= 500`),
+]);
+
 export const waitlist = pgTable('waitlist', {
   userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
   priority: integer('priority').notNull(), // 0 = reinstating member, 1 = new invitee
@@ -148,10 +231,14 @@ export const posts = pgTable('posts', {
   collabId: uuid('collab_id').references((): AnyPgColumn => collabs.id, { onDelete: 'cascade' }),
   /** an update on an event's page (a collab meetup, or any event); replies carry it too */
   eventId: uuid('event_id').references((): AnyPgColumn => events.id, { onDelete: 'cascade' }),
+  /** RFC §10.17: this post is written as a pet; the author stays the owner */
+  petId: uuid('pet_id').references((): AnyPgColumn => pets.id, { onDelete: 'cascade' }),
+  /** a pet post's label: everyday | advice | health | help */
+  petLabel: text('pet_label'),
   search: tsvector('search').generatedAlwaysAs(sql`to_tsvector('simple', body)`),
   createdAt: tstz('created_at').notNull().defaultNow(),
 }, (t) => [
-  check('posts_body_len', sql`char_length(${t.body}) <= 500`),
+  check('posts_body_len', sql`char_length(${t.body}) <= 1500`),
   index('posts_feed').on(t.createdAt.desc(), t.id.desc())
     .where(sql`parent_id is null and deleted_at is null and hidden_at is null`),
   index('posts_thread').on(t.rootId, t.createdAt),
@@ -160,6 +247,18 @@ export const posts = pgTable('posts', {
   index('posts_event').on(t.eventId, t.createdAt).where(sql`event_id is not null`),
   index('posts_search').using('gin', t.search),
 ]);
+
+/** RFC §10.17: a pet is a content identity owned by one member (up to three each). */
+export const pets = pgTable('pets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ownerId: uuid('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  species: text('species').notNull(), // 'dog' | 'cat' | 'bird'
+  /** any non-negative number: it seeds one of the endless drawn looks for this species */
+  avatarVariant: integer('avatar_variant').notNull().default(0),
+  avatarKey: text('avatar_key'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+}, (t) => [index('pets_owner').on(t.ownerId, t.createdAt)]);
 
 export const postImages = pgTable('post_images', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -177,11 +276,47 @@ export const postImages = pgTable('post_images', {
   index('post_images_uploader').on(t.uploaderId),
 ]);
 
+/**
+ * RFC §10.22: a monologue's recording. Uploaded first (post_id null while it waits), then posted:
+ * the post holds the note, likes and replies; this row holds the sound, its title and its kind.
+ */
+export const monologues = pgTable('monologues', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  postId: uuid('post_id').unique().references(() => posts.id, { onDelete: 'cascade' }),
+  uploaderId: uuid('uploader_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  audioKey: text('audio_key').notNull(),
+  contentType: text('content_type').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  durationMs: integer('duration_ms').notNull(),
+  /** the waveform: MONOLOGUE.peaks numbers, each 0..100 */
+  peaks: jsonb('peaks').notNull(),
+  /** 'recorded' on the site, or 'uploaded' as a file */
+  source: text('source').notNull(),
+  /** set when it is posted */
+  title: text('title'),
+  kind: text('kind'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+}, (t) => [
+  check('monologues_duration', sql`${t.durationMs} between 1000 and 301000`),
+  check('monologues_kind', sql`${t.kind} is null or ${t.kind} in ('song', 'thought', 'yap')`),
+  check('monologues_title_len', sql`${t.title} is null or char_length(${t.title}) between 1 and 80`),
+  check('monologues_source', sql`${t.source} in ('recorded', 'uploaded')`),
+  check('monologues_posted', sql`${t.postId} is null or (${t.title} is not null and ${t.kind} is not null)`),
+  index('monologues_uploader').on(t.uploaderId),
+]);
+
 export const likes = pgTable('likes', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   postId: uuid('post_id').notNull().references(() => posts.id, { onDelete: 'cascade' }),
   createdAt: tstz('created_at').notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.userId, t.postId] }), index('likes_post').on(t.postId)]);
+
+/** RFC §10.16: who a post really mentions (@handle in the body, resolved when it is saved). */
+export const postMentions = pgTable('post_mentions', {
+  postId: uuid('post_id').notNull().references(() => posts.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.postId, t.userId] }), index('post_mentions_user').on(t.userId, t.createdAt)]);
 
 export const flags = pgTable('flags', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -363,12 +498,17 @@ export const collabs = pgTable('collabs', {
   title: text('title').notNull(),
   description: text('description').notNull().default(''),
   requirements: text('requirements').notNull().default(''),
+  /** RFC §10.21: 'activity' keeps going with no end; 'project' is a team with roles and a finish */
+  kind: text('kind').notNull().default('project'),
+  /** the activity's plain "When we meet" line ("Sundays 7am, by the lake"); projects leave it empty */
+  meets: text('meets').notNull().default(''),
   /** "Looking for": short role tags */
   roles: jsonb('roles').notNull().default(sql`'[]'::jsonb`),
-  teamMax: integer('team_max').notNull(),
+  /** null = no limit (activities only); a project is always 2-20 */
+  teamMax: integer('team_max'),
   /** 'open' = anyone joins; 'approve' = requests the host accepts */
   joinMode: text('join_mode').notNull().default('approve'),
-  /** 'recruiting' | 'closed' | 'finished' */
+  /** 'recruiting' | 'closed' | 'finished'; an activity only ever runs (recruiting) or ends (finished) */
   status: text('status').notNull().default('recruiting'),
   priceNote: text('price_note'),
   paymentUrl: text('payment_url'),
@@ -380,11 +520,17 @@ export const collabs = pgTable('collabs', {
   finishedAt: tstz('finished_at'),
   hiddenAt: tstz('hidden_at'),
   deletedAt: tstz('deleted_at'),
+  /** RFC §10.21: the last quiet nudge ("Finish it, keep going, or close?") */
+  quietNudgedAt: tstz('quiet_nudged_at'),
 }, (t) => [
   check('collabs_title_len', sql`char_length(${t.title}) between 1 and 80`),
-  check('collabs_team_max', sql`${t.teamMax} between 2 and 20`),
+  check('collabs_kind', sql`${t.kind} in ('activity', 'project')`),
+  check('collabs_meets_len', sql`char_length(${t.meets}) <= 120`),
+  check('collabs_team_max', sql`(${t.kind} = 'project' and ${t.teamMax} between 2 and 20)
+    or (${t.kind} = 'activity' and (${t.teamMax} is null or ${t.teamMax} between 2 and 1000))`),
   check('collabs_join_mode', sql`${t.joinMode} in ('open', 'approve')`),
   check('collabs_status', sql`${t.status} in ('recruiting', 'closed', 'finished')`),
+  check('collabs_activity_status', sql`${t.kind} = 'project' or ${t.status} in ('recruiting', 'finished')`),
   index('collabs_live').on(t.createdAt).where(sql`deleted_at is null`),
 ]);
 
@@ -398,6 +544,8 @@ export const collabMembers = pgTable('collab_members', {
   collabId: uuid('collab_id').notNull().references(() => collabs.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   role: text('role').notNull(),
+  /** RFC §10.21: the project role this member took ("illustrator"), or null */
+  slot: text('slot'),
   joinedAt: tstz('joined_at').notNull().defaultNow(),
 }, (t) => [
   primaryKey({ columns: [t.collabId, t.userId] }),
@@ -405,14 +553,18 @@ export const collabMembers = pgTable('collab_members', {
   index('collab_members_user').on(t.userId),
 ]);
 
-/** Asking to join an 'approve' collab: 'pending' | 'accepted' | 'declined' | 'withdrawn'. */
+/** Asking to join an 'approve' collab: 'pending' | 'accepted' | 'declined' | 'withdrawn' | 'expired'. */
 export const collabRequests = pgTable('collab_requests', {
   collabId: uuid('collab_id').notNull().references(() => collabs.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   note: text('note'),
   status: text('status').notNull().default('pending'),
+  /** RFC §10.21: the project role they would take, if they picked one */
+  slot: text('slot'),
   createdAt: tstz('created_at').notNull().defaultNow(),
   decidedAt: tstz('decided_at'),
+  /** RFC §10.21: the 3-day reminder to whoever decides was sent */
+  remindedAt: tstz('reminded_at'),
 }, (t) => [primaryKey({ columns: [t.collabId, t.userId] })]);
 
 /** A host's invitation: 'pending' | 'accepted' | 'declined'. */
@@ -443,7 +595,7 @@ export const eventInterests = pgTable('event_interests', {
   interest: text('interest').notNull().references(() => interests.slug, { onDelete: 'cascade' }),
 }, (t) => [primaryKey({ columns: [t.eventId, t.interest] }), index('event_interests_interest').on(t.interest)]);
 
-/** Asking to come to an 'approve' event: 'pending' | 'accepted' | 'declined' | 'withdrawn'. */
+/** Asking to come to an 'approve' event: 'pending' | 'accepted' | 'declined' | 'withdrawn' | 'expired'. */
 export const eventRequests = pgTable('event_requests', {
   eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -451,6 +603,8 @@ export const eventRequests = pgTable('event_requests', {
   status: text('status').notNull().default('pending'),
   createdAt: tstz('created_at').notNull().defaultNow(),
   decidedAt: tstz('decided_at'),
+  /** RFC §10.21: the 3-day reminder to whoever decides was sent */
+  remindedAt: tstz('reminded_at'),
 }, (t) => [primaryKey({ columns: [t.eventId, t.userId] })]);
 
 /** A host's invitation to an event: 'pending' | 'accepted' | 'declined'. Skips asking. */
@@ -460,6 +614,17 @@ export const eventInvites = pgTable('event_invites', {
   invitedBy: uuid('invited_by').references(() => users.id, { onDelete: 'set null' }),
   status: text('status').notNull().default('pending'),
   createdAt: tstz('created_at').notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.eventId, t.userId] })]);
+
+/**
+ * RFC §10.21: an event's co-hosts. `events.host_id` is still the host (only they cancel and their
+ * `event_hosted` contribution is the one that counts); co-hosts edit, decide requests, invite and
+ * mark attendance. They are always people going.
+ */
+export const eventHosts = pgTable('event_hosts', {
+  eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  addedAt: tstz('added_at').notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.eventId, t.userId] })]);
 
 // ─── Portfolio: the profile laid out like a Behance portfolio ───────────────
@@ -563,8 +728,7 @@ export const projectFlags = pgTable('project_flags', {
 export const consultOffers = pgTable('consult_offers', {
   userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
   active: boolean('active').notNull().default(false),
-  /** interest slugs, 1–5 */
-  topics: jsonb('topics').notNull().default(sql`'[]'::jsonb`),
+  /** what they can help with, in their own words (optional): the portfolio says who they are */
   description: text('description').notNull().default(''),
   minutes: integer('minutes').notNull().default(60),
   /** what new requests start from; the consultant decides per request when accepting */
@@ -592,9 +756,6 @@ export const consultations = pgTable('consultations', {
   id: uuid('id').primaryKey().defaultRandom(),
   consultantId: uuid('consultant_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   requesterId: uuid('requester_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  /** the interest slug, and its label at the time (the tag may be removed later) */
-  topic: text('topic').notNull(),
-  topicLabel: text('topic_label').notNull(),
   need: text('need').notNull(),
   whenText: text('when_text').notNull().default(''),
   minutes: integer('minutes').notNull(),
@@ -668,3 +829,72 @@ export const mediaBlobs = pgTable('media_blobs', {
   bytes: bytea('bytes').notNull(),
   createdAt: tstz('created_at').notNull().defaultNow(),
 });
+
+// ─── RFC §10.24, the File: 12 pages a member, one card a page ────────────────
+
+/** A card: headline, photos, description. maker = for is the member's own; otherwise made for someone. */
+export const fileCards = pgTable('file_cards', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  /** null for a card someone outside anti made on the public share page (then `guestName` is set) */
+  makerId: uuid('maker_id').references(() => users.id, { onDelete: 'cascade' }),
+  forId: uuid('for_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** the name an outside maker typed; never an identity */
+  guestName: text('guest_name'),
+  headline: text('headline').notNull(),
+  description: text('description').notNull().default(''),
+  /** a card made for someone: handed over (it waits in their tray until placed) */
+  sentAt: tstz('sent_at'),
+  /** …and quietly turned down by them (the maker is never told) */
+  declinedAt: tstz('declined_at'),
+  /** the maker allows it on the recipient's public share page */
+  publicOk: boolean('public_ok').notNull().default(false),
+  hiddenAt: tstz('hidden_at'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  updatedAt: tstz('updated_at').notNull().defaultNow(),
+}, (t) => [
+  check('file_cards_headline_len', sql`char_length(${t.headline}) between 1 and 60`),
+  check('file_cards_description_len', sql`char_length(${t.description}) <= 1200`),
+  check('file_cards_maker_or_guest', sql`(${t.makerId} is not null and ${t.guestName} is null) or (${t.makerId} is null and char_length(${t.guestName}) between 1 and 40)`),
+  index('file_cards_for').on(t.forId),
+  index('file_cards_maker').on(t.makerId),
+]);
+
+/** A card's photos, in carousel order. The id is the upload's id (moved out of post_images). */
+export const fileCardPhotos = pgTable('file_card_photos', {
+  id: uuid('id').primaryKey(),
+  cardId: uuid('card_id').notNull().references(() => fileCards.id, { onDelete: 'cascade' }),
+  r2Key: text('r2_key').notNull(),
+  width: integer('width').notNull(),
+  height: integer('height').notNull(),
+  position: integer('position').notNull().default(0),
+  caption: text('caption').notNull().default(''),
+}, (t) => [
+  check('file_card_photos_position', sql`${t.position} between 0 and 19`),
+  check('file_card_photos_caption_len', sql`char_length(${t.caption}) <= 140`),
+  index('file_card_photos_card').on(t.cardId, t.position),
+]);
+
+/** A page of the drawer: 0–6 the member's own (0 is "Me"), 7–11 for cards made for them. */
+export const filePages = pgTable('file_pages', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull(),
+  label: text('label').notNull().default(''),
+  cardId: uuid('card_id').references(() => fileCards.id, { onDelete: 'set null' }),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.position] }),
+  check('file_pages_position', sql`${t.position} between 0 and 11`),
+  check('file_pages_label_len', sql`char_length(${t.label}) <= 14`),
+  uniqueIndex('file_pages_card').on(t.cardId).where(sql`card_id is not null`),
+]);
+/** Reports on a File card: the same shape and lifecycle as `project_flags`. */
+export const fileCardFlags = pgTable('file_card_flags', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  cardId: uuid('card_id').notNull().references(() => fileCards.id, { onDelete: 'cascade' }),
+  reason: text('reason'),
+  createdAt: tstz('created_at').notNull().defaultNow(),
+  resolvedAt: tstz('resolved_at'),
+  resolution: text('resolution'), // 'restored' | 'removed'
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.cardId] }),
+  index('file_card_flags_open').on(t.cardId).where(sql`resolved_at is null`),
+]);

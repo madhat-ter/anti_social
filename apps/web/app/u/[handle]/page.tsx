@@ -2,16 +2,17 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { api, errorMessage, type MemberSummary, type CollabSummary, type Pick, type Portfolio, type Post, type ProjectSummary } from '@/lib/api';
+import { api, errorMessage, type AnEvent, type MemberSummary, type CollabSummary, type CollabPageItem, type Pick, type Portfolio, type Post, type ProjectSummary } from '@/lib/api';
 import { PickCard } from '@/components/Picks';
-import { CollabCard } from '@/components/Collabs';
+import { CollabItemCard } from '@/components/Collab';
 import { PortfolioWindow } from '@/components/Portfolio';
+import { MonologueShelf } from '@/components/Tape';
 import { ConsultingSection, isAdult } from '@/components/Consult';
 import { usePaged, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { PostList } from '@/components/PostList';
 import { ErrorNote } from '@/components/ui';
-import { Loading } from '@/components/retro';
+import { AlertDialog, Loading } from '@/components/retro';
 
 export default function ProfilePage() {
   useTitle('Profile');
@@ -22,36 +23,64 @@ export default function ProfilePage() {
 function MemberPicks({ handle, mine }: { handle: string; mine: boolean }) {
   const [items, setItems] = useState<Pick[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [ask, setAsk] = useState<Pick | null>(null);
   useEffect(() => { api.memberPicks(handle).then((r) => setItems(r.items), (e) => setErr(errorMessage(e))); }, [handle]);
   if (err) return <ErrorNote message={err} />;
   if (!items) return <Loading />;
   if (!items.length) return <p className="empty">{mine ? 'No picks yet. Suggest something from the pick window.' : 'No picks yet.'}</p>;
   return (
+    <>
     <ul className="pick-grid">
       {items.map((p) => (
         <li key={p.id}>
           <PickCard p={p} showAuthor={false} onChange={(np) => setItems((cur) => cur?.map((x) => (x.id === np.id ? np : x)) ?? null)} />
           {mine && (
-            <button type="button" className="link-btn" onClick={async () => {
-              try { await api.deletePick(p.id); setItems((cur) => cur?.filter((x) => x.id !== p.id) ?? null); }
-              catch (e) { setErr(errorMessage(e)); }
-            }}>Remove</button>
+            <button type="button" className="link-btn" onClick={() => setAsk(p)}>Delete pick</button>
           )}
         </li>
       ))}
     </ul>
+      {/* RFC §10.20: the same confirm the pick window asks */}
+      <AlertDialog
+        open={ask !== null}
+        title="Delete pick"
+        message={ask ? <>Delete <strong>{ask.title}</strong>? Its votes and remarks go with it.</> : ''}
+        confirmLabel="Delete"
+        danger
+        onConfirm={async () => {
+          const p = ask; setAsk(null);
+          if (!p) return;
+          try { await api.deletePick(p.id); setItems((cur) => cur?.filter((x) => x.id !== p.id) ?? null); }
+          catch (e) { setErr(errorMessage(e)); }
+        }}
+        onCancel={() => setAsk(null)}
+      />
+    </>
   );
 }
 
-/** The collabs they host or are on. */
+/** RFC §10.21: the activities and projects they are in, and the events they host (never the ones they only go to). */
 function MemberCollabs({ handle, mine }: { handle: string; mine: boolean }) {
-  const [items, setItems] = useState<CollabSummary[] | null>(null);
+  const [collabs, setCollabs] = useState<CollabSummary[] | null>(null);
+  const [events, setEvents] = useState<{ upcoming: AnEvent[]; past: AnEvent[] } | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => { api.memberCollabs(handle).then((r) => setItems(r.items), (e) => setErr(errorMessage(e))); }, [handle]);
+  useEffect(() => {
+    let alive = true;
+    Promise.all([api.memberCollabs(handle), api.memberEvents(handle)]).then(
+      ([c, e]) => { if (alive) { setCollabs(c.items); setEvents(e); } },
+      (e) => { if (alive) setErr(errorMessage(e)); },
+    );
+    return () => { alive = false; };
+  }, [handle]);
   if (err) return <ErrorNote message={err} />;
-  if (!items) return <Loading />;
-  if (!items.length) return <p className="empty">{mine ? <>Not on any collab yet. <Link href="/collabs">Find one</Link>, or start your own.</> : 'Not on any collab yet.'}</p>;
-  return <ul className="collabs">{items.map((c) => <CollabCard key={c.id} c={c} />)}</ul>;
+  if (!collabs || !events) return <Loading />;
+  const items: CollabPageItem[] = [
+    ...events.upcoming.map((e) => ({ type: 'event' as const, createdAt: e.startsAt, ...e })),
+    ...collabs.map((c) => ({ type: 'collab' as const, ...c })),
+    ...events.past.map((e) => ({ type: 'event' as const, createdAt: e.startsAt, ...e })),
+  ];
+  if (!items.length) return <p className="empty">{mine ? <>Not in any collab yet. <Link href="/collab">Find one</Link>, or start your own.</> : 'Not in any collab yet.'}</p>;
+  return <ul className="collabs">{items.map((it) => <CollabItemCard key={`${it.type}:${it.id}`} item={it} />)}</ul>;
 }
 
 /** The portfolio window on top; posts and picks underneath, behind folder tabs. */
@@ -90,17 +119,23 @@ function Profile({ myHandle, adult }: { myHandle: string; adult: boolean }) {
   return (
     <>
       <PortfolioWindow member={member} pf={pf} projects={projects} onSaved={setPf} onReorder={reorder}
+        pets={member.pets ?? []}
+        onPets={(pets) => setMember((cur) => cur ? { ...cur, pets } : cur)}
         consulting={<ConsultingSection handle={member.handle} viewerAdult={adult} />} />
       <ErrorNote message={orderErr} />
+      {/* RFC §10.24: the member's File, a drawer of cards */}
+      <p className="row"><Link className="btn" href={mine ? '/file' : `/file/${member.handle}`}>{mine ? 'Open your File' : `Open ${member.displayName.split(/\s+/)[0]}’s File`}</Link></p>
+      {/* RFC §10.22: their tapes, only once there is one */}
+      <MonologueShelf handle={member.handle} />
       <div className="tabs pf-tabs" role="tablist">
         {(['posts', 'collabs', 'picks'] as const).map((s) => (
           <button key={s} type="button" role="tab" aria-selected={tab === s} className={tab === s ? 'tab on' : 'tab'} onClick={() => setTab(s)}>
-            {s === 'posts' ? 'Posts' : s === 'collabs' ? 'Collabs' : 'Picks'}
+            {s === 'posts' ? 'Posts' : s === 'collabs' ? 'Collab' : 'Picks'}
           </button>
         ))}
       </div>
       {tab === 'posts'
-        ? <PostList p={posts} empty={mine ? 'You have not posted yet.' : 'No posts yet.'} />
+        ? <PostList framed p={posts} empty={mine ? 'You have not posted yet.' : 'No posts yet.'} />
         : tab === 'collabs' ? <MemberCollabs handle={member.handle} mine={mine} />
         : <MemberPicks handle={member.handle} mine={mine} />}
     </>

@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { rows, scalar, type Db } from '@anti/db';
 import { ApiError, rethrowDb } from './errors';
 import type { Storage } from './storage';
+import { dropAudio } from './monologues';
 
 /** RFC §3: this many distinct members flagging a post hides it until ops review. */
 export const FLAG_HIDE_THRESHOLD = 5;
@@ -90,17 +91,19 @@ export async function flagCollab(db: Db, userId: string, collabId: string, reaso
   });
 }
 
-/** An admin removes a collab (soft delete, its reports closed); the host is told, without who. */
-export async function removeCollab(db: Db, collabId: string, actorId: string | null, resolution = 'removed') {
+/**
+ * An admin removes a collab. RFC §10.21: this is a wipe, not a hiding — the row goes, and with it
+ * the team, requests, invites, reports, updates and every meetup of that collab (with its RSVPs).
+ * The host is told, without who. Image files are left for the daily orphan sweep.
+ */
+export async function removeCollab(db: Db, collabId: string, actorId: string | null) {
   return db.transaction(async (txx) => {
     const tx = txx as unknown as Db;
     const [c] = await rows<{ id: string; title: string; host: string | null }>(tx, sql`
       select c.id, c.title, (select m.user_id from collab_members m where m.collab_id = c.id and m.role = 'host') as host
-        from collabs c where c.id = ${collabId}::uuid and c.deleted_at is null for update`);
+        from collabs c where c.id = ${collabId}::uuid for update`);
     if (!c) throw new ApiError(404, 'not_found');
-    await tx.execute(sql`update collab_flags set resolved_at = now(), resolution = ${resolution}
-      where collab_id = ${c.id}::uuid and resolved_at is null`);
-    await tx.execute(sql`update collabs set deleted_at = now() where id = ${c.id}::uuid`);
+    await tx.execute(sql`delete from collabs where id = ${c.id}::uuid`);
     if (c.host && c.host !== actorId) {
       await tx.execute(sql`insert into notifications(user_id, kind, payload)
         values (${c.host}::uuid, 'collab_removed', ${JSON.stringify({ title: c.title })}::jsonb)`);
@@ -109,7 +112,24 @@ export async function removeCollab(db: Db, collabId: string, actorId: string | n
   });
 }
 
-/** 'restored': unhide, close the reports. 'removed': see removeCollab. */
+/** An admin removes any event (a meetup too): the row goes with its RSVPs, requests, invites,
+ *  co-hosts and update posts. The host is told, without who. */
+export async function removeEvent(db: Db, eventId: string, actorId: string | null) {
+  return db.transaction(async (txx) => {
+    const tx = txx as unknown as Db;
+    const [e] = await rows<{ id: string; title: string; host_id: string }>(tx, sql`
+      select id, title, host_id from events where id = ${eventId}::uuid for update`);
+    if (!e) throw new ApiError(404, 'not_found');
+    await tx.execute(sql`delete from events where id = ${e.id}::uuid`);
+    if (e.host_id !== actorId) {
+      await tx.execute(sql`insert into notifications(user_id, kind, payload)
+        values (${e.host_id}::uuid, 'event_removed', ${JSON.stringify({ title: e.title })}::jsonb)`);
+    }
+    return { removed: true as const };
+  });
+}
+
+/** 'restored': unhide, close the reports. 'removed': see removeCollab (it takes the collab with it). */
 export async function resolveCollabFlags(db: Db, collabId: string, resolution: 'restored' | 'removed') {
   const open = Number(await scalar(db, sql`select count(*)::int from collab_flags where collab_id = ${collabId}::uuid and resolved_at is null`));
   if (!open) throw new ApiError(409, 'no_open_flags', 'This collab has no open reports.');
@@ -120,7 +140,10 @@ export async function resolveCollabFlags(db: Db, collabId: string, resolution: '
 }
 
 export type FlagQueueItem = {
-  kind: 'post' | 'project' | 'collab' | 'consult_offer' | 'consultation';
+  kind: 'post' | 'project' | 'collab' | 'consult_offer' | 'consultation' | 'file_card';
+  /** the reported File card (RFC §10.24), and whose File it is in or was sent to */
+  cardId?: string;
+  fileOf?: string | null;
   /** a reported consultation offer: whose */
   offerHandle?: string;
   /** a reported consultation request (open GET /ops/consultations/:id for the whole of it) */
@@ -174,13 +197,23 @@ export async function flagQueue(db: Db): Promise<FlagQueueItem[]> {
        where f.resolved_at is null
        group by o.user_id, u.handle
       union all
-      select 'consultation' as kind, c.id, c.topic_label || ' — ' || left(c.need, 200) as body,
+      select 'consultation' as kind, c.id, left(c.need, 200) as body,
              u.handle, false as hidden, count(*)::int as n,
              coalesce(array_agg(f.reason) filter (where f.reason is not null), '{}') as reasons,
              min(f.created_at) as first_at
         from consult_flags f join consultations c on c.id = f.consultation_id join users u on u.id = c.consultant_id
        where f.resolved_at is null
        group by c.id, u.handle
+      union all
+      select 'file_card' as kind, fc.id,
+             -- a card from outside anti has no member behind it: say whose name is on it
+             case when fc.guest_name is not null then 'From outside anti, signed "' || fc.guest_name || '": ' else '' end || fc.headline || case when fc.description <> '' then ' — ' || left(fc.description, 200) else '' end as body,
+             u.handle, (fc.hidden_at is not null) as hidden, count(*)::int as n,
+             coalesce(array_agg(f.reason) filter (where f.reason is not null), '{}') as reasons,
+             min(f.created_at) as first_at
+        from file_card_flags f join file_cards fc on fc.id = f.card_id left join users u on u.id = fc.maker_id
+       where f.resolved_at is null
+       group by fc.id, u.handle
     ) q
     order by hidden desc, n desc, first_at
     limit 200`);
@@ -188,7 +221,11 @@ export async function flagQueue(db: Db): Promise<FlagQueueItem[]> {
   const askers = new Map((await rows<{ id: string; handle: string }>(db, sql`
     select c.id, u.handle from consultations c join users u on u.id = c.requester_id
      where exists (select 1 from consult_flags f where f.consultation_id = c.id and f.resolved_at is null)`)).map((x) => [x.id, x.handle]));
+  const fileOf = new Map((await rows<{ id: string; handle: string }>(db, sql`
+    select fc.id, u.handle from file_cards fc join users u on u.id = fc.for_id
+     where exists (select 1 from file_card_flags f where f.card_id = fc.id and f.resolved_at is null)`)).map((x) => [x.id, x.handle]));
   const ids = (x: any) => x.kind === 'post' ? { postId: x.id } : x.kind === 'collab' ? { collabId: x.id }
+    : x.kind === 'file_card' ? { cardId: x.id, fileOf: fileOf.get(x.id) ?? null }
     : x.kind === 'consult_offer' ? { offerHandle: x.handle } : x.kind === 'consultation' ? { consultationId: x.id, requester: askers.get(x.id) ?? null }
     : { projectId: x.id };
   return r.map((x) => ({
@@ -233,7 +270,8 @@ async function moderatorDeletePost(tx: Db, p: { id: string; author_id: string | 
       values (${p.author_id}::uuid, 'post_removed', ${JSON.stringify({ postId: p.id })}::jsonb)`);
   }
   const gone = await rows<{ r2_key: string }>(tx, sql`delete from post_images where post_id = ${p.id}::uuid returning r2_key`);
-  return gone.map((g) => g.r2_key);
+  // RFC §10.22: a removed monologue's sound is erased too
+  return [...gone.map((g) => g.r2_key), ...(await dropAudio(tx, [p.id]))];
 }
 
 /** 'restored': unhide, close the reports. 'removed': see moderatorDeleteProject. */

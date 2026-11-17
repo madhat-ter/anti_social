@@ -1,21 +1,25 @@
 'use client';
 import Link from 'next/link';
 import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { FEED, MONOLOGUE, MONOLOGUE_KINDS, MONOLOGUE_KIND_LABEL, postShape, type MonologueKind } from '@anti/shared';
 import { api, errorMessage, EDIT_WINDOW_MS, POST_MAX, type Post } from '@/lib/api';
 import { fmtDate, relativeTime } from '@/lib/hooks';
-import { ErrorNote } from './ui';
+import { ErrorNote, why } from './ui';
 import { Avatar } from './Avatar';
 import { BirthdayTag } from './Birthday';
 import { NameMarks } from './Marks';
 import { AlertDialog, Dot } from './retro';
 import { ImageViewer } from './ImageViewer';
+import { TapePlayer } from './Tape';
 
 const URL_RE = /https?:\/\/[^\s<>"]+/g;
+/** RFC §10.16: @handles are linked only when the saved post says that member was mentioned. */
+const MENTION_RE = /(?<![\w@])@([a-zA-Z][a-zA-Z0-9_]{2,19})/g;
 
-/** Turns plain text into nodes with http(s) URLs linked. Never injects HTML. */
-export function linkify(text: string): ReactNode[] {
-  const out: ReactNode[] = [];
-  let last = 0;
+/** Turns plain text into nodes: http(s) URLs and real @mentions linked. Never injects HTML. */
+export function linkify(text: string, mentions: string[] = []): ReactNode[] {
+  const wanted = new Set(mentions.map((m) => m.toLowerCase()));
+  const tokens: { at: number; len: number; node: ReactNode }[] = [];
   let n = 0;
   for (const m of text.matchAll(URL_RE)) {
     let url = m[0];
@@ -24,11 +28,25 @@ export function linkify(text: string): ReactNode[] {
     const trail = url.match(/[.,;:!?)\]'"]+$/)?.[0] ?? '';
     if (trail) url = url.slice(0, url.length - trail.length);
     if (!url) continue;
-    if (start > last) out.push(text.slice(last, start));
-    out.push(
-      <a key={n++} href={url} target="_blank" rel="noopener noreferrer nofollow">{url}</a>,
-    );
-    last = start + url.length;
+    tokens.push({ at: start, len: url.length, node: <a key={n++} href={url} target="_blank" rel="noopener noreferrer nofollow">{url}</a> });
+  }
+  if (wanted.size) {
+    for (const m of text.matchAll(MENTION_RE)) {
+      const handle = m[1]!;
+      if (!wanted.has(handle.toLowerCase())) continue;
+      const at = m.index ?? 0;
+      const len = m[0].length;
+      if (tokens.some((t) => at < t.at + t.len && at + len > t.at)) continue; // an @ inside a URL
+      tokens.push({ at, len, node: <Link key={n++} href={`/u/${encodeURIComponent(handle)}`} className="mention">@{handle}</Link> });
+    }
+  }
+  tokens.sort((a, b) => a.at - b.at);
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const t of tokens) {
+    if (t.at > last) out.push(text.slice(last, t.at));
+    out.push(t.node);
+    last = t.at + t.len;
   }
   if (last < text.length) out.push(text.slice(last));
   return out.map((x, i) => <Fragment key={i}>{x}</Fragment>);
@@ -44,6 +62,7 @@ export function AuthorLine({ post }: { post: Post }) {
           <Link href={`/u/${a.handle}`} className="handle muted">@{a.handle}</Link>
           <NameMarks admin={a.role === 'ops'} verified={a.verified} />
           <BirthdayTag b={a.birthday} />
+          {a.isNew && a.state !== 'archived' && <span className="tag new-here" title="Joined in the last three weeks">new here</span>}
           {a.state === 'archived' && <span className="tag" title="This member's seat was released">archived</span>}
           {post.hidden && <span className="tag danger" title="Members can't see it; admins can, to review it">hidden after reports</span>}
         </>
@@ -62,7 +81,22 @@ export function PostCard({
   id,
   actions,
   context = 'all',
+  variant,
+  framed,
 }: {
+  /**
+   * RFC §10.15, a list of separate posts (the feed, a profile): each post is its own framed card,
+   * shaped by what it is. A photo runs the card's full width with the words under it, a short
+   * status is set large, a long one folds after a few lines. Reply and Like sit in a strip that
+   * closes the card.
+   */
+  framed?: boolean;
+  /**
+   * RFC §10.12, posts and replies look different: 'lead' is the post at the top of its thread
+   * (heavier, labelled), 'reply' a reply inside its thread (smaller, on the thread line). Left out,
+   * a reply shown in a list (a profile, search) says what it answers and is drawn small too.
+   */
+  variant?: 'lead' | 'reply';
   /** say which collab / event an update belongs to; less where the page already says it */
   context?: 'all' | 'event' | 'none';
   post: Post;
@@ -77,6 +111,9 @@ export function PostCard({
   const uid = useId();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(post.body);
+  /** RFC §10.22: a monologue's title and kind are edited with its note */
+  const [draftTitle, setDraftTitle] = useState(post.monologue?.title ?? '');
+  const [draftKind, setDraftKind] = useState<MonologueKind>(post.monologue?.kind ?? 'thought');
   const [menu, setMenu] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -89,6 +126,24 @@ export function PostCard({
   /** true for a moment after *you* like it: the dot stamps in (never on page load) */
   const [stamp, setStamp] = useState(false);
   const [reported, setReported] = useState(false);
+  /** a long post in a framed list shows a few lines until "Read more"; once open it stays open */
+  const [opened, setOpened] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const bodyRef = useRef<HTMLParagraphElement>(null);
+  const mono = post.monologue ?? null;
+  const shape = framed ? postShape(post.body, post.images.length, !!mono) : null;
+  const clamp = !!framed && shape !== 'short' && !editing && !opened && !post.deleted;
+
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!clamp || !el) { setOverflows(false); return; }
+    // "Read more" only when the clamp actually hides something, at this width
+    const check = () => setOverflows(el.scrollHeight > el.clientHeight + 2);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [clamp, post.body]);
 
   useEffect(() => {
     if (!menu) return;
@@ -100,7 +155,14 @@ export function PostCard({
     return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', close); };
   }, [menu]);
 
-  const cls = `post${highlight ? ' highlight' : ''}`;
+  /** a reply outside its thread: it carries a line saying what it answers */
+  const listReply = !variant && !!post.parentId;
+  const compact = variant === 'reply' || listReply;
+  /** RFC §10.22: wherever it shows (a list, search, its own page), a monologue is the cassette itself, not a box holding one */
+  const asTape = !!mono;
+  const out = !!framed || asTape;
+  const cls = `post${asTape ? ' tape-card' : ''}${highlight ? ' highlight' : ''}${variant === 'lead' ? ' lead' : ''}${compact ? ' compact' : ''}${listReply ? ' list-reply' : ''}${framed ? ` framed shape-${shape}` : ''}`;
+  const face = compact || asTape ? 36 : 52;
 
   if (post.deleted) {
     return (
@@ -121,7 +183,8 @@ export function PostCard({
     const was = post;
     const nextLiked = !post.likedByMe;
     if (nextLiked) { setStamp(true); setTimeout(() => setStamp(false), 400); }
-    onChange({ ...post, likedByMe: nextLiked, likeCount: Math.max(0, post.likeCount + (nextLiked ? 1 : -1)) });
+    // the count exists only on your own posts; on anyone else's it stays null
+    onChange({ ...post, likedByMe: nextLiked, likeCount: post.likeCount === null ? null : Math.max(0, post.likeCount + (nextLiked ? 1 : -1)) });
     try {
       const r = nextLiked ? await api.like(post.id) : await api.unlike(post.id);
       onChange({ ...was, likedByMe: r.likedByMe, likeCount: r.likeCount });
@@ -135,10 +198,11 @@ export function PostCard({
 
   async function saveEdit() {
     const body = draft.trim();
-    if (!body || body.length > POST_MAX) return;
+    if ((!body && !mono) || body.length > POST_MAX) return;
+    if (mono && (!draftTitle.trim() || draftTitle.length > MONOLOGUE.titleMax)) return;
     setBusy(true); setErr(null);
     try {
-      onChange(await api.editPost(post.id, body));
+      onChange(await api.editPost(post.id, body, mono ? { title: draftTitle.trim(), kind: draftKind } : undefined));
       setEditing(false);
     } catch (e) {
       setErr(errorMessage(e));
@@ -152,7 +216,7 @@ export function PostCard({
     setErr(null);
     try {
       await api.deletePost(post.id);
-      onChange({ ...post, deleted: true, body: '', images: [] });
+      onChange({ ...post, deleted: true, body: '', images: [], monologue: null });
     } catch (e) {
       setErr(errorMessage(e));
     }
@@ -164,7 +228,7 @@ export function PostCard({
     setErr(null);
     try {
       await api.opsRemovePost(post.id);
-      onChange({ ...post, deleted: true, body: '', images: [] });
+      onChange({ ...post, deleted: true, body: '', images: [], monologue: null });
     } catch (e) {
       setErr(errorMessage(e));
     }
@@ -181,18 +245,146 @@ export function PostCard({
     }
   }
 
+  /** a number shows only on your own posts (the API sends null for everyone else's) */
+  const liked = post.likeCount !== null && post.likeCount > 0;
+  const replyLabel = post.replyCount > 0
+    ? `${post.replyCount} ${post.replyCount === 1 ? 'reply' : 'replies'}`
+    : post.firstPost && !post.canDelete ? 'Say hello' : 'Reply';
   const minutesLeft = Math.max(0, Math.ceil((new Date(post.createdAt).getTime() + EDIT_WINDOW_MS - Date.now()) / 60000));
+  /** a photo post in a framed list: the picture first at full width, the words under it */
+  const photoLed = shape === 'photo';
+
+  const editMono = mono && (
+    <>
+      <label className="field">Title
+        <input value={draftTitle} maxLength={MONOLOGUE.titleMax} onChange={(e) => setDraftTitle(e.target.value)} />
+      </label>
+      <div className="row chips" role="radiogroup" aria-label="Kind">
+        {MONOLOGUE_KINDS.map((k) => (
+          <button key={k} type="button" role="radio" aria-checked={draftKind === k} className={`chip${draftKind === k ? ' on' : ''}`} onClick={() => setDraftKind(k)}>
+            {MONOLOGUE_KIND_LABEL[k]}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+  const bodyNode = editing ? (
+    <div className="stack">
+      {editMono}
+      <label htmlFor={`${uid}-edit`} className="sr-only">{mono ? 'Edit the note' : 'Edit post'}</label>
+      <textarea
+        id={`${uid}-edit`}
+        value={draft}
+        rows={4}
+        autoFocus
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void saveEdit(); }
+          if (e.key === 'Escape') setEditing(false);
+        }}
+      />
+      <div className="row">
+        <button type="button" className="btn primary" disabled={busy || (!draft.trim() && !mono) || draft.length > POST_MAX || (!!mono && !draftTitle.trim())} onClick={saveEdit}>
+          {busy ? 'Saving...' : 'Save'}
+        </button>
+        <button type="button" className="btn" onClick={() => { setEditing(false); setErr(null); }}>Cancel</button>
+        <span className="grow" />
+        <span className="muted small">{minutesLeft > 0 ? `~${minutesLeft} min left to edit` : ''}</span>
+        <span className={`counter${draft.length > POST_MAX ? ' over' : ''}`}>{draft.length}/{POST_MAX}</span>
+      </div>
+    </div>
+  ) : (photoLed || mono) && !post.body.trim() ? null : (
+    <>
+      <p
+        ref={bodyRef} id={`${uid}-b`} tabIndex={-1}
+        className={`body${clamp ? ' clamp' : ''}`}
+        style={clamp ? { WebkitLineClamp: FEED.clampLines } : undefined}
+      >
+        {linkify(post.body, post.mentions)}
+      </p>
+      {clamp && overflows && (
+        <button
+          type="button" className="read-more linklike" aria-controls={`${uid}-b`} aria-expanded={false}
+          onClick={() => { setOpened(true); bodyRef.current?.focus({ preventScroll: true }); }}
+        >
+          Read more
+        </button>
+      )}
+    </>
+  );
+
+  const imgsNode = post.images.length > 0 && (
+    <div className={`imgs n${Math.min(post.images.length, 4)}`}>
+      {post.images.map((im, i) => (
+        <a
+          key={im.id} href={im.url} target="_blank" rel="noopener noreferrer"
+          aria-label={`Open image ${i + 1} of ${post.images.length}`}
+          onClick={(e) => {
+            // plain click opens the viewer window; ctrl/cmd/middle-click still opens a tab
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+            e.preventDefault();
+            setViewing(i);
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={im.url} alt={`Image ${i + 1} of ${post.images.length}`} width={im.width} height={im.height} loading="lazy" />
+        </a>
+      ))}
+    </div>
+  );
+
+  /** RFC §10.22: the cassette leads a monologue; its words sit under it like a caption */
+  const tapeNode = mono && (
+    <TapePlayer
+      id={post.id} src={mono.url} title={editing ? draftTitle || mono.title : mono.title} kind={editing ? draftKind : mono.kind}
+      durationMs={mono.durationMs} peaks={mono.peaks} who={post.author?.displayName}
+    />
+  );
+
+  const footNode = (
+    <footer className="post-foot">
+      {/* a zero is an invitation ("Reply"), not a count; on someone's first post, a welcome */}
+      <Link href={replyHref} className="foot-btn" aria-label={replyLabel}>
+        <span aria-hidden="true">↳ {replyLabel}</span>
+      </Link>
+      <button
+        type="button"
+        className={`foot-btn like${post.likedByMe ? ' on' : ''}${stamp ? ' stamp' : ''}`}
+        aria-pressed={post.likedByMe}
+        onClick={toggleLike}
+        disabled={post.hidden}
+        {...why(liked ? 'Only you see how many people liked your post' : false)}
+      >
+        <Dot on={post.likedByMe} size=".85em" />
+        {/* name = "Like 3": includes the visible count, so voice control ("click 3") works; with no count shown the word stands alone */}
+        <span className={liked ? 'sr-only' : undefined}>Like</span>
+        {liked && <span>{post.likeCount}<span className="sr-only">, only you see this</span></span>}
+      </button>
+      {actions}
+    </footer>
+  );
+  const errNode = <ErrorNote message={err} />;
 
   return (
     <article className={cls} id={id} aria-labelledby={`${uid}-h`}>
+      {listReply && post.replyTo && (
+        <p className="reply-to">
+          <span aria-hidden="true">↳ </span>
+          <Link href={`/p/${post.replyTo.rootId}#${post.id}`}>
+            Replied to {post.replyTo.author ? `${post.replyTo.author.displayName}’s` : 'a'} post
+          </Link>
+          {post.replyTo.snippet && <span className="reply-to-quote">: &ldquo;{snip(post.replyTo.snippet)}&rdquo;</span>}
+        </p>
+      )}
       {post.author ? (
         <Link href={`/u/${post.author.handle}`} className="post-av" tabIndex={-1} aria-hidden="true">
-          <Avatar seed={post.author.handle} gender={post.author.gender} size={52} />
+          <Avatar seed={post.author.handle} gender={post.author.gender} size={face} />
         </Link>
       ) : (
-        <span className="post-av"><Avatar seed={null} size={52} /></span>
+        <span className="post-av"><Avatar seed={null} size={face} /></span>
       )}
       <div className="post-main">
+      {variant === 'lead' && <p className="post-kind"><span className="tag">{mono ? 'Monologue' : 'Post'}</span></p>}
       <header className="post-head">
         <span id={`${uid}-h`}><AuthorLine post={post} /></span>
         <span className="muted dot" aria-hidden="true">·</span>
@@ -215,7 +407,7 @@ export function PostCard({
             {menu && (
               <div className="menu-pop" role="menu">
                 {post.canEdit && (
-                  <button type="button" role="menuitem" onClick={() => { setMenu(false); setDraft(post.body); setEditing(true); }}>Edit</button>
+                  <button type="button" role="menuitem" onClick={() => { setMenu(false); setDraft(post.body); setDraftTitle(mono?.title ?? ''); setDraftKind(mono?.kind ?? 'thought'); setEditing(true); }}>Edit</button>
                 )}
                 {post.canDelete && (
                   <button type="button" role="menuitem" className="danger-text" onClick={() => { setMenu(false); setAsk('delete'); }}>Delete</button>
@@ -232,10 +424,11 @@ export function PostCard({
         )}
       </header>
 
+      {post.firstPost && <p className="first-post"><span className="tag">First post</span></p>}
       {!post.parentId && ((context === 'all' && (post.collab || post.event)) || (context === 'event' && post.event)) && (
         <p className="muted small post-context">
-          Update{context === 'all' && post.collab && <> in <Link href={`/collabs/${post.collab.id}`}>{post.collab.title}</Link></>}
-          {post.event && <> from <Link href={`/events/${post.event.id}`}>{post.event.title}</Link></>}
+          Update{context === 'all' && post.collab && <> in <Link href={`/collab/${post.collab.id}`}>{post.collab.title}</Link></>}
+          {post.event && <> from <Link href={`/collab/event/${post.event.id}`}>{post.event.title}</Link></>}
         </p>
       )}
       {reported && <p className="muted small" role="status">Reported. Thanks, a moderator will take a look.</p>}
@@ -243,74 +436,18 @@ export function PostCard({
         <p className="muted replying">replying to <Link href={`/u/${replyingTo}`}>@{replyingTo}</Link></p>
       )}
 
-      {editing ? (
-        <div className="stack">
-          <label htmlFor={`${uid}-edit`} className="sr-only">Edit post</label>
-          <textarea
-            id={`${uid}-edit`}
-            value={draft}
-            rows={4}
-            autoFocus
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void saveEdit(); }
-              if (e.key === 'Escape') setEditing(false);
-            }}
-          />
-          <div className="row">
-            <button type="button" className="btn primary" disabled={busy || !draft.trim() || draft.length > POST_MAX} onClick={saveEdit}>
-              {busy ? 'Saving...' : 'Save'}
-            </button>
-            <button type="button" className="btn" onClick={() => { setEditing(false); setErr(null); }}>Cancel</button>
-            <span className="grow" />
-            <span className="muted small">{minutesLeft > 0 ? `~${minutesLeft} min left to edit` : ''}</span>
-            <span className={`counter${draft.length > POST_MAX ? ' over' : ''}`}>{draft.length}/{POST_MAX}</span>
-          </div>
-        </div>
-      ) : (
-        <p className="body">{linkify(post.body)}</p>
-      )}
-
-      {post.images.length > 0 && (
-        <div className={`imgs n${Math.min(post.images.length, 4)}`}>
-          {post.images.map((im, i) => (
-            <a
-              key={im.id} href={im.url} target="_blank" rel="noopener noreferrer"
-              aria-label={`Open image ${i + 1} of ${post.images.length}`}
-              onClick={(e) => {
-                // plain click opens the viewer window; ctrl/cmd/middle-click still opens a tab
-                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-                e.preventDefault();
-                setViewing(i);
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={im.url} alt={`Image ${i + 1} of ${post.images.length}`} width={im.width} height={im.height} loading="lazy" />
-            </a>
-          ))}
-        </div>
-      )}
-
-      <footer className="post-foot">
-        <Link href={replyHref} className="foot-btn" aria-label={`${post.replyCount} ${post.replyCount === 1 ? 'reply' : 'replies'}`}>
-          <span aria-hidden="true">↳ {post.replyCount} {post.replyCount === 1 ? 'reply' : 'replies'}</span>
-        </Link>
-        <button
-          type="button"
-          className={`foot-btn like${post.likedByMe ? ' on' : ''}${stamp ? ' stamp' : ''}`}
-          aria-pressed={post.likedByMe}
-          onClick={toggleLike}
-          disabled={post.hidden}
-        >
-          <Dot on={post.likedByMe} size=".85em" />
-          {/* name = "Like 3": includes the visible count, so voice control ("click 3") works */}
-          <span className="sr-only">Like</span>
-          <span>{post.likeCount}</span>
-        </button>
-        {actions}
-      </footer>
-      <ErrorNote message={err} />
+      {!asTape && tapeNode}
+      {!photoLed && !asTape && bodyNode}
+      {!out && imgsNode}
+      {!out && footNode}
+      {!out && errNode}
       </div>
+      {asTape && tapeNode}
+      {asTape && bodyNode && <div className="caption">{bodyNode}</div>}
+      {photoLed && imgsNode}
+      {photoLed && bodyNode && <div className="caption">{bodyNode}</div>}
+      {out && errNode}
+      {out && footNode}
 
       {post.images.length > 0 && (
         <ImageViewer
@@ -324,7 +461,9 @@ export function PostCard({
       <AlertDialog
         open={ask === 'delete'}
         title="Delete post"
-        message={<>Delete this post? Replies stay, the post becomes a tombstone. <strong>This cannot be undone.</strong></>}
+        message={mono
+          ? <>Delete this monologue? The recording is erased for good; replies stay. <strong>This cannot be undone.</strong></>
+          : <>Delete this post? Replies stay, the post becomes a tombstone. <strong>This cannot be undone.</strong></>}
         confirmLabel="Delete"
         danger
         onConfirm={() => void remove()}
@@ -350,6 +489,14 @@ export function PostCard({
       />
     </article>
   );
+}
+
+/** the start of the post a reply answers: a few words, cut at a space */
+function snip(s: string, max = 60): string {
+  const t = s.replace(/\s+/g, ' ').trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  return `${cut.slice(0, cut.lastIndexOf(' ') > 30 ? cut.lastIndexOf(' ') : max)}…`;
 }
 
 /** Replace one post in a list by id. */

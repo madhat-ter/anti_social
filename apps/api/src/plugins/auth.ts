@@ -9,6 +9,7 @@ import { resolveSession, touchLastSeen, SESSION_MAX_AGE_S, type Auth } from '../
 export const SESSION_COOKIE = 'anti_session';
 export type CookieJar = Record<string, Cookie<unknown>>;
 
+/** Who is asking: a member (session cookie or bearer token), else nobody. */
 export function authPlugin(deps: Deps, seed?: unknown) {
   return new Elysia({ name: 'auth', seed }).derive({ as: 'global' }, async ({ headers, cookie }) => {
     const authz = headers['authorization'];
@@ -28,6 +29,7 @@ export function authPlugin(deps: Deps, seed?: unknown) {
   });
 }
 
+/** A signed-in member. */
 export function requireUser(auth: Auth | null): Auth {
   if (!auth) throw new ApiError(401, 'unauthenticated');
   return auth;

@@ -18,6 +18,10 @@ import { projectRoutes } from './routes/projects';
 import { interestRoutes } from './routes/interests';
 import { collabRoutes } from './routes/collabs';
 import { consultationRoutes } from './routes/consultations';
+import { petRoutes } from './routes/pets';
+import { monologueRoutes } from './routes/monologues';
+import { fileRoutes } from './routes/file';
+import { seatRoutes } from './routes/seats';
 
 export function createApp(deps: Deps) {
   return new Elysia()
@@ -26,11 +30,12 @@ export function createApp(deps: Deps) {
       if (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS') return;
       const origin = request.headers.get('origin');
       const cookies = request.headers.get('cookie') ?? '';
-      if (origin && cookies.includes(`${SESSION_COOKIE}=`) && origin !== deps.cfg.webOrigin) {
+      const hasSession = cookies.includes(`${SESSION_COOKIE}=`);
+      if (origin && hasSession && origin !== deps.cfg.webOrigin) {
         return new ApiError(403, 'bad_origin', 'Origin not allowed.').toResponse();
       }
-      // Per-IP limits on unauthenticated endpoints (RFC §13).
       const path = new URL(request.url).pathname;
+      // Per-IP limits on unauthenticated endpoints (RFC §13).
       const limit = path === '/invites/check' ? 'inviteCheck' : path.startsWith('/auth/') && path !== '/auth/logout' ? 'auth' : null;
       if (limit) {
         try {
@@ -69,6 +74,8 @@ export function createApp(deps: Deps) {
     .use(meRoutes(deps))
     .use(postRoutes(deps))
     .use(socialRoutes(deps))
+    .use(petRoutes(deps))
+    .use(monologueRoutes(deps))
     .use(paymentRoutes(deps))
     .use(eventRoutes(deps))
     .use(moderationRoutes(deps))
@@ -76,6 +83,8 @@ export function createApp(deps: Deps) {
     .use(suggestionRoutes(deps))
     .use(portfolioRoutes(deps))
     .use(projectRoutes(deps))
+    .use(fileRoutes(deps))
+    .use(seatRoutes(deps))
     .use(interestRoutes(deps))
     .use(collabRoutes(deps))
     .use(consultationRoutes(deps));
