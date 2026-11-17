@@ -195,14 +195,12 @@ try {
   console.log('saved phone-checklist-open');
   await ph.locator('.checklist').getByRole('button', { name: 'Less' }).tap();
 
-  // ── 4. the "you" sheet
-  await bar.getByRole('button', { name: /You/ }).tap();
-  const sheet = ph.getByRole('dialog', { name: 'You' });
-  await sheet.waitFor();
-  for (const name of ['Notifications', 'Search', 'Settings', 'Admin']) await sheet.getByRole('link', { name: new RegExp(`^${name}`) }).waitFor();
+  // ── 4. "You" goes straight to your profile; its drawers are a row of links on top (RFC §10.26)
+  await bar.getByRole('link', { name: /You/ }).tap();
+  const mine = ph.getByRole('navigation', { name: 'Yours' });
+  await mine.waitFor();
+  for (const name of ['Pet Corner', 'Settings']) await mine.getByRole('link', { name: new RegExp(`^${name}`) }).waitFor();
   await shot(ph, 'phone-you-sheet');
-  await ph.keyboard.press('Escape');
-  await sheet.waitFor({ state: 'hidden' });
 
   // ── 5. the bell: notifications, and the badge goes
   await bell.tap();
@@ -223,17 +221,17 @@ try {
   if (await ph.locator('.seatmap li').count() !== 1) throw new Error('the Hiking chip did not narrow the list to one');
   await shot(ph, 'phone-members-filtered');
   await ph.getByRole('button', { name: 'Everyone' }).tap();
-  await ph.getByLabel('Find a member').fill('ines');
+  await ph.getByLabel('Search people and posts').fill('ines');
   await ph.getByText('Inês Moreau').waitFor();
   if (await ph.locator('.seatmap li').count() !== 1) throw new Error('the search did not narrow the list to one');
-  await ph.getByLabel('Find a member').fill('');
+  await ph.getByLabel('Search people and posts').fill('');
   await bar.getByRole('link', { name: 'Collab' }).tap();
   await ph.getByText('Zine about the old market').first().waitFor();
   await shot(ph, 'phone-collab-list');
-  // a drawer page (search): the you tab is lit
-  await ph.goto(`${WEB}/search`);
-  await ph.getByRole('heading', { name: 'Search' }).waitFor();
-  if (!(await bar.locator('.tb-you.on').count())) throw new Error('the you tab is not lit on Search');
+  // a drawer page (settings): the you tab is lit
+  await ph.goto(`${WEB}/settings`);
+  await ph.getByRole('heading', { name: 'Settings' }).waitFor();
+  if (!(await bar.locator('.tb-you.on').count())) throw new Error('the you tab is not lit on Settings');
   // the kind chips on Collab must be untouched by the tab bar's styles
   await bar.getByRole('link', { name: 'Collab' }).tap();
   await ph.waitForURL(/\/collab$/);

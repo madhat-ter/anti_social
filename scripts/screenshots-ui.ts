@@ -267,7 +267,7 @@ try {
   await maya.locator('.posts').getByText('quiet café').waitFor();
   await shot(maya, 'search');
   await maya.goto(`${WEB}/settings`);
-  await maya.getByRole('button', { name: 'Create invite' }).waitFor();
+  await maya.getByRole('heading', { name: 'Settings' }).waitFor(); // RFC §10.26: invites moved to Members
   await shot(maya, 'settings');
 
   // ── a fourth person arrives: all 3 seats are taken, so they wait

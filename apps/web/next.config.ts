@@ -30,6 +30,8 @@ const config: NextConfig = {
       { source: '/collabs/:id/edit', destination: '/collab/:id/edit', permanent: true },
       { source: '/collabs/:id', destination: '/collab/:id', permanent: true },
       { source: '/collabs', destination: '/collab', permanent: true },
+      // RFC §10.26: search is the box on Members; the query string (?q=) travels with the forward
+      { source: '/search', destination: '/members', permanent: true },
     ];
   },
 };

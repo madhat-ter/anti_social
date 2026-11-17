@@ -83,12 +83,15 @@ try {
   await page.goto(WEB);
   await page.getByRole('button', { name: 'Got it' }).click({ timeout: 3000 }).catch(() => {}); // the rules now live at the end of setup; the welcome window only shows for members from before
   await page.getByRole('link', { name: 'Pick your interests' }).waitFor();
-  await page.goto(`${WEB}/settings#interests`);
-  const sec = page.locator('section[aria-labelledby=interests]');
+  // RFC §10.26: interests are picked on your profile, under Edit profile, and kept by its Save
+  await page.goto(`${WEB}/u/nova?edit=1#interests`);
+  const sec = page.locator('#pf-interests');
   for (const label of ['Film', 'Hiking', 'Volunteering', 'Photography']) await sec.getByRole('button', { name: label, exact: true }).click();
   await sec.getByText('(4 now)').waitFor();
   await sec.screenshot({ path: file('settings-interests') });
   console.log('saved settings-interests');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit profile' }).waitFor();
   const saved = (await nova.call('GET', '/me')).interests;
   if (saved.join() !== 'film,hiking,photography,volunteering') throw new Error(`interests not saved: ${saved}`);
   await page.goto(`${WEB}/u/ivy`);
@@ -282,8 +285,8 @@ try {
   console.log('saved admin-collab-report');
 
   // ── Add your own interest: a missing one joins the shared list and is picked; admins see who added it
-  await page.goto(`${WEB}/settings#interests`);
-  const isec = page.locator('section[aria-labelledby=interests]');
+  await page.goto(`${WEB}/u/nova?edit=1#interests`);
+  const isec = page.locator('#pf-interests');
   await isec.getByRole('button', { name: '+ Add your own' }).click();
   await isec.getByLabel('New interest').fill('street food');
   await shot(page, 'interest-add-typing');

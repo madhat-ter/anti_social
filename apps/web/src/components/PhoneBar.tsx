@@ -2,16 +2,16 @@
 /**
  * The phone shell (under 900px). The menu column of the desktop becomes two things that never
  * scroll away: a bell in the sticky header (notifications) and a bar of five tabs along the
- * bottom: the four rooms (Feed, Collab, Monologue, Members) and "you". Everything that is a drawer rather than a room (your
- * profile, search, Pet Corner, consultations, settings, admin) sits in a sheet that opens from "you".
- * Notifications are the bell only, not a second time in the sheet (RFC §10.20).
+ * bottom: the four rooms (Feed, Collab, Monologue, Members) and "You", which goes straight to your
+ * profile (RFC §10.26; it used to open a sheet). The drawers (Pet Corner, consultations, settings,
+ * admin) are a row of links at the top of your own profile; search is the box on Members.
+ * Notifications are the bell only (RFC §10.20).
  */
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
 import type { Me } from '@/lib/api';
 import { Avatar } from './Avatar';
-import { NameMarks } from './Marks';
+import { isAdult } from './Consult';
 
 type Room = { href: string; label: string; icon: IconName; match: (p: string) => boolean };
 const ROOMS: Room[] = [
@@ -22,8 +22,8 @@ const ROOMS: Room[] = [
   { href: '/monologue', label: 'Monologue', icon: 'tape', match: (p) => p.startsWith('/monologue') },
   { href: '/members', label: 'Members', icon: 'members', match: (p) => p === '/members' },
 ];
-/** pages that live behind "you" */
-const YOURS = /^\/(notifications|search|settings|admin|consultations)/;
+/** pages reached from your profile: the "You" tab stays lit on them */
+const YOURS = /^\/(settings|admin|consultations|pets|pet\/)/;
 
 type IconName = 'feed' | 'events' | 'collabs' | 'members' | 'bell' | 'tape' | 'file';
 /** 1-bit tab icons, drawn to match the alert triangle and the pick icons. */
@@ -99,69 +99,43 @@ export function TopFile() {
   );
 }
 
-export function PhoneBar({ me, unread, waiting, adult }: { me: Me; unread: number; waiting: number; adult: boolean }) {
+export function PhoneBar({ me, waiting, adult }: { me: Me; waiting: number; adult: boolean }) {
   const path = usePathname() ?? '/';
-  const [open, setOpen] = useState(false);
-  const firstRef = useRef<HTMLAnchorElement>(null);
   const mine = `/u/${me.handle}`;
   const youOn = path === mine || YOURS.test(path);
-
-  // the sheet closes when you go somewhere, and on Escape
-  useEffect(() => { setOpen(false); }, [path]);
-  useEffect(() => {
-    if (!open) return;
-    firstRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
-
   return (
-    <>
-      <nav className="tabbar" aria-label="Main">
-        {ROOMS.map((r) => (
-          <Link key={r.href} href={r.href} className="tb" aria-current={r.match(path) ? 'page' : undefined}>
-            <TabIcon name={r.icon} />
-            <span className="tb-label">{r.label}</span>
-          </Link>
-        ))}
-        <button type="button" className={`tb tb-you${youOn ? ' on' : ''}`} aria-expanded={open} aria-controls="you-sheet"
-          aria-current={youOn && !open ? 'page' : undefined} onClick={() => setOpen((o) => !o)}>
-          <span className="tb-face">
-            <Avatar seed={me.handle} gender={me.gender} size={26} />
-            {/* RFC §10.20: unread lives on the bell; this badge counts only what sits behind the sheet */}
-            {adult && waiting > 0 && <span className="badge" aria-hidden="true">{waiting > 99 ? '99+' : waiting}</span>}
-          </span>
-          <span className="tb-label">You{adult && waiting > 0 && <span className="sr-only">, {waiting} waiting on you</span>}</span>
-        </button>
-      </nav>
-      {open && (
-        <>
-          <button type="button" className="sheet-back" aria-label="Close the menu" onClick={() => setOpen(false)} />
-          <section className="sheet win" id="you-sheet" role="dialog" aria-label="You">
-              <div className="win-bar">
-                <button type="button" className="win-close" onClick={() => setOpen(false)} aria-label="Close" />
-                <span className="win-title">you</span>
-              </div>
-              <div className="win-body sheet-body">
-                <Link href={mine} className="sheet-me" ref={firstRef} aria-current={path === mine ? 'page' : undefined}>
-                  <Avatar seed={me.handle} gender={me.gender} size={44} />
-                  <span>
-                    <span className="sheet-name">{me.displayName}<NameMarks admin={me.role === 'ops'} verified={!!me.verifiedAt} size=".85em" /></span>
-                    <span className="meta">@{me.handle} · your profile</span>
-                  </span>
-                </Link>
-                <ul className="sheet-list">
-                  <li><Link href="/search" aria-current={path === '/search' ? 'page' : undefined}>Search</Link></li>
-                  <li><Link href="/pets" aria-current={path.startsWith('/pets') || path.startsWith('/pet/') ? 'page' : undefined}>Pet Corner</Link></li>
-                  {adult && <li><Link href="/consultations" aria-current={path.startsWith('/consultations') ? 'page' : undefined}>Consultations <Badge n={waiting} what="waiting on you" /></Link></li>}
-                  <li><Link href="/settings" aria-current={path === '/settings' ? 'page' : undefined}>Settings</Link></li>
-                  {me.role === 'ops' && <li><Link href="/admin" aria-current={path === '/admin' ? 'page' : undefined}>Admin</Link></li>}
-                </ul>
-              </div>
-            </section>
-        </>
-      )}
-    </>
+    <nav className="tabbar" aria-label="Main">
+      {ROOMS.map((r) => (
+        <Link key={r.href} href={r.href} className="tb" aria-current={r.match(path) ? 'page' : undefined}>
+          <TabIcon name={r.icon} />
+          <span className="tb-label">{r.label}</span>
+        </Link>
+      ))}
+      {/* RFC §10.26: one tap to your profile; its drawers are a row of links on the profile itself (MeLinks) */}
+      <Link href={mine} className={`tb tb-you${youOn ? ' on' : ''}`} aria-current={path === mine ? 'page' : undefined}>
+        <span className="tb-face">
+          <Avatar seed={me.handle} gender={me.gender} size={26} />
+          {/* RFC §10.20: unread lives on the bell; this badge counts only the consultations waiting on you */}
+          {adult && waiting > 0 && <span className="badge" aria-hidden="true">{waiting > 99 ? '99+' : waiting}</span>}
+        </span>
+        <span className="tb-label">You{adult && waiting > 0 && <span className="sr-only">, {waiting} waiting on you</span>}</span>
+      </Link>
+    </nav>
+  );
+}
+
+/**
+ * RFC §10.26: the drawers that used to sit in the "You" sheet, as a row at the top of your own
+ * profile on phones (wide screens have them in the menu). One tap from the profile, no sheet.
+ */
+export function MeLinks({ me, waiting }: { me: Me; waiting: number }) {
+  const adult = isAdult(me);
+  return (
+    <nav className="me-links" aria-label="Yours">
+      <Link href="/pets">Pet Corner</Link>
+      {adult && <Link href="/consultations">Consultations <Badge n={waiting} what="waiting on you" /></Link>}
+      <Link href="/settings">Settings</Link>
+      {me.role === 'ops' && <Link href="/admin">Admin</Link>}
+    </nav>
   );
 }

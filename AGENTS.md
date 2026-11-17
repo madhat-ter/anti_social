@@ -41,6 +41,9 @@ landing page once (Kaan Pete Roi, 09612-119911) to be sure it answers, since its
 longer does; and decide the rules for members meeting in person if members are teenagers.
 "Ask for a seat" only shows on the live site if `CONTACT_KEY` is set on Render.
 
+One more waits on the **owner** after §10.26 (fewer taps): whether to add a Record button to the
+post box and direct start buttons on Collab (the second changes §10.21's "one Start").
+
 Monologues (§10.22) keep their recordings in the database for now, like images. When the owner
 makes a Cloudflare R2 bucket, set `STORAGE=r2` and `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
 `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` on Render (never in chat); old files keep being read from the
@@ -59,6 +62,13 @@ Vercel's proxy (a 5-minute recording made on the site is about 2.4 MB).
   `packages/shared/src/rules.ts`); never remove it, and never put a number there from memory.
   **Ask for a seat** takes a request from someone with no account: only admins see it, the contact
   is sealed (`CONTACT_KEY`), the site sends them nothing, and "Not now" erases it.
+- **Fewest taps** (§10.26): an action sits where its thing lives, never in Settings because it is
+  "a setting"; one tap does the whole job; confirmations only for what can't be undone. Reply opens
+  under the post in any list. The phone's "You" tab is your profile (no sheet; its links are
+  `MeLinks` on top of your own profile). The only search is the box on Members (`/search` forwards
+  there). Name, bio, face, interests and the birthday tag are edited with **Edit profile**; inviting
+  is on Members. Don't add sections to Settings for things that have a page of their own, and count
+  the taps on a phone before adding a screen.
 - **Light by default, always.** Dark mode is a choice in Settings only. Never read
   `prefers-color-scheme`. Every colour must be a CSS variable so `:root[data-theme="dark"]`
   covers it (`apps/web/app/globals.css`). (§10.14)

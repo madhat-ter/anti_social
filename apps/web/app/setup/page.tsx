@@ -155,7 +155,7 @@ export default function SetupPage() {
                     <span>{GENDER_LABEL[g]}</span>
                   </label>
                 ))}
-                <p className="muted small">It only shapes your face. It is never shown as text. You can change it any time in Settings.</p>
+                <p className="muted small">It only shapes your face. It is never shown as text. You can change it any time on your profile.</p>
               </fieldset>
             </div>
           </section>
@@ -166,8 +166,8 @@ export default function SetupPage() {
               <input type="date" value={birthday} min="1900-01-01" max={todayIso} required disabled={done} onChange={(e) => setBirthday(e.target.value)} />
             </label>
             <p className="muted small">
-              On your day, members see a &ldquo;birthday today&rdquo; tag by your name: never your age or the year (you can turn the tag off in
-              Settings). You can&apos;t change your birthday later, so check it.
+              On your day, members see a &ldquo;birthday today&rdquo; tag by your name: never your age or the year (you can turn the tag off on
+              your profile). You can&apos;t change your birthday later, so check it.
             </p>
             {birthday && !birthdayOk && <p className="error" role="alert">{age !== null && age < 0 ? 'That date is in the future.' : 'Check the year.'}</p>}
           </section>

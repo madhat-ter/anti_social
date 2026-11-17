@@ -23,7 +23,10 @@ export function Composer({
   placeholder,
   submitLabel,
   collapsible = false,
+  autoFocus = false,
 }: {
+  /** the box takes the cursor as it appears (a reply box opened under a post, RFC §10.26) */
+  autoFocus?: boolean;
   parentId?: string;
   /** an update in this collab's thread (RFC §10.5) */
   collabId?: string;
@@ -160,6 +163,7 @@ export function Composer({
           id={`${id}-body`}
           value={body}
           rows={parentId ? 3 : 4}
+          autoFocus={autoFocus}
           placeholder={placeholder ?? (pet ? `What is ${pet.name} up to?` : parentId ? 'Write a reply...' : 'What is on your mind?')}
           onChange={(e) => {
             setBody(e.target.value);

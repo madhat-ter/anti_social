@@ -103,11 +103,11 @@ try {
 
   // ── 1. a fresh portfolio, seen by its owner: only the About from setup (RFC §10.3)
   await maya.goto(`${WEB}/u/maya`);
-  await maya.getByRole('button', { name: 'Edit portfolio' }).waitFor();
+  await maya.getByRole('button', { name: 'Edit profile' }).waitFor();
   await shot(maya, 'own-fresh', false);
 
   // ── 2. editing in place, through the real editor
-  await maya.getByRole('button', { name: 'Edit portfolio' }).click();
+  await maya.getByRole('button', { name: 'Edit profile' }).click();
   await maya.getByLabel('Headline').fill('Industrial designer');
   await maya.getByLabel('Where').fill('Kathmandu');
   await maya.getByLabel('Open to work').check();
@@ -158,14 +158,14 @@ try {
 
   await maya.getByRole('button', { name: 'Save', exact: true }).click();
   await maya.getByText('Open to work').waitFor();
-  await maya.getByRole('button', { name: 'Edit portfolio' }).waitFor();
+  await maya.getByRole('button', { name: 'Edit profile' }).waitFor();
   // ── 3. the saved portfolio, as the owner sees it
   await shot(maya, 'own-filled');
 
   // ── 4. the same portfolio, seen by another member (no edit button); the picks tab
   await theo.goto(`${WEB}/u/maya`);
   await theo.getByText('Industrial designer').waitFor();
-  if (await theo.getByRole('button', { name: 'Edit portfolio' }).count()) throw new Error('visitor sees the edit button');
+  if (await theo.getByRole('button', { name: 'Edit profile' }).count()) throw new Error('visitor sees the edit button');
   const bodyBg = await theo.evaluate(() => getComputedStyle(document.body).backgroundColor);
   if (bodyBg !== 'rgb(255, 255, 255)') throw new Error(`dark OS turned the page ${bodyBg}; the site must stay white`);
   console.log('dark-OS visitor still gets the white theme ok');
@@ -234,7 +234,7 @@ try {
   const cover = join(OUT, '_cover.png');
   await makeImage(a, cover, '#0d3b2e', '#f2efe8', 'MAYA LIND', 'OBJECTS FOR KITCHEN TABLES · 2026');
   await maya.goto(`${WEB}/u/maya`);
-  await maya.getByRole('button', { name: 'Edit portfolio' }).click();
+  await maya.getByRole('button', { name: 'Edit profile' }).click();
   await maya.locator('input[type=file]').setInputFiles(cover);
   await maya.waitForFunction(() => document.querySelector('.pf-coverimg') && !document.querySelector('.pf-coverwrap.uploading'));
   await maya.getByText('Shantell Sans').click();
@@ -242,7 +242,7 @@ try {
   await maya.locator('.pf-chip[title=green]').click();
   await shot(maya, 'own-look-editing', false);
   await maya.getByRole('button', { name: 'Save', exact: true }).click();
-  await maya.getByRole('button', { name: 'Edit portfolio' }).waitFor();
+  await maya.getByRole('button', { name: 'Edit profile' }).waitFor();
   await shot(maya, 'own-styled');
   await maya.getByRole('link', { name: /Veloce/ }).click();
   await maya.getByRole('heading', { name: 'Veloce' }).waitFor();

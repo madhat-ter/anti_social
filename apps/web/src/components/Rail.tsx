@@ -2,7 +2,7 @@
 /**
  * Desktop side windows (shown only on wide screens, see .shell in globals.css): the next few
  * events, the pick, Pet Corner, and today's birthdays. Each is small, glanceable, and links on.
- * (No "you" window since 2026-11-09: your profile is in the menu; inviting is in Settings.)
+ * (No "you" window since 2026-11-09: your profile is in the menu; inviting is on Members, RFC §10.26.)
  * (Seats became Pet Corner, RFC §10.17; the seat chart lives on Members and Admin.)
  */
 import Link from 'next/link';

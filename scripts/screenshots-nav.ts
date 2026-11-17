@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Fewer hidden steps, one way of doing things (RFC Â§10.20): the same scenes before and after.
  * In-process API on :3101, web build on :3100 (see AGENTS.md â†’ Screenshots).
  *
@@ -148,7 +148,7 @@ try {
   const ph = await open(maya.jar, true);
   await ph.goto(WEB); await ph.getByRole('button', { name: 'Got it' }).click({ timeout: 3000 }).catch(() => {});
   await ph.locator('.tb-you').click();
-  await ph.locator('#you-sheet').waitFor();
+  await ph.locator('.me-links').waitFor(); // RFC §10.26: You is your profile, its links on top
   await shot(ph, '06-phone-you');
   await ph.goto(`${WEB}/settings`); await ph.getByRole('heading', { name: 'Settings' }).waitFor();
   await shot(ph, '07-phone-settings');

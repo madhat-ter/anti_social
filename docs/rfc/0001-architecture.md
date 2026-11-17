@@ -1568,6 +1568,74 @@ faces.
 **Still open (the owner's to decide).** Events invite members to meet in person. If members are
 teenagers, meeting strangers needs its own rules; nothing was changed about that here.
 
+### 10.26 Fewer taps: the job is done where the thing lives (added 2026-11-17)
+
+The owner said the design looks right but "it has a lot of buttons to reach a destination". Every
+common job was walked through on a phone and its taps counted. The extra taps came from four
+habits, not from the look, so the look stayed. The owner chose the recommended answer to each
+(2026-11-17). This section replaces the parts of §10.20 that left the phone tab bar and the reply
+link as they were.
+
+1. **Reply opens under the post.** In any list of posts (the feed, a profile, search results) the
+   **Reply** button opens the reply box inside the same card; sending it leaves you where you were,
+   with "Reply sent. See the thread". Before, Reply opened the post on its own page and you had to
+   come back. A post that already has replies shows two things: its count ("2 replies"), which opens
+   the thread to read, and **Reply**, which answers in place. The thread page is unchanged.
+2. **"You" is your profile.** On phones the fifth tab used to open a menu sheet, so your profile,
+   Search, Pet Corner, Consultations and Settings each took two taps. It now goes straight to your
+   profile. Pet Corner, Consultations (with its waiting count), Settings and Admin are a row of links
+   at the top of your own profile, on phones only (wide screens have them in the menu). The sheet is
+   gone. The tab stays lit on those pages.
+3. **One search box.** Members had a box that found people; a separate Search page found people
+   and posts. Now the box on Members is the only search: it narrows the faces as you type and lists
+   the posts that hold the same words underneath. Search left the menu; `/search` (and `/search?q=…`)
+   forwards permanently to `/members`. The `/` key goes to that box.
+4. **What is about you is edited on your profile.** The profile has one button, **Edit profile**
+   (it was "Edit portfolio" plus a "Name and bio" link that sent you to Settings). The editor now
+   also holds your name, bio, the gender that shapes your face, your interests and the "birthday
+   today" tag, and one **Save** keeps everything. `/u/<you>?edit=1` opens the editor directly (the
+   checklist's "Pick your interests" uses it).
+5. **Inviting is on Members**, beside the seats it fills: **+ Invite someone** makes the code in
+   one tap and shows it with Copy; "Your invites" opens the earlier ones. The line "Invites from
+   Settings fill them" is gone.
+6. **Settings is what is left**: Appearance, Feed, Contact details, PIN, Passkeys, Notifications,
+   Payments, Account, with one line at the top pointing to the profile and to Members. Someone
+   without a seat (waiting, or lapsed) has no profile page to go to, so their name and face stay in
+   Settings for them.
+
+| Job (phone) | Before | After |
+|---|---|---|
+| Reply to a post in the feed | a new page, then back | in place |
+| Open your profile | 2 taps | 1 |
+| Search | 2 taps | 1 (Members) |
+| Change your name or bio | 3 taps, lands in Settings | 2, on the profile |
+| Invite someone | 3 taps | 2 |
+
+**The rule for anything new:** an action sits on the screen where its thing lives, never in
+Settings because it is "a setting"; one tap should do the whole job; a confirmation is only for
+what cannot be undone (§10.20). Count the taps on a phone before adding a screen.
+
+**Not changed, on purpose.** The header (wordmark, File, bell). The desktop menu apart from
+Search leaving it. Contact details stay in Settings because only admins see them and the profile
+is what every member sees. Nothing on the API changed: the profile's Save calls the same
+`PATCH /me`, `PUT /me/interests` and `PATCH /me/portfolio` as before.
+
+**Known and accepted.** "+ Invite someone" makes a code on the first tap, as "Create invite" did
+in Settings. A code counts toward a member's open invites until it is used or runs out, so a
+mistaken tap holds one place for a while.
+
+**Still to ask the owner.** Making things starts from three doors (text on the Feed, recordings
+on Monologue, events on Collab, which also asks "what is it?" first). A Record button in the post
+box and direct start buttons on Collab would save a tap each, but the second changes §10.21's
+"one Start", so it waits for a yes.
+
+- *Code.* `PostCard.tsx` (`inPlace`, `.reply-here`), `Composer.tsx` (`autoFocus`), `PhoneBar.tsx`
+  (`MeLinks`), `Shell.tsx` (`ME_EVENT`), `Portfolio.tsx` (the `Acct` draft), `app/members/page.tsx`
+  (`Invite`, the search), `app/settings/page.tsx`, `next.config.ts` (the forward).
+- *Checks.* `scripts/screenshots-fewer-taps.ts` takes the same six jobs before and after, and in
+  the "after" run sends a reply from the feed, saves a name, face and interest from the profile,
+  and follows the old `/search` address.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops.

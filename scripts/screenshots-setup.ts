@@ -171,7 +171,7 @@ try {
 
   // ── 4. the About editor in the portfolio counts words too
   await nova.goto(`${WEB}/u/nova`);
-  await nova.getByRole('button', { name: 'Edit portfolio' }).click();
+  await nova.getByRole('button', { name: 'Edit profile' }).click();
   await nova.getByText(/\d+ \/ 50–300 words/).waitFor(); // the portfolio's own About counter, not setup's
   await elShot(nova, '.pf-sec:has(textarea)', 'about-editor');
 

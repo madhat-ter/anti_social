@@ -2,21 +2,22 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { api, errorMessage, type AnEvent, type MemberSummary, type CollabSummary, type CollabPageItem, type Pick, type Portfolio, type Post, type ProjectSummary } from '@/lib/api';
+import { api, errorMessage, type AnEvent, type Me, type MemberSummary, type CollabSummary, type CollabPageItem, type Pick, type Portfolio, type Post, type ProjectSummary } from '@/lib/api';
+import { MeLinks } from '@/components/PhoneBar';
 import { PickCard } from '@/components/Picks';
 import { CollabItemCard } from '@/components/Collab';
 import { PortfolioWindow } from '@/components/Portfolio';
 import { MonologueShelf } from '@/components/Tape';
 import { ConsultingSection, isAdult } from '@/components/Consult';
 import { usePaged, useTitle } from '@/lib/hooks';
-import { SeatedShell } from '@/components/Shell';
+import { CONSULT_EVENT, ME_EVENT, SeatedShell } from '@/components/Shell';
 import { PostList } from '@/components/PostList';
 import { ErrorNote } from '@/components/ui';
 import { AlertDialog, Loading } from '@/components/retro';
 
 export default function ProfilePage() {
   useTitle('Profile');
-  return <SeatedShell>{(me) => <Profile myHandle={me.handle} adult={isAdult(me)} />}</SeatedShell>;
+  return <SeatedShell>{(me) => <Profile me={me} />}</SeatedShell>;
 }
 
 /** A member's picks, newest first; you can remove your own. */
@@ -84,7 +85,9 @@ function MemberCollabs({ handle, mine }: { handle: string; mine: boolean }) {
 }
 
 /** The portfolio window on top; posts and picks underneath, behind folder tabs. */
-function Profile({ myHandle, adult }: { myHandle: string; adult: boolean }) {
+function Profile({ me }: { me: Me }) {
+  const myHandle = me.handle;
+  const adult = isAdult(me);
   const params = useParams<{ handle: string }>();
   const handle = decodeURIComponent(params.handle);
   const [member, setMember] = useState<MemberSummary | null>(null);
@@ -105,10 +108,28 @@ function Profile({ myHandle, adult }: { myHandle: string; adult: boolean }) {
     return () => { alive = false; };
   }, [handle]);
 
+  // RFC §10.26: on phones your own profile carries the links the "You" sheet used to hold
+  const own = handle.toLowerCase() === myHandle.toLowerCase();
+  const [waiting, setWaiting] = useState(0);
+  useEffect(() => {
+    if (!own || !adult) return;
+    const poll = () => { api.consultWaiting().then((r) => setWaiting(r.waiting), () => {}); };
+    poll();
+    window.addEventListener(CONSULT_EVENT, poll);
+    return () => window.removeEventListener(CONSULT_EVENT, poll);
+  }, [own, adult]);
+  // `?edit=1` opens the editor (the checklist's "Pick your interests" lands here)
+  const [startEditing] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('edit') === '1');
+
   if (error) return <><ErrorNote message={error} /><p><Link href="/members">Back to members</Link></p></>;
   if (!member || !pf) return <Loading />;
 
   const mine = member.handle.toLowerCase() === myHandle.toLowerCase();
+  /** your name, face or interests changed: read the member again, and tell the shell (its menu shows your face) */
+  const onAccount = () => {
+    api.member(handle).then((m) => setMember(m), () => {});
+    window.dispatchEvent(new Event(ME_EVENT));
+  };
   const reorder = async (ids: string[]) => {
     const byId = new Map(projects.map((p) => [p.id, p]));
     setProjects(ids.map((i) => byId.get(i)!));
@@ -118,7 +139,9 @@ function Profile({ myHandle, adult }: { myHandle: string; adult: boolean }) {
   };
   return (
     <>
+      {mine && <MeLinks me={me} waiting={waiting} />}
       <PortfolioWindow member={member} pf={pf} projects={projects} onSaved={setPf} onReorder={reorder}
+        me={mine ? me : undefined} onAccount={onAccount} startEditing={mine && startEditing}
         pets={member.pets ?? []}
         onPets={(pets) => setMember((cur) => cur ? { ...cur, pets } : cur)}
         consulting={<ConsultingSection handle={member.handle} viewerAdult={adult} />} />

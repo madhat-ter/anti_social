@@ -5,24 +5,25 @@
  *   CV card   two columns: about, skills, tools | experience, education
  *   links     https addresses, opened in a new tab with nothing passed along
  * A portfolio with nothing in it looks like the plain profile. Its owner edits it where it
- * sits: "Edit portfolio" swaps every section for its inputs; Save sends one PATCH.
+ * sits: "Edit profile" swaps every section for its inputs, and one Save keeps it all. Since RFC
+ * §10.26 that includes what Settings used to hold: name, bio, face, interests, the birthday tag.
  */
 import Link from 'next/link';
-import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import {
   ABOUT_MAX_WORDS, ABOUT_MIN_WORDS, PF_ABOUT_MAX, countWords, PF_ACCENTS, PF_BACKGROUNDS, PF_EDUCATION_MAX, PF_ENTRY_LINE_MAX, PF_ENTRY_PLACE_MAX, PF_ENTRY_TITLE_MAX,
   PF_EXPERIENCE_MAX, PF_FONTS, PF_HEADLINE_MAX, PF_LINKS_MAX, PF_LINK_LABEL_MAX, PF_LINK_URL_MAX, PF_LOCATION_MAX, PF_TAGS_MAX,
-  PF_TAG_MAX, PROJECTS_MAX, PROJECT_IMAGES_MAX,
+  PF_TAG_MAX, PROJECTS_MAX, PROJECT_IMAGES_MAX, DISPLAY_NAME_MAX, GENDERS, GENDER_LABEL, INTERESTS_MAX, type Gender,
 } from '@anti/shared';
 import {
-  api, errorMessage, IMAGE_MAX_BYTES, type MemberSummary, type Pet, type PfAccent, type PfEntry, type PfLink, type PfStyle, type Portfolio,
+  api, errorMessage, IMAGE_MAX_BYTES, type Me, type MemberSummary, type Pet, type PfAccent, type PfEntry, type PfLink, type PfStyle, type Portfolio,
   type PortfolioFields, type ProjectSummary,
 } from '@/lib/api';
 import { Avatar } from './Avatar';
 import { PetsRow } from './Pets';
 import { BirthdayTag } from './Birthday';
 import { NameMarks } from './Marks';
-import { InterestTags } from './Interests';
+import { InterestPicker, InterestTags } from './Interests';
 import { Win } from './retro';
 import { ErrorNote } from './ui';
 import { bnLang } from '@/lib/lang';
@@ -48,8 +49,22 @@ const copyOf = (p: Portfolio): PortfolioFields => ({
 /** The cover while editing: unchanged, removed, or a fresh upload (with a local preview). */
 type CoverDraft = { id: string | null | undefined; preview: string | null; uploading: boolean };
 
-export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, consulting, pets, onPets }: {
+/**
+ * RFC §10.26: what used to be edited in Settings (name, bio, the face's gender, interests, the
+ * birthday tag) is edited here, under the same Edit button and the same Save as the portfolio.
+ */
+type Acct = { displayName: string; bio: string; gender: Gender | null; birthdayPublic: boolean; interests: string[] };
+const acctOf = (me: Me): Acct => ({ displayName: me.displayName, bio: me.bio ?? '', gender: me.gender, birthdayPublic: me.birthdayPublic, interests: [...me.interests] });
+const sameSet = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join('\n') === [...b].sort().join('\n');
+
+export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, consulting, pets, onPets, me, onAccount, startEditing }: {
   member: MemberSummary; pf: Portfolio; projects: ProjectSummary[];
+  /** you, on your own profile: Edit then covers your name, bio, face, interests and birthday tag too */
+  me?: Me;
+  /** your name, face or interests were saved: the page reads the member again */
+  onAccount?: () => void;
+  /** open in edit mode (`/u/<you>?edit=1`, e.g. from the checklist) */
+  startEditing?: boolean;
   /** the Consulting section (RFC §10.6), between the work and the links */
   consulting?: ReactNode;
   /** RFC §10.17: the member's pets, and the owner-only Add Pet button */
@@ -70,17 +85,42 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
   const v: PortfolioFields = editing ? d : pf;
   const set = <K extends keyof PortfolioFields>(k: K, val: PortfolioFields[K]) => setD((cur) => ({ ...cur, [k]: val }));
 
+  const [a, setA] = useState<Acct | null>(null);
+  const setAcct = <K extends keyof Acct>(k: K, val: Acct[K]) => setA((cur) => (cur ? { ...cur, [k]: val } : cur));
+  const mine = pf.mine && !!me;
+
   const dropPreview = () => setCover((c) => { if (c.preview) URL.revokeObjectURL(c.preview); return { id: undefined, preview: null, uploading: false }; });
-  const start = () => { setD(copyOf(pf)); dropPreview(); setErr(null); setEditing(true); };
+  const start = () => { setD(copyOf(pf)); setA(mine ? acctOf(me!) : null); dropPreview(); setErr(null); setEditing(true); };
   const cancel = () => { setEditing(false); dropPreview(); setErr(null); };
   const save = async () => {
+    if (a && !a.displayName.trim()) { setErr('Your name can’t be empty.'); return; }
     setBusy(true); setErr(null);
+    let account = false;
     try {
+      if (a && me) {
+        const patch: Parameters<typeof api.updateMe>[0] = {};
+        if (a.displayName.trim() !== me.displayName) patch.displayName = a.displayName.trim();
+        if (a.bio !== (me.bio ?? '')) patch.bio = a.bio;
+        if (a.gender && a.gender !== me.gender) patch.gender = a.gender;
+        if (a.birthdayPublic !== me.birthdayPublic) patch.birthdayPublic = a.birthdayPublic;
+        if (Object.keys(patch).length) { await api.updateMe(patch); account = true; }
+        if (!sameSet(a.interests, me.interests)) { await api.setInterests(a.interests); account = true; }
+      }
       onSaved(await api.updatePortfolio(cover.id === undefined ? d : { ...d, coverId: cover.id }));
       dropPreview(); setEditing(false);
     } catch (e) { setErr(errorMessage(e)); }
-    finally { setBusy(false); }
+    finally { setBusy(false); if (account) onAccount?.(); }
   };
+  // `?edit=1` opens the editor at once; a #part in the address (#interests) is scrolled to
+  const opened = useRef(false);
+  useEffect(() => {
+    if (!startEditing || !mine || opened.current) return;
+    opened.current = true;
+    start();
+    const part = window.location.hash.slice(1);
+    if (part) requestAnimationFrame(() => document.getElementById(`pf-${part}`)?.scrollIntoView({ block: 'center' }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startEditing, mine]);
   function pickCover(files: FileList | null) {
     const f = files?.[0];
     if (fileRef.current) fileRef.current.value = '';
@@ -121,10 +161,10 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
         </div>
       )}
       <header className="pf-hero">
-        <Avatar seed={member.handle} gender={member.gender} size={112} label={`${member.displayName}'s avatar`} />
+        <Avatar seed={member.handle} gender={editing && a ? a.gender : member.gender} size={112} label={`${member.displayName}'s avatar`} />
         <div className="pf-hero-main">
           <h1 {...bnLang(member.displayName)}>
-            {member.displayName}
+            {(editing && a?.displayName.trim()) || member.displayName}
             <NameMarks admin={member.role === 'ops'} verified={member.verified} size=".8em" />
             <BirthdayTag b={member.birthday} />
             {member.state === 'archived' && <span className="tag" title="This member's seat was released">archived</span>}
@@ -132,6 +172,16 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
           <p className="meta">@{member.handle}</p>
           {editing ? (
             <div className="pf-hero-edit">
+              {a && (
+                <>
+                  <label>Name
+                    <input value={a.displayName} maxLength={DISPLAY_NAME_MAX} required onChange={(e) => setAcct('displayName', e.target.value)} />
+                  </label>
+                  <label>Bio ({a.bio.length}/160)
+                    <textarea value={a.bio} maxLength={160} rows={2} placeholder="A line or two about you." onChange={(e) => setAcct('bio', e.target.value)} />
+                  </label>
+                </>
+              )}
               <label>Headline
                 <input value={d.headline} maxLength={PF_HEADLINE_MAX} placeholder="Industrial designer" onChange={(e) => set('headline', e.target.value)} />
               </label>
@@ -159,8 +209,8 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
           </p>
           {pf.mine && !editing && (
             <div className="row pf-actions">
-              <button type="button" className="btn primary" onClick={start}>{pf.empty ? 'Start your portfolio' : 'Edit portfolio'}</button>
-              <Link className="btn" href="/settings">Name and bio</Link>
+              {/* RFC §10.26: one button; your name, bio, face, interests and birthday tag are edited here too */}
+              <button type="button" className="btn primary" onClick={start}>Edit profile</button>
             </div>
           )}
         </div>
@@ -201,6 +251,41 @@ export function PortfolioWindow({ member, pf, projects, onSaved, onReorder, cons
                 </label>
               ))}
             </div>
+          </fieldset>
+        </div>
+      )}
+
+      {editing && a && me && (
+        <div className="pf-look pf-you">
+          <fieldset>
+            <legend>Your face</legend>
+            <div className="setup-choices">
+              {GENDERS.map((g) => (
+                <label key={g} className="check setup-choice">
+                  <input type="radio" name={`${id}-gender`} value={g} checked={a.gender === g} onChange={() => setAcct('gender', g)} />
+                  <span>{GENDER_LABEL[g]}</span>
+                </label>
+              ))}
+            </div>
+            <p className="muted small">It only shapes your face; it is never shown as text. Your handle <strong className="ui">@{me.handle}</strong> stays as it is.</p>
+          </fieldset>
+          <fieldset id="pf-interests" className="pf-you-wide">
+            <legend>Interests</legend>
+            <p className="muted small">Pick up to {INTERESTS_MAX} ({a.interests.length} now). Activities, projects and events with the same interests find you, and you find them.</p>
+            <InterestPicker value={a.interests} onChange={(n) => setAcct('interests', n)} max={INTERESTS_MAX} />
+          </fieldset>
+          <fieldset className="pf-you-all">
+            <legend>Birthday</legend>
+            <p>
+              <strong>{me.birthday
+                ? new Date(`${me.birthday}T00:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+                : 'Not set'}</strong>{' '}
+              <span className="muted small">Only an admin can change it. Members never see your age or the year.</span>
+            </p>
+            <label className="check">
+              <input type="checkbox" checked={a.birthdayPublic} onChange={(e) => setAcct('birthdayPublic', e.target.checked)} />
+              Show a &ldquo;birthday today&rdquo; tag by my name on my day
+            </label>
           </fieldset>
         </div>
       )}

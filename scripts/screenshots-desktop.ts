@@ -150,13 +150,13 @@ try {
   await lap.keyboard.press('Escape');
   must(await lap.evaluate(() => !document.activeElement?.matches('textarea')), 'Esc did not leave the composer');
   await lap.keyboard.press('/');
-  await lap.waitForFunction(() => location.pathname === '/search');
+  await lap.waitForFunction(() => location.pathname === '/members'); // RFC §10.26: the one search box
   await lap.waitForFunction(() => document.activeElement?.matches('input[type=search]'));
   await lap.goto(`${WEB}/members`);
-  await lap.getByLabel('Find a member').waitFor();
+  await lap.getByLabel('Search people and posts').waitFor();
   await lap.locator('body').click({ position: { x: 5, y: 300 } });
   await lap.keyboard.press('/');
-  must(await lap.evaluate(() => document.activeElement?.getAttribute('aria-label')) === 'Find a member', '/ on Members did not go to its own search box');
+  must(await lap.evaluate(() => document.activeElement?.getAttribute('aria-label')) === 'Search people and posts', '/ on Members did not go to its own search box');
   // no window repeats its page: seats on Members, coming up on Collab (RFC §10.21)
   must(await lap.locator('.rail .seat-chart').count() === 0, 'the seats window is on the Members page');
   await lap.goto(`${WEB}/collab`);

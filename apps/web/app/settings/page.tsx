@@ -3,14 +3,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
-import { DISPLAY_NAME_MAX, GENDERS, GENDER_LABEL, INTERESTS_MAX, type Gender } from '@anti/shared';
-import { InterestPicker } from '@/components/Interests';
+import { DISPLAY_NAME_MAX, GENDERS, GENDER_LABEL, type Gender } from '@anti/shared';
 import { VerifiedBadge } from '@/components/Marks';
 import { ChoosePin } from '@/components/Pin';
 import { applyTheme } from '@/lib/theme';
-import { api, errorMessage, formatMoney, type InviteInfo, type Me, type PasskeyInfo, type PaymentRecord } from '@/lib/api';
+import { api, errorMessage, formatMoney, type Me, type PasskeyInfo, type PaymentRecord } from '@/lib/api';
 import { fmtDate, useMe, useTitle } from '@/lib/hooks';
-import { CopyButton, ErrorNote } from '@/components/ui';
+import { ErrorNote } from '@/components/ui';
 import { SeatedShell } from '@/components/Shell';
 import { PayButton } from '@/components/Billing';
 import { PushToggle } from '@/components/PushToggle';
@@ -35,33 +34,38 @@ export default function Settings() {
     <>
       <h1>Settings</h1>
       {/* one long window: a row of links that stays under the header on wide screens */}
+      {/*
+        RFC §10.26: what is about you (name, bio, face, interests, the birthday tag) is edited on your
+        profile, and inviting sits on Members beside the seats. Someone without a seat has no profile
+        page to go to, so their name and face stay here.
+      */}
+      {seated && (
+        <p className="muted">
+          Your name, bio, face, interests and birthday tag are on your profile: <Link href={`/u/${me.handle}?edit=1`}>Edit profile</Link>.
+          Invites are on <Link href="/members">Members</Link>.
+        </p>
+      )}
       <nav className="panel-index" aria-label="Sections">
-        <a href="#profile">Profile</a>
-        <a href="#face">Face</a>
+        {!seated && <a href="#profile">Profile</a>}
+        {!seated && <a href="#face">Face</a>}
         <a href="#look">Appearance</a>
         <a href="#feed">Feed</a>
-        <a href="#bday">Birthday</a>
-        <a href="#interests">Interests</a>
         {me.contactEnabled && <a href="#contact">Contact</a>}
         <a href="#pin">PIN</a>
         <a href="#pk">Passkeys</a>
         <a href="#push">Notifications</a>
-        {seated && <a href="#inv">Invites</a>}
         <a href="#pay">Payments</a>
         <a href="#dz">Account</a>
       </nav>
       <Win title="Control panel" className="panel" bodyClassName="panel-body">
-        <Profile me={me} onSaved={setMe} />
-        <Face me={me} onSaved={setMe} />
+        {!seated && <Profile me={me} onSaved={setMe} />}
+        {!seated && <Face me={me} onSaved={setMe} />}
         <AppearanceSec me={me} onSaved={setMe} />
         <FeedSec me={me} onSaved={setMe} />
-        <BirthdaySec me={me} onSaved={setMe} />
-        <InterestsSec me={me} onSaved={setMe} />
         <ContactSec me={me} onSaved={setMe} />
         <PinSec me={me} />
         <Passkeys />
         <PushToggle />
-        {seated && <Invites />}
         <Payments me={me} seated={seated} />
         <Danger me={me} onGone={() => { router.push('/'); router.refresh(); }} />
       </Win>
@@ -145,51 +149,6 @@ function Face({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
         </fieldset>
       </div>
       {msg && <p role="status" className="muted">{msg}</p>}
-      <ErrorNote message={err} />
-    </section>
-  );
-}
-
-/** Your birthday (members can't change it; admins can) and whether the "birthday today" tag shows. */
-function BirthdaySec({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
-  const [shown, setShown] = useState(me.birthdayPublic);
-  const [err, setErr] = useState<string | null>(null);
-  async function toggle(v: boolean) {
-    setShown(v); setErr(null);
-    try { onSaved(await api.updateMe({ birthdayPublic: v })); } catch (e) { setShown(!v); setErr(errorMessage(e)); }
-  }
-  const pretty = me.birthday
-    ? new Date(`${me.birthday}T00:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
-    : 'Not set';
-  return (
-    <section className="panel-sec" aria-labelledby="bday">
-      <h2 id="bday">Birthday</h2>
-      <p><strong>{pretty}</strong> <span className="muted small">Only an admin can change it.</span></p>
-      <label className="check">
-        <input type="checkbox" checked={shown} onChange={(e) => void toggle(e.target.checked)} />
-        Show a &ldquo;birthday today&rdquo; tag by my name on my day
-      </label>
-      <p className="muted small">Members never see your age or the year.</p>
-      <ErrorNote message={err} />
-    </section>
-  );
-}
-
-/** Interests (RFC §10.5): up to 10; collabs and events with the same tags find you. Saved as you tap. */
-function InterestsSec({ me, onSaved }: { me: Me; onSaved: (m: Me) => void }) {
-  const [picked, setPicked] = useState<string[]>(me.interests);
-  const [err, setErr] = useState<string | null>(null);
-  async function change(next: string[]) {
-    const before = picked;
-    setPicked(next); setErr(null);
-    try { const r = await api.setInterests(next); setPicked(r.interests); onSaved({ ...me, interests: r.interests }); }
-    catch (e) { setPicked(before); setErr(errorMessage(e)); }
-  }
-  return (
-    <section className="panel-sec" aria-labelledby="interests">
-      <h2 id="interests">Interests</h2>
-      <p className="muted small">Pick up to {INTERESTS_MAX} ({picked.length} now). Activities, projects and events with the same interests find you, and you find them.</p>
-      <InterestPicker value={picked} onChange={(n) => void change(n)} max={INTERESTS_MAX} />
       <ErrorNote message={err} />
     </section>
   );
@@ -329,48 +288,6 @@ function Passkeys() {
         <button className="btn" onClick={add}>Add passkey</button>
       </div>
       <ErrorNote message={err} />
-    </section>
-  );
-}
-
-function Invites() {
-  const [list, setList] = useState<InviteInfo[]>([]);
-  const [fresh, setFresh] = useState<{ code: string; expiresAt: string } | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const load = useCallback(async () => {
-    try { setList(await api.invites()); } catch (e) { setErr(errorMessage(e)); }
-  }, []);
-  useEffect(() => { void load(); }, [load]);
-
-  async function create() {
-    setErr(null);
-    try { setFresh(await api.createInvite()); await load(); } catch (e) { setErr(errorMessage(e)); }
-  }
-
-  return (
-    <section className="panel-sec" aria-labelledby="inv">
-      <h2 id="inv">Invites</h2>
-      {fresh && (
-        <div className="stack" role="status">
-          <p className="muted">Copy this code now. It is shown only once. Expires {fmtDate(fresh.expiresAt)}.</p>
-          <p className="code">{fresh.code}</p>
-          <div className="row"><CopyButton text={fresh.code} /><button className="btn" onClick={() => setFresh(null)}>Done</button></div>
-        </div>
-      )}
-      <div className="row"><button className="btn primary" onClick={create}>Create invite</button></div>
-      <ErrorNote message={err} />
-      {list.length === 0 ? <p className="muted">No invites yet.</p> : (
-        <ul className="list">
-          {list.map((i, n) => (
-            <li key={n}>
-              <span>Created {fmtDate(i.createdAt)}<br /><small className="muted">
-                {i.status === 'redeemed' ? `Used by @${i.redeemedBy?.handle ?? 'unknown'}` : i.status === 'open' ? `Expires ${fmtDate(i.expiresAt)}` : i.status}
-              </small></span>
-              <span className="muted">{i.status}</span>
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   );
 }

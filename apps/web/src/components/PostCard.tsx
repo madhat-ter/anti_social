@@ -11,6 +11,7 @@ import { NameMarks } from './Marks';
 import { AlertDialog, Dot } from './retro';
 import { ImageViewer } from './ImageViewer';
 import { TapePlayer } from './Tape';
+import { Composer } from './Composer';
 
 const URL_RE = /https?:\/\/[^\s<>"]+/g;
 /** RFC §10.16: @handles are linked only when the saved post says that member was mentioned. */
@@ -129,6 +130,9 @@ export function PostCard({
   /** a long post in a framed list shows a few lines until "Read more"; once open it stays open */
   const [opened, setOpened] = useState(false);
   const [overflows, setOverflows] = useState(false);
+  /** RFC §10.26: in a list, Reply opens the box under the post; you answer without leaving the list */
+  const [replying, setReplying] = useState(false);
+  const [replied, setReplied] = useState(false);
   const bodyRef = useRef<HTMLParagraphElement>(null);
   const mono = post.monologue ?? null;
   const shape = framed ? postShape(post.body, post.images.length, !!mono) : null;
@@ -174,6 +178,8 @@ export function PostCard({
 
   const threadHref = `/p/${post.rootId ?? post.id}`;
   const replyHref = post.rootId && post.rootId !== post.id ? `${threadHref}#${post.id}` : threadHref;
+  /** a post in a list (the feed, a profile, search); a thread page passes `variant` and has its own reply boxes */
+  const inPlace = !variant && !actions;
   const abs = fmtDate(post.createdAt);
 
   async function toggleLike() {
@@ -344,9 +350,23 @@ export function PostCard({
   const footNode = (
     <footer className="post-foot">
       {/* a zero is an invitation ("Reply"), not a count; on someone's first post, a welcome */}
-      <Link href={replyHref} className="foot-btn" aria-label={replyLabel}>
-        <span aria-hidden="true">↳ {replyLabel}</span>
-      </Link>
+      {inPlace ? (
+        <>
+          {/* RFC §10.26: the count opens the thread to read; Reply answers right here */}
+          {post.replyCount > 0 && (
+            <Link href={replyHref} className="foot-btn" aria-label={replyLabel}>
+              <span aria-hidden="true">↳ {replyLabel}</span>
+            </Link>
+          )}
+          <button type="button" className="foot-btn reply-btn" aria-expanded={replying} disabled={post.hidden} onClick={() => { setReplying((r) => !r); setReplied(false); }}>
+            {replying ? 'Cancel reply' : post.replyCount > 0 ? 'Reply' : <><span aria-hidden="true">↳ </span>{replyLabel}</>}
+          </button>
+        </>
+      ) : (
+        <Link href={replyHref} className="foot-btn" aria-label={replyLabel}>
+          <span aria-hidden="true">↳ {replyLabel}</span>
+        </Link>
+      )}
       <button
         type="button"
         className={`foot-btn like${post.likedByMe ? ' on' : ''}${stamp ? ' stamp' : ''}`}
@@ -364,6 +384,18 @@ export function PostCard({
     </footer>
   );
   const errNode = <ErrorNote message={err} />;
+  const replyNode = inPlace && (replying || replied) && (
+    <div className="reply-here">
+      {replying && (
+        <Composer
+          parentId={post.id} autoFocus
+          placeholder={post.author ? `Reply to @${post.author.handle}...` : undefined}
+          onCreated={() => { setReplying(false); setReplied(true); onChange({ ...post, replyCount: post.replyCount + 1 }); }}
+        />
+      )}
+      {replied && !replying && <p className="muted small" role="status">Reply sent. <Link href={threadHref}>See the thread</Link></p>}
+    </div>
+  );
 
   return (
     <article className={cls} id={id} aria-labelledby={`${uid}-h`}>
@@ -448,6 +480,7 @@ export function PostCard({
       {photoLed && bodyNode && <div className="caption">{bodyNode}</div>}
       {out && errNode}
       {out && footNode}
+      {replyNode}
 
       {post.images.length > 0 && (
         <ImageViewer

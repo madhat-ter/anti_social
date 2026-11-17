@@ -73,7 +73,7 @@ body {
  * every weight, so it is never synthesized; allowing synthesis on these reading-face elements only
  * thickens their Bangla characters, and the pixel chrome stays untouched.
  */
-h1, h2, .display, strong, b, .big, .name, .rail-name, .seat-name, .sheet-name, .event-title, .collab-title,
+h1, h2, .display, strong, b, .big, .name, .rail-name, .seat-name, .event-title, .collab-title,
 .pick-title, .pf-entry-title, .pf-item-title, .pf-headline, .notif.unread .notif-title, .day-h, .rules b, .hero-type,
 .rail-ev-title, .pj-head h1, .pj-panel h2, .pf-sec-h, .section-h {
   font-synthesis-weight: auto;
@@ -471,6 +471,14 @@ details > summary { cursor: pointer; font: 700 .95rem var(--font-ui); }
   border-top: 1.5px solid var(--ink);
 }
 .post.framed > .imgs + .post-foot { margin-top: 0; border-top: 0; }
+/* RFC §10.26: the reply box opens under the post it answers, inside the same card */
+.reply-here { grid-column: 1 / -1; margin-top: .7rem; }
+.reply-here .composer { margin: 0; box-shadow: none; }
+.reply-here > p { margin: 0; }
+.post.framed > .reply-here {
+  /* the strip above pulls itself 1rem into the card's foot; step back out of it first */
+  margin: 1rem calc(-1 * var(--card-px)) 0; padding: .85rem var(--card-px) 0; border-top: 1.5px solid var(--ink);
+}
 .post.framed > .error { grid-column: 1 / -1; }
 .post.framed.shape-short .body { font: 500 1.42rem/1.35 var(--font-text); letter-spacing: -.01em; margin-top: .35rem; }
 .post.framed .body.clamp { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
@@ -1153,6 +1161,11 @@ input[type=search]::-webkit-search-cancel-button {
 .pf-look fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .pf-look legend { font: 700 .95rem var(--font-ui); padding: 0; margin-bottom: .45rem; }
 .pf-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+/* RFC §10.26: your face, interests and birthday tag, edited on the profile (they were in Settings) */
+.pf-you .pf-you-wide { grid-column: span 2; }
+.pf-you .pf-you-all { grid-column: 1 / -1; }
+.pf-you fieldset > p { margin: 0 0 .5rem; }
+.pf-you .setup-choices + p { margin: .6rem 0 0; }
 .pf-chip {
   font: 400 .9rem/1.2 var(--font-ui); border: 2px solid var(--ink); padding: .3rem .6rem; cursor: pointer;
   display: inline-flex; align-items: center; gap: .45rem; background: var(--paper); color: var(--ink); flex-direction: row;
@@ -1306,10 +1319,11 @@ input[type=search]::-webkit-search-cancel-button {
 
 /* ─── the phone shell (under 900px) ────────────────────────────────────────
    The menu column becomes a bell in the sticky header and five tabs along the bottom
-   (PhoneBar.tsx); the drawers (profile, search, consultations, settings, admin) open in a sheet
-   from the fifth tab. The composer is one line until tapped, the checklist folds, and the pick
+   (PhoneBar.tsx); the fifth tab is your profile, and the drawers (Pet Corner, consultations,
+   settings, admin) are a row of links at its top (RFC §10.26; they used to open in a sheet).
+   The composer is one line until tapped, the checklist folds, and the pick
    window waits until after the third post: the first screen is posts. */
-.tabbar, .sheet, .sheet-back, .phone-only { display: none; }
+.tabbar, .me-links, .phone-only { display: none; }
 /* the pick window after the third post, wherever there is no side rail (under 1180px) */
 .interlude { padding: 1rem 0 .25rem; border-bottom: 1.5px solid var(--ink); }
 .interlude .feed-pick { margin: 0; }
@@ -1341,24 +1355,15 @@ input[type=search]::-webkit-search-cancel-button {
   .tb-face { position: relative; display: block; }
   .tb-face .badge { position: absolute; top: -.45rem; right: -.75rem; }
   .tb-you .avatar { width: 26px; height: 26px; }
-  .tb-you[aria-current=page] .avatar, .tb-you.on .avatar, .tb-you[aria-expanded=true] .avatar { color: var(--ink); }
+  .tb-you[aria-current=page] .avatar, .tb-you.on .avatar { color: var(--ink); }
 
-  /* the "you" sheet: a window that opens above the bar */
-  .sheet-back { display: block; position: fixed; inset: 0; z-index: 31; border: 0; padding: 0; background: var(--desktop); opacity: .35; cursor: default; }
-  .sheet { display: flex; flex-direction: column; gap: .75rem; position: fixed; left: .6rem; right: .6rem; bottom: calc(4.3rem + env(safe-area-inset-bottom, 0px)); z-index: 32; max-height: calc(100vh - 8rem); overflow: auto; }
-  .sheet.win { box-shadow: var(--shadow); }
-  .sheet-body { display: flex; flex-direction: column; gap: .75rem; padding: .9rem 1rem 1rem; }
-  .sheet-me { display: flex; gap: .75rem; align-items: center; text-decoration: none; color: var(--ink); }
-  .sheet-me > span { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
-  .sheet-name { font-weight: 700; }
-  .sheet-me[aria-current=page] .sheet-name { text-decoration: underline; text-decoration-color: var(--signal); text-underline-offset: 3px; }
-  .sheet-list { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); }
-  .sheet-list a { display: flex; align-items: center; gap: .6rem; padding: .7rem .35rem; border-bottom: 1.5px solid var(--ink); text-decoration: none; color: var(--ink); font: 400 1.05rem/1.2 var(--font-ui); }
-  .sheet-list li:last-child a { border-bottom: 0; }
-  .sheet-list a[aria-current=page] { background: var(--ink); color: var(--paper); }
-  .sheet-list .badge { margin-left: auto; }
-  .sheet > .win { box-shadow: var(--shadow); }
-  .sheet > .watch-strip { margin: 0; }
+  /* RFC §10.26: your drawers, a row of links at the top of your own profile */
+  .me-links { display: flex; flex-wrap: wrap; gap: .45rem; }
+  .me-links a {
+    display: inline-flex; align-items: center; gap: .45rem; min-height: 2.6rem; padding: .45rem .8rem;
+    border: 2px solid var(--ink); background: var(--paper); color: var(--ink); text-decoration: none;
+    font: 400 .95rem/1.2 var(--font-ui); box-shadow: var(--shadow-sm);
+  }
 
   /* the composer: one line until it is tapped or holds a draft */
   .composer.collapsible:not(.open) .win-body { padding-top: .75rem; padding-bottom: .75rem; cursor: text; }
@@ -1423,6 +1428,7 @@ input[type=search]::-webkit-search-cancel-button {
   .imgs.n1 img { max-height: 22rem; }
   .post.framed { --card-px: .85rem; padding-top: .85rem; padding-bottom: .85rem; }
   .post.framed > .post-foot { margin-bottom: -.85rem; }
+  .post.framed > .reply-here { margin-top: .85rem; }
   .post.framed > .imgs.n1 img { max-height: 28rem; }
   .post.framed.shape-short .body { font-size: 1.25rem; }
   .posts.cards { gap: .9rem; }
@@ -1439,6 +1445,7 @@ input[type=search]::-webkit-search-cancel-button {
   .pf-contents { grid-template-columns: 1fr; }
   .pf-item { grid-template-columns: 2.2rem 3.5rem minmax(0, 1fr); gap: .6rem; }
   .pf-look { grid-template-columns: 1fr; padding: 1rem; }
+  .pf-you .pf-you-wide { grid-column: auto; }
   .pf-coveredit { padding: .7rem 1rem; }
   .pf-cover { width: 3.5rem; height: 2.5rem; }
   .pf-start { margin: 0 1rem 1.2rem; }
@@ -1797,6 +1804,7 @@ label.label-row { flex-direction: row; align-items: baseline; gap: .4rem; }
 .post.tape-card > .caption .body { margin-top: .6rem; font-size: 1.02rem; }
 .post.tape-card > .post-foot { grid-column: 1 / -1; margin: .55rem 0 0; padding: .45rem 0 0; border-top: 1.5px solid var(--ink); }
 .post.tape-card > .error { grid-column: 1 / -1; }
+.post.tape-card > .reply-here { margin: .7rem 0 0; padding: 0; border-top: 0; }
 .post.tape-card.highlight { padding-left: .6rem; padding-right: .6rem; }
 
 /* ─── RFC §10.24, the File: a filing drawer of 12 pages ───────────────────────

@@ -22,6 +22,8 @@ export const CONSULT_EVENT = 'anti:consult';
 export function broadcastUnread(n: number) {
   window.dispatchEvent(new CustomEvent(UNREAD_EVENT, { detail: n }));
 }
+/** you changed your own name or face on your profile (RFC §10.26): the shell reads you again */
+export const ME_EVENT = 'anti:me';
 
 /** Wraps a page for seated members; redirects everyone else to '/'. */
 export function SeatedShell({ children, me: given }: { children: (me: Me) => ReactNode; me?: Me }) {
@@ -32,6 +34,12 @@ export function SeatedShell({ children, me: given }: { children: (me: Me) => Rea
   const seated = isSeated(me);
 
   const needsSetup = !!me?.setupNeeded;
+  const { refresh } = own;
+  useEffect(() => {
+    const again = () => { void refresh(); };
+    window.addEventListener(ME_EVENT, again);
+    return () => window.removeEventListener(ME_EVENT, again);
+  }, [refresh]);
   useEffect(() => {
     if (loading || own.error) return;
     if (!seated) router.replace('/');
@@ -103,7 +111,7 @@ function NavBar({ me }: { me: Me }) {
   useEffect(() => { setSlot(document.getElementById('top-actions')); }, []);
   const phone = (
     <>
-      <PhoneBar me={me} unread={unread} waiting={waiting} adult={adult} />
+      <PhoneBar me={me} waiting={waiting} adult={adult} />
       {/* RFC §10.24: the File button sits beside the bell */}
       {slot && createPortal(<><TopFile /><TopBell unread={unread} /></>, slot)}
     </>
@@ -118,8 +126,8 @@ function NavBar({ me }: { me: Me }) {
     // RFC §10.22
     { href: '/monologue', label: 'Monologue', match: (p) => p.startsWith('/monologue') },
     ...(adult ? [{ href: '/consultations', label: 'Consultations', match: (p: string) => p.startsWith('/consultations'), badge: waiting }] : []),
+    // RFC §10.26: search is the box on Members (people and posts); it is no longer a page of its own
     { href: '/members', label: 'Members', match: (p) => p === '/members' },
-    { href: '/search', label: 'Search', match: (p) => p === '/search' },
     // RFC §10.24: your File
     { href: '/file', label: 'File', match: (p: string) => p.startsWith('/file'), cls: 'nav-drawer nav-drawer-first' },
     { href: '/pets', label: 'Pet Corner', match: (p: string) => p.startsWith('/pets') || p.startsWith('/pet/'), cls: 'nav-drawer' },

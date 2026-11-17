@@ -130,9 +130,9 @@ try {
   await maya.goto(`${WEB}/search?q=coffee`); // deep link: exercises reading ?q= on load
   await maya.locator('.posts').getByText('Found a quiet café').waitFor();
   await shot(maya, 'search');
-  await maya.goto(`${WEB}/settings`);
-  await maya.getByRole('button', { name: 'Create invite' }).click();
-  await maya.getByRole('button', { name: 'Hide' }).waitFor();
+  await maya.goto(`${WEB}/members`); // RFC §10.26: inviting lives on Members
+  await maya.getByRole('button', { name: '+ Invite someone' }).click();
+  await maya.getByRole('button', { name: 'Done' }).waitFor();
   await shot(maya, 'settings-new-invite');
 
   // ── Phone width

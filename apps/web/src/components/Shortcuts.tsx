@@ -1,6 +1,6 @@
 'use client';
 /**
- * Keyboard shortcuts for wide screens (owner's call, 2026-11-09): N writes a post, / searches,
+ * Keyboard shortcuts for wide screens (owner's call, 2026-11-09): N writes a post, / searches (the box on Members),
  * J and K step through posts, Enter opens the one in focus, Esc leaves a text box, ? lists them.
  * RFC §10.22 adds the monologue keys (lib/tape.ts): Space plays or pauses, ← → jump 5 s, < > speed.
  * Keys do nothing while you type, with Ctrl/Cmd/Alt held, or while a dialog is open (dialogs have
@@ -13,7 +13,7 @@ import { tapeKey } from '@/lib/tape';
 
 const KEYS: [string, string][] = [
   ['N', 'Write a post'],
-  ['/', 'Search (or the search box on this page)'],
+  ['/', 'Search people and posts (or the search box on this page)'],
   ['J', 'Next post'],
   ['K', 'Previous post'],
   ['Enter', 'Open the post in focus'],
@@ -91,11 +91,11 @@ export function Shortcuts() {
         focusWhenThere('#compose textarea', '/');
       } else if (k === '/') {
         e.preventDefault();
-        // a page with its own search box (Members, Admin, Search): that one; elsewhere the Search page
+        // a page with its own search box (Members, Admin): that one; elsewhere the box on Members (RFC §10.26)
         const here = [...document.querySelectorAll<HTMLElement>('.shell-main input[type=search]')].find(onScreen);
         if (here) { here.focus(); return; }
-        router.push('/search');
-        focusWhenThere('.shell-main input[type=search]', '/search');
+        router.push('/members');
+        focusWhenThere('.shell-main input[type=search]', '/members');
       } else if (k === 'j' || k === 'J') { e.preventDefault(); step(1); }
       else if (k === 'k' || k === 'K') { e.preventDefault(); step(-1); }
       else if (k === 'Enter') {

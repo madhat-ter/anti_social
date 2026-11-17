@@ -177,7 +177,8 @@ try {
   // RFC §10.21: Events and Collabs are one place now
   await go('/collab', 'collab', () => lap.getByRole('heading', { name: /collab/i }).first().waitFor());
   await go('/collab/new', 'collab-start', () => lap.getByText('Activity').first().waitFor());
-  await go('/search', 'search', () => lap.locator('input[type=search]').first().waitFor());
+  // RFC §10.26: search is the box on Members (people and posts)
+  await go('/members?q=ridge', 'search', () => lap.locator('.posts article.post').first().waitFor());
   await go('/notifications', 'notifications', () => lap.locator('.notif-link').first().waitFor());
   await go('/settings', 'settings', () => lap.getByRole('heading', { name: /settings/i }).first().waitFor());
   await go('/admin', 'admin', () => lap.getByRole('heading', { name: /admin/i }).first().waitFor());
