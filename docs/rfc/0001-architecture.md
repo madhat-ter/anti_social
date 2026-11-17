@@ -1246,8 +1246,9 @@ Old `/events…` and `/collabs…` addresses forward permanently to the new page
 member from before opens Collab, a strip says "Events and Collabs are one place now"; closing it
 is saved to the account.
 
-**Starting something.** One **+ Start** button on the Collab page: three choices, then one short
-page. Only the basics show (Event: title, when, where, a few words; Activity: title, when you
+**Starting something.** One joined block of three buttons on the Collab page, **+ Event**,
+**+ Activity**, **+ Project**, each straight to its short page (§10.26; it was one **+ Start**
+button and a "what is it?" choice, which `/collab/new` still shows for old links). Only the basics show (Event: title, when, where, a few words; Activity: title, when you
 meet, a few words, interests; Project: title, what it is, who you're looking for, interests).
 Everything else is behind **one** "More options" fold, never a fold inside a fold, and every
 setting can be changed later.
@@ -1624,17 +1625,26 @@ is what every member sees. Nothing on the API changed: the profile's Save calls 
 in Settings. A code counts toward a member's open invites until it is used or runs out, so a
 mistaken tap holds one place for a while.
 
-**Still to ask the owner.** Making things starts from three doors (text on the Feed, recordings
-on Monologue, events on Collab, which also asks "what is it?" first). A Record button in the post
-box and direct start buttons on Collab would save a tap each, but the second changes §10.21's
-"one Start", so it waits for a yes.
+**Making things, one tap each** (the owner said "do all", 2026-11-17):
+
+7. **Record is in the feed's post box**, beside + Image, while nothing is written yet (once you are
+   writing, you are not recording). On phones it also sits at the right end of the closed one-line
+   box, so a monologue is one tap from the feed. It opens the recorder (`/monologue/new`); the
+   Monologue page keeps its own **+ Record**. On phones the empty "0/1500" counter is hidden, since
+   it said nothing and pushed Post onto a second line.
+8. **Collab starts each kind in one tap**: **+ Event**, **+ Activity**, **+ Project**, joined as one
+   block so it still reads as the page's one main action. The "what is it?" screen is skipped;
+   `/collab/new` without a kind still shows it, for old links. This replaces §10.21's single
+   **+ Start**.
 
 - *Code.* `PostCard.tsx` (`inPlace`, `.reply-here`), `Composer.tsx` (`autoFocus`), `PhoneBar.tsx`
   (`MeLinks`), `Shell.tsx` (`ME_EVENT`), `Portfolio.tsx` (the `Acct` draft), `app/members/page.tsx`
   (`Invite`, the search), `app/settings/page.tsx`, `next.config.ts` (the forward).
 - *Checks.* `scripts/screenshots-fewer-taps.ts` takes the same six jobs before and after, and in
   the "after" run sends a reply from the feed, saves a name, face and interest from the profile,
-  and follows the old `/search` address.
+  and follows the old `/search` address. `scripts/screenshots-make-shortcuts.ts` does the same for
+  7 and 8: Record from the closed phone box opens the recorder, and each Collab button opens its
+  own form.
 
 ## 11. API surface (Elysia)
 

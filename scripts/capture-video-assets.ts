@@ -160,7 +160,7 @@ try {
     await page.screenshot({ path: join(OUT, 'collab-screen.png') });
     const head = page.locator('.shell-main .row.between').first();
     await shot(head, 'collab-head');
-    meta.collabStart = await boxIn(page.getByRole('link', { name: '+ Start' }), head);
+    meta.collabStart = await boxIn(page.locator('.collab-start'), head);
     await page.goto(`${WEB}/collab/new`);
     await shot(page.locator('.start-choices').first(), 'start-choices');
     await page.goto(`${WEB}/collab/event/${ev.id}`);

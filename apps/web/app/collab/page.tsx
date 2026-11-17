@@ -56,9 +56,14 @@ function CollabHome({ me }: { me: Me }) {
 
   return (
     <>
-      <div className="row between">
+      <div className="row between collab-head">
         <h1>Collab</h1>
-        <Link className="btn primary" href="/collab/new">+ Start</Link>
+        {/* RFC §10.26: each kind starts in one tap; /collab/new (the "what is it?" choice) stays for old links */}
+        <nav className="collab-start" aria-label="Start something">
+          <Link className="btn primary" href="/collab/new?kind=event">+ Event</Link>
+          <Link className="btn primary" href="/collab/new?kind=activity">+ Activity</Link>
+          <Link className="btn primary" href="/collab/new?kind=project">+ Project</Link>
+        </nav>
       </div>
       <p className="muted">Events, activities and projects: a picnic on Saturday, a Sunday run club, a zine made together. Join one, or start your own.</p>
 

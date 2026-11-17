@@ -1,6 +1,6 @@
 /**
  * Starting something in Collab (RFC §10.21), clicked through the way a member does it:
- * Collab → + Start → Event / Activity / Project → fill in → create. Fails loudly if any of the
+ * Collab → + Event / + Activity / + Project (RFC §10.26) → fill in → create. Fails loudly if any of the
  * three does not end on its new page. Same stack as the other screenshot scripts:
  *   (apps/web)  $env:API_URL='http://localhost:3101'; $env:NEXT_DIST_DIR='.next-shots-prod'; bun run build; bunx next start -p 3100
  *   $env:SHOTS='before'; bun scripts/screenshots-collab-start.ts   # or without SHOTS for "after"
@@ -87,11 +87,10 @@ try {
   ];
 
   for (const k of kinds) {
-    // the way a member gets there: the Collab page, its Start button, then the choice
+    // the way a member gets there: the Collab page and its button for this kind (RFC §10.26: one tap, no choice screen)
     await page.goto(`${WEB}/collab`);
-    await page.getByRole('link', { name: '+ Start' }).click();
-    await page.waitForURL(/\/collab\/new$/);
-    await page.locator('.start-choice', { hasText: k.kind }).click();
+    await page.getByRole('link', { name: `+ ${k.kind}`, exact: true }).click();
+    await page.waitForURL(new RegExp(`/collab/new\\?kind=${k.kind.toLowerCase()}$`));
     const formUp = await page.getByLabel('Title').waitFor({ timeout: 5000 }).then(() => true, () => false);
     await shot(page, `${k.kind.toLowerCase()}-after-choosing`);
     if (!formUp) { problems.push(`${k.kind}: the form never appeared after choosing it (still at ${page.url()})`); continue; }

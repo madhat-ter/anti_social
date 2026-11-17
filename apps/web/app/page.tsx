@@ -164,6 +164,7 @@ function FeedView({ me, onPosted }: { me: Me; onPosted: () => void }) {
       <div id="compose">
         <Composer
           collapsible
+          record
           onCreated={(post) => {
             p.setItems((cur) => [post, ...cur.filter((x) => x.id !== post.id)]);
             fresh.forget(post.id);

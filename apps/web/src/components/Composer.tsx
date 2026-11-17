@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useEffect, useId, useRef, useState } from 'react';
 import { api, errorMessage, IMAGE_MAX_BYTES, IMAGES_MAX, POST_MAX, type Image, type PetLabel, type Post } from '@/lib/api';
 import { ErrorNote, why } from './ui';
@@ -24,7 +25,14 @@ export function Composer({
   submitLabel,
   collapsible = false,
   autoFocus = false,
+  record = false,
 }: {
+  /**
+   * RFC §10.26: the feed's box also starts a monologue. A Record button sits beside + Image while
+   * nothing is written, and on phones beside the closed one-line box too, so recording is one tap
+   * from the feed.
+   */
+  record?: boolean;
   /** the box takes the cursor as it appears (a reply box opened under a post, RFC §10.26) */
   autoFocus?: boolean;
   parentId?: string;
@@ -179,6 +187,12 @@ export function Composer({
           aria-describedby={`${id}-count`}
         />
         {men.list}
+        {/* phones, box closed: the only thing beside the one line (the bar below is hidden until it opens) */}
+        {record && collapsible && (
+          <Link href="/monologue/new" className="composer-rec-quick" aria-label="Record a monologue">
+            <span className="mono-dot" aria-hidden="true" /> Record
+          </Link>
+        )}
       </div>
       {atts.length > 0 && (
         <ul className="thumbs" aria-label="Attached images">
@@ -227,9 +241,15 @@ export function Composer({
         <label htmlFor={`${id}-file`} className={`btn attach${atts.length >= maxImages ? ' disabled' : ''}`} aria-disabled={atts.length >= maxImages} {...why(atts.length >= maxImages && (pet ? 'One picture per pet post' : `Up to ${maxImages} pictures`))}>
           + Image
         </label>
+        {/* only while nothing is written: once you are writing, you are not recording */}
+        {record && !body && atts.length === 0 && (
+          <Link href="/monologue/new" className="btn attach composer-rec">
+            <span className="mono-dot" aria-hidden="true" /> Record
+          </Link>
+        )}
         <span className="grow" />
         {savedDraft && body.trim() && <span className="counter" role="status">Draft saved</span>}
-        <span id={`${id}-count`} className={`counter${over ? ' over' : ''}`} aria-live="polite">
+        <span id={`${id}-count`} className={`counter${over ? ' over' : ''}${body.length === 0 ? ' empty' : ''}`} aria-live="polite">
           {body.length}/{POST_MAX}
         </span>
         <button className="btn primary" type="submit" disabled={!canPost} title={hasFailed ? 'Failed uploads are skipped' : 'Ctrl/Cmd+Enter'}>

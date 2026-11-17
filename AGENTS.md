@@ -41,9 +41,6 @@ landing page once (Kaan Pete Roi, 09612-119911) to be sure it answers, since its
 longer does; and decide the rules for members meeting in person if members are teenagers.
 "Ask for a seat" only shows on the live site if `CONTACT_KEY` is set on Render.
 
-One more waits on the **owner** after §10.26 (fewer taps): whether to add a Record button to the
-post box and direct start buttons on Collab (the second changes §10.21's "one Start").
-
 Monologues (§10.22) keep their recordings in the database for now, like images. When the owner
 makes a Cloudflare R2 bucket, set `STORAGE=r2` and `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
 `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` on Render (never in chat); old files keep being read from the
@@ -67,7 +64,7 @@ Vercel's proxy (a 5-minute recording made on the site is about 2.4 MB).
   under the post in any list. The phone's "You" tab is your profile (no sheet; its links are
   `MeLinks` on top of your own profile). The only search is the box on Members (`/search` forwards
   there). Name, bio, face, interests and the birthday tag are edited with **Edit profile**; inviting
-  is on Members. Don't add sections to Settings for things that have a page of their own, and count
+  is on Members. The feed's post box has Record (to the recorder) while it is empty. Don't add sections to Settings for things that have a page of their own, and count
   the taps on a phone before adding a screen.
 - **Light by default, always.** Dark mode is a choice in Settings only. Never read
   `prefers-color-scheme`. Every colour must be a CSS variable so `:root[data-theme="dark"]`
@@ -79,7 +76,8 @@ Vercel's proxy (a 5-minute recording made on the site is about 2.4 MB).
   `apps/api/src/lib/consultations.ts`.
 - **The header is the wordmark only**, plus, on phones, the File button and the bell (the owner
   asked for the File button there, §10.24). Ask before adding anything else to `.top`.
-- **Collab is one place** (§10.21): three kinds, one Start, one "More options" fold, one join
+- **Collab is one place** (§10.21): three kinds, one joined start block (+ Event / + Activity /
+  + Project, §10.26), one "More options" fold, one join
   button, one card. Events are pages inside it (`/collab/event/<id>`); never add Events or Collabs
   back as separate tabs, and keep the old addresses forwarding. An admin's **Remove** — in Admin →
   Collab, or in the collab's / event's ⋯ menu — is a wipe: the thing goes with its team or RSVPs,
