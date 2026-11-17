@@ -332,18 +332,3 @@ export const SEAT_REQUEST = {
   /** a request answered with an invite is erased this many days later */
   keepDays: 30,
 } as const;
-
-/**
- * RFC §10.25: the help line under the landing page's message, for someone who is in danger
- * tonight. anti is invite-only and nobody answers it at 3am, so the page must not leave that
- * person with nothing. Change it here and nowhere else; check the number by calling it.
- */
-export const HELPLINE = {
-  name: 'Kaan Pete Roi',
-  /** as printed */
-  phone: '09612-119911',
-  /** as dialled */
-  tel: '+8809612119911',
-  hours: 'every day, 3pm to 3am',
-  emergency: '999',
-} as const;

@@ -16,7 +16,6 @@ import { Checklist } from '@/components/Checklist';
 import { BirthdayLine } from '@/components/Birthday';
 import { PickWindow, RAIL_QUERY, useWide } from '@/components/Picks';
 import { PetFeedBlock } from '@/components/Pets';
-import { HELPLINE } from '@anti/shared';
 import { HelloIcon, Loading, Win } from '@/components/retro';
 import { SeatAsk } from '@/components/SeatAsk';
 import { NameMarks } from '@/components/Marks';
@@ -47,12 +46,6 @@ function Landing() {
           {/* two sentences that break between them, never inside one */}
           <p><span>We have each other.</span> <span>Some days, that&rsquo;s enough to stay.</span></p>
         </div>
-        {/* anti is invite-only and nobody answers it at 3am: someone in danger tonight needs a number that does */}
-        <p className="hero-help">
-          If tonight is the hard one, talk to someone now: <strong>{HELPLINE.name}</strong>,{' '}
-          <a href={`tel:${HELPLINE.tel}`}>{HELPLINE.phone}</a> ({HELPLINE.hours}). In an emergency, call{' '}
-          <a href={`tel:${HELPLINE.emergency}`}>{HELPLINE.emergency}</a>.
-        </p>
       </div>
 
       <div className="zoom">

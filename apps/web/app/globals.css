@@ -577,10 +577,6 @@ ul.events { list-style: none; margin: 0; padding: 0; display: flex; flex-directi
 .hero-say p { font-size: 1.4rem; line-height: 1.32; text-wrap: balance; }
 .hero-say p:last-child { font-weight: 700; }
 .hero-say p > span { display: inline-block; }
-/* the help line: quiet, but the one thing on the page with the signal colour beside it */
-.hero-help { font-size: .98rem; line-height: 1.5; color: var(--gray-strong); border-left: 3px solid var(--signal); padding-left: .8rem; }
-.hero-help strong { color: var(--ink); }
-.hero-help a { color: var(--ink); font-weight: 700; white-space: nowrap; }
 .hero-how { display: grid; gap: .9rem; font-size: 1rem; line-height: 1.5; color: var(--gray-strong); }
 .hero-how > p { max-width: 34rem; }
 .seat-ask-row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; }

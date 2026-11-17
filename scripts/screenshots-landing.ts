@@ -98,7 +98,8 @@ try {
 
   if (!BEFORE) {
     must(await out.page.getByText('Social Life').count() === 0, 'the delete joke is still on the page');
-    must(await out.page.getByText('09612-119911').count() > 0, 'the help line is missing');
+    // the help line was taken off on the owner's word (2026-11-17): Kaan Pete Roi did not answer
+    must(await out.page.getByText('Kaan Pete Roi').count() === 0, 'the help line is still on the page');
 
     // ── no invite and nobody inside: ask for a seat, right there
     await out.page.getByRole('button', { name: 'Ask for a seat' }).click();

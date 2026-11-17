@@ -36,9 +36,8 @@ One thing waits on the **live test site** and needs an admin, not a commit:
 the §10.18 migration paused every offer that was already live, so they are sitting in
 **Admin → Consulting** until someone approves each one.
 
-Two things wait on the **owner** after §10.25 (the landing page): ring the help line on the
-landing page once (Kaan Pete Roi, 09612-119911) to be sure it answers, since its own website no
-longer does; and decide the rules for members meeting in person if members are teenagers.
+One thing waits on the **owner** after §10.25 (the landing page): decide the rules for members
+meeting in person if members are teenagers.
 "Ask for a seat" only shows on the live site if `CONTACT_KEY` is set on Render.
 
 Monologues (§10.22) keep their recordings in the database for now, like images. When the owner
@@ -55,8 +54,9 @@ Vercel's proxy (a 5-minute recording made on the site is about 2.4 MB).
 - **The landing page speaks to someone who feels alone** (§10.25). anti is for fewer teenagers
   ending their lives. The 36-word message is the owner's; never write that the reader truly has
   no one (the owner's first draft did, and it was changed on purpose). No jokes about deleting or
-  ending things near it. The help line under it lives in one place (`HELPLINE` in
-  `packages/shared/src/rules.ts`); never remove it, and never put a number there from memory.
+  ending things near it. There is no help line under it: the owner had Kaan Pete Roi and 999
+  taken off on 2026-11-17 (Kaan Pete Roi did not answer). Don't add one back unless the owner
+  asks, and never put a number on the site from memory.
   **Ask for a seat** takes a request from someone with no account: only admins see it, the contact
   is sealed (`CONTACT_KEY`), the site sends them nothing, and "Not now" erases it.
 - **Fewest taps** (§10.26): an action sits where its thing lives, never in Settings because it is

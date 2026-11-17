@@ -1531,6 +1531,10 @@ Everything else on the page was brought into line with it. The owner's answers (
    3pm to 3am, and 999 for an emergency (Bangladesh). The number and hours were taken from
    LifeLine International's member page; the help line's own website no longer answers. **The
    owner should ring it once to be sure**, and whenever it changes, change it there.
+   *Removed 2026-11-17 on the owner's word:* Kaan Pete Roi was not working, and the owner asked
+   for the whole line to go, the 999 emergency number with it. `HELPLINE` no longer exists; the
+   page has no help line. Bring one back only if the owner asks, and only with a number that
+   answered when rung.
 3. **The "delete Social Life" joke is gone.** A warning triangle and the word "delete" do not
    belong under words meant for someone thinking of ending their life. The window now says
    "Welcome": "There's a seat here for you", with **Sign in** and **I have an invite**.

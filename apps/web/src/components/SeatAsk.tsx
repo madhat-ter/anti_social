@@ -64,7 +64,7 @@ export function SeatAsk() {
       <div className="hero-how">
         <p className="seat-ask-sent" role="status">
           <strong>Sent.</strong> A person will read it. There are only a hundred seats, so it can take a while; when one is
-          free, one of us will write to you. If tonight is hard, the number above is there now.
+          free, one of us will write to you.
         </p>
       </div>
     );
