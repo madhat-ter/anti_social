@@ -32,13 +32,14 @@ can time out under the full suite on a busy machine; they pass on their own.
 Nothing in the code waits on anyone. One Collab (RFC §10.21) is built: events, activities and
 projects live under `/collab`; the old `/events…` and `/collabs…` addresses forward permanently.
 
-One thing waits on the **live test site** and needs an admin, not a commit:
-the §10.18 migration paused every offer that was already live, so they are sitting in
-**Admin → Consulting** until someone approves each one.
+One thing waits on **tryanti.social** and needs an admin, not a commit:
+the §10.18 migration paused every offer that was already live (they moved over with the data), so
+they are sitting in **Admin → Consulting** until someone approves each one.
 
 One thing waits on the **owner** after §10.25 (the landing page): decide the rules for members
 meeting in person if members are teenagers.
-"Ask for a seat" only shows on the live site if `CONTACT_KEY` is set on Render.
+"Ask for a seat" and contact details only work on tryanti.social once the owner has pasted
+`CONTACT_KEY` (the same value as on Render) into the cPanel app's settings (§10.27).
 
 Monologues (§10.22) keep their recordings in the database for now, like images. When the owner
 makes a Cloudflare R2 bucket, set `STORAGE=r2` and `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
@@ -169,7 +170,9 @@ feature's own folder (e.g. `.screenshots/feed-types-before/`).
 - Owner's rule: **only cPanel** for the real site. One Node.js app is the whole site
   (`deploy/cpanel/server.mjs`); the database is **PGlite files** in `~/anti-data` (MySQL was
   turned down on purpose). Setup, updates, moving data in: `docs/deploy-cpanel.md`.
-- Build the upload with `bun scripts/build-cpanel.ts` (→ `.cpanel/anti-cpanel.zip`).
+- Deploy: `bun scripts/build-cpanel.ts --publish` (pushes the built site to branch `cpanel-site`),
+  then cPanel → Git Version Control → Update from Remote, Restart, open the site once.
+- `www.` and plain `http://` forward to `https://tryanti.social` (rules in `~/public_html/.htaccess`).
 - The API must keep running on **both Bun and Node**: no `Bun.*` outside `lib/password.ts` and the
   lazy R2 client; `apps/api/test/cpanel.test.ts` checks the Node paths.
 - Never let two processes open `~/anti-data/pg`. LiteSpeed starts extra web processes under load
