@@ -1747,6 +1747,17 @@ Told to the owner: "anti" alone is a dictionary word and "antisocial" searches a
 psychology term and a clothing brand, so expect to be found with a word added ("anti social
 community", "tryanti") long before the bare word.
 
+### 10.30 Push notifications on the cPanel site (added 2026-11-24)
+
+The real site had no VAPID keys, so push was off ("web push disabled"). The owner asked to turn it
+on. Instead of the owner pasting a private key into cPanel (and cPanel dropping its sessions), the
+keeper makes the key pair itself on its first start and keeps it in the data folder,
+`~/anti-data/vapid.json` (mode 600; updates never touch the folder). `VAPID_PUBLIC_KEY` /
+`VAPID_PRIVATE_KEY` in the settings still win if they are ever set. The subject push services see is
+`VAPID_SUBJECT`, else the site's address. Losing the file only means members switch push on again.
+Members turn it on per device in Settings, as before. Log line: `web push on (keys in the data
+folder, vapid.json)`.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops.

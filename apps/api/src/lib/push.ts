@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm';
 import { rows, type Db } from '@anti/db';
-import { sendNotification, WebPushError } from 'web-push';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { generateVAPIDKeys, sendNotification, WebPushError } from 'web-push';
 
 /**
  * Web Push (RFC §6, §12). Notifications rows are the source of truth; the `push` job fans out
@@ -52,10 +54,33 @@ export class MemoryPushSender implements PushSender {
   }
 }
 
-export function loadPushSender(env: Record<string, string | undefined> = process.env): PushSender {
-  const pub = env.VAPID_PUBLIC_KEY, priv = env.VAPID_PRIVATE_KEY;
+/**
+ * RFC §10.30: on the cPanel host the VAPID key pair lives in the data folder (`vapid.json`, readable
+ * by the site's account only), made on the first start, so no one types or pastes the private key.
+ * Only the keeper calls this, and it holds the database lock, so two copies never race to make it.
+ */
+export function vapidKeysInDir(dir: string): { publicKey: string; privateKey: string } {
+  const file = join(dir, 'vapid.json');
+  try {
+    const k = JSON.parse(readFileSync(file, 'utf8'));
+    if (typeof k.publicKey === 'string' && typeof k.privateKey === 'string') return { publicKey: k.publicKey, privateKey: k.privateKey };
+  } catch { /* none yet */ }
+  const k = generateVAPIDKeys();
+  writeFileSync(file, JSON.stringify(k), { mode: 0o600 });
+  return k;
+}
+
+/**
+ * Keys from the settings (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY) win; without them, a data folder's
+ * own pair (cPanel); without either, push is off. The subject is who push services can contact:
+ * VAPID_SUBJECT, else the site's https address.
+ */
+export function loadPushSender(env: Record<string, string | undefined> = process.env, dataDir?: string): PushSender {
+  let pub = env.VAPID_PUBLIC_KEY, priv = env.VAPID_PRIVATE_KEY;
+  if ((!pub || !priv) && dataDir) ({ publicKey: pub, privateKey: priv } = vapidKeysInDir(dataDir));
   if (!pub || !priv) return new NoPushSender();
-  return new WebPushSender(pub, priv, env.VAPID_SUBJECT ?? 'mailto:ops@localhost');
+  const subject = env.VAPID_SUBJECT ?? (env.WEB_ORIGIN?.startsWith('https://') ? env.WEB_ORIGIN : 'mailto:ops@localhost');
+  return new WebPushSender(pub, priv, subject);
 }
 
 type Row = {

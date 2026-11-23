@@ -12,7 +12,7 @@ import { openLocalDb } from '@anti/db';
 import { loadConfig, loadPaymentProvider } from './config';
 import { createApp } from './app';
 import { startScheduler } from './lib/jobs';
-import { loadPushSender } from './lib/push';
+import { loadPushSender, type PushSender } from './lib/push';
 import { loadStorage } from './lib/storage';
 import { bootstrapInvites, bootstrapOps, bootstrapPinReset } from './lib/bootstrap';
 import { importFileIfPresent } from './lib/transfer';
@@ -139,12 +139,18 @@ export async function startEmbeddedApi(env: Record<string, string | undefined> =
 
     const storage = loadStorage(db, env);
     const payments = loadPaymentProvider(cfg);
-    const push = loadPushSender();
+    // RFC §10.30: with no VAPID_* settings, the data folder's own key pair (made once, never pasted)
+    const ownKeys = !(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY);
+    let push: PushSender;
+    try { push = loadPushSender(env, dataDir); } catch (e) {
+      console.error('web push keys could not be read or made, push stays off:', e);
+      push = loadPushSender({});
+    }
     const app = createApp({ db, cfg, storage, payments, push });
     const stopJobs = env.JOBS === 'off' ? () => {} : startScheduler(db, { storage, payments, push });
     const stopBackups = startBackups(join(dataDir, 'backups'), opened.backup);
     if (payments.kind === 'fake') console.log('FAKE payments: nobody is charged');
-    if (!push.publicKey) console.log('web push disabled (no VAPID keys)');
+    console.log(push.publicKey ? `web push on (${ownKeys ? 'keys in the data folder, vapid.json' : 'keys from the settings'})` : 'web push disabled (no VAPID keys)');
 
     let closed = false;
     return {
