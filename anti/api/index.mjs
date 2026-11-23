@@ -69545,21 +69545,36 @@ var alive = (pid) => {
     return e.code === "EPERM";
   }
 };
-async function lock2(file) {
+async function lock2(file, build) {
+  let asked = false;
   for (let i = 0;i < 120; i++) {
     try {
-      writeFileSync(file, String(process.pid), { flag: "wx" });
-      return () => rmSync(file, { force: true });
+      writeFileSync(file, `${process.pid} ${build}`, { flag: "wx" });
+      return () => {
+        try {
+          if (Number(readFileSync2(file, "utf8").split(" ")[0]) === process.pid)
+            rmSync(file, { force: true });
+        } catch {}
+      };
     } catch (e) {
       if (e.code !== "EEXIST")
         throw e;
-      const pid = Number(readFileSync2(file, "utf8"));
+      const [pidText = "", ...rest] = readFileSync2(file, "utf8").trim().split(" ");
+      const pid = Number(pidText);
+      const theirs = rest.join(" ");
       if (!pid || pid === process.pid || !alive(pid)) {
         rmSync(file, { force: true });
         continue;
       }
-      if (i === 0)
-        console.log(`db lock held by pid ${pid}; waiting`);
+      if (!asked) {
+        console.log(`db lock held by pid ${pid} (${theirs || "an older build"}); asking it to stop`);
+        try {
+          process.kill(pid, "SIGTERM");
+        } catch (err) {
+          console.error("could not signal it:", String(err));
+        }
+        asked = true;
+      }
       await sleep(500);
     }
   }
@@ -69601,7 +69616,7 @@ async function startEmbeddedApi(env = process.env) {
     throw new Error("ANTI_DATA_DIR is not set (the folder for the database files)");
   mkdirSync(dataDir, { recursive: true });
   const cfg = loadConfig(env);
-  const unlock = await lock2(join3(dataDir, "db.lock"));
+  const unlock = await lock2(join3(dataDir, "db.lock"), (env.ANTI_BUILD ?? "dev").replace(/\s+/g, "_"));
   let closeDb;
   try {
     const t0 = Date.now();
@@ -69646,5 +69661,6 @@ async function startEmbeddedApi(env = process.env) {
   }
 }
 export {
+  lock2 as lock,
   startEmbeddedApi
 };

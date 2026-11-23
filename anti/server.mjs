@@ -41,7 +41,8 @@ for (const level of ['log', 'error', 'warn']) {
   console[level] = (...args) => { orig(...args); toFile(level === 'log' ? 'info' : level, args); };
 }
 
-// --- the API (opens the database; refuses to start if another copy holds it) ---
+// --- the API (opens the database; an older build holding it is asked to stop, see embedded.ts) ---
+process.env.ANTI_BUILD = readFileSync(join(here, 'BUILD.txt'), 'utf8').trim();
 const { startEmbeddedApi } = await import('./api/index.mjs');
 const api = await startEmbeddedApi(process.env);
 
