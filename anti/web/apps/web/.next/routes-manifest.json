@@ -318,6 +318,12 @@
       "namedRegex": "^/join(?:/)?$"
     },
     {
+      "page": "/llms.txt",
+      "regex": "^/llms\\.txt(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/llms\\.txt(?:/)?$"
+    },
+    {
       "page": "/login",
       "regex": "^/login(?:/)?$",
       "routeKeys": {},
@@ -348,6 +354,12 @@
       "namedRegex": "^/notifications(?:/)?$"
     },
     {
+      "page": "/opengraph-image",
+      "regex": "^/opengraph\\-image(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/opengraph\\-image(?:/)?$"
+    },
+    {
       "page": "/pets",
       "regex": "^/pets(?:/)?$",
       "routeKeys": {},
@@ -360,6 +372,12 @@
       "namedRegex": "^/recover(?:/)?$"
     },
     {
+      "page": "/robots.txt",
+      "regex": "^/robots\\.txt(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/robots\\.txt(?:/)?$"
+    },
+    {
       "page": "/settings",
       "regex": "^/settings(?:/)?$",
       "routeKeys": {},
@@ -370,6 +388,18 @@
       "regex": "^/setup(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/setup(?:/)?$"
+    },
+    {
+      "page": "/sitemap.xml",
+      "regex": "^/sitemap\\.xml(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/sitemap\\.xml(?:/)?$"
+    },
+    {
+      "page": "/twitter-image",
+      "regex": "^/twitter\\-image(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/twitter\\-image(?:/)?$"
     }
   ],
   "dataRoutes": [],

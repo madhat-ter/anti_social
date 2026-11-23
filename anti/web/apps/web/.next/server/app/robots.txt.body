@@ -1,0 +1,24 @@
+User-Agent: Googlebot
+User-Agent: Bingbot
+User-Agent: Google-Extended
+User-Agent: GPTBot
+User-Agent: OAI-SearchBot
+User-Agent: ChatGPT-User
+User-Agent: ClaudeBot
+User-Agent: Claude-SearchBot
+User-Agent: Claude-User
+User-Agent: PerplexityBot
+User-Agent: Perplexity-User
+User-Agent: Applebot
+User-Agent: Applebot-Extended
+Allow: /
+Disallow: /api/
+Disallow: /dev/
+
+User-Agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dev/
+
+Host: https://tryanti.social
+Sitemap: https://tryanti.social/sitemap.xml
