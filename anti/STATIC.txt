@@ -1,4 +1,5 @@
 chunks/0-p1ehuwr_jla.js
+chunks/08ftzg4zy9t-f.js
 chunks/0af68a72-bovw.js
 chunks/0az2el-lertd8.js
 chunks/0cz1d0mv5g_q7.js
@@ -23,7 +24,6 @@ chunks/1pv6rs7e_wpz4.js
 chunks/1pxhyup57rhql.js
 chunks/1xghyb_9n060r.js
 chunks/2-icgn16p1-db.js
-chunks/238rvxtxr19t0.js
 chunks/25u_tg-zrdk3n.js
 chunks/25xd-k2gklfnz.js
 chunks/2690-jslzsb-7.js
@@ -55,9 +55,9 @@ chunks/40nosi9s_aajv.css
 chunks/40_2bi846v4u3.js
 chunks/455a5cbku3o-g.js
 chunks/turbopack-077hmtqrhcoji.js
-ECJ8CXJ_nKHIMtxuJ0qw2/_buildManifest.js
-ECJ8CXJ_nKHIMtxuJ0qw2/_clientMiddlewareManifest.js
-ECJ8CXJ_nKHIMtxuJ0qw2/_ssgManifest.js
+klPG6AHfRSW0U1YuHGJXI/_buildManifest.js
+klPG6AHfRSW0U1YuHGJXI/_clientMiddlewareManifest.js
+klPG6AHfRSW0U1YuHGJXI/_ssgManifest.js
 media/068feab4deafcd0f-s.0_kz_z3o_slvt.woff2
 media/0f14e6261c926999-s.2fn-jnm04-2y0.woff2
 media/28a8b9a4052d87b2-s.1gnj6s0gjygsa.woff2
