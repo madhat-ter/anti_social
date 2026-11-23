@@ -7,7 +7,9 @@
  * What's inside (unzipped into the Node.js app's folder in cPanel):
  *   app.cjs            the startup file cPanel runs; it loads anti/server.mjs
  *   package.json       tiny, so cPanel's Node.js page is happy (no packages to install)
- *   anti/server.mjs    one server: /api/… to the API, everything else to Next.js
+ *   anti/server.mjs    a web copy: pages from Next.js, /api/… passed to the keeper
+ *   anti/keeper.mjs    the one process that owns the database (started by a web copy)
+ *   anti/common.mjs    shared by both
  *   anti/web/…         Next.js "standalone" build (its own node_modules, plain files)
  *   anti/api/…         the API bundled into one file + PGlite and sharp built for Linux
  *   anti/drizzle, anti/sql   migrations and SQL functions, applied on every start
@@ -80,7 +82,7 @@ const apiDeps = { '@electric-sql/pglite': version('@electric-sql/pglite'), sharp
 writeFileSync(join(anti, 'api/package.json'), JSON.stringify({ name: 'anti-api', private: true, type: 'module', dependencies: apiDeps }, null, 2));
 run('npm', ['install', '--omit=dev', '--no-package-lock', '--no-audit', '--no-fund', '--os=linux', '--cpu=x64', '--libc=glibc'], join(anti, 'api'));
 
-cpSync(join(ROOT, 'deploy/cpanel/server.mjs'), join(anti, 'server.mjs'));
+for (const f of ['server.mjs', 'keeper.mjs', 'common.mjs']) cpSync(join(ROOT, 'deploy/cpanel', f), join(anti, f));
 cpSync(join(ROOT, 'deploy/cpanel/app.cjs'), join(PKG, 'app.cjs'));
 const commit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim();
 const dirty = execFileSync('git', ['status', '--porcelain'], { cwd: ROOT, encoding: 'utf8' }).trim() ? '+changes' : '';

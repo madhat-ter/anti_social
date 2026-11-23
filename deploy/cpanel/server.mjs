@@ -1,50 +1,68 @@
 /**
- * The whole site as one Node.js process, for cPanel hosting (docs/deploy-cpanel.md).
+ * A web copy of the site, for cPanel hosting (docs/deploy-cpanel.md). LiteSpeed starts as many of
+ * these as it likes and ends them when it likes. None of them touch the database:
  *
- *   /api/…        → the API (apps/api/src/embedded.ts, bundled into api/index.mjs), with "/api" taken off
+ *   /api/…          → the keeper (keeper.mjs), over a local socket, with "/api" taken off
  *   everything else → Next.js (the standalone build in web/)
  *
- * cPanel's web server (LiteSpeed) hands this process its requests through the one server it is
- * allowed to listen() with. Plain JavaScript: it runs as is, nothing compiles it.
+ * If there is no keeper, or it is older than this copy (build or settings), this copy starts one.
+ * Plain JavaScript: it runs as is, nothing compiles it.
  */
-import { createServer } from 'node:http';
+import { spawn } from 'node:child_process';
+import { request as httpRequest, createServer } from 'node:http';
+import { connect } from 'node:net';
+import { closeSync, openSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync } from 'node:fs';
-import { inspect } from 'node:util';
-import { dirname, join } from 'node:path';
-import { Readable } from 'node:stream';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+import { BUILD, LOCK_FILE, SOCKET, STARTING_FILE, here, settingsHash, setupLog } from './common.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
+setupLog('web');
 const webDir = join(here, 'web/apps/web');
 const MAX_BODY_BYTES = 30 * 1024 * 1024; // same cap as the Bun API (index.ts)
 const started = Date.now();
-const upFor = () => `${Math.round((Date.now() - started) / 60_000)} min`;
+const me = { build: BUILD, settings: settingsHash(), started };
+const { outranks, readHolder } = await import('./api/index.mjs');
 
-process.env.NODE_ENV = 'production';
-process.env.ANTI_DATA_DIR ??= join(process.env.HOME ?? here, 'anti-data');
+// --- the keeper ---
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const answers = () => new Promise((ok) => {
+  const s = connect(SOCKET);
+  s.once('connect', () => { s.destroy(); ok(true); });
+  s.once('error', () => ok(false));
+  s.setTimeout(2000, () => { s.destroy(); ok(false); });
+});
 
-// The host keeps no log of its own that cPanel shows, so every line also goes to
-// ~/anti-data/logs/app.log (2 MB, then it becomes app.log.1). Read it in File Manager.
-const logDir = join(process.env.ANTI_DATA_DIR, 'logs');
-const logFile = join(logDir, 'app.log');
-mkdirSync(logDir, { recursive: true });
-const toFile = (level, args) => {
+/** Starts a keeper unless one is already starting (a marker file, so a burst starts only one). */
+function startKeeper(why) {
+  const marker = STARTING_FILE;
   try {
-    if (existsSync(logFile) && statSync(logFile).size > 2_000_000) renameSync(logFile, `${logFile}.1`);
-    const text = args.map((a) => (typeof a === 'string' ? a : a instanceof Error ? a.stack : inspect(a, { depth: 4 }))).join(' ');
-    appendFileSync(logFile, `${new Date().toISOString()} ${level} ${text}\n`);
-  } catch { /* never let logging break the site */ }
-};
-for (const level of ['log', 'error', 'warn']) {
-  const orig = console[level].bind(console);
-  console[level] = (...args) => { orig(...args); toFile(level === 'log' ? 'info' : level, args); };
+    if (Date.now() - statSync(marker).mtimeMs < 45_000) return; // someone else is on it
+    rmSync(marker, { force: true });
+  } catch { /* no marker */ }
+  try { closeSync(openSync(marker, 'wx')); } catch { return; }
+  console.log(`starting a keeper: ${why}`);
+  const child = spawn(process.execPath, [join(here, 'keeper.mjs')], {
+    detached: true, stdio: 'ignore', cwd: here,
+    env: { ...process.env, ANTI_STARTED: String(started) },
+  });
+  child.on('error', (e) => console.error('could not start the keeper:', e));
+  child.unref();
 }
 
-// --- the API (opens the database; an older build holding it is asked to stop, see embedded.ts) ---
-process.env.ANTI_BUILD = readFileSync(join(here, 'BUILD.txt'), 'utf8').trim();
-const { startEmbeddedApi } = await import('./api/index.mjs');
-const api = await startEmbeddedApi(process.env);
+/** Makes sure a keeper as new as this copy is answering (waits up to 90 s). */
+async function ensureKeeper() {
+  const holder = readHolder(LOCK_FILE);
+  if (!holder) startKeeper('none running');
+  else if (outranks(me, holder)) startKeeper(`it is older (${holder.build ?? 'an older build'})`);
+  for (let i = 0; i < 180; i++) {
+    const h = readHolder(LOCK_FILE);
+    if (h && !outranks(me, h) && (await answers())) return true;
+    if (!h && i > 0 && i % 20 === 0) startKeeper('still none running');
+    await sleep(500);
+  }
+  return false;
+}
+let ready = ensureKeeper();
 
 // --- Next.js, started the way its standalone server.js does ---
 const { config } = JSON.parse(readFileSync(join(webDir, '.next/required-server-files.json'), 'utf8'));
@@ -57,9 +75,9 @@ await nextApp.prepare();
 const nextHandle = nextApp.getRequestHandler();
 
 /**
- * The visitor's address. The web server in front adds it as the LAST X-Forwarded-For entry;
- * anything before that is whatever the visitor sent, so it is never believed. The API then
- * reads exactly one clean entry (TRUST_PROXY=true).
+ * The visitor's address. LiteSpeed adds it as the LAST X-Forwarded-For entry (checked on the
+ * host: socket 127.0.0.1, X-Forwarded-For = the visitor); anything before it is whatever the
+ * visitor sent, so it is never believed. The API then reads exactly one clean entry.
  */
 function clientIp(req) {
   const xff = req.headers['x-forwarded-for'];
@@ -67,25 +85,31 @@ function clientIp(req) {
   return last || req.socket.remoteAddress || 'unknown';
 }
 
-let ipLogged = !process.env.DEBUG_IP;
 function json(res, status, body) {
+  if (res.headersSent) return res.destroy();
   res.writeHead(status, { 'content-type': 'application/json', 'x-content-type-options': 'nosniff' });
   res.end(JSON.stringify(body));
 }
 
+/** One try at the keeper. Resolves false when it can't be reached (nothing was sent back yet). */
+function forward(req, res, headers, body) {
+  return new Promise((done) => {
+    const path = req.url.slice('/api'.length) || '/';
+    const up = httpRequest({ socketPath: SOCKET, method: req.method, path: path.startsWith('/') ? path : `/${path}`, headers }, (r) => {
+      res.writeHead(r.statusCode ?? 502, r.headers);
+      r.pipe(res);
+      r.on('end', () => done(true));
+      r.on('error', () => { res.destroy(); done(true); });
+    });
+    up.on('error', () => done(false));
+    up.setTimeout(120_000, () => up.destroy());
+    up.end(body);
+  });
+}
+
 async function toApi(req, res) {
-  if (!ipLogged) {
-    ipLogged = true;
-    console.log('ip check:', { xff: req.headers['x-forwarded-for'] ?? null, realIp: req.headers['x-real-ip'] ?? null, socket: req.socket.remoteAddress ?? null });
-  }
   if (Number(req.headers['content-length'] ?? 0) > MAX_BODY_BYTES) return json(res, 413, { error: 'too_large' });
-  const headers = new Headers();
-  for (const [k, v] of Object.entries(req.headers)) {
-    if (v == null || k === 'x-forwarded-for' || k.startsWith(':')) continue;
-    if (Array.isArray(v)) v.forEach((x) => headers.append(k, x));
-    else headers.set(k, v);
-  }
-  headers.set('x-forwarded-for', clientIp(req));
+  const headers = { ...req.headers, 'x-forwarded-for': clientIp(req) };
   let body;
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     const chunks = [];
@@ -96,17 +120,15 @@ async function toApi(req, res) {
       chunks.push(c);
     }
     body = Buffer.concat(chunks);
+    headers['content-length'] = String(body.length);
+    delete headers['transfer-encoding'];
   }
-  const path = req.url.slice('/api'.length) || '/';
-  const host = req.headers.host ?? 'localhost';
-  const response = await api.handle(new Request(`https://${host}${path.startsWith('/') ? path : `/${path}`}`, { method: req.method, headers, body }));
-  const out = {};
-  response.headers.forEach((v, k) => { if (k !== 'set-cookie') out[k] = v; });
-  const cookies = response.headers.getSetCookie();
-  if (cookies.length) out['set-cookie'] = cookies;
-  res.writeHead(response.status, out);
-  if (!response.body || req.method === 'HEAD') return res.end();
-  Readable.fromWeb(response.body).on('error', () => res.destroy()).pipe(res);
+  await ready;
+  if (await forward(req, res, headers, body)) return;
+  // the keeper went away (stopped for a newer one, or the host ended it): find or start one, try once more
+  ready = ensureKeeper();
+  if ((await ready) && (await forward(req, res, headers, body))) return;
+  json(res, 503, { error: 'unavailable' });
 }
 
 const server = createServer((req, res) => {
@@ -114,32 +136,12 @@ const server = createServer((req, res) => {
   const work = url === '/api' || url.startsWith('/api/') || url.startsWith('/api?') ? toApi(req, res) : nextHandle(req, res);
   Promise.resolve(work).catch((e) => {
     console.error('request failed:', req.method, url.split('?')[0], e);
-    if (!res.headersSent) json(res, 500, { error: 'internal_error' });
-    else res.destroy();
+    json(res, 500, { error: 'internal_error' });
   });
 });
 server.requestTimeout = 120_000;
-server.listen(port, () => console.log(`anti listening (${readFileSync(join(here, 'BUILD.txt'), 'utf8').trim()})`));
+server.listen(port, () => console.log(`web listening (${BUILD})`));
 
-// The host may stop an idle app; a visit to itself now and then keeps the jobs (push, cleanup) running.
-const self = process.env.SELF_URL;
-if (self) {
-  setInterval(() => {
-    fetch(`${self.replace(/\/$/, '')}/api/health`, { signal: AbortSignal.timeout(20_000) }).catch((e) =>
-      console.error('keep-awake visit failed:', String(e)));
-  }, 45_000).unref();
-}
-
-let stopping = false;
-async function stop(why, code) {
-  if (stopping) return;
-  stopping = true;
-  console.log(`anti stopping: ${why} after ${upFor()}`);
-  server.close();
-  await api.close().catch((e) => console.error('closing the database failed:', e));
-  process.exit(code);
-}
-process.on('SIGTERM', () => void stop('SIGTERM', 0));
-process.on('SIGINT', () => void stop('SIGINT', 0));
-process.on('SIGHUP', () => void stop('SIGHUP', 0));
-process.on('uncaughtException', (e) => { console.error('anti crashed:', e); void stop('crash', 1); });
+process.on('SIGTERM', () => process.exit(0));
+process.on('SIGINT', () => process.exit(0));
+process.on('uncaughtException', (e) => { console.error('web copy crashed:', e); process.exit(1); });

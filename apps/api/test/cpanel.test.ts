@@ -8,7 +8,7 @@ import { createTestDb } from '@anti/db/testing';
 import { openLocalDb } from '@anti/db';
 import { wasmHash, wasmVerify } from '../src/lib/password';
 import { exportLines, importFileIfPresent, importFiles, importLines } from '../src/lib/transfer';
-import { lock, startEmbeddedApi } from '../src/embedded';
+import { lock, Outranked, outranks, readHolder, startEmbeddedApi } from '../src/embedded';
 import { createApp } from '../src/app';
 import { MemoryStorage } from '../src/lib/storage';
 import { FakeStripeProvider } from '../src/lib/payments';
@@ -124,25 +124,56 @@ describe('moving the site', () => {
   }, 60_000);
 });
 
-describe('one copy at a time', () => {
-  test('a newer copy asks the one holding the database to stop, then takes it', async () => {
-    const dir = tempDir();
-    const file = join(dir, 'db.lock');
-    // the "old copy": holds the lock, lets go of it when asked to stop
-    const old = Bun.spawn(['bun', '-e', `
+describe('one keeper of the database', () => {
+  const OLD = 'built 2026-11-23T11:00:00.000Z from aaaaaaa for https://tryanti.social';
+  const NEW = 'built 2026-11-23T12:00:00.000Z from bbbbbbb for https://tryanti.social';
+
+  test('who replaces whom: a newer build, or new settings started later; never backwards', () => {
+    const keeper = { build: NEW, settings: 's1', started: 1000 };
+    expect(outranks({ build: NEW, settings: 's1', started: 2000 }, keeper)).toBe(false); // same kind: no fight
+    expect(outranks({ build: OLD, settings: 's1', started: 9000 }, keeper)).toBe(false); // older build: never
+    expect(outranks({ build: NEW, settings: 's2', started: 2000 }, keeper)).toBe(true);  // settings saved later
+    expect(outranks({ build: NEW, settings: 's2', started: 500 }, keeper)).toBe(false);  // an old copy with old settings
+    expect(outranks({ build: NEW, settings: 's1', started: 1 }, { build: OLD, settings: 's1', started: 9999 })).toBe(true);
+    expect(outranks({ build: OLD, settings: 's1', started: 1 }, null)).toBe(true);        // free, or an older lock format
+    expect(outranks({ build: OLD, settings: 's1', started: 1 }, { started: 5 })).toBe(true);
+  });
+
+  async function holdLock(file: string, content: string) {
+    const holder = Bun.spawn(['bun', '-e', `
       const fs = require('node:fs');
-      fs.writeFileSync(${JSON.stringify(file)}, process.pid + ' old-build');
+      fs.writeFileSync(${JSON.stringify(file)}, ${JSON.stringify(content)}.replace('PID', process.pid));
       process.on('SIGTERM', () => { fs.rmSync(${JSON.stringify(file)}, { force: true }); process.exit(0); });
       setInterval(() => {}, 1000);`]);
     for (let i = 0; i < 50 && !existsSync(file); i++) await Bun.sleep(100);
     expect(existsSync(file)).toBe(true);
+    return holder;
+  }
+
+  test('a newer keeper asks the one holding the database to stop, then takes it', async () => {
+    const file = join(tempDir(), 'db.lock');
+    const old = await holdLock(file, 'PID built_2026-11-23T12:02:57.902Z_from_5bb5806'); // the format before keepers
+    const me = { build: NEW, settings: 's1', started: Date.now() };
     const t0 = Date.now();
-    const unlock = await lock(file, 'new-build');
+    const unlock = await lock(file, me);
     expect(Date.now() - t0).toBeLessThan(30_000);
     await old.exited;
-    expect((await Bun.file(file).text()).startsWith(`${process.pid} new-build`)).toBe(true);
+    expect(JSON.parse(await Bun.file(file).text())).toEqual({ pid: process.pid, ...me });
+    expect(readHolder(file)?.pid).toBe(process.pid);
     unlock();
     expect(existsSync(file)).toBe(false);
+  }, 60_000);
+
+  test('a keeper that is not newer leaves the database alone', async () => {
+    const file = join(tempDir(), 'db.lock');
+    const current = await holdLock(file, JSON.stringify({ pid: 'PID', build: NEW, settings: 's1', started: 1000 }).replace('"PID"', 'PID'));
+    try {
+      await expect(lock(file, { build: NEW, settings: 's1', started: 5000 })).rejects.toBeInstanceOf(Outranked);
+      expect(readHolder(file)?.pid).toBe(current.pid); // still the holder, never signalled
+    } finally {
+      current.kill();
+      await current.exited;
+    }
   }, 60_000);
 });
 

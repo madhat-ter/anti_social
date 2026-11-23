@@ -172,7 +172,10 @@ feature's own folder (e.g. `.screenshots/feed-types-before/`).
 - Build the upload with `bun scripts/build-cpanel.ts` (→ `.cpanel/anti-cpanel.zip`).
 - The API must keep running on **both Bun and Node**: no `Bun.*` outside `lib/password.ts` and the
   lazy R2 client; `apps/api/test/cpanel.test.ts` checks the Node paths.
-- Never let two processes open `~/anti-data/pg` (the lock in `embedded.ts`).
+- Never let two processes open `~/anti-data/pg`. LiteSpeed starts extra web processes under load
+  and never ends old ones, so only the **keeper** (`deploy/cpanel/keeper.mjs`) opens it; web
+  copies pass `/api/…` to it. Lock rules: `outranks()` in `embedded.ts`.
+- The app's log is `~/anti-data/logs/app.log` (readable with cPanel's File Manager API).
 
 ## The live test site
 

@@ -1665,9 +1665,11 @@ The owner bought **tryanti.social** (Spaceship) and cPanel hosting (CloudLinux, 
 
 How it is built (`docs/deploy-cpanel.md`):
 
-- **One Node.js process** is the whole site (`deploy/cpanel/server.mjs`): `/api/…` goes to the API
-  (`apps/api/src/embedded.ts`, bundled for Node), the rest to Next.js (standalone build). One app in
-  cPanel, one address, one owner of the database. A lock file keeps a second copy from opening it.
+- **One Node.js app in cPanel, one keeper of the database.** LiteSpeed runs the app in as many
+  processes as it likes and never ends old ones, so the web copies (`deploy/cpanel/server.mjs`:
+  Next.js pages, `/api/…` passed on) never open the database. One detached **keeper**
+  (`keeper.mjs`, running `apps/api/src/embedded.ts`) does: the API, the jobs, the backups. A newer
+  build or new settings replace it; nothing older ever replaces something newer.
 - **The API runs on Bun and on Node.** PINs and recovery codes use Bun.password on Bun and the same
   argon2id in WebAssembly (`hash-wasm`) on Node, so a hash made by either checks on the other.
 - **Moving the data needs no database address**: an admin downloads `/ops/export` from the old site
@@ -1678,8 +1680,8 @@ How it is built (`docs/deploy-cpanel.md`):
 - `scripts/build-cpanel.ts` makes the upload, `.cpanel/anti-cpanel.zip`, on Windows for Linux.
 
 **Known and accepted.** Passkeys belong to an address, so passkeys made on the test site don't work
-on tryanti.social; members sign in with handle + PIN and can add a passkey again. The host may
-stop an idle app; the site visits itself every 45 s (`SELF_URL`) so the jobs keep running.
+on tryanti.social; members sign in with handle + PIN and can add a passkey again. If the host
+ends the keeper, the jobs pause until the next visit starts a new one (about 2 s).
 
 ## 11. API surface (Elysia)
 
