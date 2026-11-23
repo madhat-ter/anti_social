@@ -95,7 +95,12 @@ here is capped at 10 MB, and the owner's connection changes address, which ends 
 
 ## Updating the site
 
-`bun scripts/build-cpanel.ts --publish`, then in cPanel: Git Version Control → anti-app → Manage →
+The build keeps the previous build's static files (css/js) beside the new ones (`anti/STATIC.txt`
+lists each build's own), because an old web copy LiteSpeed leaves running still links them; on
+2026-11-23 every page lost its CSS until the old copy was ended. If restarts stop starting new
+copies, the owner ends them as root in WHM → Terminal: `pkill -TERM -u tryanti -f 'lsnode|anti-app/'`.
+
+`bun scripts/build-cpanel.ts --publish` (add `--no-push` to only stage it in `.cpanel/site-repo`), then in cPanel: Git Version Control → anti-app → Manage →
 Pull or Deploy → **Update from Remote**, then **Restart** in Setup Node.js App and open the site once:
 the first new web copy starts a new keeper, which takes over (log: `starting a keeper: it is
 older`, then `asking it to stop`, `keeper ready`). Migrations run when the keeper opens the

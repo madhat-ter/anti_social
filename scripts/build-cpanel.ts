@@ -3,6 +3,8 @@
  *
  *   bun scripts/build-cpanel.ts            # site address defaults to https://tryanti.social
  *   SITE=https://example.org bun scripts/build-cpanel.ts
+ *   bun scripts/build-cpanel.ts --publish             # and push it to the cpanel-site branch
+ *   bun scripts/build-cpanel.ts --publish --no-push   # stage it in .cpanel/site-repo only, to look
  *
  * What's inside (unzipped into the Node.js app's folder in cPanel):
  *   app.cjs            the startup file cPanel runs; it loads anti/server.mjs
@@ -18,7 +20,7 @@
  * "isolated" node_modules (links); Next.js copies those as links that only work on this PC, so the
  * build runs in a copy of the repo (.cpanel/src) installed with plain folders ("hoisted").
  */
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 
@@ -116,8 +118,41 @@ if (process.argv.includes('--publish')) {
   const remoteHas = spawnSync('git', ['ls-remote', '--exit-code', '--heads', 'origin', BRANCH], { cwd: repo }).status === 0;
   if (remoteHas) { git('fetch', '-q', 'origin', BRANCH); git('checkout', '-q', '-B', BRANCH, `origin/${BRANCH}`); }
   else git('checkout', '-q', '--orphan', BRANCH);
+
+  // The previous build's own static files (css/js, named by their contents) stay beside the new
+  // ones. LiteSpeed can keep an old web copy running after an update, and the pages it serves
+  // still link those files: on 2026-11-23 every page lost its CSS until the old copy was ended.
+  // Only one build back is kept (anti/STATIC.txt lists a build's own files), so nothing piles up.
+  const STATIC_DIR = 'anti/web/apps/web/.next/static';
+  const STATIC_LIST = 'anti/STATIC.txt';
+  const filesIn = (dir: string) => !existsSync(dir) ? [] : (readdirSync(dir, { recursive: true }) as string[])
+    .map((f) => f.replaceAll('\\', '/'))
+    .filter((f) => statSync(join(dir, f)).isFile());
+  const before = join(OUT, 'static-before');
+  rmSync(before, { recursive: true, force: true, maxRetries: 3 });
+  const listed = join(repo, STATIC_LIST);
+  const prevOwn = existsSync(listed) ? readFileSync(listed, 'utf8').split('\n').filter(Boolean) : filesIn(join(repo, STATIC_DIR));
+  for (const f of prevOwn) {
+    const from = join(repo, STATIC_DIR, f);
+    if (!existsSync(from)) continue;
+    mkdirSync(dirname(join(before, f)), { recursive: true });
+    cpSync(from, join(before, f));
+  }
+
   for (const f of ['app.cjs', 'package.json', 'anti', 'apps', 'README.md']) rmSync(join(repo, f), { recursive: true, force: true, maxRetries: 3 });
   for (const f of ['app.cjs', 'package.json', 'anti']) cpSync(join(PKG, f), join(repo, f), { recursive: true });
+
+  writeFileSync(listed, filesIn(join(repo, STATIC_DIR)).join('\n') + '\n');
+  let kept = 0;
+  for (const f of filesIn(before)) {
+    const to = join(repo, STATIC_DIR, f);
+    if (existsSync(to)) continue;
+    mkdirSync(dirname(to), { recursive: true });
+    cpSync(join(before, f), to);
+    kept++;
+  }
+  rmSync(before, { recursive: true, force: true, maxRetries: 3 });
+  console.log(`kept ${kept} static files of the previous build beside the new ones`);
   // Vercel builds every branch from apps/web: tell it there is nothing to build here
   mkdirSync(join(repo, 'apps/web'), { recursive: true });
   writeFileSync(join(repo, 'apps/web/vercel.json'), JSON.stringify({ ignoreCommand: 'exit 0', git: { deploymentEnabled: false } }, null, 2));
@@ -125,7 +160,11 @@ if (process.argv.includes('--publish')) {
   writeFileSync(join(repo, '.gitattributes'), '* -text\n');
   git('add', '-A');
   if (spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: repo }).status === 0) console.log('cpanel-site: nothing changed');
-  else {
+  else if (process.argv.includes('--no-push')) {
+    // a dry run: the change is staged in .cpanel/site-repo for a look, nothing is committed or pushed
+    run('git', ['diff', '--cached', '--stat'], repo);
+    console.log(`--no-push: staged in ${repo}, not committed`);
+  } else {
     // the message goes through a file: with shell on Windows, -m "a b" arrives as separate words
     const msg = join(OUT, 'site-commit.txt');
     writeFileSync(msg, `Site build: ${readFileSync(join(anti, 'BUILD.txt'), 'utf8').trim()}\n`);
