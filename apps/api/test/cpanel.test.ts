@@ -7,7 +7,7 @@ import { sql } from 'drizzle-orm';
 import { createTestDb } from '@anti/db/testing';
 import { openLocalDb } from '@anti/db';
 import { wasmHash, wasmVerify } from '../src/lib/password';
-import { exportLines, importLines } from '../src/lib/transfer';
+import { exportLines, importFileIfPresent, importFiles, importLines } from '../src/lib/transfer';
 import { startEmbeddedApi } from '../src/embedded';
 import { createApp } from '../src/app';
 import { MemoryStorage } from '../src/lib/storage';
@@ -121,6 +121,26 @@ describe('moving the site', () => {
     } finally {
       delete process.env.ALLOW_EXPORT;
     }
+  }, 60_000);
+});
+
+describe('an import cut into pieces', () => {
+  test('parts are found in number order and load like the whole file', async () => {
+    const { w } = await filledSite();
+    const dir = tempDir();
+    const { gzipSync } = await import('node:zlib');
+    const whole = gzipSync((await collect(exportLines(w.t.db))).join(''));
+    // 11 pieces, cut at odd byte offsets, so .part10 and .part11 must come after .part9
+    const size = Math.ceil(whole.length / 11);
+    for (let i = 0; i < 11; i++) await Bun.write(join(dir, `import.ndjson.gz.part${i + 1}`), whole.subarray(i * size, (i + 1) * size));
+    expect(importFiles(join(dir, 'import.ndjson.gz')).map((f) => f.split(/[\\/]/).pop())).toEqual(
+      Array.from({ length: 11 }, (_, i) => `import.ndjson.gz.part${i + 1}`));
+    const b = await createTestDb();
+    expect(await importFileIfPresent(b.db, join(dir, 'import.ndjson.gz'), () => {})).toBe(true);
+    const [n] = await rowsOf(b.db, sql`select count(*)::int as n from users`);
+    expect(n.n).toBe(2);
+    expect(importFiles(join(dir, 'import.ndjson.gz'))).toEqual([]); // renamed: never twice
+    await b.close();
   }, 60_000);
 });
 

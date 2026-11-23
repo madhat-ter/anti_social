@@ -11,8 +11,10 @@
  * jsonb and bytea (as \x… hex) come back exactly. Members' contact details stay sealed: the new
  * site needs the same CONTACT_KEY to open them.
  */
-import { createReadStream } from 'node:fs';
+import { createReadStream, existsSync, readdirSync } from 'node:fs';
 import { rename } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
+import { Readable } from 'node:stream';
 import { createInterface } from 'node:readline';
 import { createGunzip } from 'node:zlib';
 import { sql } from 'drizzle-orm';
@@ -132,26 +134,38 @@ export async function importLines(db: Db, lines: AsyncIterable<string>): Promise
   return counts;
 }
 
-/** On start: if `file` exists and the site is empty, load it, then rename it so it runs once. */
+/**
+ * The file, or its pieces `<file>.part1`, `.part2`, … (cut byte by byte, for uploads with a size
+ * cap), in order. Empty when there is nothing to load.
+ */
+export function importFiles(file: string): string[] {
+  if (existsSync(file)) return [file];
+  const dir = dirname(file);
+  const base = basename(file);
+  let names: string[];
+  try { names = readdirSync(dir); } catch { return []; }
+  return names
+    .map((n) => ({ n, i: n.startsWith(`${base}.part`) ? Number(n.slice(base.length + 5)) : NaN }))
+    .filter((x) => Number.isInteger(x.i) && x.i > 0)
+    .sort((a, b) => a.i - b.i)
+    .map((x) => join(dir, x.n));
+}
+
+/** On start: if the file (or its parts) is there and the site is empty, load it, then rename it so it runs once. */
 export async function importFileIfPresent(db: Db, file: string, log: (s: string) => void = console.log): Promise<boolean> {
-  let stream;
-  try {
-    stream = createReadStream(file);
-    await new Promise<void>((ok, fail) => { stream!.once('open', () => ok()); stream!.once('error', fail); });
-  } catch (e) {
-    if ((e as { code?: string }).code === 'ENOENT') return false;
-    throw e;
-  }
+  const files = importFiles(file);
+  if (!files.length) return false;
   const members = Number(await scalar(db, sql`select count(*) from users`));
   if (members > 0) {
-    stream.destroy();
-    log(`import: ${file} is there but the site already has ${members} members; not loading it`);
+    log(`import: ${files.join(', ')} is there but the site already has ${members} members; not loading it`);
     return false;
   }
-  log(`import: loading ${file}`);
-  const lines = createInterface({ input: stream.pipe(createGunzip()), crlfDelay: Infinity });
+  log(`import: loading ${files.join(' + ')}`);
+  const bytes = Readable.from((async function* () { for (const f of files) yield* createReadStream(f); })());
+  const lines = createInterface({ input: bytes.pipe(createGunzip()), crlfDelay: Infinity });
   const counts = await importLines(db, lines);
-  await rename(file, `${file}.done-${Date.now()}`);
+  const stamp = Date.now();
+  for (const f of files) await rename(f, `${f}.done-${stamp}`);
   log(`import: done, ${Object.entries(counts).map(([t, n]) => `${t} ${n}`).join(', ')}`);
   return true;
 }

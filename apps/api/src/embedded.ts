@@ -88,7 +88,8 @@ export async function startEmbeddedApi(env: Record<string, string | undefined> =
     closeDb = opened.close;
     const { db } = opened;
     console.log(`database open in ${Date.now() - t0} ms`);
-    await importFileIfPresent(db, join(dataDir, 'import.ndjson.gz'));
+    // a bad file must not keep the site from starting: it stays put (nothing was changed) for a look
+    await importFileIfPresent(db, join(dataDir, 'import.ndjson.gz')).catch((e) => console.error('import failed, nothing loaded:', e));
     if (env.BOOTSTRAP_INVITES) await bootstrapInvites(db, Number(env.BOOTSTRAP_INVITES));
     if (env.OPS_HANDLES) await bootstrapOps(db, env.OPS_HANDLES);
     if (env.PIN_RESET_HANDLE) await bootstrapPinReset(db, env.PIN_RESET_HANDLE);
