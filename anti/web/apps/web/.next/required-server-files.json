@@ -355,6 +355,17 @@
     },
     "_originalRedirects": [
       {
+        "source": "/:path*",
+        "has": [
+          {
+            "type": "host",
+            "value": "anti-social-opal.vercel.app"
+          }
+        ],
+        "destination": "https://tryanti.social/:path*",
+        "permanent": false
+      },
+      {
         "source": "/events/new",
         "destination": "/collab/new?kind=event",
         "permanent": true

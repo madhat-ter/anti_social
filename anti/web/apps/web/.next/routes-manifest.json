@@ -14,6 +14,18 @@
       "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
     },
     {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "anti-social-opal.vercel.app"
+        }
+      ],
+      "destination": "https://tryanti.social/:path*",
+      "statusCode": 307,
+      "regex": "^(?!/_next)(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))?(?:/)?$"
+    },
+    {
       "source": "/events/new",
       "destination": "/collab/new?kind=event",
       "statusCode": 308,
