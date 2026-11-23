@@ -69545,31 +69545,59 @@ var alive = (pid) => {
     return e.code === "EPERM";
   }
 };
-async function lock2(file, build) {
+var buildTime = (build) => (build.match(/\d{4}-\d\d-\d\dT[\d:.]+Z/) ?? [""])[0];
+function outranks(me, holder) {
+  if (!holder?.build)
+    return true;
+  const a = buildTime(me.build);
+  const b = buildTime(holder.build);
+  if (a !== b)
+    return a > b;
+  return me.settings !== holder.settings && me.started > (holder.started ?? 0);
+}
+function readHolder(file) {
+  let text;
+  try {
+    text = readFileSync2(file, "utf8").trim();
+  } catch {
+    return null;
+  }
+  let h;
+  try {
+    h = JSON.parse(text);
+  } catch {
+    h = { pid: Number(text.split(" ")[0]) };
+  }
+  return h.pid && alive(h.pid) ? h : null;
+}
+
+class Outranked extends Error {
+}
+async function lock2(file, me) {
   let asked = false;
   for (let i = 0;i < 120; i++) {
     try {
-      writeFileSync(file, `${process.pid} ${build}`, { flag: "wx" });
+      writeFileSync(file, JSON.stringify({ pid: process.pid, ...me }), { flag: "wx" });
       return () => {
         try {
-          if (Number(readFileSync2(file, "utf8").split(" ")[0]) === process.pid)
+          if (JSON.parse(readFileSync2(file, "utf8")).pid === process.pid)
             rmSync(file, { force: true });
         } catch {}
       };
     } catch (e) {
       if (e.code !== "EEXIST")
         throw e;
-      const [pidText = "", ...rest] = readFileSync2(file, "utf8").trim().split(" ");
-      const pid = Number(pidText);
-      const theirs = rest.join(" ");
-      if (!pid || pid === process.pid || !alive(pid)) {
+      const holder = readHolder(file);
+      if (!holder || holder.pid === process.pid) {
         rmSync(file, { force: true });
         continue;
       }
       if (!asked) {
-        console.log(`db lock held by pid ${pid} (${theirs || "an older build"}); asking it to stop`);
+        if (!outranks(me, holder))
+          throw new Outranked(`the database is held by pid ${holder.pid}, which is as new as this copy`);
+        console.log(`db lock held by pid ${holder.pid} (${holder.build ?? "an older build"}); asking it to stop`);
         try {
-          process.kill(pid, "SIGTERM");
+          process.kill(holder.pid, "SIGTERM");
         } catch (err) {
           console.error("could not signal it:", String(err));
         }
@@ -69616,7 +69644,8 @@ async function startEmbeddedApi(env = process.env) {
     throw new Error("ANTI_DATA_DIR is not set (the folder for the database files)");
   mkdirSync(dataDir, { recursive: true });
   const cfg = loadConfig(env);
-  const unlock = await lock2(join3(dataDir, "db.lock"), (env.ANTI_BUILD ?? "dev").replace(/\s+/g, "_"));
+  const me = { build: env.ANTI_BUILD ?? "dev", settings: env.ANTI_SETTINGS ?? "", started: Number(env.ANTI_STARTED) || Date.now() };
+  const unlock = await lock2(join3(dataDir, "db.lock"), me);
   let closeDb;
   try {
     const t0 = Date.now();
@@ -69661,6 +69690,9 @@ async function startEmbeddedApi(env = process.env) {
   }
 }
 export {
+  Outranked,
   lock2 as lock,
+  outranks,
+  readHolder,
   startEmbeddedApi
 };
