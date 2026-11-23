@@ -8,7 +8,7 @@ import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import Home, { Landing } from './home';
 import { HomeJsonLd } from '@/components/HomeJsonLd';
-import { HOME_DESCRIPTION, HOME_TITLE, SITE_NAME, SITE_URL } from '@/lib/about';
+import { BRAND_NAME, HOME_DESCRIPTION, HOME_TITLE, SITE_URL } from '@/lib/about';
 
 export const metadata: Metadata = {
   title: { absolute: HOME_TITLE },
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/' },
   // the one page meant to be found: everything else is noindex (layout.tsx)
   robots: { index: true, follow: true },
-  openGraph: { type: 'website', url: SITE_URL, siteName: SITE_NAME, title: HOME_TITLE, description: HOME_DESCRIPTION, locale: 'en' },
+  openGraph: { type: 'website', url: SITE_URL, siteName: BRAND_NAME, title: HOME_TITLE, description: HOME_DESCRIPTION, locale: 'en' },
   twitter: { card: 'summary_large_image', title: HOME_TITLE, description: HOME_DESCRIPTION },
 };
 

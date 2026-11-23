@@ -1739,6 +1739,14 @@ other page (members' pages are behind sign-in; share pages `/f/<handle>` stay ou
 `sitemap.xml` lists `/`; `opengraph-image` / `twitter-image` are the share picture. An IndexNow key
 file sits in `public/`.
 
+**The name search engines learn is "Anti Social"** (owner, same day: people should find it when
+they search "anti" or "antisocial"). It is what the landing headline says. The title, the WebSite /
+Organization / WebApplication names and the share picture say Anti Social; `alternateName` lists
+anti, antisocial, anti-social, tryanti and tryanti.social. Inside the app the wordmark stays "anti".
+Told to the owner: "anti" alone is a dictionary word and "antisocial" searches are mostly about the
+psychology term and a clothing brand, so expect to be found with a word added ("anti social
+community", "tryanti") long before the bare word.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops.

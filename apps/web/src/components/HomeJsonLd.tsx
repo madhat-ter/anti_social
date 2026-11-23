@@ -1,4 +1,4 @@
-import { ABOUT_LINES, FAQ, HOME_DESCRIPTION, SITE_NAME, SITE_URL } from '@/lib/about';
+import { ABOUT_LINES, BRAND_ALIASES, BRAND_NAME, FAQ, HOME_DESCRIPTION, SITE_URL } from '@/lib/about';
 
 /**
  * RFC §10.29: Schema.org structured data for the landing page (JSON-LD). It is data, not a script
@@ -13,7 +13,8 @@ export function homeJsonLd() {
       {
         '@type': 'Organization',
         '@id': org,
-        name: SITE_NAME,
+        name: BRAND_NAME,
+        alternateName: BRAND_ALIASES,
         url: SITE_URL,
         logo: `${SITE_URL}/opengraph-image`,
         description: ABOUT_LINES[0],
@@ -22,8 +23,9 @@ export function homeJsonLd() {
         '@type': 'WebSite',
         '@id': `${SITE_URL}/#website`,
         url: SITE_URL,
-        name: SITE_NAME,
-        alternateName: 'tryanti.social',
+        // Google takes the site name shown in results from here
+        name: BRAND_NAME,
+        alternateName: BRAND_ALIASES,
         description: HOME_DESCRIPTION,
         inLanguage: 'en',
         publisher: { '@id': org },
@@ -31,7 +33,8 @@ export function homeJsonLd() {
       {
         '@type': 'WebApplication',
         '@id': `${SITE_URL}/#app`,
-        name: SITE_NAME,
+        name: BRAND_NAME,
+        alternateName: BRAND_ALIASES,
         url: SITE_URL,
         description: ABOUT_LINES.join(' '),
         applicationCategory: 'SocialNetworkingApplication',

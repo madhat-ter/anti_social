@@ -6,7 +6,7 @@ import { ABOUT_LINES, FAQ, HOME_DESCRIPTION, SITE_URL } from '@/lib/about';
  */
 export function GET() {
   const text = [
-    '# anti',
+    '# anti (Anti Social)',
     '',
     `> ${HOME_DESCRIPTION}`,
     '',
