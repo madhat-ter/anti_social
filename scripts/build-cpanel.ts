@@ -105,6 +105,11 @@ if (process.argv.includes('--publish')) {
     mkdirSync(repo, { recursive: true });
     run('git', ['init', '-q'], repo);
     git('remote', 'add', 'origin', origin);
+    // the same author as the main repo (whose identity may be set only there)
+    for (const k of ['user.name', 'user.email']) {
+      const v = spawnSync('git', ['config', k], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
+      if (v) execFileSync('git', ['config', k, v], { cwd: repo });
+    }
   }
   const remoteHas = spawnSync('git', ['ls-remote', '--exit-code', '--heads', 'origin', BRANCH], { cwd: repo }).status === 0;
   if (remoteHas) { git('fetch', '-q', 'origin', BRANCH); git('checkout', '-q', '-B', BRANCH, `origin/${BRANCH}`); }
@@ -119,7 +124,10 @@ if (process.argv.includes('--publish')) {
   git('add', '-A');
   if (spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: repo }).status === 0) console.log('cpanel-site: nothing changed');
   else {
-    git('commit', '-q', '-m', `Site build: ${readFileSync(join(anti, 'BUILD.txt'), 'utf8').trim()}`);
+    // the message goes through a file: with shell on Windows, -m "a b" arrives as separate words
+    const msg = join(OUT, 'site-commit.txt');
+    writeFileSync(msg, `Site build: ${readFileSync(join(anti, 'BUILD.txt'), 'utf8').trim()}\n`);
+    git('commit', '-q', '-F', msg);
     git('push', '-q', 'origin', `${BRANCH}:${BRANCH}`);
     console.log(`pushed ${BRANCH}`);
   }
