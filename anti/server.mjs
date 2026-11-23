@@ -9,7 +9,8 @@
  */
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync } from 'node:fs';
+import { inspect } from 'node:util';
 import { dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +23,23 @@ const upFor = () => `${Math.round((Date.now() - started) / 60_000)} min`;
 
 process.env.NODE_ENV = 'production';
 process.env.ANTI_DATA_DIR ??= join(process.env.HOME ?? here, 'anti-data');
+
+// The host keeps no log of its own that cPanel shows, so every line also goes to
+// ~/anti-data/logs/app.log (2 MB, then it becomes app.log.1). Read it in File Manager.
+const logDir = join(process.env.ANTI_DATA_DIR, 'logs');
+const logFile = join(logDir, 'app.log');
+mkdirSync(logDir, { recursive: true });
+const toFile = (level, args) => {
+  try {
+    if (existsSync(logFile) && statSync(logFile).size > 2_000_000) renameSync(logFile, `${logFile}.1`);
+    const text = args.map((a) => (typeof a === 'string' ? a : a instanceof Error ? a.stack : inspect(a, { depth: 4 }))).join(' ');
+    appendFileSync(logFile, `${new Date().toISOString()} ${level} ${text}\n`);
+  } catch { /* never let logging break the site */ }
+};
+for (const level of ['log', 'error', 'warn']) {
+  const orig = console[level].bind(console);
+  console[level] = (...args) => { orig(...args); toFile(level === 'log' ? 'info' : level, args); };
+}
 
 // --- the API (opens the database; refuses to start if another copy holds it) ---
 const { startEmbeddedApi } = await import('./api/index.mjs');
