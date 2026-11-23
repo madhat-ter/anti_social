@@ -20,6 +20,7 @@ import { HelloIcon, Loading, Win } from '@/components/retro';
 import { SeatAsk } from '@/components/SeatAsk';
 import { NameMarks } from '@/components/Marks';
 import { About } from '@/components/About';
+import { PushAsk } from '@/components/PushAsk';
 
 /** One face per seat. The whole network fits on one screen. */
 const SEATS = Array.from({ length: 100 }, (_, i) => `seat-${i + 1}`);
@@ -170,6 +171,8 @@ function FeedView({ me, onPosted }: { me: Me; onPosted: () => void }) {
           }}
         />
       </div>
+      {/* RFC §10.31: once in a while, ask to turn notifications on for this device */}
+      <PushAsk />
       {fresh.pending.length > 0 && (
         <button type="button" className="new-posts" onClick={fresh.show} aria-live="polite">
           {fresh.pending.length} new {fresh.pending.length === 1 ? 'post' : 'posts'} <span aria-hidden="true">↑</span>

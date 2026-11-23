@@ -51,6 +51,8 @@ export const metadata: Metadata = {
   title: SITE_NAME,
   description: HOME_DESCRIPTION,
   applicationName: SITE_NAME,
+  // RFC §10.31: from the iPhone Home Screen anti opens as its own app (needed for notifications there)
+  appleWebApp: { capable: true, title: SITE_NAME, statusBarStyle: 'default' },
   robots: { index: false, follow: false },
   openGraph: { type: 'website', siteName: SITE_NAME, locale: 'en' },
   twitter: { card: 'summary_large_image' },

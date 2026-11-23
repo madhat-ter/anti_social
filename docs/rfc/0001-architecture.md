@@ -1758,6 +1758,27 @@ keeper makes the key pair itself on its first start and keeps it in the data fol
 Members turn it on per device in Settings, as before. Log line: `web push on (keys in the data
 folder, vapid.json)`.
 
+### 10.31 The feed asks to turn notifications on (added 2026-11-24)
+
+The owner asked for the "turn on notifications" ask other sites show. Researched first (web.dev
+permission UX, Chrome's quieter prompt, Apple's web push rules): browsers hide or refuse an Allow box
+that pops up by itself, a "Block" can never be asked again, and iPhones allow web push only from the
+Home Screen and after a tap. Asked with the owner (four questions); every answer as proposed:
+
+- **A card in the feed** ("notifications.txt", under the post box): why it helps, **Turn on** (one
+  tap opens the browser's box and subscribes this device) and **Not now**. Never the bare browser box.
+- **Not on a device's first day**: from the next day that device comes back.
+- **Not now** asks again in 2 weeks, 3 times at most; after that only Settings → Notifications. A
+  "Block" in the browser's box ends the asking on that device; closing the box counts as Not now.
+- **iPhone in Safari**: the card gives the three Home Screen steps instead of the button (and says
+  to sign in again there: Home Screen apps keep their own sign-in).
+
+Shown only to members, only when the server has push on, the device can do it and isn't already
+subscribed. Remembered per device in localStorage (`anti_push_ask`), like push itself. Built with
+it: `app/manifest.ts` (display standalone; without it an iPhone's Home Screen anti was just Safari
+and could never get push), `app/apple-icon.tsx`, `appleWebApp` in the layout; Settings and the card
+share `src/lib/push-client.ts`.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops.

@@ -1517,6 +1517,11 @@ input[type=search]::-webkit-search-cancel-button {
 .banner.bday-line::before { content: ''; background: var(--signal); border-radius: 50%; width: 1.05rem; height: 1.05rem; left: 1.05rem; top: 1.1rem; }
 /* "Finish your profile" checklist (RFC §10.3) */
 .checklist h2 { margin: 0; font-size: 1.35rem; }
+/* RFC §10.31: the feed's ask to turn notifications on for this device */
+.push-ask { margin: 1rem 0; }
+.push-ask p { margin: 0; }
+.push-ask-h { font-weight: 900; font-stretch: 62%; font-size: 1.5rem; line-height: 1.05; text-transform: uppercase; }
+.push-ask-steps { margin: 0; padding-left: 1.3rem; display: grid; gap: .25rem; }
 .checklist-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .checklist-items > li { display: flex; gap: .75rem; align-items: flex-start; padding: .6rem 0; border-top: 1.5px solid var(--hair); }
 .checklist-items > li:first-child { border-top: 0; }
