@@ -1,0 +1,3 @@
+module.exports=[75280,a=>{"use strict";let b=/^[a-zA-Z][a-zA-Z0-9_]{2,19}$/,c=new Set(["admin","ops","root","system","support","api","www","settings","join","login","recover"]);a.s(["X",0,50,"c",0,function(a){return b.test(a)?c.has(a.toLowerCase())?"That handle is reserved.":null:"Handle must be 3–20 characters: letters, digits, underscore, starting with a letter."}])}];
+
+//# sourceMappingURL=packages_shared_src_handles_ts_0-k42s4c_7ov8._.js.map

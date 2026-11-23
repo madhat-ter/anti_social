@@ -1,0 +1,322 @@
+{
+  "app": {
+    "[project]/apps/web/app/_not-found/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/admin/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/collab/[id]/edit/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/collab/[id]/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/collab/event/[id]/edit/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/collab/event/[id]/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/collab/new/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/collab/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/consultations/[id]/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/consultations/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/dev/checkout/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/dev/faces/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/dev/pets/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/f/[handle]/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/feed-rules/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/file/[handle]/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/file/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/join/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/login/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/members/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/monologue/new/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/monologue/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/notifications/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/p/[id]/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/pet/[id]/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/pets/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/recover/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/settings/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/setup/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/u/[handle]/consult/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/u/[handle]/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/u/[handle]/work/[id]/edit/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/u/[handle]/work/[id]/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ],
+    "[project]/apps/web/app/u/[handle]/work/new/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ]
+  },
+  "appUsingSizeAdjust": true,
+  "pages": {},
+  "pagesUsingSizeAdjust": false
+}

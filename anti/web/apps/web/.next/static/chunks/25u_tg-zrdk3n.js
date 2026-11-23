@@ -1,0 +1,1 @@
+(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,25729,e=>{"use strict";var i=e.i(43476),t=e.i(18566),o=e.i(4778),s=e.i(23923),n=e.i(12271);e.s(["default",0,function(){let{handle:e}=(0,t.useParams)();return(0,o.p)(`${e}’s File`),(0,i.jsx)(s.x,{children:()=>(0,i.jsx)(n.f,{handle:decodeURIComponent(e)})})}])}]);

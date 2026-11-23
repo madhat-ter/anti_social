@@ -1,0 +1,381 @@
+{
+  "version": 3,
+  "pages404": true,
+  "appType": "app",
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "priority": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    },
+    {
+      "source": "/events/new",
+      "destination": "/collab/new?kind=event",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/events/new(?:/)?$"
+    },
+    {
+      "source": "/events/:id/edit",
+      "destination": "/collab/event/:id/edit",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/events(?:/([^/]+?))/edit(?:/)?$"
+    },
+    {
+      "source": "/events/:id",
+      "destination": "/collab/event/:id",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/events(?:/([^/]+?))(?:/)?$"
+    },
+    {
+      "source": "/events",
+      "destination": "/collab?kind=event",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/events(?:/)?$"
+    },
+    {
+      "source": "/collabs/new",
+      "destination": "/collab/new",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/collabs/new(?:/)?$"
+    },
+    {
+      "source": "/collabs/:id/edit",
+      "destination": "/collab/:id/edit",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/collabs(?:/([^/]+?))/edit(?:/)?$"
+    },
+    {
+      "source": "/collabs/:id",
+      "destination": "/collab/:id",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/collabs(?:/([^/]+?))(?:/)?$"
+    },
+    {
+      "source": "/collabs",
+      "destination": "/collab",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/collabs(?:/)?$"
+    },
+    {
+      "source": "/search",
+      "destination": "/members",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/search(?:/)?$"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/:path*",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(self), geolocation=(), payment=()"
+        }
+      ],
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))?(?:/)?$"
+    }
+  ],
+  "onMatchHeaders": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [
+      {
+        "source": "/api/:path*",
+        "destination": "https://tryanti.social/api/:path*",
+        "regex": "^/api(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))?(?:/)?$"
+      }
+    ],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/collab/event/[id]",
+      "regex": "^/collab/event/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/collab/event/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/collab/event/[id]/edit",
+      "regex": "^/collab/event/([^/]+?)/edit(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/collab/event/(?<nxtPid>[^/]+?)/edit(?:/)?$"
+    },
+    {
+      "page": "/collab/[id]",
+      "regex": "^/collab/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/collab/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/collab/[id]/edit",
+      "regex": "^/collab/([^/]+?)/edit(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/collab/(?<nxtPid>[^/]+?)/edit(?:/)?$"
+    },
+    {
+      "page": "/consultations/[id]",
+      "regex": "^/consultations/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/consultations/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/f/[handle]",
+      "regex": "^/f/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPhandle": "nxtPhandle"
+      },
+      "namedRegex": "^/f/(?<nxtPhandle>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/file/[handle]",
+      "regex": "^/file/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPhandle": "nxtPhandle"
+      },
+      "namedRegex": "^/file/(?<nxtPhandle>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/p/[id]",
+      "regex": "^/p/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/p/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/pet/[id]",
+      "regex": "^/pet/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/pet/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/u/[handle]",
+      "regex": "^/u/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPhandle": "nxtPhandle"
+      },
+      "namedRegex": "^/u/(?<nxtPhandle>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/u/[handle]/consult",
+      "regex": "^/u/([^/]+?)/consult(?:/)?$",
+      "routeKeys": {
+        "nxtPhandle": "nxtPhandle"
+      },
+      "namedRegex": "^/u/(?<nxtPhandle>[^/]+?)/consult(?:/)?$"
+    },
+    {
+      "page": "/u/[handle]/work/new",
+      "regex": "^/u/([^/]+?)/work/new(?:/)?$",
+      "routeKeys": {
+        "nxtPhandle": "nxtPhandle"
+      },
+      "namedRegex": "^/u/(?<nxtPhandle>[^/]+?)/work/new(?:/)?$"
+    },
+    {
+      "page": "/u/[handle]/work/[id]",
+      "regex": "^/u/([^/]+?)/work/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPhandle": "nxtPhandle",
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/u/(?<nxtPhandle>[^/]+?)/work/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/u/[handle]/work/[id]/edit",
+      "regex": "^/u/([^/]+?)/work/([^/]+?)/edit(?:/)?$",
+      "routeKeys": {
+        "nxtPhandle": "nxtPhandle",
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/u/(?<nxtPhandle>[^/]+?)/work/(?<nxtPid>[^/]+?)/edit(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_global-error",
+      "regex": "^/_global\\-error(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_global\\-error(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/admin",
+      "regex": "^/admin(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin(?:/)?$"
+    },
+    {
+      "page": "/collab",
+      "regex": "^/collab(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/collab(?:/)?$"
+    },
+    {
+      "page": "/collab/new",
+      "regex": "^/collab/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/collab/new(?:/)?$"
+    },
+    {
+      "page": "/consultations",
+      "regex": "^/consultations(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/consultations(?:/)?$"
+    },
+    {
+      "page": "/dev/checkout",
+      "regex": "^/dev/checkout(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dev/checkout(?:/)?$"
+    },
+    {
+      "page": "/dev/faces",
+      "regex": "^/dev/faces(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dev/faces(?:/)?$"
+    },
+    {
+      "page": "/dev/pets",
+      "regex": "^/dev/pets(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dev/pets(?:/)?$"
+    },
+    {
+      "page": "/feed-rules",
+      "regex": "^/feed\\-rules(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/feed\\-rules(?:/)?$"
+    },
+    {
+      "page": "/file",
+      "regex": "^/file(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/file(?:/)?$"
+    },
+    {
+      "page": "/icon.svg",
+      "regex": "^/icon\\.svg(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/icon\\.svg(?:/)?$"
+    },
+    {
+      "page": "/join",
+      "regex": "^/join(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/join(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/members",
+      "regex": "^/members(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/members(?:/)?$"
+    },
+    {
+      "page": "/monologue",
+      "regex": "^/monologue(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/monologue(?:/)?$"
+    },
+    {
+      "page": "/monologue/new",
+      "regex": "^/monologue/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/monologue/new(?:/)?$"
+    },
+    {
+      "page": "/notifications",
+      "regex": "^/notifications(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/notifications(?:/)?$"
+    },
+    {
+      "page": "/pets",
+      "regex": "^/pets(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/pets(?:/)?$"
+    },
+    {
+      "page": "/recover",
+      "regex": "^/recover(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/recover(?:/)?$"
+    },
+    {
+      "page": "/settings",
+      "regex": "^/settings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/settings(?:/)?$"
+    },
+    {
+      "page": "/setup",
+      "regex": "^/setup(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/setup(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments",
+    "clientParamParsing": false,
+    "dynamicRSCPrerender": false
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}

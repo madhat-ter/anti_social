@@ -1,0 +1,16 @@
+{
+  "pages": {},
+  "app": {
+    "[project]/apps/web/app/u/[handle]/consult/page": [
+      "static/media/db545dba463279ae-s.p.1cp9-4nby68jc.woff2",
+      "static/media/ab56636924653a94-s.p.3cik_s2si-ft-.woff2",
+      "static/media/34c58fc38e31639a-s.p.1s123piy9_v1m.woff2",
+      "static/media/c8e66d87fd42908b-s.p.2705ug_9bxc-8.woff2",
+      "static/media/486a103cae33528f-s.p.309ilb452anpd.woff2",
+      "static/media/LiGolestaBornoUnicode_Regular.p.3v0cfl24659mq.ttf",
+      "static/media/LiGolestaBornoUnicode_Italic.p.1ssopqzla-oxd.ttf"
+    ]
+  },
+  "appUsingSizeAdjust": true,
+  "pagesUsingSizeAdjust": false
+}

@@ -1,0 +1,8 @@
+{
+  "name": "anti",
+  "private": true,
+  "main": "app.cjs",
+  "scripts": {
+    "start": "node app.cjs"
+  }
+}
