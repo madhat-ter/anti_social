@@ -16,6 +16,7 @@ import { UUID_RE } from '../lib/posts';
 import { flagCard, removeCard, resolveCardFlags } from '../lib/file';
 import { hit } from '../lib/ratelimit';
 import { createPinReset } from '../lib/pin';
+import { exportResponse } from '../lib/transfer';
 import { authPlugin, requireSeated, requireUser } from '../plugins/auth';
 import type { Auth } from '../lib/sessions';
 
@@ -196,6 +197,15 @@ export const moderationRoutes = (deps: Deps) => {
     .get('/ops/members', async ({ auth }) => {
       requireOps(auth);
       return adminMembers(db);
+    })
+
+    // Moving the site to another host (lib/transfer.ts). Off unless the host sets ALLOW_EXPORT=true.
+    .get('/ops/export', async ({ auth }) => {
+      const a = requireOps(auth);
+      if (process.env.ALLOW_EXPORT !== 'true') throw new ApiError(404, 'not_found');
+      await hit(db, 'export', a.user.id);
+      console.log(`export: downloaded by @${a.user.handle}`);
+      return exportResponse(db);
     })
 
     .post('/ops/posts/:id/remove', async ({ auth, params }) => {

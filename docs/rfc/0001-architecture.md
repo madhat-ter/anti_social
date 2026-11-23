@@ -1650,6 +1650,37 @@ mistaken tap holds one place for a while.
   7 and 8: Record from the closed phone box opens the recorder, and each Collab button opens its
   own form.
 
+### 10.27 The real site runs on the owner's cPanel hosting (added 2026-11-23)
+
+The owner bought **tryanti.social** (Spaceship) and cPanel hosting (CloudLinux, LiteSpeed, Node.js
+22/24 through "Setup Node.js App", MySQL only, no Postgres, no Bun). Their answers:
+
+1. **Only cPanel.** No outside service for the real site: not Vercel, Render or Neon.
+2. **The database stays Postgres, as PGlite files** (recommended, chosen over "turn it to MySQL").
+   Rewriting for MySQL meant ~700 hand-written queries, 42 migrations and the SQL functions. PGlite
+   is real Postgres in WebAssembly, already used for local runs and tests, so every rule and test
+   is unchanged. Its files live in `~/anti-data/pg`, outside the public folder.
+3. **Everything moves over** from the test site (people, posts, media), and **nobody is charged at
+   launch** (fake payments, as on the test site, until Stripe).
+
+How it is built (`docs/deploy-cpanel.md`):
+
+- **One Node.js process** is the whole site (`deploy/cpanel/server.mjs`): `/api/…` goes to the API
+  (`apps/api/src/embedded.ts`, bundled for Node), the rest to Next.js (standalone build). One app in
+  cPanel, one address, one owner of the database. A lock file keeps a second copy from opening it.
+- **The API runs on Bun and on Node.** PINs and recovery codes use Bun.password on Bun and the same
+  argon2id in WebAssembly (`hash-wasm`) on Node, so a hash made by either checks on the other.
+- **Moving the data needs no database address**: an admin downloads `/ops/export` from the old site
+  (only where `ALLOW_EXPORT=true`), the file goes to `~/anti-data/import.ndjson.gz`, and the new
+  site loads it on start if it has no members yet (then renames it). Sign-ins and rate counters
+  are not moved. Contact details stay sealed: the new site needs the same `CONTACT_KEY`.
+- **Backups**: a copy of the database files every day in `~/anti-data/backups`, the newest 7 kept.
+- `scripts/build-cpanel.ts` makes the upload, `.cpanel/anti-cpanel.zip`, on Windows for Linux.
+
+**Known and accepted.** Passkeys belong to an address, so passkeys made on the test site don't work
+on tryanti.social; members sign in with handle + PIN and can add a passkey again. The host may
+stop an idle app; the site visits itself every 45 s (`SELF_URL`) so the jobs keep running.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops.

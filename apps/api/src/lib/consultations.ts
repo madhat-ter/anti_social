@@ -415,6 +415,12 @@ export async function acceptRequest(db: Db, me: SessionUser, id: string, body: R
   return change(db, me, id, async (tx, r) => {
     if (r.consultant_id !== me.id) throw new ApiError(403, 'not_consultant', 'Only the person asked can accept.');
     if (r.eff !== 'pending') throw conflict(r.eff === 'expired' ? 'This request expired.' : 'This request was already answered.');
+    // RFC §10.18: both gates still hold (a waiting request is not under way yet). An admin who
+    // declined, or took the badge, has said no: accepting would hand out two people's contacts.
+    // Pausing your own offer is different: approval sticks across pauses, so this still works then.
+    if (!me.verifiedAt || !me.consultApprovedAt) {
+      throw new ApiError(403, 'consult_not_approved', 'Your consulting is not approved right now, so you cannot accept requests.');
+    }
     const [o] = await rows<{ pricing: ConsultPricing; price_note: string | null; payment_url: string | null; contact: string }>(tx, sql`
       select pricing, price_note, payment_url, contact from consult_offers where user_id = ${me.id}::uuid`);
     if (!o?.contact) throw bad('Add your contact to your offer first: it is what they get when you accept.');

@@ -56,8 +56,12 @@ export async function closeAccount(db: Db, storage: Storage, userId: string, rea
     const sounds = await rows<{ k: string }>(tx, sql`delete from monologues where uploader_id = ${userId}::uuid returning audio_key as k`);
     // RFC §10.24: the File goes too: the member's cards, cards made for them, cards they made for others
     const filePhotos = await dropFile(tx, userId);
+    // pets' photos: the pets stop showing with the account, so their pictures are erased too
+    const petPics = await rows<{ k: string }>(tx, sql`
+      with old as (select id, avatar_key from pets where owner_id = ${userId}::uuid and avatar_key is not null)
+      update pets p set avatar_key = null from old where p.id = old.id returning old.avatar_key as k`);
     await tx.execute(sql`select delete_account(${userId}::uuid, ${reason}, ${actorId}::uuid)`);
-    return [...filePhotos, ...imgs.map((r) => r.k), ...cover.map((r) => r.k).filter((k): k is string => !!k), ...sounds.map((r) => r.k)];
+    return [...filePhotos, ...petPics.map((r) => r.k),...imgs.map((r) => r.k), ...cover.map((r) => r.k).filter((k): k is string => !!k), ...sounds.map((r) => r.k)];
   });
   await Promise.all(keys.map((k) => storage.delete(k).catch((e) => console.error('storage delete failed', k, e))));
 }

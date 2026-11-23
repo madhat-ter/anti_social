@@ -1,4 +1,6 @@
+import { createHash } from 'node:crypto';
 import { INVITE_ALPHABET, formatInviteCode, normalizeInviteCode } from '@anti/shared';
+import { hashSecret, verifySecret } from './password';
 
 export function base64url(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString('base64url');
@@ -9,7 +11,7 @@ export function randomToken(bytes = 32): string {
 }
 
 export function sha256Hex(input: string): string {
-  return new Bun.CryptoHasher('sha256').update(input).digest('hex');
+  return createHash('sha256').update(input).digest('hex');
 }
 
 /** n chars from the 32-symbol alphabet; byte & 31 is unbiased because 256 % 32 === 0. */
@@ -37,10 +39,10 @@ export function generatePinResetCode(length: number): { display: string; normali
 export const normalizeRecoveryCode = normalizeInviteCode;
 
 export function hashRecoveryCode(normalized: string): Promise<string> {
-  return Bun.password.hash(normalized, { algorithm: 'argon2id' });
+  return hashSecret(normalized);
 }
 
 export function verifyRecoveryCode(normalized: string, hash: string): Promise<boolean> {
   if (!hash) return Promise.resolve(false);
-  return Bun.password.verify(normalized, hash);
+  return verifySecret(normalized, hash);
 }

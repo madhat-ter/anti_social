@@ -24,7 +24,10 @@ const storage = loadStorage(db);
 const payments = loadPaymentProvider(cfg);
 const push = loadPushSender();
 
-createApp({ db, cfg, storage, payments, push }).listen(port);
+// The biggest real request is a guest card (5 photos × 5 MB) or a 15 MB recording. Bun's default
+// is 128 MB, read into memory before any check runs: a few of those would fill the free plan.
+const MAX_BODY_BYTES = 30 * 1024 * 1024;
+createApp({ db, cfg, storage, payments, push }).listen({ port, maxRequestBodySize: MAX_BODY_BYTES });
 console.log(`api listening on :${port}` + (payments.kind === 'fake' ? ' (FAKE payments: checkout at /dev/checkout)' : ''));
 
 // Say why the process ends, so the host's log shows a stop or a crash instead of just going quiet.

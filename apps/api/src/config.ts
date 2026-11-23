@@ -1,12 +1,13 @@
 import { FakeStripeProvider, StripeProvider, type PaymentProvider } from './lib/payments';
+import type { TrustProxy } from './lib/ratelimit';
 
 export type Config = {
   rpId: string;
   rpName: string;
   webOrigin: string;
   cookieSecure: boolean;
-  /** Read the client IP from the proxy header (Fly-Client-IP / X-Forwarded-For). Only behind a trusted proxy. */
-  trustProxy?: boolean;
+  /** Read the client IP from the proxy's header: 'fly' (Fly-Client-IP) or 'xff' (X-Forwarded-For, behind Vercel). Only behind that proxy. */
+  trustProxy?: TrustProxy;
 };
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
@@ -20,7 +21,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     rpName: env.RP_NAME ?? 'Anti',
     webOrigin: need('WEB_ORIGIN'),
     cookieSecure: env.COOKIE_SECURE !== 'false',
-    trustProxy: env.TRUST_PROXY === 'true',
+    // TRUST_PROXY=fly on Fly; =true behind Vercel's /api proxy (X-Forwarded-For)
+    trustProxy: env.TRUST_PROXY === 'fly' ? 'fly' : env.TRUST_PROXY === 'true' ? 'xff' : false,
   };
   if (env.NODE_ENV === 'production') assertProductionSafe(cfg);
   return cfg;

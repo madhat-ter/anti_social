@@ -58,7 +58,7 @@ export async function ownedPet(db: Db, ownerId: string, petId: string): Promise<
 }
 
 export async function getPet(db: Db, petId: string): Promise<Pet | null> {
-  const [r] = await rows<PetRow>(db, sql`${petSelect} where p.id = ${petId}::uuid and u.state <> 'deleted'`);
+  const [r] = await rows<PetRow>(db, sql`${petSelect} where p.id = ${petId}::uuid and u.state in ('active', 'flagged_lurker', 'archived')`);
   return r ? toPet(r) : null;
 }
 

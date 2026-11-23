@@ -109,11 +109,17 @@ export const petRoutes = (deps: Deps) => {
       let avatarKey: string | null | undefined;
       if (body.removeAvatar) avatarKey = null;
       if (body.avatarId) avatarKey = await takeUpload(db, a.user.id, String(body.avatarId));
+      const [was] = await rows<{ avatar_key: string | null }>(db, sql`
+        select avatar_key from pets where id = ${params.id}::uuid and owner_id = ${a.user.id}::uuid`);
       await db.execute(sql`
         update pets set name = ${name}, species = ${species}, avatar_variant = ${variant}
           ${avatarKey === undefined ? sql`` : sql`, avatar_key = ${avatarKey}`}
         where id = ${params.id}::uuid and owner_id = ${a.user.id}::uuid`);
-      return (await getPet(db, params.id))!;
+      // a replaced or removed photo is erased, not left reachable at its old address
+      if (avatarKey !== undefined && was?.avatar_key && was.avatar_key !== avatarKey) {
+        await storage.delete(was.avatar_key).catch(() => {});
+      }
+      return (await ownedPet(db, a.user.id, params.id))!;
     }, {
       body: t.Object({
         name: t.Optional(t.String({ maxLength: 80 })), species: t.Optional(t.String({ maxLength: 10 })),
@@ -140,6 +146,7 @@ export const petRoutes = (deps: Deps) => {
         await t.execute(sql`delete from posts where pet_id = ${params.id}::uuid`);
         await t.execute(sql`delete from pets where id = ${params.id}::uuid and owner_id = ${a.user.id}::uuid`);
       });
+      if (owned.avatar.url) keys.push({ r2_key: owned.avatar.url.split('/').pop()! });
       await Promise.all(keys.map((k) => storage.delete(k.r2_key).catch(() => {})));
       return { ok: true as const, posts: Number(count?.n ?? 0) };
     });

@@ -11,6 +11,7 @@ next-env.d.ts
 .screenshots/
 .next-shots/
 .next-shots-prod/
+.cpanel/
 # local only: env backups, AI tool settings, private research notes, the cost sheet, Excel lock files
 COST.xlsx
 .env.*

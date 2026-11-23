@@ -28,6 +28,8 @@ export const LIMITS = {
   guestCard: { limit: 3, windowSec: 3600 },
   /** RFC 10.25: asking for a seat from the landing page, per IP */
   seatRequest: { limit: 3, windowSec: 3600 },
+  /** moving the site: a whole-database download, per admin */
+  export: { limit: 5, windowSec: 3600 },
 } as const;
 export type LimitName = keyof typeof LIMITS;
 
@@ -45,10 +47,19 @@ export async function hit(db: Db, name: LimitName, subject: string): Promise<voi
   }
 }
 
-/** Client IP. Behind a proxy (TRUST_PROXY=true) use its header; otherwise the socket address. */
-export function clientIp(request: Request, server: { requestIP(r: Request): { address: string } | null } | null, trustProxy: boolean): string {
+/**
+ * Client IP, for per-IP limits. Each proxy has one header it writes itself; read only that one,
+ * because any other header is the visitor's own word and a new made-up address per request beats
+ * every limit (Fly-Client-IP was read on Render once: nothing there sets or strips it).
+ * - 'fly': Fly-Client-IP (Fly's edge sets it).
+ * - 'xff' (TRUST_PROXY=true): the first X-Forwarded-For entry, which Vercel's proxy writes fresh
+ *   with the visitor's address (it does not pass on one the visitor sent).
+ * - off: the socket address.
+ */
+export type TrustProxy = false | 'xff' | 'fly';
+export function clientIp(request: Request, server: { requestIP(r: Request): { address: string } | null } | null, trustProxy: TrustProxy | boolean): string {
   if (trustProxy) {
-    const h = request.headers.get('fly-client-ip') ?? request.headers.get('x-forwarded-for')?.split(',')[0];
+    const h = trustProxy === 'fly' ? request.headers.get('fly-client-ip') : request.headers.get('x-forwarded-for')?.split(',')[0];
     if (h?.trim()) return h.trim();
   }
   return server?.requestIP(request)?.address ?? 'unknown';

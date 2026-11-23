@@ -193,9 +193,13 @@ export const suggestionRoutes = (deps: Deps) => {
           updated_at = now()`);
       const [author] = await rows<{ author_id: string }>(db, sql`select author_id from suggestions where id = ${p.id}::uuid`);
       if (remark && remark !== p.myRemark && author) {
+        // one unread "remark" per person per pick: changing it back and forth must not ring a hundred times
         await db.execute(sql`insert into notifications (user_id, kind, payload)
-          values (${author.author_id}::uuid, 'pick_remark',
-                  ${JSON.stringify({ suggestionId: p.id, title: p.title, actorId: a.user.id })}::jsonb)`);
+          select ${author.author_id}::uuid, 'pick_remark',
+                 ${JSON.stringify({ suggestionId: p.id, title: p.title, actorId: a.user.id })}::jsonb
+           where not exists (select 1 from notifications n
+                              where n.user_id = ${author.author_id}::uuid and n.kind = 'pick_remark' and n.read_at is null
+                                and n.payload->>'suggestionId' = ${p.id}::text and n.payload->>'actorId' = ${a.user.id}::text)`);
       }
       return (await getPick(p.id, a.user.id))!;
     }, {

@@ -1,9 +1,16 @@
+import { fileURLToPath } from 'node:url';
 import type { NextConfig } from 'next';
 
 const config: NextConfig = {
   // A second dev server (e.g. the screenshot stack) needs its own build dir: NEXT_DIST_DIR=.next-shots
   distDir: process.env.NEXT_DIST_DIR || '.next',
+  // cPanel package (scripts/build-cpanel.ts): a self-contained copy that runs on plain Node.js
+  ...(process.env.NEXT_OUTPUT === 'standalone'
+    ? { output: 'standalone' as const, outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)) }
+    : {}),
   transpilePackages: ['@anti/shared'],
+  // don't tell every visitor which framework (and so which known bugs) to try
+  poweredByHeader: false,
   async headers() {
     return [{
       source: '/:path*',

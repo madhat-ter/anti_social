@@ -63,10 +63,11 @@ function url(v: string | null | undefined): string | null | undefined {
   const s = v.trim();
   if (!s) return null;
   let u: URL;
-  try { u = new URL(s); } catch { throw new ApiError(400, 'event_invalid', 'Payment link must be a full http(s) URL.'); }
-  if ((u.protocol !== 'https:' && u.protocol !== 'http:') || chars(s) > EVENT_URL_MAX) {
-    throw new ApiError(400, 'event_invalid', 'Payment link must be a full http(s) URL.');
-  }
+  // https only, and no name:password@ in front (a link can be made to look like another site's with it),
+  // the same rule as collab and consulting links: money goes over an encrypted link or not at all
+  const bad = () => new ApiError(400, 'event_invalid', 'Payment link must be a full https:// address.');
+  try { u = new URL(s); } catch { throw bad(); }
+  if (u.protocol !== 'https:' || u.username || u.password || chars(s) > EVENT_URL_MAX) throw bad();
   return u.toString();
 }
 

@@ -100,6 +100,26 @@ describe('consultation offers', () => {
 });
 
 describe('consultation requests', () => {
+  test('a waiting request cannot be accepted once an admin takes the approval back; a pause is no such thing', async () => {
+    const w = await world();
+    const ana = await w.member('ana');
+    const ben = await w.member('ben');
+    await ana.put('/me/consult-offer', offer);
+    const first = (await ben.post('/members/ana/consultations', ask)).body;
+    const second = (await ben.post('/members/ana/consultations', ask)).body;
+
+    // pausing your own offer: approval sticks, so requests already waiting can still be answered
+    await ana.put('/me/consult-offer', { active: false });
+    expect((await ana.post(`/consultations/${first.id}/accept`, { pricing: 'free' })).body.status).toBe('revealed');
+
+    // an admin's "no" (or the badge taken): accepting would hand out both contacts, so it is refused
+    await w.t.db.execute(sql`update users set consult_approved_at = null where handle = 'ana'`);
+    expect((await ana.post(`/consultations/${second.id}/accept`, { pricing: 'free' })).body.error).toBe('consult_not_approved');
+    const [row] = await rows<{ status: string; consultant_contact: string | null }>(w.t.db, sql`
+      select status, consultant_contact from consultations where id = ${second.id}::uuid`);
+    expect(row).toEqual({ status: 'pending', consultant_contact: null });
+  });
+
   test('ask, decline gently; nothing revealed before acceptance; limits', async () => {
     const w = await world();
     const ana = await w.member('ana');

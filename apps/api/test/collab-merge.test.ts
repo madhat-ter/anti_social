@@ -500,6 +500,22 @@ describe('an admin removes a collab (RFC §10.21)', () => {
     // members have no door here at all
     expect((await ana.get('/ops/collab')).status).toBe(404);
   });
+
+  test('a collab hidden after reports takes its open meetups out of sight too, but not from its team or admins', async () => {
+    const w = await world();
+    const boss = await w.member('boss');
+    await setOps(w.t.db, 'boss', true);
+    const ana = await w.member('ana', ['photography']);
+    const cat = await w.member('cat');
+    const project = (await ana.post('/collabs', PROJECT)).body;
+    const open = (await ana.post('/events', { ...EVENT, title: 'Open night', collabId: project.id, audience: 'anyone' })).body;
+    expect((await cat.get(`/events/${open.id}`)).status).toBe(200);
+    await w.t.db.execute(sql`update collabs set hidden_at = now() where id = ${project.id}::uuid`);
+    expect((await cat.get(`/events/${open.id}`)).status).toBe(404);
+    expect((await cat.get('/members/ana/events')).body.upcoming.map((x: any) => x.id)).not.toContain(open.id);
+    expect((await ana.get(`/events/${open.id}`)).status).toBe(200);
+    expect((await boss.get(`/events/${open.id}`)).status).toBe(200);
+  });
 });
 
 describe('the sweep: nothing waits forever (RFC §10.21)', () => {

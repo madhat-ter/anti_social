@@ -1,7 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { S3Client } from 'bun';
+import type { S3Client } from 'bun';
 import { eq } from 'drizzle-orm';
 import { mediaBlobs, type Db } from '@anti/db';
 
@@ -86,31 +86,34 @@ export class DbStorage implements Storage {
   }
 }
 
-/** Cloudflare R2 (S3-compatible), through Bun's own S3 client: no extra package. */
+/**
+ * Cloudflare R2 (S3-compatible), through Bun's own S3 client: no extra package. Bun only: the
+ * client is loaded on first use, so the Node build (cPanel) still starts when STORAGE isn't r2.
+ */
 export class R2Storage implements Storage {
-  private s3: S3Client;
+  private s3: Promise<S3Client>;
   constructor(o: { accountId: string; accessKeyId: string; secretAccessKey: string; bucket: string }) {
-    this.s3 = new S3Client({
+    this.s3 = import('bun').then(({ S3Client }) => new S3Client({
       accessKeyId: o.accessKeyId, secretAccessKey: o.secretAccessKey, bucket: o.bucket,
       endpoint: `https://${o.accountId}.r2.cloudflarestorage.com`,
-    });
+    }));
   }
 
   async put(key: string, bytes: Uint8Array, contentType: string) {
     if (!isValidKey(key)) throw new Error('invalid storage key');
-    await this.s3.write(key, bytes, { type: contentType });
+    await (await this.s3).write(key, bytes, { type: contentType });
   }
 
   async get(key: string) {
     if (!isValidKey(key)) return null;
-    const f = this.s3.file(key);
+    const f = (await this.s3).file(key);
     if (!(await f.exists())) return null;
     return { bytes: new Uint8Array(await f.arrayBuffer()), contentType: typeOf(key) };
   }
 
   async delete(key: string) {
     if (!isValidKey(key)) return;
-    await this.s3.delete(key);
+    await (await this.s3).delete(key);
   }
 }
 

@@ -179,7 +179,7 @@ export const socialRoutes = (deps: Deps) => {
           u.handle as a_handle, u.display_name as a_display, u.gender as a_gender,
           p.id as p_id, coalesce(p.root_id, p.id) as p_root,
           -- RFC §10.22: a monologue with no note is named by its title
-          coalesce(nullif(p.body, ''), (select mo.title from monologues mo where mo.post_id = p.id), p.body) as p_body, (p.deleted_at is not null) as p_deleted,
+          coalesce(nullif(p.body, ''), (select mo.title from monologues mo where mo.post_id = p.id), p.body) as p_body, (p.deleted_at is not null or p.hidden_at is not null) as p_deleted,
           ev.id as e_id, ev.title as e_title,
           n.payload->>'to' as x_to, n.payload->>'title' as x_title, n.payload->>'done' as x_done, n.payload->>'total' as x_total,
           co.id as c_id, coalesce(co.title, n.payload->>'title') as c_title, n.payload->>'projectId' as x_project,
@@ -238,5 +238,5 @@ export const socialRoutes = (deps: Deps) => {
       }
       await db.execute(sql`update notifications set read_at = now() where user_id = ${uid}::uuid and read_at is null ${filter}`);
       return { ok: true as const, unreadCount: await unreadCount(db, uid) };
-    }, { body: t.Optional(t.Object({ ids: t.Optional(t.Array(t.String())) })) });
+    }, { body: t.Optional(t.Object({ ids: t.Optional(t.Array(t.String({ maxLength: 40 }), { maxItems: 500 })) })) });
 };

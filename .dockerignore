@@ -10,3 +10,10 @@
 .env.*
 !.env.example
 *.tsbuildinfo
+# private, local-only files: never inside an image, even one built on this machine
+COST.xlsx
+~$*
+reports
+research_notes
+.commandcode
+.claude

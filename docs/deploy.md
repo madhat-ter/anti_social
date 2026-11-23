@@ -27,7 +27,7 @@ Environment (secrets):
 | `DATABASE_URL` | Neon URL. Remove `DATABASE_POOL_MAX=1` (that is only for the local PGlite server). |
 | `RP_ID` | your domain, e.g. `anti.example` |
 | `WEB_ORIGIN` | `https://anti.example` |
-| `TRUST_PROXY` | `true` on Fly (client IP from `Fly-Client-IP` for rate limits) |
+| `TRUST_PROXY` | `true` when visitors reach the API through Vercel's `/api` proxy (client IP from the `X-Forwarded-For` Vercel writes); `fly` only if browsers call Fly directly (`Fly-Client-IP`, which then is the visitor, not Vercel). Never read a header the proxy in front doesn't set: anyone can type it. |
 | `PAYMENTS` | `stripe` |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | from the Stripe dashboard; webhook endpoint `https://<api host>/webhooks/stripe`, events `checkout.session.completed`, `checkout.session.expired` |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | `bun run ops:vapid-keys` once; keep them stable (changing them breaks existing push subscriptions) |

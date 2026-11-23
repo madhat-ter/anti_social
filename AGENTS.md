@@ -164,6 +164,16 @@ feature's own folder (e.g. `.screenshots/feed-types-before/`).
 - .NET file calls (`[IO.File]::WriteAllText`) resolve relative paths against
   `[Environment]::CurrentDirectory`, not the PowerShell location. Use absolute paths.
 
+## The real site: tryanti.social on cPanel (§10.27)
+
+- Owner's rule: **only cPanel** for the real site. One Node.js app is the whole site
+  (`deploy/cpanel/server.mjs`); the database is **PGlite files** in `~/anti-data` (MySQL was
+  turned down on purpose). Setup, updates, moving data in: `docs/deploy-cpanel.md`.
+- Build the upload with `bun scripts/build-cpanel.ts` (→ `.cpanel/anti-cpanel.zip`).
+- The API must keep running on **both Bun and Node**: no `Bun.*` outside `lib/password.ts` and the
+  lazy R2 client; `apps/api/test/cpanel.test.ts` checks the Node paths.
+- Never let two processes open `~/anti-data/pg` (the lock in `embedded.ts`).
+
 ## The live test site
 
 - Web: https://anti-social-opal.vercel.app (Vercel, root `apps/web`); API on Render's free plan

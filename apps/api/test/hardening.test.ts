@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
 import { JOBS, runJob } from '../src/lib/jobs';
-import { hit, LIMITS } from '../src/lib/ratelimit';
+import { clientIp, hit, LIMITS } from '../src/lib/ratelimit';
 import { setOps } from '../src/lib/moderation';
 import { cleanup, setup, type Client } from './client';
 
@@ -20,6 +20,20 @@ async function world(seatCap = 20) {
 }
 
 const newPost = async (c: Client, body: string) => (await c.post('/posts', { body })).body;
+
+describe('client IP for rate limits', () => {
+  const socket = { requestIP: () => ({ address: '10.0.0.1' }) };
+  const req = (h: Record<string, string>) => new Request('http://api/x', { headers: h });
+  test('reads only the header the proxy in front writes', () => {
+    const spoof = { 'fly-client-ip': '6.6.6.6', 'x-forwarded-for': '1.2.3.4, 10.9.9.9' };
+    // behind Vercel: a typed Fly-Client-IP is the visitor's own word and is ignored
+    expect(clientIp(req(spoof), socket, 'xff')).toBe('1.2.3.4');
+    expect(clientIp(req(spoof), socket, true)).toBe('1.2.3.4');
+    expect(clientIp(req(spoof), socket, 'fly')).toBe('6.6.6.6');
+    expect(clientIp(req(spoof), socket, false)).toBe('10.0.0.1');
+    expect(clientIp(req({}), socket, 'xff')).toBe('10.0.0.1');
+  });
+});
 
 describe('flags and ops', () => {
   test('5 distinct reports hide a post and alert ops; ops restores or removes it', async () => {
@@ -178,9 +192,20 @@ describe('web push', () => {
     const b = await w.member('bobby');
     expect((await a.get('/push/config')).body).toEqual({ enabled: true, publicKey: 'test-public-key' });
     expect((await a.post('/push/subscriptions', { endpoint: 'http://insecure.example/x', keys: { p256dh: 'k', auth: 'a' } })).status).toBe(400);
-    const sub = { endpoint: 'https://push.example.com/alice-1', keys: { p256dh: 'p', auth: 'a' } };
+    // only real push services: the server POSTs to the address, so a typed one would be a way to make it call any host
+    for (const endpoint of ['https://push.example.com/x', 'https://fcm.googleapis.com.evil.example/x', 'https://u:p@fcm.googleapis.com/x', 'https://fcm.googleapis.com:8443/x']) {
+      expect((await a.post('/push/subscriptions', { endpoint, keys: { p256dh: 'k', auth: 'a' } })).status).toBe(400);
+    }
+    const sub = { endpoint: 'https://fcm.googleapis.com/fcm/send/alice-1', keys: { p256dh: 'p', auth: 'a' } };
     expect((await a.post('/push/subscriptions', sub)).body).toEqual({ ok: true });
     await a.post('/push/subscriptions', sub); // idempotent
+    // a few devices, not hundreds: the newest ten are kept
+    for (let i = 0; i < 12; i++) {
+      await a.post('/push/subscriptions', { endpoint: `https://updates.push.services.mozilla.com/wpush/v2/extra-${i}`, keys: { p256dh: 'p', auth: 'a' } });
+    }
+    expect(await w.rowsOf(sql`select 1 from push_subscriptions`)).toHaveLength(10);
+    await w.t.db.execute(sql`delete from push_subscriptions where endpoint like '%extra-%'`);
+    await a.post('/push/subscriptions', sub);
 
     await w.job('push'); // drain the 'activated' rows from joining
     w.push.sent.length = 0;

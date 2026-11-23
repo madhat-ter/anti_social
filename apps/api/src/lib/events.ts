@@ -150,9 +150,12 @@ export function toEvent(r: EventRow, viewerId: string): EventView {
 
 /**
  * Who sees an event (with eventSelect's aliases): team-only meetups only the team; meetups of a
- * deleted collab nobody.
+ * deleted collab nobody; meetups of a collab hidden after reports only its team and admins, like
+ * the collab itself (RFC §10.5), until an admin decides.
  */
-export const eventVisible = (viewerId: string) => sql`(e.collab_id is null or c.id is not null)
+export const eventVisible = (viewerId: string) => sql`(e.collab_id is null or (c.id is not null and (c.hidden_at is null
+    or exists (select 1 from collab_members hm2 where hm2.collab_id = c.id and hm2.user_id = ${viewerId}::uuid)
+    or exists (select 1 from users ov where ov.id = ${viewerId}::uuid and ov.role = 'ops'))))
   and (e.audience = 'anyone' or exists (select 1 from collab_members m where m.collab_id = e.collab_id and m.user_id = ${viewerId}::uuid))`;
 
 export async function getEvent(db: Db, viewerId: string, id: string): Promise<EventView | null> {

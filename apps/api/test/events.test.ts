@@ -43,6 +43,9 @@ describe('create and list', () => {
     expect(await bad({ endsAt: inDays(2) })).toBe('event_invalid'); // ends before it starts
     expect(await bad({ capacity: 0 })).toBe('event_invalid');
     expect(await bad({ externalPaymentUrl: 'javascript:alert(1)' })).toBe('event_invalid');
+    // money goes over an encrypted link, and a name:password@ can't dress one site up as another
+    expect(await bad({ externalPaymentUrl: 'http://pay.example.com/x' })).toBe('event_invalid');
+    expect(await bad({ externalPaymentUrl: 'https://bank.example@pay.evil.example/x' })).toBe('event_invalid');
     expect(await bad({ startsAt: 'tomorrow-ish' })).toBe('event_invalid');
 
     const later = await create(host, { title: 'Later', startsAt: inDays(5) });

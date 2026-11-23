@@ -8,10 +8,11 @@ import { sql } from 'drizzle-orm';
 import { rows, type Db } from '@anti/db';
 import { PIN_RULES, pinProblem } from '@anti/shared';
 import { ApiError } from './errors';
+import { hashSecret, verifySecret } from './password';
 import { generatePinResetCode, generateRecoveryCode, hashRecoveryCode, normalizeRecoveryCode, verifyRecoveryCode } from './crypto';
 
-export const hashPin = (pin: string) => Bun.password.hash(pin, { algorithm: 'argon2id' });
-const verifyPin = (pin: string, hash: string) => Bun.password.verify(pin, hash);
+export const hashPin = (pin: string) => hashSecret(pin);
+const verifyPin = (pin: string, hash: string) => verifySecret(pin, hash);
 
 /** Spent on unknown handles too, so a wrong handle takes as long as a wrong PIN. */
 let dummy: Promise<string> | undefined;

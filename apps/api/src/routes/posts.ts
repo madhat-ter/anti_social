@@ -209,7 +209,9 @@ export const postRoutes = (deps: Deps) => {
       return (await getPost(db, uid, id))!;
     }, {
       body: t.Object({
-        body: t.Optional(t.String()), parentId: t.Optional(t.String()), imageIds: t.Optional(t.Array(t.String())),
+        body: t.Optional(t.String({ maxLength: POST_MAX_CHARS * 4 })), parentId: t.Optional(t.String({ maxLength: 40 })),
+        // a flood guard only: more than POST_MAX_IMAGES gets the proper 'image_invalid' further on
+        imageIds: t.Optional(t.Array(t.String({ maxLength: 40 }), { maxItems: 20 })),
         collabId: t.Optional(t.String()), eventId: t.Optional(t.String()),
         petId: t.Optional(t.String()), petLabel: t.Optional(t.String({ maxLength: 20 })),
         monologue: t.Optional(t.Object({

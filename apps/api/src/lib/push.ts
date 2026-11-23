@@ -152,7 +152,9 @@ export async function fanOutPush(db: Db, sender: PushSender) {
   let sent = 0, skipped = 0, removed = 0, failed = 0;
   const queue = await rows<Row>(db, sql`
     select n.id, n.user_id, n.kind, n.payload, (n.created_at < now() - ${STALE}::interval) as stale,
-           a.handle as actor, left(p.body, 120) as post_snippet, p.root_id, e.title as event_title
+           a.handle as actor,
+           -- a post hidden after reports (or deleted) shows no words, not even on a lock screen
+           case when p.hidden_at is null and p.deleted_at is null then left(p.body, 120) end as post_snippet, p.root_id, e.title as event_title
       from notifications n
       left join users a on a.id = case when n.payload->>'actorId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'actorId')::uuid end
       left join posts p on p.id = case when n.payload->>'postId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'postId')::uuid end
