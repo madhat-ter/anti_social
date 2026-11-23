@@ -38,8 +38,9 @@ they are sitting in **Admin → Consulting** until someone approves each one.
 
 One thing waits on the **owner** after §10.25 (the landing page): decide the rules for members
 meeting in person if members are teenagers.
-"Ask for a seat" and contact details only work on tryanti.social once the owner has pasted
-`CONTACT_KEY` (the same value as on Render) into the cPanel app's settings (§10.27).
+`CONTACT_KEY` (the same value as on Render) is set in the cPanel app's settings since 2026-11-23,
+so "Ask for a seat" and contact details work on tryanti.social (§10.27). After a cPanel Save, one
+Restart may not start a new web copy; check `/api/public/seat-requests` and restart again if needed.
 
 Monologues (§10.22) keep their recordings in the database for now, like images. When the owner
 makes a Cloudflare R2 bucket, set `STORAGE=r2` and `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
