@@ -38842,8 +38842,8 @@ __exportCjs(exports_jws, {
 
 // apps/api/src/embedded.ts
 init_src2();
-import { mkdirSync, readdirSync as readdirSync2, readFileSync as readFileSync2, renameSync, rmSync, writeFileSync } from "node:fs";
-import { join as join3 } from "node:path";
+import { mkdirSync, readdirSync as readdirSync2, readFileSync as readFileSync3, renameSync, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { join as join4 } from "node:path";
 
 // apps/api/src/lib/payments.ts
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
@@ -66679,6 +66679,8 @@ init_drizzle_orm();
 // apps/api/src/lib/push.ts
 init_drizzle_orm();
 init_src2();
+import { readFileSync as readFileSync2, writeFileSync } from "node:fs";
+import { join as join3 } from "node:path";
 
 // node_modules/web-push/src/web-push-lib.js
 import https from "node:https";
@@ -67097,6 +67099,7 @@ class WebPushError extends Error {
 
 // node_modules/web-push/src/vapid-helper.js
 var import_asn1 = __toESM(require_asn1(), 1);
+import crypto4 from "node:crypto";
 import { URL as URL4 } from "node:url";
 
 // node_modules/jws/index.js
@@ -67159,6 +67162,26 @@ function toPEM(key) {
   }, "pem", {
     label: "EC PRIVATE KEY"
   });
+}
+function generateVAPIDKeys() {
+  const curve = crypto4.createECDH("prime256v1");
+  curve.generateKeys();
+  let publicKeyBuffer = curve.getPublicKey();
+  let privateKeyBuffer = curve.getPrivateKey();
+  if (privateKeyBuffer.length < 32) {
+    const padding = Buffer.alloc(32 - privateKeyBuffer.length);
+    padding.fill(0);
+    privateKeyBuffer = Buffer.concat([padding, privateKeyBuffer]);
+  }
+  if (publicKeyBuffer.length < 65) {
+    const padding = Buffer.alloc(65 - publicKeyBuffer.length);
+    padding.fill(0);
+    publicKeyBuffer = Buffer.concat([padding, publicKeyBuffer]);
+  }
+  return {
+    publicKey: publicKeyBuffer.toString("base64url"),
+    privateKey: privateKeyBuffer.toString("base64url")
+  };
 }
 function validateSubject(subject) {
   if (!subject) {
@@ -67282,7 +67305,7 @@ function getVapidHeaders(audience, subject, publicKey, privateKey, contentEncodi
 
 // node_modules/web-push/src/encryption-helper.js
 var import_http_ece = __toESM(require_ece(), 1);
-import crypto4 from "node:crypto";
+import crypto5 from "node:crypto";
 function encrypt(userPublicKey, userAuth, payload, contentEncoding) {
   if (!userPublicKey) {
     throw new Error("No user public key provided for encryption.");
@@ -67308,9 +67331,9 @@ function encrypt(userPublicKey, userAuth, payload, contentEncoding) {
   if (typeof payload === "string" || payload instanceof String) {
     payload = Buffer.from(payload);
   }
-  const localCurve = crypto4.createECDH("prime256v1");
+  const localCurve = crypto5.createECDH("prime256v1");
   const localPublicKey = localCurve.generateKeys();
-  const salt = crypto4.randomBytes(16).toString("base64url");
+  const salt = crypto5.randomBytes(16).toString("base64url");
   const cipherText = import_http_ece.default.encrypt(payload, {
     version: contentEncoding,
     dh: userPublicKey,
@@ -67626,11 +67649,25 @@ class NoPushSender {
     return "ok";
   }
 }
-function loadPushSender(env = process.env) {
-  const { VAPID_PUBLIC_KEY: pub, VAPID_PRIVATE_KEY: priv } = env;
+function vapidKeysInDir(dir) {
+  const file = join3(dir, "vapid.json");
+  try {
+    const k = JSON.parse(readFileSync2(file, "utf8"));
+    if (typeof k.publicKey === "string" && typeof k.privateKey === "string")
+      return { publicKey: k.publicKey, privateKey: k.privateKey };
+  } catch {}
+  const k = generateVAPIDKeys();
+  writeFileSync(file, JSON.stringify(k), { mode: 384 });
+  return k;
+}
+function loadPushSender(env = process.env, dataDir) {
+  let { VAPID_PUBLIC_KEY: pub, VAPID_PRIVATE_KEY: priv } = env;
+  if ((!pub || !priv) && dataDir)
+    ({ publicKey: pub, privateKey: priv } = vapidKeysInDir(dataDir));
   if (!pub || !priv)
     return new NoPushSender;
-  return new WebPushSender(pub, priv, env.VAPID_SUBJECT ?? "mailto:ops@localhost");
+  const subject = env.VAPID_SUBJECT ?? (env.WEB_ORIGIN?.startsWith("https://") ? env.WEB_ORIGIN : "mailto:ops@localhost");
+  return new WebPushSender(pub, priv, subject);
 }
 function describePush(r) {
   const p = typeof r.payload === "string" ? JSON.parse(r.payload) : r.payload ?? {};
@@ -69558,7 +69595,7 @@ function outranks(me, holder) {
 function readHolder(file) {
   let text;
   try {
-    text = readFileSync2(file, "utf8").trim();
+    text = readFileSync3(file, "utf8").trim();
   } catch {
     return null;
   }
@@ -69577,10 +69614,10 @@ async function lock2(file, me) {
   let asked = false;
   for (let i = 0;i < 120; i++) {
     try {
-      writeFileSync(file, JSON.stringify({ pid: process.pid, ...me }), { flag: "wx" });
+      writeFileSync2(file, JSON.stringify({ pid: process.pid, ...me }), { flag: "wx" });
       return () => {
         try {
-          if (JSON.parse(readFileSync2(file, "utf8")).pid === process.pid)
+          if (JSON.parse(readFileSync3(file, "utf8")).pid === process.pid)
             rmSync(file, { force: true });
         } catch {}
       };
@@ -69619,11 +69656,11 @@ function startBackups(dir, dump) {
         return;
       const t0 = Date.now();
       const bytes = await dump();
-      writeFileSync(join3(dir, `${name}.part`), bytes);
-      renameSync(join3(dir, `${name}.part`), join3(dir, name));
+      writeFileSync2(join4(dir, `${name}.part`), bytes);
+      renameSync(join4(dir, `${name}.part`), join4(dir, name));
       const old = readdirSync2(dir).filter((f) => /^pg-\d{4}-\d\d-\d\d\.tar\.gz$/.test(f)).sort().slice(0, -KEEP_BACKUPS);
       for (const f of old)
-        rmSync(join3(dir, f), { force: true });
+        rmSync(join4(dir, f), { force: true });
       console.log(`backup: ${name}, ${Math.round(bytes.length / 1024)} KB in ${Date.now() - t0} ms`);
     } catch (e) {
       console.error("backup failed:", e);
@@ -69645,15 +69682,15 @@ async function startEmbeddedApi(env = process.env) {
   mkdirSync(dataDir, { recursive: true });
   const cfg = loadConfig(env);
   const me = { build: env.ANTI_BUILD ?? "dev", settings: env.ANTI_SETTINGS ?? "", started: Number(env.ANTI_STARTED) || Date.now() };
-  const unlock = await lock2(join3(dataDir, "db.lock"), me);
+  const unlock = await lock2(join4(dataDir, "db.lock"), me);
   let closeDb;
   try {
     const t0 = Date.now();
-    const opened = await openLocalDb(join3(dataDir, "pg"));
+    const opened = await openLocalDb(join4(dataDir, "pg"));
     closeDb = opened.close;
     const { db } = opened;
     console.log(`database open in ${Date.now() - t0} ms`);
-    await importFileIfPresent(db, join3(dataDir, "import.ndjson.gz")).catch((e) => console.error("import failed, nothing loaded:", e));
+    await importFileIfPresent(db, join4(dataDir, "import.ndjson.gz")).catch((e) => console.error("import failed, nothing loaded:", e));
     if (env.BOOTSTRAP_INVITES)
       await bootstrapInvites(db, Number(env.BOOTSTRAP_INVITES));
     if (env.OPS_HANDLES)
@@ -69662,14 +69699,20 @@ async function startEmbeddedApi(env = process.env) {
       await bootstrapPinReset(db, env.PIN_RESET_HANDLE);
     const storage = loadStorage(db, env);
     const payments = loadPaymentProvider(cfg);
-    const push = loadPushSender();
+    const ownKeys = !(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY);
+    let push;
+    try {
+      push = loadPushSender(env, dataDir);
+    } catch (e) {
+      console.error("web push keys could not be read or made, push stays off:", e);
+      push = loadPushSender({});
+    }
     const app = createApp({ db, cfg, storage, payments, push });
     const stopJobs = env.JOBS === "off" ? () => {} : startScheduler(db, { storage, payments, push });
-    const stopBackups = startBackups(join3(dataDir, "backups"), opened.backup);
+    const stopBackups = startBackups(join4(dataDir, "backups"), opened.backup);
     if (payments.kind === "fake")
       console.log("FAKE payments: nobody is charged");
-    if (!push.publicKey)
-      console.log("web push disabled (no VAPID keys)");
+    console.log(push.publicKey ? `web push on (${ownKeys ? "keys in the data folder, vapid.json" : "keys from the settings"})` : "web push disabled (no VAPID keys)");
     let closed = false;
     return {
       handle: (request) => app.handle(request),
