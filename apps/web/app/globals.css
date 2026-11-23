@@ -751,6 +751,8 @@ ul.events { list-style: none; margin: 0; padding: 0; display: flex; flex-directi
 .ticket-facts dt { font: 400 .8rem/1.3 var(--font-ui); color: var(--gray-strong); text-transform: lowercase; }
 .ticket-facts dd { margin: .15rem 0 0; overflow-wrap: anywhere; }
 .ticket-facts .tag { margin-left: .4rem; }
+/* RFC §10.28: the safety line a member aged 13–17 sees under an in-person place */
+.meet-safe { display: block; margin-top: .3rem; font: 400 .85rem/1.35 var(--font-ui); color: var(--gray-strong); }
 .facts { display: grid; grid-template-columns: 6.5rem 1fr; margin: 0; border-top: 1.5px solid var(--ink); }
 .facts dt, .facts dd { margin: 0; padding: .6rem 0; border-bottom: 1.5px solid var(--ink); }
 .facts dt { font: 700 .95rem/1.55 var(--font-ui); }

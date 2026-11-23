@@ -14,7 +14,7 @@ import { InterestTags } from '@/components/Interests';
 import { collabStatusLabel, joinLabel, collabJoinable } from '@/components/Collab';
 import { Composer } from '@/components/Composer';
 import { PostList } from '@/components/PostList';
-import { eventWhen } from '@/components/Events';
+import { eventWhen, MeetSafeNote } from '@/components/Events';
 import { usePaged } from '@/lib/hooks';
 import type { Post } from '@/lib/api';
 import { ActionMenu } from '@/components/ActionMenu';
@@ -22,12 +22,12 @@ import { bnLang } from '@/lib/lang';
 
 export default function CollabPage() {
   useTitle('Collab');
-  return <SeatedShell>{(me) => <CollabView myHandle={me.handle} />}</SeatedShell>;
+  return <SeatedShell>{(me) => <CollabView myHandle={me.handle} birthday={me.birthday} />}</SeatedShell>;
 }
 
 const ROLE_LABEL = { host: 'host', cohost: 'co-host', member: '' } as const;
 
-function CollabView({ myHandle }: { myHandle: string }) {
+function CollabView({ myHandle, birthday }: { myHandle: string; birthday: string | null }) {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [c, setC] = useState<Collab | null>(null);
@@ -94,7 +94,7 @@ function CollabView({ myHandle }: { myHandle: string }) {
         )}
         {c.description && <p className="body collab-desc">{c.description}</p>}
         <dl className="facts">
-          {c.kind === 'activity' && c.meets && <><dt>When we meet</dt><dd>{c.meets}</dd></>}
+          {c.kind === 'activity' && c.meets && <><dt>When we meet</dt><dd>{c.meets}<MeetSafeNote birthday={birthday} /></dd></>}
           {c.kind === 'project' && c.slots.length > 0 && (
             <>
               <dt>Looking for</dt>

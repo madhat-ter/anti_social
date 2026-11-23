@@ -2,11 +2,17 @@
 import { useState, type FormEvent } from 'react';
 import {
   EVENT_DESCRIPTION_MAX, EVENT_LOCATION_MAX, EVENT_PRICE_NOTE_MAX, EVENT_TITLE_MAX, EVENT_CAPACITY_MAX,
-  EVENT_INTERESTS_MAX, EVENT_REQUIREMENTS_MAX,
+  EVENT_INTERESTS_MAX, EVENT_REQUIREMENTS_MAX, MEET_SAFE_NOTE, isUnderAdultAge, localToday,
 } from '@anti/shared';
 import { InterestPicker } from './Interests';
 import { errorMessage, type AnEvent, type EventInput } from '@/lib/api';
 import { ErrorNote } from './ui';
+
+/** RFC §10.28: one line for a member aged 13–17 on an in-person page; nothing for adults. */
+export function MeetSafeNote({ birthday }: { birthday: string | null }) {
+  if (!isUnderAdultAge(birthday, localToday())) return null;
+  return <span className="meet-safe">{MEET_SAFE_NOTE}</span>;
+}
 
 /** "Sat, Nov 14 · 10:00 AM – 12:00 PM" in the viewer's time zone. */
 export function eventWhen(startsAt: string, endsAt: string | null): string {

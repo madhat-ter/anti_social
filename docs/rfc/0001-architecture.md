@@ -1687,6 +1687,30 @@ address on tryanti.social (307), and `ALLOW_EXPORT` was removed from Render.
 on tryanti.social; members sign in with handle + PIN and can add a passkey again. If the host
 ends the keeper, the jobs pause until the next visit starts a new one (about 2 s).
 
+**Render deleted (2026-11-23, owner: "if render has no work, delete its existence too").** The
+last export was taken at 12:12 UTC and the old address forwarded from about 12:45 UTC; Render's
+logs can't show whether anyone posted in between, and the owner chose to delete anyway. The API,
+its database and the Blueprint were deleted; `render.yaml`, the `uptime-watch` GitHub job and the
+API's Render-only keep-awake visit were removed from the repo.
+
+### 10.28 Meeting in person: mixed ages, one safety line (added 2026-11-23)
+
+The question §10.25 left open. Asked with the owner (four questions); the owner chose:
+
+- **Ages stay mixed.** Members of any age can host, see and join events, meetups and activities,
+  as before. No age groups, no new limits. (Offered and turned down: 13–17s meeting only 13–17s,
+  and no in-person things for under-18s.)
+- **One safety line for 13–17s** on every in-person page, under the place: on an event or meetup
+  (`/collab/event/<id>`, under **Where**) and on an activity (under **When we meet**). Text:
+  "Meet somewhere public, and tell someone you trust where you’re going." No phone numbers, no
+  links (§10.25: no number from memory). Adults see nothing new.
+- **The place shows as before**: the host still chooses whether only people going see it.
+- **Admins see everything** in Admin → Collab, as before, with Remove.
+
+The age comes from the birthday every member gives at setup (§10.3), worked out on the viewer's
+own device (`isUnderAdultAge` in `packages/shared/src/rules.ts`, `ADULT_AGE = 18`); it is never
+shown and nothing new is stored or sent. A member who turns 18 stops seeing the line that day.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops.

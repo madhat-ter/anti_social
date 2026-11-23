@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { ageOn, utcToday } from '@anti/shared';
+import { ageOn, isUnderAdultAge, utcToday } from '@anti/shared';
 import { setOps } from '../src/lib/moderation';
 import { cleanup, setup, TEST_SETUP } from './client';
 
@@ -16,6 +16,16 @@ async function world() {
 }
 
 describe('birthdays', () => {
+  test('RFC §10.28: the in-person safety line is for 13–17s only, and flips on the 18th birthday', () => {
+    const today = { y: 2026, m: 11, d: 23 };
+    expect(isUnderAdultAge('2013-01-01', today)).toBe(true); // 13
+    expect(isUnderAdultAge('2008-11-24', today)).toBe(true); // 17, 18 tomorrow
+    expect(isUnderAdultAge('2008-11-23', today)).toBe(false); // 18 today
+    expect(isUnderAdultAge('1995-02-11', today)).toBe(false);
+    expect(isUnderAdultAge(null, today)).toBe(false); // not set up: no guess
+    expect(isUnderAdultAge('not a date', today)).toBe(false);
+  });
+
   test('month and day only, and only when shown; never the year or an age', async () => {
     const w = await world();
     const ana = await w.member('ana'); // born TEST_SETUP.birthday = 1995-05-17

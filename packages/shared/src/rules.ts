@@ -148,6 +148,17 @@ export function ageOn(iso: string, today: { y: number; m: number; d: number }): 
   return today.y - b.y - (beforeBirthday ? 1 : 0);
 }
 
+/**
+ * RFC §10.28, meeting in person: ages stay mixed, but a member under this age (13–17) sees one
+ * safety line on every in-person page (an event or meetup, an activity). No numbers, no links.
+ */
+export const ADULT_AGE = 18;
+export const MEET_SAFE_NOTE = 'Meet somewhere public, and tell someone you trust where you’re going.';
+export function isUnderAdultAge(birthday: string | null | undefined, today: { y: number; m: number; d: number }): boolean {
+  const age = birthday ? ageOn(birthday, today) : null;
+  return age !== null && age < ADULT_AGE;
+}
+
 /** Today's date in UTC, the way the server sees it. */
 export const utcToday = (now = new Date()) => ({ y: now.getUTCFullYear(), m: now.getUTCMonth() + 1, d: now.getUTCDate() });
 /** Today's date where the viewer is. */

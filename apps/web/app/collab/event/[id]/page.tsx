@@ -13,7 +13,7 @@ import type { CollabSuggestion } from '@/lib/api';
 import { fmtDate, useTitle } from '@/lib/hooks';
 import { SeatedShell } from '@/components/Shell';
 import { ErrorNote } from '@/components/ui';
-import { eventWhen, spotsText } from '@/components/Events';
+import { eventWhen, MeetSafeNote, spotsText } from '@/components/Events';
 import { AlertDialog, Loading } from '@/components/retro';
 import { Avatar } from '@/components/Avatar';
 import { NameMarks } from '@/components/Marks';
@@ -21,10 +21,10 @@ import { ActionMenu } from '@/components/ActionMenu';
 
 export default function EventPage() {
   useTitle('Event');
-  return <SeatedShell>{() => <EventView />}</SeatedShell>;
+  return <SeatedShell>{(me) => <EventView birthday={me.birthday} />}</SeatedShell>;
 }
 
-function EventView() {
+function EventView({ birthday }: { birthday: string | null }) {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [ev, setEv] = useState<EventDetail | null>(null);
@@ -92,6 +92,7 @@ function EventView() {
                 <dd>
                   {ev.location ?? <span className="muted">Shared with people who are going.</span>}
                   {ev.locationRsvpOnly && ev.location && <span className="tag" title="Only the host and people going can see this">private</span>}
+                  <MeetSafeNote birthday={birthday} />
                 </dd>
               </div>
               {ev.collab && <div><dt>Meetup for</dt><dd><Link href={`/collab/${ev.collab.id}`}>{ev.collab.title}</Link></dd></div>}
