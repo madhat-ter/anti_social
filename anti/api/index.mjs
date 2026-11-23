@@ -38842,8 +38842,8 @@ __exportCjs(exports_jws, {
 
 // apps/api/src/embedded.ts
 init_src2();
-import { mkdirSync, readdirSync, readFileSync as readFileSync2, renameSync, rmSync, writeFileSync } from "node:fs";
-import { join as join2 } from "node:path";
+import { mkdirSync, readdirSync as readdirSync2, readFileSync as readFileSync2, renameSync, rmSync, writeFileSync } from "node:fs";
+import { join as join3 } from "node:path";
 
 // apps/api/src/lib/payments.ts
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
@@ -66354,8 +66354,10 @@ async function openMemberContact(db, handle, actorId) {
 // apps/api/src/lib/transfer.ts
 init_drizzle_orm();
 init_src2();
-import { createReadStream as createReadStream2 } from "node:fs";
+import { createReadStream as createReadStream2, existsSync, readdirSync } from "node:fs";
 import { rename } from "node:fs/promises";
+import { basename, dirname, join as join2 } from "node:path";
+import { Readable } from "node:stream";
 import { createInterface } from "node:readline";
 import { createGunzip } from "node:zlib";
 var SKIP = new Set(["rate_limits", "sessions"]);
@@ -66473,29 +66475,38 @@ async function importLines(db, lines) {
   });
   return counts;
 }
-async function importFileIfPresent(db, file, log = console.log) {
-  let stream;
+function importFiles(file) {
+  if (existsSync(file))
+    return [file];
+  const dir = dirname(file);
+  const base = basename(file);
+  let names;
   try {
-    stream = createReadStream2(file);
-    await new Promise((ok, fail) => {
-      stream.once("open", () => ok());
-      stream.once("error", fail);
-    });
-  } catch (e) {
-    if (e.code === "ENOENT")
-      return false;
-    throw e;
+    names = readdirSync(dir);
+  } catch {
+    return [];
   }
+  return names.map((n) => ({ n, i: n.startsWith(`${base}.part`) ? Number(n.slice(base.length + 5)) : NaN })).filter((x) => Number.isInteger(x.i) && x.i > 0).sort((a, b) => a.i - b.i).map((x) => join2(dir, x.n));
+}
+async function importFileIfPresent(db, file, log = console.log) {
+  const files = importFiles(file);
+  if (!files.length)
+    return false;
   const members = Number(await scalar(db, sql`select count(*) from users`));
   if (members > 0) {
-    stream.destroy();
-    log(`import: ${file} is there but the site already has ${members} members; not loading it`);
+    log(`import: ${files.join(", ")} is there but the site already has ${members} members; not loading it`);
     return false;
   }
-  log(`import: loading ${file}`);
-  const lines = createInterface({ input: stream.pipe(createGunzip()), crlfDelay: Infinity });
+  log(`import: loading ${files.join(" + ")}`);
+  const bytes = Readable.from(async function* () {
+    for (const f of files)
+      yield* createReadStream2(f);
+  }());
+  const lines = createInterface({ input: bytes.pipe(createGunzip()), crlfDelay: Infinity });
   const counts = await importLines(db, lines);
-  await rename(file, `${file}.done-${Date.now()}`);
+  const stamp = Date.now();
+  for (const f of files)
+    await rename(f, `${f}.done-${stamp}`);
   log(`import: done, ${Object.entries(counts).map(([t, n]) => `${t} ${n}`).join(", ")}`);
   return true;
 }
@@ -69561,15 +69572,15 @@ function startBackups(dir, dump) {
     try {
       mkdirSync(dir, { recursive: true });
       const name = today();
-      if (readdirSync(dir).includes(name))
+      if (readdirSync2(dir).includes(name))
         return;
       const t0 = Date.now();
       const bytes = await dump();
-      writeFileSync(join2(dir, `${name}.part`), bytes);
-      renameSync(join2(dir, `${name}.part`), join2(dir, name));
-      const old = readdirSync(dir).filter((f) => /^pg-\d{4}-\d\d-\d\d\.tar\.gz$/.test(f)).sort().slice(0, -KEEP_BACKUPS);
+      writeFileSync(join3(dir, `${name}.part`), bytes);
+      renameSync(join3(dir, `${name}.part`), join3(dir, name));
+      const old = readdirSync2(dir).filter((f) => /^pg-\d{4}-\d\d-\d\d\.tar\.gz$/.test(f)).sort().slice(0, -KEEP_BACKUPS);
       for (const f of old)
-        rmSync(join2(dir, f), { force: true });
+        rmSync(join3(dir, f), { force: true });
       console.log(`backup: ${name}, ${Math.round(bytes.length / 1024)} KB in ${Date.now() - t0} ms`);
     } catch (e) {
       console.error("backup failed:", e);
@@ -69590,15 +69601,15 @@ async function startEmbeddedApi(env = process.env) {
     throw new Error("ANTI_DATA_DIR is not set (the folder for the database files)");
   mkdirSync(dataDir, { recursive: true });
   const cfg = loadConfig(env);
-  const unlock = await lock2(join2(dataDir, "db.lock"));
+  const unlock = await lock2(join3(dataDir, "db.lock"));
   let closeDb;
   try {
     const t0 = Date.now();
-    const opened = await openLocalDb(join2(dataDir, "pg"));
+    const opened = await openLocalDb(join3(dataDir, "pg"));
     closeDb = opened.close;
     const { db } = opened;
     console.log(`database open in ${Date.now() - t0} ms`);
-    await importFileIfPresent(db, join2(dataDir, "import.ndjson.gz"));
+    await importFileIfPresent(db, join3(dataDir, "import.ndjson.gz")).catch((e) => console.error("import failed, nothing loaded:", e));
     if (env.BOOTSTRAP_INVITES)
       await bootstrapInvites(db, Number(env.BOOTSTRAP_INVITES));
     if (env.OPS_HANDLES)
@@ -69610,7 +69621,7 @@ async function startEmbeddedApi(env = process.env) {
     const push = loadPushSender();
     const app = createApp({ db, cfg, storage, payments, push });
     const stopJobs = env.JOBS === "off" ? () => {} : startScheduler(db, { storage, payments, push });
-    const stopBackups = startBackups(join2(dataDir, "backups"), opened.backup);
+    const stopBackups = startBackups(join3(dataDir, "backups"), opened.backup);
     if (payments.kind === "fake")
       console.log("FAKE payments: nobody is charged");
     if (!push.publicKey)
