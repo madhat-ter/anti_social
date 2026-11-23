@@ -72,8 +72,8 @@ Migrations run on start. `~/anti-data` is never touched by an update.
 
 ## When something is wrong
 
-- **The app's log**: Setup Node.js App shows the log file path (often `~/anti-app/stderr.log`,
-  or LiteSpeed's `~/logs`). Lines to look for: `database open`, `anti listening (built …)`,
+- **The app's log**: `~/anti-data/logs/app.log` (the host's own `~/anti-app/stderr.log` stays
+  empty). Lines to look for: `database open`, `anti listening (built …)`,
   `anti stopping: …`, `anti crashed`, `db lock held by pid …`.
 - **"another copy of the API still holds …/db.lock"**: an old copy didn't stop. Restart the app
   again; if it repeats, delete `~/anti-data/db.lock` while the app is stopped.
