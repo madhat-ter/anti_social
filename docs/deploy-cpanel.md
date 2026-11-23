@@ -69,7 +69,19 @@ here is capped at 10 MB, and the owner's connection changes address, which ends 
 | `CONTACT_KEY` | the **same** value as on Render, pasted by the owner (never in chat) |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | optional, for push; the same as before if any |
 
-   No `npm install` is needed: everything is in the branch.
+   No `npm install` is needed: everything is in the branch. cPanel keeps these settings as
+   `SetEnv` lines in `~/public_html/.htaccess` (LiteSpeed never serves that file).
+5. **One address**: at the top of `~/public_html/.htaccess`, above cPanel's managed blocks (added
+   2026-11-23; the previous file is kept as `.htaccess.before-anti-redirect`). Sign-in and passkeys
+   only work on `https://tryanti.social`, so `www.` and plain `http://` forward there:
+
+   ```apache
+   RewriteEngine On
+   RewriteCond %{REQUEST_URI} !^/\.well-known/
+   RewriteCond %{HTTPS} !=on [OR]
+   RewriteCond %{HTTP_HOST} !^tryanti\.social$ [NC]
+   RewriteRule ^ https://tryanti.social%{REQUEST_URI} [R=301,L]
+   ```
 
 ## Moving the members in (once)
 
