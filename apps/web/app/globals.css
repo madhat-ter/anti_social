@@ -594,6 +594,15 @@ ul.events { list-style: none; margin: 0; padding: 0; display: flex; flex-directi
 .rules li:last-child { border-right: 0; margin-right: 0; }
 .rules b { display: block; font-weight: 900; font-stretch: 62%; font-size: 2.1rem; line-height: 1; text-transform: uppercase; margin-bottom: .35rem; }
 .rules span { font-size: .95rem; color: var(--gray); }
+/* RFC §10.29: what anti is, and five answers, under the rules; plain reading text */
+.about { display: grid; gap: 1rem; border-top: 3px solid var(--ink); padding-top: 1.25rem; }
+.about-h { margin: 0; font-weight: 900; font-stretch: 62%; font-size: 2.1rem; line-height: 1; text-transform: uppercase; }
+.about-lead { display: grid; gap: .5rem; max-width: 44rem; }
+.about-lead p { margin: 0; font: 400 1.05rem/1.5 var(--font-text); }
+.faq { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0 1.5rem; }
+.faq-item { padding: .75rem 0; border-top: 1.5px solid var(--ink); }
+.faq-item h3 { margin: 0 0 .3rem; font: 700 1rem/1.3 var(--font-text); }
+.faq-item p { margin: 0; font-size: .95rem; line-height: 1.45; color: var(--gray); }
 
 /* ─── landing entrance: one boot sequence ──────────────────────────────────
    0.0–0.4s  type stamps in (stepped, like a slow 1-bit redraw)
@@ -1091,7 +1100,7 @@ input[type=search]::-webkit-search-cancel-button {
   .wrap:has(> .hero) { max-width: 78rem; }
   .hero {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 4rem; row-gap: 2rem; align-items: start;
-    grid-template-areas: "type seats" "sub seats" "alert seats" "how seats" "visit seats" "rules rules";
+    grid-template-areas: "type seats" "sub seats" "alert seats" "how seats" "visit seats" "rules rules" "about about";
   }
   .hero-type { grid-area: type; }
   .hero-type > span { font-size: clamp(6rem, 12.5vw, 11.5rem); }
@@ -1101,6 +1110,7 @@ input[type=search]::-webkit-search-cancel-button {
   .hero > .visit-entry { grid-area: visit; }
   .hero > .seats { grid-area: seats; padding-top: .75rem; }
   .hero > .rules { grid-area: rules; }
+  .hero > .about { grid-area: about; }
 }
 
 /* ─── portfolio: the profile laid out like a Behance page ──────────────────

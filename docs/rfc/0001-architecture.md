@@ -1711,6 +1711,34 @@ The age comes from the birthday every member gives at setup (§10.3), worked out
 own device (`isUnderAdultAge` in `packages/shared/src/rules.ts`, `ADULT_AGE = 18`); it is never
 shown and nothing new is stored or sent. A member who turns 18 stops seeing the line that day.
 
+### 10.29 Being found: search engines and AI assistants (added 2026-11-23)
+
+The owner asked for anti to be found on Google and quoted by AI assistants; `site:tryanti.social`
+showed nothing. Found: the home page sent everyone a "Loading…" shell (the landing appeared only
+after a script asked the API who you are), there was no robots.txt, sitemap or share picture, and
+the only description was the layout's. Asked with the owner (four questions); every answer as
+proposed:
+
+- **Describe what anti really is**: a small, invite-only community of 100 seats for people who feel
+  alone. Not "social media detox" or productivity words (the request's brief used those; they would
+  bring the wrong people and mislead them).
+- **The landing keeps the owner's message exactly** (§10.25). Under the three rules it gains **What
+  is anti?** (three sentences) and **Questions** (five: who it's for, how to join, is it free, who
+  sees my posts, is it a crisis service). No comparison table.
+- **Never suicide or self-harm words** in titles, descriptions, keywords or text. The FAQ says anti
+  is not a crisis service and points to someone they trust or the local emergency number, with no
+  phone number (§10.25).
+- **Free to join** in the structured data (price 0); the stay fee isn't mentioned.
+
+Built: `app/page.tsx` sends the landing fully written out when there is no session cookie (the feed
+lives in `app/home.tsx`, as before); one source for the words, `src/lib/about.ts`, feeds the page,
+the JSON-LD (`HomeJsonLd`: Organization, WebSite, WebApplication, FAQPage; no SearchAction, there is
+no public search) and `/llms.txt`. Only `/` may be indexed: the root layout says noindex for every
+other page (members' pages are behind sign-in; share pages `/f/<handle>` stay out on purpose,
+§10.24). `robots.txt` lets every crawler, AI ones by name, read the site except `/api/` and `/dev/`;
+`sitemap.xml` lists `/`; `opengraph-image` / `twitter-image` are the share picture. An IndexNow key
+file sits in `public/`.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops.

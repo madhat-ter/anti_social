@@ -56,6 +56,12 @@ which §10.27 rules out; only do it if the owner changes that rule.
   ending things near it. There is no help line under it: the owner had Kaan Pete Roi and 999
   taken off on 2026-11-17 (Kaan Pete Roi did not answer). Don't add one back unless the owner
   asks, and never put a number on the site from memory.
+  Under the message and rules, **What is anti? + Questions** (§10.29) explain it in plain words for
+  people arriving from search; their words live in `apps/web/src/lib/about.ts` and also feed the
+  JSON-LD and `/llms.txt`. Describe anti as what it is (a small community for people who feel
+  alone), never with suicide or self-harm search words. Only `/` is indexable; every other page is
+  noindex by default (`layout.tsx`). `app/page.tsx` must keep sending the landing written out
+  when there's no `anti_session` cookie: a "Loading…" shell is what kept the site out of Google.
   **Ask for a seat** takes a request from someone with no account: only admins see it, the contact
   is sealed (`CONTACT_KEY`), the site sends them nothing, and "Not now" erases it.
 - **Fewest taps** (§10.26): an action sits where its thing lives, never in Settings because it is

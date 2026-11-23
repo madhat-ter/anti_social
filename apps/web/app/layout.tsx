@@ -4,6 +4,7 @@ import { connection } from 'next/server';
 import { cookies } from 'next/headers';
 import { Archivo, Shantell_Sans, Space_Mono, Tiny5 } from 'next/font/google';
 import localFont from 'next/font/local';
+import { HOME_DESCRIPTION, SITE_NAME, SITE_URL } from '@/lib/about';
 import './globals.css';
 
 /** One family on its width axis: ultra-condensed black for posters, normal width for reading. */
@@ -40,7 +41,20 @@ const bangla = localFont({
   ],
 });
 
-export const metadata: Metadata = { title: 'anti', description: 'You are not the only one feeling this. A small room of a hundred seats, where we have each other.' };
+/**
+ * RFC §10.29: only the landing page (page.tsx) is meant to be found by search engines. Every other
+ * page is a member's, behind sign-in, or a share page that is noindex on its own (§10.24), so the
+ * default here is noindex; page.tsx turns indexing on for itself.
+ */
+export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  title: SITE_NAME,
+  description: HOME_DESCRIPTION,
+  applicationName: SITE_NAME,
+  robots: { index: false, follow: false },
+  openGraph: { type: 'website', siteName: SITE_NAME, locale: 'en' },
+  twitter: { card: 'summary_large_image' },
+};
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // render per request: the CSP nonce (proxy.ts) is new every time, so pages can't be prebuilt
