@@ -75,7 +75,11 @@ Migrations run on start. `~/anti-data` is never touched by an update.
 - **The app's log**: `~/anti-data/logs/app.log` (the host's own `~/anti-app/stderr.log` stays
   empty). Lines to look for: `database open`, `anti listening (built …)`,
   `anti stopping: …`, `anti crashed`, `db lock held by pid …`.
-- **"another copy of the API still holds …/db.lock"**: an old copy didn't stop. Restart the app
-  again; if it repeats, delete `~/anti-data/db.lock` while the app is stopped.
+- **LiteSpeed never ends the old process** on Restart or Stop App (seen 2026-11-23). The newest
+  copy therefore asks whoever holds `~/anti-data/db.lock` to stop (it closes the database and
+  exits), then opens it: the log says `db lock held by pid … asking it to stop`. Stop App alone
+  leaves the old copy running until the next start.
+- **"another copy of the API still holds …/db.lock"**: the old copy didn't stop within a minute.
+  Restart again; if it repeats, ask the host to end the `node` processes of this account.
 - **Restore a backup**: stop the app, move `~/anti-data/pg` away, make an empty `pg` and extract the
   chosen `backups/pg-….tar.gz` into it, start the app.

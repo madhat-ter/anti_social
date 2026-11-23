@@ -23,19 +23,32 @@ const alive = (pid: number) => {
 };
 
 /**
- * PGlite must never be opened by two processes: the files would be damaged. When the host starts
- * a new copy while the old one is still closing (a restart), the new one waits up to a minute.
+ * PGlite must never be opened by two processes: the files would be damaged. The lock file holds
+ * "<pid> <build>". The newest copy wins: when the host starts a new one while an old one is still
+ * running, the old one is asked to stop (SIGTERM: it closes the database and exits) and the new
+ * one waits for the files (up to a minute). Seen on LiteSpeed (2026-11-23): Restart and Stop App
+ * start a new process but never end the old one, whose timers keep it alive for ever. An old copy
+ * never signals a newer one: it only ever finds the lock free or held by something older.
  */
-async function lock(file: string): Promise<() => void> {
+export async function lock(file: string, build: string): Promise<() => void> {
+  let asked = false;
   for (let i = 0; i < 120; i++) {
     try {
-      writeFileSync(file, String(process.pid), { flag: 'wx' });
-      return () => rmSync(file, { force: true });
+      writeFileSync(file, `${process.pid} ${build}`, { flag: 'wx' });
+      return () => {
+        try { if (Number(readFileSync(file, 'utf8').split(' ')[0]) === process.pid) rmSync(file, { force: true }); } catch { /* gone */ }
+      };
     } catch (e) {
       if ((e as { code?: string }).code !== 'EEXIST') throw e;
-      const pid = Number(readFileSync(file, 'utf8'));
+      const [pidText = '', ...rest] = readFileSync(file, 'utf8').trim().split(' ');
+      const pid = Number(pidText);
+      const theirs = rest.join(' ');
       if (!pid || pid === process.pid || !alive(pid)) { rmSync(file, { force: true }); continue; }
-      if (i === 0) console.log(`db lock held by pid ${pid}; waiting`);
+      if (!asked) {
+        console.log(`db lock held by pid ${pid} (${theirs || 'an older build'}); asking it to stop`);
+        try { process.kill(pid, 'SIGTERM'); } catch (err) { console.error('could not signal it:', String(err)); }
+        asked = true;
+      }
       await sleep(500);
     }
   }
@@ -80,7 +93,7 @@ export async function startEmbeddedApi(env: Record<string, string | undefined> =
   if (!dataDir) throw new Error('ANTI_DATA_DIR is not set (the folder for the database files)');
   mkdirSync(dataDir, { recursive: true });
   const cfg = loadConfig(env);
-  const unlock = await lock(join(dataDir, 'db.lock'));
+  const unlock = await lock(join(dataDir, 'db.lock'), (env.ANTI_BUILD ?? 'dev').replace(/\s+/g, '_'));
   let closeDb: (() => Promise<void>) | undefined;
   try {
     const t0 = Date.now();

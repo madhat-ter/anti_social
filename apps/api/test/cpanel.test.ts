@@ -8,7 +8,7 @@ import { createTestDb } from '@anti/db/testing';
 import { openLocalDb } from '@anti/db';
 import { wasmHash, wasmVerify } from '../src/lib/password';
 import { exportLines, importFileIfPresent, importFiles, importLines } from '../src/lib/transfer';
-import { startEmbeddedApi } from '../src/embedded';
+import { lock, startEmbeddedApi } from '../src/embedded';
 import { createApp } from '../src/app';
 import { MemoryStorage } from '../src/lib/storage';
 import { FakeStripeProvider } from '../src/lib/payments';
@@ -121,6 +121,28 @@ describe('moving the site', () => {
     } finally {
       delete process.env.ALLOW_EXPORT;
     }
+  }, 60_000);
+});
+
+describe('one copy at a time', () => {
+  test('a newer copy asks the one holding the database to stop, then takes it', async () => {
+    const dir = tempDir();
+    const file = join(dir, 'db.lock');
+    // the "old copy": holds the lock, lets go of it when asked to stop
+    const old = Bun.spawn(['bun', '-e', `
+      const fs = require('node:fs');
+      fs.writeFileSync(${JSON.stringify(file)}, process.pid + ' old-build');
+      process.on('SIGTERM', () => { fs.rmSync(${JSON.stringify(file)}, { force: true }); process.exit(0); });
+      setInterval(() => {}, 1000);`]);
+    for (let i = 0; i < 50 && !existsSync(file); i++) await Bun.sleep(100);
+    expect(existsSync(file)).toBe(true);
+    const t0 = Date.now();
+    const unlock = await lock(file, 'new-build');
+    expect(Date.now() - t0).toBeLessThan(30_000);
+    await old.exited;
+    expect((await Bun.file(file).text()).startsWith(`${process.pid} new-build`)).toBe(true);
+    unlock();
+    expect(existsSync(file)).toBe(false);
   }, 60_000);
 });
 
