@@ -29,6 +29,15 @@ const config: NextConfig = {
   // RFC §10.21: Events and Collabs became one place. Old addresses keep working, permanently.
   async redirects() {
     return [
+      // RFC §10.27: the test site moved to tryanti.social (2026-11-23). Every address on the old
+      // host, the API included, goes to the same address there. Temporary (307), so browsers don't
+      // remember it for ever if the old host is ever needed again.
+      {
+        source: '/:path*',
+        has: [{ type: 'host' as const, value: 'anti-social-opal.vercel.app' }],
+        destination: 'https://tryanti.social/:path*',
+        permanent: false,
+      },
       { source: '/events/new', destination: '/collab/new?kind=event', permanent: true },
       { source: '/events/:id/edit', destination: '/collab/event/:id/edit', permanent: true },
       { source: '/events/:id', destination: '/collab/event/:id', permanent: true },

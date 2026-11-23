@@ -177,8 +177,12 @@ feature's own folder (e.g. `.screenshots/feed-types-before/`).
   copies pass `/api/…` to it. Lock rules: `outranks()` in `embedded.ts`.
 - The app's log is `~/anti-data/logs/app.log` (readable with cPanel's File Manager API).
 
-## The live test site
+## The old test site (retired 2026-11-23)
 
+- **It now forwards every address to tryanti.social** (`next.config.ts`, a redirect only for the
+  host `anti-social-opal.vercel.app`). Its data was moved over once; `ALLOW_EXPORT` is off again on
+  Render. The Render API and its free database keep running until the database expires
+  (~2026-12-08); nothing reaches them through the old address any more.
 - Web: https://anti-social-opal.vercel.app (Vercel, root `apps/web`); API on Render's free plan
   (`render.yaml`, Singapore), Render Postgres. Setup: `docs/deploy-free.md`; real launch: `docs/deploy.md`.
 - Every push redeploys both. On Render's free plan that is a short outage, so don't push

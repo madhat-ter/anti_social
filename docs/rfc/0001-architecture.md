@@ -1679,6 +1679,10 @@ How it is built (`docs/deploy-cpanel.md`):
 - **Backups**: a copy of the database files every day in `~/anti-data/backups`, the newest 7 kept.
 - `scripts/build-cpanel.ts` makes the upload, `.cpanel/anti-cpanel.zip`, on Windows for Linux.
 
+**Cut-over (2026-11-23, owner: "redirect the test site and turn off export").** The 28 members
+were moved once; then `anti-social-opal.vercel.app` began forwarding every address to the same
+address on tryanti.social (307), and `ALLOW_EXPORT` was removed from Render.
+
 **Known and accepted.** Passkeys belong to an address, so passkeys made on the test site don't work
 on tryanti.social; members sign in with handle + PIN and can add a passkey again. If the host
 ends the keeper, the jobs pause until the next visit starts a new one (about 2 s).
