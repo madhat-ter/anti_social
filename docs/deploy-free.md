@@ -1,5 +1,9 @@
 # Free test deploy (no domain yet)
 
+> **Retired 2026-11-23.** The real site is tryanti.social on cPanel (`docs/deploy-cpanel.md`). The
+> Render API, its database and Blueprint were deleted, and `render.yaml` and the `uptime-watch` job
+> were removed from the repo. The Vercel address only forwards to tryanti.social. Kept as history.
+
 A live copy for testing with friends, before buying a domain. Everything is on a free plan and nothing secret is
 typed by hand: Render creates the database and wires its address into the API itself.
 

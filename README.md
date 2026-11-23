@@ -74,7 +74,7 @@ docs/rfc         Design docs
 
 - **Bangla (done, 2026-11-09; credit line removed 2026-11-10):** every Bangla character on the site (posts, names, About, titles, events, collabs) is drawn in Golesta Borno (Lipighor, served unmodified from `apps/web/app/fonts/golesta-borno/` with its licence). English in the same sentence stays in the site's fonts; the Bangla font only downloads when a page has Bangla. There is no credit line or backlink on the site (RFC §10.19). `scripts/screenshots-bangla.ts` checks it with Chrome's own font report.
 
-A free test copy runs on Vercel + Render (no domain, fake payments); see [docs/deploy-free.md](docs/deploy-free.md). A real launch (domain, Stripe live keys, image storage) follows [docs/deploy.md](docs/deploy.md).
+The real site is https://tryanti.social on cPanel; see [docs/deploy-cpanel.md](docs/deploy-cpanel.md). (The old free test copy on Vercel + Render was retired on 2026-11-23: [docs/deploy-free.md](docs/deploy-free.md).) A real launch (domain, Stripe live keys, image storage) follows [docs/deploy.md](docs/deploy.md).
 
 ## Payments (fake Stripe)
 

@@ -29,24 +29,21 @@ can time out under the full suite on a busy machine; they pass on their own.
 
 ## Open tasks
 
-Nothing in the code waits on anyone. One Collab (RFC §10.21) is built: events, activities and
+Nothing waits on anyone. One Collab (RFC §10.21) is built: events, activities and
 projects live under `/collab`; the old `/events…` and `/collabs…` addresses forward permanently.
+The two consulting offers the §10.18 migration had paused (@wise_panda, @ogcrazy) were approved on
+tryanti.social on 2026-11-23; Admin → Consulting is empty.
 
-One thing waits on **tryanti.social** and needs an admin, not a commit:
-the §10.18 migration paused every offer that was already live (they moved over with the data), so
-they are sitting in **Admin → Consulting** until someone approves each one.
+Meeting in person is decided (§10.28): ages stay mixed; 13–17s see one safety line on in-person pages.
+`CONTACT_KEY` (the same value the old Render API had) is set in the cPanel app's settings since
+2026-11-23, so "Ask for a seat" and contact details work on tryanti.social (§10.27). After a cPanel
+Save, one Restart may not start a new web copy; check `/api/public/seat-requests` and restart again
+if needed.
 
-One thing waits on the **owner** after §10.25 (the landing page): decide the rules for members
-meeting in person if members are teenagers.
-`CONTACT_KEY` (the same value as on Render) is set in the cPanel app's settings since 2026-11-23,
-so "Ask for a seat" and contact details work on tryanti.social (§10.27). After a cPanel Save, one
-Restart may not start a new web copy; check `/api/public/seat-requests` and restart again if needed.
-
-Monologues (§10.22) keep their recordings in the database for now, like images. When the owner
-makes a Cloudflare R2 bucket, set `STORAGE=r2` and `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
-`R2_SECRET_ACCESS_KEY`, `R2_BUCKET` on Render (never in chat); old files keep being read from the
-database. Also worth checking on the live site: that an uploaded song over ~4 MB gets through
-Vercel's proxy (a 5-minute recording made on the site is about 2.4 MB).
+Monologues (§10.22) keep their recordings in the database (the PGlite files on cPanel), like images.
+A 6 MB body reaches the API on tryanti.social (checked 2026-11-23), so the old ~4 MB proxy worry is
+gone. Moving files to Cloudflare R2 (`STORAGE=r2`) would put an outside service under the real site,
+which §10.27 rules out; only do it if the owner changes that rule.
 
 (Pet avatars were finished on 2026-11-10; the record and the reference doodles are in
 `docs/tasks/pet-avatars.md` and `docs/tasks/pet-avatars/`.)
@@ -184,14 +181,9 @@ feature's own folder (e.g. `.screenshots/feed-types-before/`).
 ## The old test site (retired 2026-11-23)
 
 - **It now forwards every address to tryanti.social** (`next.config.ts`, a redirect only for the
-  host `anti-social-opal.vercel.app`). Its data was moved over once; `ALLOW_EXPORT` is off again on
-  Render. The Render API and its free database keep running until the database expires
-  (~2026-12-08); nothing reaches them through the old address any more.
-- Web: https://anti-social-opal.vercel.app (Vercel, root `apps/web`); API on Render's free plan
-  (`render.yaml`, Singapore), Render Postgres. Setup: `docs/deploy-free.md`; real launch: `docs/deploy.md`.
-- Every push redeploys both. On Render's free plan that is a short outage, so don't push
-  docs-only commits just to push.
-- "Site down" check: `curl -sI https://anti-social-opal.vercel.app/api/health`. A 502 with
-  `X-Render-Routing: no-deploy` means the last Render deploy failed; push an empty commit
-  (`git commit --allow-empty`) or press Manual Deploy on Render.
+  host `anti-social-opal.vercel.app`, still on Vercel; each push to `main` redeploys it). Its data
+  was moved over once.
+- **Render is gone** (owner's word, 2026-11-23): the API, its database and the Blueprint were
+  deleted; `render.yaml` and the GitHub `uptime-watch` job that kept it awake were removed.
+  `docs/deploy-free.md` is kept as history only.
 - Never ask the owner to paste secrets into chat.
