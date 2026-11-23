@@ -1,0 +1,3 @@
+module.exports=[24144,a=>{"use strict";a.i(7997),a.i(99475),a.s(["f",0,"Anti Social: a small community for when you feel alone","d",0,"image/png","o",0,{width:1200,height:630}])},80700,a=>{"use strict";var b=a.i(24144),c=a.i(52425);let d={alt:b.f,contentType:b.d,size:b.o};async function e(a){let{__metadata_id__:b,...e}=await a.params,f=(0,c.fillMetadataSegment)("/",e,"twitter-image",!1);return[function(a){let b={alt:a.alt,type:a.contentType||"image/png",url:f+"?7ca800a19e23af6a"},{size:c}=a;return c&&(b.width=c.width,b.height=c.height),b}(d)]}a.s(["default",0,e],80700)},66295,function(a){a.n(a.i(80700))}];
+
+//# sourceMappingURL=apps_web_app_1-p1r3-oy0j_j._.js.map

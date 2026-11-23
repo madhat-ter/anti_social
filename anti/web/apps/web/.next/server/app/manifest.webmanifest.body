@@ -1,0 +1,1 @@
+{"name":"anti","short_name":"anti","description":"A small community of 100 seats, for when you feel alone.","id":"/","start_url":"/","scope":"/","display":"standalone","background_color":"#ffffff","theme_color":"#ffffff","icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"},{"src":"/apple-icon","sizes":"180x180","type":"image/png","purpose":"any"}]}

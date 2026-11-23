@@ -258,6 +258,12 @@
       "namedRegex": "^/admin(?:/)?$"
     },
     {
+      "page": "/apple-icon",
+      "regex": "^/apple\\-icon(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/apple\\-icon(?:/)?$"
+    },
+    {
       "page": "/collab",
       "regex": "^/collab(?:/)?$",
       "routeKeys": {},
@@ -328,6 +334,12 @@
       "regex": "^/login(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/manifest.webmanifest",
+      "regex": "^/manifest\\.webmanifest(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/manifest\\.webmanifest(?:/)?$"
     },
     {
       "page": "/members",
