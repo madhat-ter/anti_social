@@ -1,20 +1,19 @@
 /**
  * The welcome, for someone not signed in (the website's Landing, RFC §10.25 and §10.29). The
  * four lines are the owner's words, unchanged; the window says there is a seat here; then asking
- * for one, the hundred faces, the three rules and the plain answers. No help line, no jokes.
+ * for one, the hundred faces and the three rules. No help line, no jokes.
  */
 import { memo, useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { SEAT_REQUEST } from '@anti/shared';
-import { ABOUT_LINES, FAQ } from '@web/lib/about';
 import { api, ApiError, errorMessage } from '@/lib/api';
 import { FONT, useTheme } from '@/lib/theme';
 import { Avatar } from '@/components/Avatar';
 import { HelloIcon } from '@/components/Icons';
 import { Screen } from '@/components/Screen';
-import { Btn, ErrorNote, Field, RuleHeading, Row, Text, Win } from '@/components/ui';
+import { Btn, ErrorNote, Field, Row, Text, Win } from '@/components/ui';
 
 const SEATS = Array.from({ length: 100 }, (_, i) => `seat-${i + 1}`);
 
@@ -137,19 +136,7 @@ export default function Welcome() {
           </View>
         ))}
       </View>
-
-      {/* RFC §10.29: what anti is, and five answers (one source: apps/web/src/lib/about.ts) */}
-      <RuleHeading>What is anti?</RuleHeading>
-      <View style={{ gap: 8 }}>{ABOUT_LINES.map((l) => <Text key={l}>{l}</Text>)}</View>
-      <RuleHeading>Questions</RuleHeading>
-      <View style={{ gap: 14 }}>
-        {FAQ.map((f) => (
-          <View key={f.q} style={{ gap: 4 }}>
-            <Text v="bold">{f.q}</Text>
-            <Text>{f.a}</Text>
-          </View>
-        ))}
-      </View>
+      {/* "What is anti?" and "Questions" were taken off on the owner's word (2026-11-24, RFC §10.29) */}
     </Screen>
   );
 }

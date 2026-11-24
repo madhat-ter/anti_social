@@ -1,7 +1,8 @@
 /**
- * RFC §10.29: what anti is, said plainly for people who find it through search, and for search
- * engines and AI assistants that quote it. One source for the words on the landing page, the
- * structured data (JSON-LD) and /llms.txt, so they never disagree.
+ * RFC §10.29: what anti is, said plainly for search engines and AI assistants that quote it. The
+ * names and the description feed the page's metadata and structured data (JSON-LD); ABOUT_LINES and
+ * FAQ now feed only /llms.txt. They are not on the landing page any more: the owner had "What is
+ * anti?" and "Questions" taken off on 2026-11-24 ("it looks bad"). Don't put them back unasked.
  *
  * The owner's rules for this text (2026-11-23): describe what anti really is (a small community for
  * people who feel alone), never use suicide or self-harm words, say plainly that anti is not a

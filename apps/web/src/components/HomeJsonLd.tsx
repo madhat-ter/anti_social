@@ -1,4 +1,4 @@
-import { ABOUT_LINES, BRAND_ALIASES, BRAND_NAME, FAQ, HOME_DESCRIPTION, SITE_URL } from '@/lib/about';
+import { BRAND_ALIASES, BRAND_NAME, HOME_DESCRIPTION, SITE_URL } from '@/lib/about';
 
 /**
  * RFC §10.29: Schema.org structured data for the landing page (JSON-LD). It is data, not a script
@@ -17,7 +17,7 @@ export function homeJsonLd() {
         alternateName: BRAND_ALIASES,
         url: SITE_URL,
         logo: `${SITE_URL}/opengraph-image`,
-        description: ABOUT_LINES[0],
+        description: HOME_DESCRIPTION,
       },
       {
         '@type': 'WebSite',
@@ -36,7 +36,7 @@ export function homeJsonLd() {
         name: BRAND_NAME,
         alternateName: BRAND_ALIASES,
         url: SITE_URL,
-        description: ABOUT_LINES.join(' '),
+        description: HOME_DESCRIPTION,
         applicationCategory: 'SocialNetworkingApplication',
         operatingSystem: 'Any (runs in a web browser)',
         browserRequirements: 'Requires JavaScript',
@@ -44,11 +44,8 @@ export function homeJsonLd() {
         offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', description: 'Free to join, by invite or by asking for a seat.' },
         publisher: { '@id': org },
       },
-      {
-        '@type': 'FAQPage',
-        '@id': `${SITE_URL}/#faq`,
-        mainEntity: FAQ.map(({ q, a }) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })),
-      },
+      // No FAQPage: "What is anti?" and "Questions" left the page (owner, 2026-11-24), and Google
+      // counts FAQ data for answers that aren't on the page against the site.
     ],
   };
 }

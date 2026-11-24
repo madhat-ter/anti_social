@@ -19,7 +19,6 @@ import { PetFeedBlock } from '@/components/Pets';
 import { HelloIcon, Loading, Win } from '@/components/retro';
 import { SeatAsk } from '@/components/SeatAsk';
 import { NameMarks } from '@/components/Marks';
-import { About } from '@/components/About';
 import { PushAsk } from '@/components/PushAsk';
 
 /** One face per seat. The whole network fits on one screen. */
@@ -90,9 +89,7 @@ export function Landing() {
         <li><b>No algorithm</b><span>Nothing here is built to keep you scrolling. One feed, likes never move a post, and you will reach the end.</span></li>
         <li><b>Small on purpose</b><span>A hundred seats, so people know your name. Away for 30 days and your seat passes to someone waiting; you can ask for it back.</span></li>
       </ul>
-
-      {/* RFC §10.29: what anti is and five answers, for people (and search engines) arriving cold */}
-      <About />
+      {/* "What is anti?" and "Questions" stood here (RFC §10.29); the owner had them taken off on 2026-11-24 */}
     </div>
   );
 }

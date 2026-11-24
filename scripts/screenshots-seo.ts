@@ -14,7 +14,8 @@ import { FakeStripeProvider } from '../apps/api/src/lib/payments';
 import { MemoryPushSender } from '../apps/api/src/lib/push';
 
 const WEB = process.env.WEB_URL ?? 'http://localhost:3100';
-const OUT = join(import.meta.dir, '..', '.screenshots', 'seo-after');
+// SHOTS_OUT names another folder, e.g. a before/after pair for a later landing change
+const OUT = join(import.meta.dir, '..', '.screenshots', process.env.SHOTS_OUT ?? 'seo-after');
 mkdirSync(OUT, { recursive: true });
 
 const t = await createTestDb({ seatCap: 20 });

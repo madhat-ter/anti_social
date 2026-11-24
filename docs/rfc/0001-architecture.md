@@ -1747,6 +1747,14 @@ Told to the owner: "anti" alone is a dictionary word and "antisocial" searches a
 psychology term and a clothing brand, so expect to be found with a word added ("anti social
 community", "tryanti") long before the bare word.
 
+**Taken off the landing (owner, 2026-11-24): "What is anti?" and "Questions".** "Remove the
+questions and what is anti, it looks bad, just remove it from the landing page." They are gone
+from the website's landing and the phone app's welcome; the page ends with the three rules again.
+The JSON-LD drops its FAQPage too (Google counts FAQ data for answers that aren't on the page
+against the site); Organization and WebApplication now use the page description. The words stay
+in `src/lib/about.ts` for `/llms.txt` only. The rest of this section (landing sent written out,
+robots, sitemap, the name Anti Social) is unchanged. Don't put the two parts back unasked.
+
 ### 10.30 Push notifications on the cPanel site (added 2026-11-24)
 
 The real site had no VAPID keys, so push was off ("web push disabled"). The owner asked to turn it
