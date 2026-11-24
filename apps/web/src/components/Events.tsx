@@ -14,38 +14,8 @@ export function MeetSafeNote({ birthday }: { birthday: string | null }) {
   return <span className="meet-safe">{MEET_SAFE_NOTE}</span>;
 }
 
-/** "Sat, Nov 14 · 10:00 AM – 12:00 PM" in the viewer's time zone. */
-export function eventWhen(startsAt: string, endsAt: string | null): string {
-  const s = new Date(startsAt);
-  const day = s.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-  const t = (d: Date) => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  if (!endsAt) return `${day}, ${t(s)}`;
-  const e = new Date(endsAt);
-  const sameDay = e.toDateString() === s.toDateString();
-  return sameDay ? `${day}, ${t(s)} – ${t(e)}` : `${day}, ${t(s)} – ${e.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${t(e)}`;
-}
-
-/** On a card the date chip already says the day, so this is the weekday and the time: "Friday, 7:00 PM" or "Friday, 7:00 – 9:00 PM". */
-export function eventTime(startsAt: string, endsAt: string | null): string {
-  const s = new Date(startsAt);
-  const wd = s.toLocaleDateString(undefined, { weekday: 'long' });
-  const t = (d: Date) => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  if (!endsAt) return `${wd}, ${t(s)}`;
-  const e = new Date(endsAt);
-  return e.toDateString() === s.toDateString() ? `${wd}, ${t(s)} – ${t(e)}` : `${wd}, ${t(s)} – ${e.toLocaleDateString(undefined, { weekday: 'short' })} ${t(e)}`;
-}
-
-/** Who is coming. A zero is an invitation, not a count. */
-export function spotsText(e: AnEvent): string {
-  if (e.started) {
-    if (e.attendedCount > 0) return `${e.attendedCount} attended`;
-    return e.goingCount > 0 ? `${e.goingCount} going` : 'Nobody signed up';
-  }
-  if (e.capacity === null) return e.goingCount > 0 ? `${e.goingCount} going` : 'Be the first to go';
-  const left = Math.max(e.capacity - e.goingCount, 0);
-  if (left === 0) return `Full, ${e.waitlistCount} on the waitlist`;
-  return e.goingCount > 0 ? `${e.goingCount} going, ${left} of ${e.capacity} spots left` : `${e.capacity} spots, be the first`;
-}
+// the words for an event's time and its spots live in lib/collab.ts (shared with the phone app)
+export { eventTime, eventWhen, spotsText } from '@/lib/collab';
 
 export function MyStatus({ e }: { e: AnEvent }) {
   if (e.isHost) return <span className="tag">hosting</span>;

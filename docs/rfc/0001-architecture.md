@@ -1779,6 +1779,39 @@ it: `app/manifest.ts` (display standalone; without it an iPhone's Home Screen an
 and could never get push), `app/apple-icon.tsx`, `appleWebApp` in the layout; Settings and the card
 share `src/lib/push-client.ts`.
 
+### 10.32 The phone app (added 2026-11-24)
+
+The owner asked for anti as an iOS and Android app (a written brief: Expo, Expo Router, the same
+backend, keychain sign-in, an offline cache, EAS build profiles; "do whatever is best" for the
+rest). Built in `apps/mobile` (Expo SDK 58). Decisions taken from the brief and the house rules:
+
+- **Same API, same sign-in.** The app calls `https://tryanti.social/api` with `x-client: mobile`;
+  sign-in answers with a session token kept in the phone's keychain and sent as a Bearer header
+  (§9 already allowed it). Handle + 6-digit PIN, as on the site (§10.13). No backend change.
+- **One source for every rule and word.** Types, error words, dates, notification wording
+  (`apps/web/src/lib/notifications.ts`, moved out of the bell page) and the Collab card and join
+  button words (`apps/web/src/lib/collab.ts`, moved out of `Collab.tsx` / `Events.tsx`) are imported
+  by the app, never copied. Faces are the website's own code, turned into `react-native-svg` by
+  `scripts/sync-mobile-avatar.ts` (any face change: run it, `--check` fails when stale).
+- **The same rooms and rules.** Five tabs as the site's phone bar (Feed, Collab, Monologue,
+  Members, You → your profile with its drawers on top); the header is the wordmark, the File button
+  and the bell. The feed keeps its line, end card, folds and mix (§10.11, §10.23); Reply opens under
+  the post (§10.26); the cassette is the card and the player, one tape at a time (§10.22), and
+  recording works in the app (5 minutes, title + kind + "mine to share"); the 13–17 safety line
+  shows on events and activities (§10.28). Light unless the member chose dark; the phone's own dark
+  mode is never read (§10.14).
+- **The rest opens the website** in the phone's browser (it asks for the handle and PIN there once):
+  the File, Pet Corner, consultations, portfolios and projects, making a collab or event, Admin,
+  payments, passkeys and contact details.
+- **Offline**: the query cache is kept on the phone, so the last feed shows without signal; signing
+  out erases it. The feed's visit lasts while the app is used and restarts after half an hour away.
+- **Identity**: name "anti", bundle id and Android package `com.tryanti.social`, link scheme
+  `tryantisocial://`, icon drawn from the site's icon (`scripts/mobile-icons.ts`). `eas.json` has
+  development, preview (an installable .apk) and production profiles.
+- **Not done, waits for the owner**: store accounts and publishing (they cost money and reach
+  outside), phone push (APNs/FCM rows in `push_subscriptions`, §14), and the universal-link files
+  on tryanti.social that would open `https://tryanti.social/...` links in the app.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops.

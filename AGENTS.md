@@ -11,6 +11,10 @@ An invite-only, 100-seat community site. Bun monorepo:
 - `apps/web` — Next.js 16 app (read `apps/web/AGENTS.md`: this Next.js has breaking changes).
 - `packages/db` — Drizzle schema and SQL migrations (`packages/db/drizzle/00NN_*.sql`, run on boot).
 - `packages/shared` — pure rules and constants shared by API and web (`rules.ts`, `feed.ts`).
+- `apps/mobile` — the iOS/Android app, Expo SDK 58 (RFC §10.32; read `apps/mobile/README.md`
+  and `apps/mobile/AGENTS.md`). It imports the website's `src/lib` words and rules (`@web/…`) and
+  draws faces from `face.generated.tsx`: after any change to `Avatar.tsx`, run
+  `bun scripts/sync-mobile-avatar.ts`. Typecheck: `cd apps/mobile; bunx tsc --noEmit`.
 - `scripts/screenshots-*.ts` — one Playwright script per feature (see "Screenshots").
 
 Commands: `bun run dev`, `bun run typecheck`, `bun run test` (from the root). Single API test
@@ -29,7 +33,8 @@ can time out under the full suite on a busy machine; they pass on their own.
 
 ## Open tasks
 
-Nothing waits on anyone. One Collab (RFC §10.21) is built: events, activities and
+The phone app (RFC §10.32) is built in `apps/mobile` but not in any store: Apple/Google accounts,
+publishing, phone push and the universal-link files wait for the owner's word. One Collab (RFC §10.21) is built: events, activities and
 projects live under `/collab`; the old `/events…` and `/collabs…` addresses forward permanently.
 The two consulting offers the §10.18 migration had paused (@wise_panda, @ogcrazy) were approved on
 tryanti.social on 2026-11-23; Admin → Consulting is empty.
