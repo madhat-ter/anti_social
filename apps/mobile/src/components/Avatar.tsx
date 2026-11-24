@@ -3,11 +3,29 @@
  * apps/web/src/components/Avatar.tsx by scripts/sync-mobile-avatar.ts). Same handle + gender, same
  * face, on the site and in the app.
  */
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import Svg, { G, Rect, Text as SvgText } from 'react-native-svg';
 import type { Gender } from '@anti/shared';
 import { FONT, useTheme } from '@/lib/theme';
 import { drawFace } from './face.generated';
+
+/**
+ * A face is the same drawing every time for the same handle, gender and paper colour, so it is
+ * worked out once and reused (a feed shows the same few people again and again). Bounded so a long
+ * session can't grow it without end.
+ */
+const faces = new Map<string, ReactNode>();
+const FACE_CACHE_MAX = 400;
+export function cachedFace(seed: string, gender: Gender | null, paper: string): ReactNode {
+  const key = `${seed}|${gender ?? ''}|${paper}`;
+  let f = faces.get(key);
+  if (f === undefined) {
+    f = drawFace(seed, gender, paper);
+    if (faces.size >= FACE_CACHE_MAX) faces.delete(faces.keys().next().value!);
+    faces.set(key, f);
+  }
+  return f;
+}
 
 export const Avatar = memo(function Avatar({ seed, gender = null, size = 40, label, ink }: {
   /** usually the handle; null = deleted user */
@@ -23,7 +41,7 @@ export const Avatar = memo(function Avatar({ seed, gender = null, size = 40, lab
       accessible={!!label} accessibilityLabel={label} accessibilityRole={label ? 'image' : undefined}
       importantForAccessibility={label ? 'yes' : 'no-hide-descendants'}
     >
-      {seed ? drawFace(seed, gender, c.paper) : (
+      {seed ? cachedFace(seed, gender, c.paper) : (
         <G>
           <Rect x="9" y="9" width="50" height="50" fill={color} />
           <Rect x="5" y="5" width="50" height="50" fill={c.paper} stroke={color} strokeWidth={2.2} strokeDasharray="4 4" />

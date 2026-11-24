@@ -8,6 +8,7 @@ import { FlatList, RefreshControl, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { api, type CollabPageItem } from '@/lib/api';
 import { openSite } from '@/lib/links';
+import { LIST_PERF } from '@/lib/lists';
 import { usePaged } from '@/lib/paged';
 import { useTheme } from '@/lib/theme';
 import { CollabCard, openCollab } from '@/components/CollabCard';
@@ -77,6 +78,7 @@ export default function CollabScreen() {
       ListHeaderComponent={header}
       ListEmptyComponent={p.loading ? <Loading /> : p.error ? <ErrorNote message={p.error} /> : <Text muted>Nothing here yet.</Text>}
       ListFooterComponent={p.loadingMore ? <Loading what="Loading more" /> : undefined}
+      {...LIST_PERF}
       onEndReached={p.loadMore}
       onEndReachedThreshold={0.6}
       refreshControl={<RefreshControl refreshing={p.refreshing} onRefresh={refresh} tintColor={c.ink} />}

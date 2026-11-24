@@ -60,6 +60,11 @@ bunx eas-cli build --profile development --platform android   # or ios (needs an
 bunx expo start --dev-client
 ```
 
+**Judging speed?** Development mode is several times slower than the real app. To feel the real
+speed in Expo Go, start it with `bunx expo start --go --no-dev --minify` (no live reload then).
+On iPhone, Expo Go opens a project only when the same Expo account is signed in on the phone and
+on the computer (`bunx expo login`).
+
 To point the app at a local API, copy `.env.example` to `.env` and set `EXPO_PUBLIC_SITE_URL` to
 your computer's address on the Wi-Fi (the phone can't reach `localhost` on your computer).
 

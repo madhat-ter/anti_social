@@ -12,6 +12,7 @@ import { ageOn, CONSULT_MIN_AGE, localToday } from '@anti/shared';
 import { api, errorMessage, type Me, type Post } from '@/lib/api';
 import { fmtDate } from '@/lib/format';
 import { openSite } from '@/lib/links';
+import { LIST_PERF } from '@/lib/lists';
 import { usePaged } from '@/lib/paged';
 import { useMe } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
@@ -70,7 +71,8 @@ export function Profile({ handle, own }: { handle: string; own?: boolean }) {
   const mine = own || me.handle.toLowerCase() === handle.toLowerCase();
   const mq = useQuery({ queryKey: ['member', handle], queryFn: () => api.member(handle) });
   const posts = usePaged<Post>(['u', handle], (cur) => api.memberPosts(handle, cur));
-  const onChange = useCallback((np: Post) => posts.setItems((cur) => replaceIn(cur, np)), [posts]);
+  const setPostItems = posts.setItems;
+  const onChange = useCallback((np: Post) => setPostItems((cur) => replaceIn(cur, np)), [setPostItems]);
   const m = mq.data;
 
   if (mq.isPending) return <Loading />;
@@ -129,6 +131,7 @@ export function Profile({ handle, own }: { handle: string; own?: boolean }) {
       onEndReached={posts.loadMore}
       onEndReachedThreshold={0.6}
       refreshControl={<RefreshControl refreshing={mq.isRefetching || posts.refreshing} onRefresh={() => { void mq.refetch(); void posts.refresh(); }} tintColor={c.ink} />}
+      {...LIST_PERF}
     />
   );
 }

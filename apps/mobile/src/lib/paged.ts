@@ -3,7 +3,7 @@
  * on the next launch. `setItems` changes one loaded item in place (a like, an edit, a delete), the
  * way the website's usePaged does.
  */
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { useInfiniteQuery, useQueryClient, type InfiniteData, type QueryKey } from '@tanstack/react-query';
 import { errorMessage, type Page } from './api';
 
@@ -19,8 +19,12 @@ export function usePaged<T, P extends Page<T> = Page<T>>(key: QueryKey, fetchPag
   const items = useMemo(() => q.data?.pages.flatMap((p) => p.items) ?? [], [q.data]);
   const first = q.data?.pages[0] ?? null;
 
+  // callers pass a fresh key array on every render; keep setItems the same function anyway, so the
+  // posts drawn with it (memo'd PostCards) don't all redraw when one of them changes
+  const keyRef = useRef(key);
+  keyRef.current = key;
   const setItems = useCallback((fn: (cur: T[]) => T[]) => {
-    qc.setQueryData<InfiniteData<P, string | null>>(key, (d) => {
+    qc.setQueryData<InfiniteData<P, string | null>>(keyRef.current, (d) => {
       if (!d) return d;
       // apply the change to the flat list, then cut it back into the pages it came in
       const sizes = d.pages.map((p) => p.items.length);
@@ -34,7 +38,7 @@ export function usePaged<T, P extends Page<T> = Page<T>>(key: QueryKey, fetchPag
       });
       return { ...d, pages };
     });
-  }, [qc, key]);
+  }, [qc]);
 
   return {
     items, first, setItems,

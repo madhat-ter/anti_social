@@ -13,6 +13,7 @@ import { router } from 'expo-router';
 import { FEED, foldBusy, mixRand, type FeedItem } from '@anti/shared';
 import { api, type FeedEventRow, type FeedThreadRow, type FeedVisit, type Post } from '@/lib/api';
 import { dayLabel, eventTime, firstName } from '@/lib/format';
+import { LIST_PERF } from '@/lib/lists';
 import type { Paged } from '@/lib/paged';
 import { useTheme } from '@/lib/theme';
 import { Avatar } from './Avatar';
@@ -200,7 +201,8 @@ export function FeedList({ p, visit, mine, empty, what = 'feed', caughtUp, heade
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, visit, older, openFolds, mine, reached]);
 
-  const onChange = useCallback((np: Post) => p.setItems((cur) => replaceIn(cur, np)), [p]);
+  const setItems = p.setItems;
+  const onChange = useCallback((np: Post) => setItems((cur) => replaceIn(cur, np)), [setItems]);
   const toggleFold = (key: string) => setOpenFolds((cur) => {
     const next = new Set(cur);
     if (next.has(key)) next.delete(key); else next.add(key);
@@ -263,7 +265,7 @@ export function FeedList({ p, visit, mine, empty, what = 'feed', caughtUp, heade
       }
       ListEmptyComponent={p.loading ? <Loading /> : p.error ? <ErrorNote message={p.error} /> : <Text muted>{empty}</Text>}
       ListFooterComponent={p.loadingMore ? <Loading what="Loading more" /> : undefined}
-      removeClippedSubviews
+      {...LIST_PERF}
     />
   );
 }

@@ -9,6 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { describe, notificationHref, WARNINGS } from '@web/lib/notifications';
 import { api, errorMessage, type Notification, type NotificationPage } from '@/lib/api';
 import { fmtDate, relativeTime } from '@/lib/format';
+import { LIST_PERF } from '@/lib/lists';
 import { go } from '@/lib/links';
 import { usePaged } from '@/lib/paged';
 import { useMe } from '@/lib/session';
@@ -64,6 +65,7 @@ export default function NotificationsScreen() {
       }
       ListEmptyComponent={p.loading ? <Loading /> : p.error ? <ErrorNote message={p.error} /> : <Text muted>No notifications yet.</Text>}
       ListFooterComponent={p.loadingMore ? <Loading what="Loading more" /> : undefined}
+      {...LIST_PERF}
       renderItem={({ item: n }) => {
         const href = notificationHref(n, me.handle);
         const unread = !n.readAt;

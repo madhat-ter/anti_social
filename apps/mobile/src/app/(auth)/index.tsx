@@ -3,27 +3,46 @@
  * four lines are the owner's words, unchanged; the window says there is a seat here; then asking
  * for one, the hundred faces and the three rules. No help line, no jokes.
  */
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { View } from 'react-native';
+import Svg, { G } from 'react-native-svg';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { SEAT_REQUEST } from '@anti/shared';
 import { api, ApiError, errorMessage } from '@/lib/api';
 import { FONT, useTheme } from '@/lib/theme';
-import { Avatar } from '@/components/Avatar';
+import { cachedFace } from '@/components/Avatar';
 import { HelloIcon } from '@/components/Icons';
 import { Screen } from '@/components/Screen';
 import { Btn, ErrorNote, Field, Row, Text, Win } from '@/components/ui';
 
 const SEATS = Array.from({ length: 100 }, (_, i) => `seat-${i + 1}`);
 
+/**
+ * The hundred faces as ONE drawing (10 × 10), not a hundred: a hundred separate pictures made the
+ * welcome slow to appear. They are drawn a frame after the screen, so the words and buttons come
+ * first.
+ */
+const CELL = 68; // a 64-unit face and a 4-unit gap
 const Seats = memo(function Seats() {
+  const { c } = useTheme();
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setReady(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, justifyContent: 'center' }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      {SEATS.map((s, i) => (
-        // half women, half men, scattered the same way the website's seats fill
-        <Avatar key={s} seed={s} gender={((i * 37) % 100) % 2 ? 'woman' : 'man'} size={30} />
-      ))}
+    <View style={{ width: '100%', aspectRatio: 1 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      {ready && (
+        <Svg viewBox={`0 0 ${CELL * 10 - 4} ${CELL * 10 - 4}`} width="100%" height="100%" color={c.ink}>
+          {SEATS.map((s, i) => (
+            // half women, half men, scattered the same way the website's seats fill
+            <G key={s} transform={`translate(${(i % 10) * CELL} ${Math.floor(i / 10) * CELL})`}>
+              {cachedFace(s, ((i * 37) % 100) % 2 ? 'woman' : 'man', c.paper)}
+            </G>
+          ))}
+        </Svg>
+      )}
     </View>
   );
 });

@@ -5,7 +5,7 @@
  * itself (RFC §10.22). Reply opens the box right under the post (RFC §10.26). Likes are a red dot;
  * a number shows only on your own posts.
  */
-import { memo, useRef, useState, type ReactNode } from 'react';
+import { memo, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Linking, Pressable, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
@@ -93,6 +93,8 @@ export const PostCard = memo(function PostCard({ post, onChange, variant, framed
   const [replying, setReplying] = useState(false);
   const [replied, setReplied] = useState(false);
   const likeBusy = useRef(false);
+  // links and @names are found once per text, not on every redraw (a like, a menu, a reply box)
+  const bodyParts = useMemo(() => linkify(post.body, post.mentions, c.signalText), [post.body, post.mentions, c.signalText]);
 
   const mono = post.monologue ?? null;
   const shape = framed ? postShape(post.body, post.images.length, !!mono) : null;
@@ -230,7 +232,7 @@ export const PostCard = memo(function PostCard({ post, onChange, variant, framed
         onTextLayout={clamp && !overflows ? (e) => { if (e.nativeEvent.lines.length >= FEED.clampLines) setOverflows(true); } : undefined}
         style={big ? { fontFamily: FONT.textMedium, fontSize: 22, lineHeight: 30 } : compact ? { fontSize: 16, lineHeight: 23 } : undefined}
       >
-        {linkify(post.body, post.mentions, c.signalText)}
+        {bodyParts}
       </Text>
       {clamp && overflows && (
         <Text v="ui" onPress={() => setOpened(true)} accessibilityRole="button" style={{ marginTop: 4, textDecorationLine: 'underline' }}>Read more</Text>
@@ -318,18 +320,26 @@ export const PostCard = memo(function PostCard({ post, onChange, variant, framed
       ) : (
         <View style={compact && variant === 'reply' ? { borderLeftWidth: 3, borderColor: c.hair, paddingLeft: 12 } : undefined}>{inner}</View>
       )}
-      <ActionMenu open={menu} title="post" items={items} onClose={() => setMenu(false)} />
-      <Confirm open={ask === 'delete'} title="Delete post" danger confirmLabel="Delete"
-        message={mono ? 'Delete this monologue? The recording is erased for good; replies stay. This cannot be undone.' : 'Delete this post? Replies stay, the post becomes a tombstone. This cannot be undone.'}
-        onConfirm={() => void remove(false)} onCancel={() => setAsk(null)} />
-      <Confirm open={ask === 'moderate'} title="Remove post" danger confirmLabel="Remove"
-        message={`Remove this post as admin? ${a ? `@${a.handle} is told it was removed. ` : ''}This cannot be undone.`}
-        onConfirm={() => void remove(true)} onCancel={() => setAsk(null)} />
-      <Confirm open={ask === 'report'} title="Report post" confirmLabel="Send report"
-        message="Report this post to the moderators. What is wrong with it? (optional)"
-        input={{ label: 'Reason', placeholder: 'Spam, harassment, ...', maxLength: 500 }}
-        onConfirm={(r) => void report(r)} onCancel={() => setAsk(null)} />
-      {n > 0 && (
+      {/* the menu, the three questions and the photo viewer exist only while open: a list of
+          posts used to keep five hidden windows per post */}
+      {menu && <ActionMenu open title="post" items={items} onClose={() => setMenu(false)} />}
+      {ask === 'delete' && (
+        <Confirm open title="Delete post" danger confirmLabel="Delete"
+          message={mono ? 'Delete this monologue? The recording is erased for good; replies stay. This cannot be undone.' : 'Delete this post? Replies stay, the post becomes a tombstone. This cannot be undone.'}
+          onConfirm={() => void remove(false)} onCancel={() => setAsk(null)} />
+      )}
+      {ask === 'moderate' && (
+        <Confirm open title="Remove post" danger confirmLabel="Remove"
+          message={`Remove this post as admin? ${a ? `@${a.handle} is told it was removed. ` : ''}This cannot be undone.`}
+          onConfirm={() => void remove(true)} onCancel={() => setAsk(null)} />
+      )}
+      {ask === 'report' && (
+        <Confirm open title="Report post" confirmLabel="Send report"
+          message="Report this post to the moderators. What is wrong with it? (optional)"
+          input={{ label: 'Reason', placeholder: 'Spam, harassment, ...', maxLength: 500 }}
+          onConfirm={(r) => void report(r)} onCancel={() => setAsk(null)} />
+      )}
+      {n > 0 && viewing !== null && (
         <ImageViewer images={post.images} index={viewing} onClose={() => setViewing(null)}
           alt={(i) => `Image ${i + 1} of ${n}${a ? ` posted by @${a.handle}` : ''}`} />
       )}

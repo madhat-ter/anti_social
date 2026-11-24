@@ -2,13 +2,14 @@
  * Members (apps/web/app/members/page.tsx): the room, one cell per seat; inviting beside the seats
  * it fills (RFC §10.26); the site's only search box, for people and posts; everyone, newest first.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { FlatList, RefreshControl, Share, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, errorMessage, type InviteInfo, type MemberSummary, type Post } from '@/lib/api';
 import { fmtDate } from '@/lib/format';
+import { LIST_PERF } from '@/lib/lists';
 import { usePaged } from '@/lib/paged';
 import { useMe } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
@@ -21,7 +22,8 @@ import { Btn, ErrorNote, Field, LinkText, Loading, Row, RuleHeading, Tag, Text, 
 const NEW_DAYS = 21;
 const isNew = (m: MemberSummary) => !!m.activatedAt && Date.now() - Date.parse(m.activatedAt) < NEW_DAYS * 86_400_000;
 
-function Seats({ mine }: { mine: string }) {
+// memo: typing in the search box redraws the screen; the 100 seat cells needn't redraw with it
+const Seats = memo(function Seats({ mine }: { mine: string }) {
   const { c } = useTheme();
   const seats = useQuery({ queryKey: ['seats'], queryFn: () => api.seats() }).data;
   const all = useQuery({ queryKey: ['members', 'all'], queryFn: () => api.members(null, 100) }).data?.items ?? [];
@@ -38,9 +40,9 @@ function Seats({ mine }: { mine: string }) {
       <Text v="meta"><Text v="bold" style={{ fontSize: 14 }}>{seats.used}</Text> of {seats.cap} seats taken. {open > 0 ? `${open} open.` : 'The room is full; new people wait in line.'}</Text>
     </View>
   );
-}
+});
 
-function Invite({ full }: { full: boolean }) {
+const Invite = memo(function Invite({ full }: { full: boolean }) {
   const [list, setList] = useState<InviteInfo[]>([]);
   const [fresh, setFresh] = useState<{ code: string; expiresAt: string } | null>(null);
   const [shown, setShown] = useState(false);
@@ -81,9 +83,9 @@ function Invite({ full }: { full: boolean }) {
       ))}
     </View>
   );
-}
+});
 
-function MemberRow({ m }: { m: MemberSummary }) {
+const MemberRow = memo(function MemberRow({ m }: { m: MemberSummary }) {
   const { c } = useTheme();
   return (
     <Touch onPress={() => router.push({ pathname: '/u/[handle]', params: { handle: m.handle } })} accessibilityRole="link"
@@ -99,7 +101,7 @@ function MemberRow({ m }: { m: MemberSummary }) {
       </View>
     </Touch>
   );
-}
+});
 
 export default function MembersScreen() {
   const me = useMe();
@@ -112,6 +114,7 @@ export default function MembersScreen() {
   const found = useQuery({ queryKey: ['search', asked], queryFn: () => api.search(asked), enabled: asked !== '' });
   const [posts, setPosts] = useState<Post[]>([]);
   useEffect(() => { setPosts(found.data?.posts ?? []); }, [found.data]);
+  const onPostChange = useCallback((np: Post) => setPosts((cur) => replaceIn(cur, np)), []);
 
   // a moment after typing stops, the box searches
   useEffect(() => {
@@ -154,12 +157,13 @@ export default function MembersScreen() {
       }
       renderItem={({ item }) => item.kind === 'm' ? <MemberRow m={item.m} />
         : item.kind === 'h' ? <View style={{ paddingTop: 12 }}><RuleHeading>{item.label}</RuleHeading></View>
-        : <View style={{ paddingVertical: 8 }}><PostCard framed post={item.post} onChange={(np) => setPosts((cur) => replaceIn(cur, np))} /></View>}
+        : <View style={{ paddingVertical: 8 }}><PostCard framed post={item.post} onChange={onPostChange} /></View>}
       ListEmptyComponent={
         searching ? (found.isPending ? undefined : <Text muted>Nobody matches. Try another word, or <Text muted style={{ textDecorationLine: 'underline' }} onPress={() => setQ('')}>show everyone</Text>.</Text>)
         : p.loading ? <Loading /> : p.error ? <ErrorNote message={p.error} /> : undefined
       }
       ListFooterComponent={p.loadingMore && !searching ? <Loading what="Loading more" /> : undefined}
+      {...LIST_PERF}
     />
   );
 }
