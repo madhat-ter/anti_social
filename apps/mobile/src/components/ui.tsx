@@ -114,7 +114,8 @@ export function Btn({ label, onPress, kind = 'plain', danger, disabled, busy, sm
         paddingVertical: small ? 6 : 9, paddingHorizontal: small ? 11 : 16, minHeight: small ? 34 : 44,
         borderWidth: 2, borderRadius: 8, borderColor: off ? c.gray : danger ? c.signalText : c.ink,
         backgroundColor: pressed && !off ? (kind === 'primary' ? c.signal : c.ink) : fill,
-        transform: pressed ? [{ translateX: 1 }, { translateY: 1 }] : undefined,
+        // always a list: RN 0.88 crashes ("forEach of null") when a transform is taken away on release
+        transform: [{ translateX: pressed && !off ? 1 : 0 }, { translateY: pressed && !off ? 1 : 0 }],
       }, kind !== 'default' && style]}
     >
       {({ pressed }) => (
