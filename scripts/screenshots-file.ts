@@ -90,6 +90,8 @@ let n = 0;
 const shot = async (p: Page, name: string, fullPage = false) => {
   await p.waitForLoadState('networkidle').catch(() => {});
   await p.waitForTimeout(500);
+  // someone else's File opens with a quick run through its pages: shoot once it is back on "Me"
+  await p.waitForFunction(() => !document.querySelector('.file-quick'), null, { timeout: 8000 }).catch(() => {});
   await p.screenshot({ path: join(OUT, `${String(++n).padStart(2, '0')}-${name}.png`), fullPage });
   console.log('saved', name);
 };

@@ -103,7 +103,9 @@ which §10.27 rules out; only do it if the owner changes that rule.
   (0 is "Me", fixed), 7–11 hold only cards someone else made for them, placed by the member alone.
   A card is a headline, 1–20 photos with optional captions, a description. Never a feed item, no
   likes, not a contribution. All four steps are built (§10.24). Tabs flip the page like a real card
-  file (`.file-leaf-out` / `.file-leaf-in`); keep the flip when changing the drawer.
+  file (`.file-leaf-out` / `.file-leaf-in`); keep the flip when changing the drawer. Opening
+  someone else's File plays a quick run through its filled pages and back to "Me" (the opening
+  run, owner 2026-11-27); screenshot scripts wait for `.file-quick` to go before shooting.
   The share link `/f/<handle>` is the only page of a member's content open to the outside: off by
   default, switched on and off only in the File itself (Share; the Settings switch was removed on
   the owner's word), and it shows every card the member placed, gift cards included (owner,

@@ -1968,3 +1968,6 @@ label.label-row { flex-direction: row; align-items: baseline; gap: .4rem; }
 @media (prefers-reduced-motion: reduce) {
   .flip-back .file-leaf-out, .flip-back .file-leaf-in, .flip-front .file-leaf-in, .flip-front .file-leaf-out { animation-duration: .42s; }
 }
+/* the opening run through someone's File: the same flip, quick enough for a page every ⅓ second */
+.file-quick.flip-back .file-leaf-out, .file-quick.flip-back .file-leaf-in,
+.file-quick.flip-front .file-leaf-in, .file-quick.flip-front .file-leaf-out { animation-duration: .26s; }

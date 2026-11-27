@@ -24,6 +24,13 @@ const DRAWER = [...BACK, ...FRONT];
 const depthOf = (pos: number) => DRAWER.indexOf(pos);
 /** the leaving page goes when its animation ends; this is only the fallback if that never fires */
 const FLIP_MS = 1500;
+/**
+ * RFC §10.24, the opening run (2026-11-27): "Me" shows for a moment, then each filled page flips
+ * past in drawer order, then back to "Me". A third of a second a page, 4 seconds at most in all.
+ */
+const TOUR_START_MS = 500;
+const TOUR_STEP_MS = 330;
+const TOUR_FLIPS_MS = 3500;
 
 export function FileDrawer({ handle, pub = false }: {
   handle: string;
@@ -57,13 +64,58 @@ export function FileDrawer({ handle, pub = false }: {
   const [flip, setFlip] = useState<{ from: number; dir: 'back' | 'front'; n: number } | null>(null);
   const flipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (flipTimer.current) clearTimeout(flipTimer.current); }, []);
+  /** the open page, readable from timers (the opening run flips from them) */
+  const openRef = useRef(0);
+  openRef.current = open;
   const flipTo = (pos: number) => {
-    if (pos === open) return;
+    const from = openRef.current;
+    if (pos === from) return;
     if (flipTimer.current) clearTimeout(flipTimer.current);
-    setFlip((cur) => ({ from: open, dir: depthOf(pos) < depthOf(open) ? 'back' : 'front', n: (cur?.n ?? 0) + 1 }));
+    setFlip((cur) => ({ from, dir: depthOf(pos) < depthOf(from) ? 'back' : 'front', n: (cur?.n ?? 0) + 1 }));
+    openRef.current = pos;
     setOpen(pos);
     flipTimer.current = setTimeout(() => setFlip(null), FLIP_MS);
   };
+
+  /**
+   * The opening run: someone opening another member's File (inside anti or by the share link)
+   * sees every filled page flip past once, so they know there is more than "Me". Not on your own
+   * File, not when "Me" is the only card (the owner wants it to play even where the device asks
+   * for less motion: that only makes each flip plainer, see globals.css). Any tap or
+   * key stops it: a tab or the open card takes the tap as usual, anywhere else goes back to "Me".
+   */
+  const [touring, setTouring] = useState(false);
+  const tourTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const toured = useRef(false);
+  const stopTour = () => { tourTimers.current.forEach(clearTimeout); tourTimers.current = []; setTouring(false); };
+  useEffect(() => () => tourTimers.current.forEach(clearTimeout), []);
+  useEffect(() => {
+    if (!file || file.mine || toured.current) return;
+    toured.current = true;
+    const stops = DRAWER.filter((p) => p !== 0 && file.pages[p]?.card);
+    if (!stops.length) return;
+    const step = Math.min(TOUR_STEP_MS, TOUR_FLIPS_MS / (stops.length + 1));
+    setTouring(true);
+    [...stops, 0].forEach((p, i) => tourTimers.current.push(setTimeout(() => flipTo(p), TOUR_START_MS + i * step)));
+    tourTimers.current.push(setTimeout(() => setTouring(false), TOUR_START_MS + (stops.length + 1) * step));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the File first arrives
+  }, [file]);
+  useEffect(() => {
+    if (!touring) return;
+    const stop = (e: Event) => {
+      stopTour();
+      const t = e.target instanceof Element ? e.target : null;
+      if (e.type === 'pointerdown' && t?.closest('.file-tab, #file-sheet')) return;
+      flipTo(0);
+    };
+    document.addEventListener('pointerdown', stop, true);
+    document.addEventListener('keydown', stop, true);
+    return () => {
+      document.removeEventListener('pointerdown', stop, true);
+      document.removeEventListener('keydown', stop, true);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- flipTo reads refs only
+  }, [touring]);
 
   const load = useCallback(async () => {
     try {
@@ -217,7 +269,7 @@ export function FileDrawer({ handle, pub = false }: {
 
       <div className="file" role="tablist" aria-label={`${who} File: 12 pages`}>
         <div className="file-back">{BACK.map(tab)}</div>
-        <div className={`file-sheet-wrap${flip ? ` flipping flip-${flip.dir}` : ''}`}>
+        <div className={`file-sheet-wrap${flip ? ` flipping flip-${flip.dir}` : ''}${touring ? ' file-quick' : ''}`}>
           {/* the page that is leaving, drawn once more while it falls (it can't be clicked) */}
           {flip && file.pages[flip.from] && (
             <div key={`leaf-${flip.n}`} className="file-sheet file-leaf-out" aria-hidden="true" inert

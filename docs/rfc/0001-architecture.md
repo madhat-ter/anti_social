@@ -1514,8 +1514,27 @@ drawer. Tabs stand up at the back and the front, one page lies open, and each pa
   it there too." The member still decides: only placed cards show, and only while sharing is on.
   `public_ok` stays in the table but is no longer read (`PUBLIC_CARD` in `lib/file.ts`).
   Screenshots: `scripts/screenshots-file-gift-public.ts` (before / after).
+- **The opening run** (asked for 2026-11-27: "if someone open it it just keep showing the me card
+  so some people might not understand there are much more … quick page flips of all cards and
+  then it pause on me card"; seven questions, all as proposed except Q6).
+  - *Who sees it.* Anyone opening someone else's File: members inside anti and people with the
+    share link. Never on your own File.
+  - *How often.* Every time a File is opened.
+  - *Order.* "Me" shows for half a second, then every page with a card flips past in drawer order
+    (own pages 1–6, then the gift pages 7–11, empty ones skipped), then back to "Me", where it stays.
+  - *Speed.* About ⅓ second a page with the same flip, quicker (`.file-quick`); the flips take
+    3.5 seconds at most however many pages are full.
+  - *Stopping.* Any tap or key stops it. A tap on a tab or the open card does what it always does;
+    anywhere else goes back to "Me".
+  - *When it doesn't play.* Only when "Me" is the only card. The owner chose to have it play even
+    where the device asks for less motion (that only makes each flip plainer).
+  - *No words added.* The flips say there is more.
+  - *As built.* `TOUR_*` and the "opening run" effects in `FileDrawer` (`File.tsx`); the phone app
+    opens the File as the website, so it plays there too. Screenshots and checks:
+    `scripts/screenshots-file-tour.ts` (before / after frames, `_run.png` side by side).
 - **Progress.** All four steps built 2026-11-12, and the flip, and sharing from the File; cards
-  from outside built 2026-11-13; every placed gift card on the share link 2026-11-27.
+  from outside built 2026-11-13; every placed gift card on the share link 2026-11-27; the opening
+  run 2026-11-27.
 
 ### 10.25 The landing page speaks to someone who feels alone (added 2026-11-17)
 

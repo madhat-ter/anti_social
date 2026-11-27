@@ -78,6 +78,8 @@ const DESKTOP = { viewport: { width: 1280, height: 1000 }, reducedMotion: 'reduc
 const shot = async (p: Page, name: string, fullPage = false) => {
   await p.waitForLoadState('networkidle').catch(() => {});
   await p.waitForTimeout(500);
+  // someone else's File opens with a quick run through its pages: shoot once it is back on "Me"
+  await p.waitForFunction(() => !document.querySelector('.file-quick'), null, { timeout: 8000 }).catch(() => {});
   await p.screenshot({ path: join(OUT, `${name}.png`), fullPage });
   console.log('saved', name);
 };
