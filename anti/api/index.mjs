@@ -5720,6 +5720,7 @@ __export(exports_schema, {
   projectImages: () => projectImages,
   projects: () => projects,
   pushSubscriptions: () => pushSubscriptions,
+  quietNotices: () => quietNotices,
   rateLimits: () => rateLimits,
   rsvpStatus: () => rsvpStatus,
   seatRequests: () => seatRequests,
@@ -5737,7 +5738,7 @@ __export(exports_schema, {
   users: () => users,
   waitlist: () => waitlist
 });
-var tsvector, bytea, tstz = (name) => timestamp(name, { withTimezone: true }), userState, userRole, gender, users, pinResets, contactViews, userStateEvents, userSeenDays, feedVisits, settings, passkeys, sessions, authChallenges, invites, seatRequests, waitlist, posts, pets, postImages, monologues, likes, postMentions, flags, events, rsvpStatus, eventRsvps, contributions, pricing, payments, stripeEvents, notifications, suggestionKind, suggestions, suggestionVotes, interests, userInterests, collabs, collabInterests, collabMembers, collabRequests, collabInvites, collabFlags, eventInterests, eventRequests, eventInvites, eventHosts, portfolios, projects, projectImages, projectFlags, consultOffers, consultations, consultFlags, pushSubscriptions, rateLimits, mediaBlobs, fileCards, fileCardPhotos, filePages, fileCardFlags;
+var tsvector, bytea, tstz = (name) => timestamp(name, { withTimezone: true }), userState, userRole, gender, users, pinResets, contactViews, userStateEvents, userSeenDays, quietNotices, feedVisits, settings, passkeys, sessions, authChallenges, invites, seatRequests, waitlist, posts, pets, postImages, monologues, likes, postMentions, flags, events, rsvpStatus, eventRsvps, contributions, pricing, payments, stripeEvents, notifications, suggestionKind, suggestions, suggestionVotes, interests, userInterests, collabs, collabInterests, collabMembers, collabRequests, collabInvites, collabFlags, eventInterests, eventRequests, eventInvites, eventHosts, portfolios, projects, projectImages, projectFlags, consultOffers, consultations, consultFlags, pushSubscriptions, rateLimits, mediaBlobs, fileCards, fileCardPhotos, filePages, fileCardFlags;
 var init_schema2 = __esm(() => {
   init_pg_core();
   init_drizzle_orm();
@@ -5832,6 +5833,12 @@ var init_schema2 = __esm(() => {
     userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     day: date("day").notNull()
   }, (t) => [primaryKey({ columns: [t.userId, t.day] })]);
+  quietNotices = pgTable("quiet_notices", {
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    lastHere: tstz("last_here").notNull(),
+    toldTo: uuid("told_to").array().notNull().default(sql`'{}'::uuid[]`),
+    noticedAt: tstz("noticed_at").notNull().defaultNow()
+  }, (t) => [primaryKey({ name: "quiet_notices_pk", columns: [t.userId, t.lastHere] })]);
   feedVisits = pgTable("feed_visits", {
     id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
     userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -64565,7 +64572,8 @@ var socialRoutes = (deps) => {
           n.payload->>'to' as x_to, n.payload->>'title' as x_title, n.payload->>'done' as x_done, n.payload->>'total' as x_total,
           co.id as c_id, coalesce(co.title, n.payload->>'title') as c_title, n.payload->>'projectId' as x_project,
           n.payload->>'consultationId' as x_consult, n.payload->>'topic' as x_topic, n.payload->>'pricing' as x_pricing, n.payload->>'was' as x_was,
-          n.payload->>'count' as x_count, n.payload->>'guestName' as x_guest
+          n.payload->>'count' as x_count, n.payload->>'guestName' as x_guest,
+          n.payload->>'days' as x_days, n.payload->>'until' as x_until
         from notifications n
         left join users u on u.id = case when n.payload->>'actorId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'actorId')::uuid end
         left join posts p on p.id = case when n.payload->>'postId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'postId')::uuid end
@@ -64595,7 +64603,9 @@ var socialRoutes = (deps) => {
         pickTitle: r.kind === "pick_remark" || r.kind === "remark_removed" || r.kind === "pick_removed" ? r.x_title : null,
         consultation: r.x_consult ? { id: r.x_consult, topic: r.x_topic ?? "", pricing: r.x_pricing, was: r.x_was } : null,
         checklist: r.kind === "checklist_reminder" ? { done: Number(r.x_done ?? 0), total: Number(r.x_total ?? 5) } : null,
-        count: r.kind === "requests_waiting" ? Number(r.x_count ?? 1) : null
+        count: r.kind === "requests_waiting" ? Number(r.x_count ?? 1) : null,
+        quietDays: r.kind === "gone_quiet" ? Number(r.x_days ?? 7) : null,
+        keptUntil: r.kind === "seat_kept" ? r.x_until : null
       })),
       nextCursor,
       unreadCount: await unreadCount(db, uid)
@@ -67778,6 +67788,11 @@ function loadPushSender(env = process.env, dataDir) {
   const subject = env.VAPID_SUBJECT ?? (env.WEB_ORIGIN?.startsWith("https://") ? env.WEB_ORIGIN : "mailto:ops@localhost");
   return new WebPushSender(pub, priv, subject);
 }
+var quietSpan = (days) => {
+  const d = Number(days) || 7;
+  return d < 14 ? "a week" : `${Math.floor(d / 7)} weeks`;
+};
+var dayMonth = (iso) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
 function describePush(r) {
   const p = typeof r.payload === "string" ? JSON.parse(r.payload) : r.payload ?? {};
   const ev = r.event_title ? `"${r.event_title}"` : "an event";
@@ -67888,6 +67903,10 @@ function describePush(r) {
       return m("A card you made was removed", p.title ? `An admin removed "${p.title}".` : "An admin removed it.", "/file");
     case "file_card_placed":
       return m(`@${r.actor ?? "someone"} put your card in their File`, p.title ? `"${p.title}"` : "", r.actor ? `/file/${r.actor}` : "/file");
+    case "gone_quiet":
+      return r.actor ? m(`@${r.actor} hasn't been around for ${quietSpan(p.days)}`, "A hello might be nice.", `/?say=${encodeURIComponent(r.actor)}#compose`) : null;
+    case "seat_kept":
+      return m("Your seat is kept for you", p.until ? `Until ${dayMonth(p.until)}. Come back any time.` : "Come back any time.", "/");
     case "seat_request":
       return m(`${p.guestName ?? "Someone"} asked for a seat`, "Their request is waiting for you in Admin.", "/admin#seat-requests");
     default:
@@ -69479,6 +69498,120 @@ async function sweepCollabs(tx) {
   };
 }
 
+// apps/api/src/lib/quiet.ts
+init_drizzle_orm();
+init_src2();
+var QUIET = {
+  afterDays: 7,
+  regularDays: 8,
+  regularWindowDays: 30,
+  tiesDays: 60,
+  told: 3,
+  againDays: 30,
+  seatNoteBeforeDays: 7
+};
+var LAST_HERE = sql`greatest(u.last_seen_at, coalesce(u.activated_at, u.created_at))`;
+var SEATED3 = sql`u.state in ('active', 'flagged_lurker')`;
+async function sweepQuiet(db) {
+  const [back] = await rows(db, sql`
+    with d as (
+      delete from notifications n using users u
+       where n.kind = 'gone_quiet' and n.read_at is null and u.id::text = n.payload->>'actorId'
+         and u.last_seen_at > n.created_at
+      returning 1
+    ), s as (
+      delete from notifications n using users u
+       where n.kind = 'seat_kept' and u.id = n.user_id and u.last_seen_at > n.created_at
+      returning 1
+    )
+    select (select count(*)::int from d) + (select count(*)::int from s) as n`);
+  const quiet = await rows(db, sql`
+    select u.id, ${LAST_HERE}::text as last_here,
+           floor(extract(epoch from now() - ${LAST_HERE}) / 86400)::int as days
+      from users u
+     where ${SEATED3} and u.setup_done_at is not null
+       and ${LAST_HERE} <= now() - make_interval(days => ${QUIET.afterDays})
+       and not exists (select 1 from quiet_notices q where q.user_id = u.id and q.last_here = ${LAST_HERE})
+       and (select count(*) from user_seen_days d
+             where d.user_id = u.id
+               and d.day > (${LAST_HERE})::date - ${QUIET.regularWindowDays}::int
+               and d.day <= (${LAST_HERE})::date)
+           >= least(${QUIET.regularDays}::int,
+                    ceil(least(${QUIET.regularWindowDays}::int,
+                               (${LAST_HERE})::date - coalesce(u.activated_at, u.created_at)::date + 1)::numeric / 2))`);
+  let noticed = 0, told = 0, toAdmins = 0;
+  for (const q of quiet) {
+    const ties = await rows(db, sql`
+      with t as (
+        select case when p.author_id = ${q.id}::uuid then r.author_id else p.author_id end as other, 1 as w
+          from posts p join posts r on r.id = p.parent_id
+         where p.created_at > now() - make_interval(days => ${QUIET.tiesDays})
+           and p.deleted_at is null and p.pet_id is null and r.pet_id is null
+           and (p.author_id = ${q.id}::uuid or r.author_id = ${q.id}::uuid) and p.author_id <> r.author_id
+        union all
+        select case when p.author_id = ${q.id}::uuid then m.user_id else p.author_id end, 1
+          from post_mentions m join posts p on p.id = m.post_id
+         where m.created_at > now() - make_interval(days => ${QUIET.tiesDays}) and p.deleted_at is null
+           and (p.author_id = ${q.id}::uuid or m.user_id = ${q.id}::uuid) and p.author_id <> m.user_id
+        union all
+        select b.user_id, 3
+          from collab_members a
+          join collab_members b on b.collab_id = a.collab_id and b.user_id <> a.user_id
+          join collabs c on c.id = a.collab_id
+         where a.user_id = ${q.id}::uuid and c.deleted_at is null
+           and (c.finished_at is null or c.finished_at > now() - make_interval(days => ${QUIET.tiesDays}))
+        union all
+        select case when f.maker_id = ${q.id}::uuid then f.for_id else f.maker_id end, 3
+          from file_cards f
+         where f.maker_id is not null and f.maker_id <> f.for_id and f.sent_at is not null and f.declined_at is null
+           and f.sent_at > now() - make_interval(days => ${QUIET.tiesDays})
+           and (f.maker_id = ${q.id}::uuid or f.for_id = ${q.id}::uuid)
+      )
+      select t.other as id
+        from t join users u on u.id = t.other
+       where ${SEATED3} and u.setup_done_at is not null and t.other <> ${q.id}::uuid
+       group by t.other
+       order by sum(t.w) desc, t.other
+       limit ${QUIET.told}`);
+    const admins = ties.length === 0;
+    const to = admins ? await rows(db, sql`
+          select u.id from users u where u.role = 'ops' and ${SEATED3} and u.id <> ${q.id}::uuid`) : ties;
+    const toldTo = [];
+    for (const r of to) {
+      const got = await rows(db, sql`
+        insert into notifications (user_id, kind, payload)
+        select ${r.id}::uuid, 'gone_quiet', jsonb_build_object('actorId', ${q.id}::text, 'days', ${q.days}::int)
+         where not exists (select 1 from quiet_notices qn
+                            where qn.user_id = ${q.id}::uuid and ${r.id}::uuid = any(qn.told_to)
+                              and qn.noticed_at > now() - make_interval(days => ${QUIET.againDays}))
+        returning id`);
+      if (got.length)
+        toldTo.push(r.id);
+    }
+    await db.execute(sql`
+      insert into quiet_notices (user_id, last_here, told_to)
+      values (${q.id}::uuid, ${q.last_here}::timestamptz, ${`{${toldTo.join(",")}}`}::uuid[])
+      on conflict do nothing`);
+    noticed++;
+    told += toldTo.length;
+    if (admins)
+      toAdmins += toldTo.length;
+  }
+  const [seat] = await rows(db, sql`
+    with s as (
+      insert into notifications (user_id, kind, payload)
+      select u.id, 'seat_kept',
+             jsonb_build_object('until', to_char((${LAST_HERE} + days('inactivity_days')) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))
+        from users u
+       where ${SEATED3} and u.role <> 'ops'
+         and ${LAST_HERE} <= now() - (days('inactivity_days') - make_interval(days => ${QUIET.seatNoteBeforeDays}))
+         and not exists (select 1 from notifications n where n.user_id = u.id and n.kind = 'seat_kept' and n.created_at > ${LAST_HERE})
+      returning 1
+    )
+    select count(*)::int as n from s`);
+  return { back: back?.n ?? 0, noticed, told, toAdmins, seatNotes: seat?.n ?? 0 };
+}
+
 // apps/api/src/lib/jobs.ts
 var HOUR = 3600000;
 var DAY3 = 24 * HOUR;
@@ -69549,6 +69682,11 @@ var JOBS = [
     name: "collab_sweep",
     everyMs: HOUR,
     run: async (tx) => sweepCollabs(tx)
+  },
+  {
+    name: "quiet",
+    everyMs: HOUR,
+    run: async (tx) => sweepQuiet(tx)
   },
   {
     name: "push",
