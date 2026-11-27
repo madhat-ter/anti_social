@@ -270,7 +270,7 @@ export interface FileCard {
   for: { handle: string; displayName: string; gender: Gender | null } | null;
   /** 'own'; or for a card made for someone: 'draft' (not sent), 'sent' (not in their File) or 'placed' */
   state: 'own' | 'draft' | 'sent' | 'placed';
-  /** the maker allows it on the recipient's public share page */
+  /** old tick from the maker; no longer asked for or read (every placed card shows on the share link) */
   publicOk: boolean;
   /** hidden after reports: only its owner, its maker and admins still see it */
   hidden?: boolean;
@@ -720,7 +720,7 @@ export const api = {
   orderProjects: (ids: string[]) => post<{ ok: true }>('/me/projects/order', { ids }),
   // RFC §10.24, the File
   file: (handle: string) => get<FileView>(`/members/${encodeURIComponent(handle)}/file`),
-  /** the share link's view: no sign-in, only what the member (and each card's maker) made public */
+  /** the share link's view: no sign-in, only the cards the member placed in their File */
   publicFile: (handle: string) => get<FileView>(`/public/file/${encodeURIComponent(handle)}`),
   /** a card from someone outside anti, sent from the share page: name, headline, description, captions (a JSON list), photos */
   sendGuestCard: (handle: string, form: FormData) => call<{ ok: true }>('POST', `/public/file/${encodeURIComponent(handle)}/cards`, form),

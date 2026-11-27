@@ -106,7 +106,8 @@ which §10.27 rules out; only do it if the owner changes that rule.
   file (`.file-leaf-out` / `.file-leaf-in`); keep the flip when changing the drawer.
   The share link `/f/<handle>` is the only page of a member's content open to the outside: off by
   default, switched on and off only in the File itself (Share; the Settings switch was removed on
-  the owner's word), and a member's gift card shows there only with its maker's `public_ok`.
+  the owner's word), and it shows every card the member placed, gift cards included (owner,
+  2026-11-27; the maker's `public_ok` tick is no longer asked for or read).
   Anything new served without a session must go through `/public/…` and check `users.file_public`.
   **People outside can make a card** from that page (no account: a typed name, 5 photos at most,
   3 an hour per connection, no cap on the tray). Such a card has `maker_id` null and `guest_name`

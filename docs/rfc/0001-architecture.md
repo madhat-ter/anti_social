@@ -1438,7 +1438,8 @@ drawer. Tabs stand up at the back and the front, one page lies open, and each pa
   maker once per version of the card (`file_card_placed`); taking it off a page returns it to the
   tray; `POST /me/file/tray/:id/decline` removes it for good, silently. The maker's list
   (`GET /me/file/made`) only ever says draft, "in their File" or "not in their File". The tick
-  "they may show this card on their public share link" (`public_ok`) is set by the maker.
+  "they may show this card on their public share link" (`public_ok`) was set by the maker; it was
+  taken away on 2026-11-27 (see "Every placed card on the share link" below).
 - **Step 3, as built.** `TopFile` beside `TopBell` in the phone header; "File" in the side menu;
   "Open … File" on each profile. `users.file_public` (migration 0037, `PATCH /me {filePublic}`,
   Settings → File, with the link and a copy button). `/f/<handle>` is a server page (title,
@@ -1446,8 +1447,8 @@ drawer. Tabs stand up at the back and the front, one page lies open, and each pa
   drawer in a read-only mode; it removes the dark theme while it is open. It reads
   `GET /public/file/:handle` (no session; 404 unless shared) and its photos come from
   `GET /public/file/:handle/media/:key`, which serves a blob only if it is a photo of a card
-  that File shows publicly: the owner's own placed cards, and placed gift cards with `public_ok`.
-  A gift card without it is an empty, unnamed page outside.
+  that File shows publicly: every card the member placed (until 2026-11-27, gift cards only with
+  their maker's `public_ok`).
 - **Step 4, as built.** `POST /file/cards/:id/flag` (a card you can see: on a page of a File, or
   sent to you; never your own making) into `file_card_flags` (migration 0038). Five open reports
   hide the card from everyone but its owner, its maker and admins, and ring the admins
@@ -1505,8 +1506,16 @@ drawer. Tabs stand up at the back and the front, one page lies open, and each pa
     one request under 4 MB. `checkGuestCard`, `addGuestCard`, `sweepGuestCards` in
     `apps/api/src/lib/file.ts`; `GuestCardForm` in `File.tsx`. Tests:
     `apps/api/test/file-guest.test.ts`; screenshots: `scripts/screenshots-file-guest.ts`.
+- **Every placed card on the share link** (asked for 2026-11-27: "the card made by a friend is
+  not visible in public link … fix it so all the gifted card can be seen by public via the link").
+  A gift card the member put in their File now shows on `/f/<handle>` like their own cards, with
+  the maker's name on its tab; the maker's tick is gone from the form. In its place one line tells
+  the maker: "If they put it in their File and share their File's link, people outside anti can see
+  it there too." The member still decides: only placed cards show, and only while sharing is on.
+  `public_ok` stays in the table but is no longer read (`PUBLIC_CARD` in `lib/file.ts`).
+  Screenshots: `scripts/screenshots-file-gift-public.ts` (before / after).
 - **Progress.** All four steps built 2026-11-12, and the flip, and sharing from the File; cards
-  from outside built 2026-11-13.
+  from outside built 2026-11-13; every placed gift card on the share link 2026-11-27.
 
 ### 10.25 The landing page speaks to someone who feels alone (added 2026-11-17)
 

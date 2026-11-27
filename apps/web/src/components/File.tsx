@@ -346,7 +346,7 @@ function ShareStrip({ handle, sheet, copied, onHand, onStop }: {
   return (
     <div className="file-share" role="group" aria-label="Your File’s share link">
       <p className="small">
-        <b>Shared by link.</b> <span className="muted">Anyone who has it can open your File without signing in, and make you a card: it waits here for your yes. A member’s card shows there only if they allowed it.</span>
+        <b>Shared by link.</b> <span className="muted">Anyone who has it can open your File without signing in, and make you a card: it waits here for your yes. Every card you put in your File shows there, the ones friends made too.</span>
       </p>
       <div className="row">
         <input readOnly value={`${origin}/f/${handle}`} aria-label="Your File’s link" onFocus={(e) => e.currentTarget.select()} />
@@ -563,7 +563,6 @@ function CardEditor({ initial, page, forHandle, choose, onCancel, onSaved }: {
   const [who, setWho] = useState<string | null>(forHandle ?? initial?.for?.handle ?? null);
   const [q, setQ] = useState('');
   const [found, setFound] = useState<{ handle: string; displayName: string }[]>([]);
-  const [publicOk, setPublicOk] = useState(initial?.publicOk ?? false);
   const sendAfter = useRef(false);
   /** a card for someone else: a new one aimed at them, or an existing one of that kind */
   const gift = initial ? !initial.own : target === 'someone';
@@ -621,8 +620,8 @@ function CardEditor({ initial, page, forHandle, choose, onCancel, onSaved }: {
     const input = { headline, description, photos: ready.map((a) => ({ id: a.id, caption: a.caption })) };
     try {
       let saved: FileCard;
-      if (initial) saved = await api.updateFileCard(initial.id, gift ? { ...input, publicOk } : input);
-      else if (gift) saved = await api.createFileCard({ ...input, forHandle: who, publicOk });
+      if (initial) saved = await api.updateFileCard(initial.id, input);
+      else if (gift) saved = await api.createFileCard({ ...input, forHandle: who });
       else saved = await api.createFileCard({ ...input, page });
       if (gift && sendAfter.current && saved.state === 'draft') await api.sendFileCard(saved.id);
       await onSaved();
@@ -708,10 +707,7 @@ function CardEditor({ initial, page, forHandle, choose, onCancel, onSaved }: {
           </div>
         </section>
         {gift && (
-          <label className="check">
-            <input type="checkbox" checked={publicOk} onChange={(e) => setPublicOk(e.target.checked)} />
-            They may show this card on their public share link (outside anti)
-          </label>
+          <p className="muted small">If they put it in their File and share their File’s link, people outside anti can see it there too.</p>
         )}
         <ErrorNote message={err} />
         <div className="row" style={{ justifyContent: 'flex-end' }}>

@@ -331,18 +331,13 @@ try {
   must((await desk.page.getByLabel('Your File’s link').inputValue()).endsWith('/f/maya'), 'the link is not /f/maya');
   await shot(desk.page, 'file-share-strip');
   await desk.ctx.close();
-  // now anyone with the link sees it: her own cards, and Theo's only because he did not allow it → empty
+  // now anyone with the link sees it: every card she placed, Theo's gift card too (owner, 2026-11-27)
   await pub.goto(`${WEB}/f/maya`);
   await pub.locator('#file-sheet .file-card').waitFor();
   must(await pub.locator('nav.nav, .tabbar, .top-bell').count() === 0, 'the public page shows the site’s menu');
   must(await pub.getByRole('button', { name: '+ Make a card for Maya' }).count() === 1, 'the public page does not offer to make a card for her');
-  must(await pub.getByRole('tab', { name: 'theo', exact: true }).count() === 0, 'a gift card shows publicly without its maker’s yes');
+  must(await pub.getByRole('tab', { name: 'theo', exact: true }).count() === 1, 'a placed gift card is missing from the share link');
   await shot(pub, 'public-file-desktop', true);
-  // Theo allows his card outside: now it is there
-  const theirs = (await call(theo, 'GET', '/me/file/made')).items[0];
-  await call(theo, 'PATCH', `/me/file/cards/${theirs.id}`, { publicOk: true });
-  await call(maya, 'PUT', '/me/file/pages/7', { cardId: theirs.id }); // an edit needs her yes again
-  await pub.reload();
   await pub.getByRole('tab', { name: 'theo', exact: true }).click();
   await pub.getByText('Made by @theo').first().waitFor();
   await shot(pub, 'public-gift-card');

@@ -34,7 +34,7 @@ export type FileCard = {
    * their File: waiting or turned down, the maker is never told which) or 'placed' (in their File).
    */
   state: 'own' | 'draft' | 'sent' | 'placed';
-  /** the maker allows it on the recipient's public share page */
+  /** old tick from the maker; no longer asked for or read (every placed card shows on the share link) */
   publicOk: boolean;
   /** hidden after reports: only its owner, its maker and admins still see it */
   hidden: boolean;
@@ -149,13 +149,16 @@ async function getMade(db: Db, userId: string, id: string): Promise<FileCard> {
 // ─── The public share page ──────────────────────────────────────────────────
 
 const publicMediaUrl = (handle: string, key: string) => `/api/public/file/${encodeURIComponent(handle)}/media/${key}`;
-/** what the outside may see of a File: the owner's own placed cards, and gift cards whose maker allowed it */
-const PUBLIC_CARD = sql`c.hidden_at is null and (c.maker_id = c.for_id or c.public_ok)`;
+/**
+ * what the outside may see of a File: every card the member placed, their own and the gift cards
+ * (owner, 2026-11-27: "all the gifted cards can be seen by public via the link"). The maker's
+ * `public_ok` tick is no longer asked for or read; the column stays for old rows.
+ */
+const PUBLIC_CARD = sql`c.hidden_at is null`;
 
 /**
  * A member's File for someone with the link and no seat: only when the member switched sharing
- * on. A gift card whose maker did not allow public sharing shows as an empty page. Photo
- * addresses go through the public media route, which serves these photos and nothing else.
+ * on. Photo addresses go through the public media route, which serves these photos and nothing else.
  */
 export async function getPublicFile(db: Db, handle: string): Promise<FileView | null> {
   const [o] = await rows<{ id: string; handle: string; display_name: string; gender: string | null }>(db, sql`
