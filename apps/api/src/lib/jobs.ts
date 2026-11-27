@@ -8,6 +8,7 @@ import { sweepConsultations } from './consultations';
 import { sweepCollabs } from './collabs-sweep';
 import { sweepGuestCards } from './file';
 import { sweepSeatRequests } from './seat-requests';
+import { sweepQuiet } from './quiet';
 
 export type JobDeps = { storage: Storage; payments: PaymentProvider; push?: PushSender };
 
@@ -94,6 +95,13 @@ export const JOBS: Job[] = [
     name: 'collab_sweep',
     everyMs: HOUR,
     run: async (tx) => sweepCollabs(tx),
+  },
+  {
+    // RFC §10.33: someone who used to come often has been away a week → the people they talk with
+    // hear about it; a week before the 30-day rule would take a seat, its member hears it is kept.
+    name: 'quiet',
+    everyMs: HOUR,
+    run: async (tx) => sweepQuiet(tx),
   },
   {
     // Web Push fan-out of new notifications (RFC §12: near real time).

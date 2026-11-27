@@ -70,6 +70,10 @@ which §10.27 rules out; only do it if the owner changes that rule.
   when there's no `anti_session` cookie: a "Loading…" shell is what kept the site out of Google.
   **Ask for a seat** takes a request from someone with no account: only admins see it, the contact
   is sealed (`CONTACT_KEY`), the site sends them nothing, and "Not now" erases it.
+- **When someone goes quiet, anti reaches for them** (§10.33): a regular away 7 days → up to 3
+  members they talk with most (replies, mentions, Collab, File cards; never likes), or the admins,
+  get one note with Say hi (the post box with "@them " typed). The quiet member never sees it. On
+  day 23 away, the member hears their seat is kept until the 30-day date. No off switch.
 - **Fewest taps** (§10.26): an action sits where its thing lives, never in Settings because it is
   "a setting"; one tap does the whole job; confirmations only for what can't be undone. Reply opens
   under the post in any list. The phone's "You" tab is your profile (no sheet; its links are

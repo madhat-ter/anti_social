@@ -7,6 +7,17 @@ import type { Notification } from './api';
 /** System notices that need action get the warning triangle; good news gets the red dot. */
 export const WARNINGS = new Set(['pin_locked', 'pin_blocked', 'pin_reset_code', 'lurker_warning', 'seat_offer_expired', 'payment_refunded', 'event_cancelled', 'post_removed', 'project_removed', 'file_card_removed', 'consult_removed', 'consult_switched_off', 'consult_not_approved']);
 
+/** RFC §10.33: "a week", then "2 weeks", "3 weeks"… (the same words as the push, api/src/lib/push.ts) */
+export const quietSpan = (days: number | null | undefined) => {
+  const d = Number(days) || 7;
+  return d < 14 ? 'a week' : `${Math.floor(d / 7)} weeks`;
+};
+/** "28 December" */
+const dayMonth = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+
+/** RFC §10.33: the note about someone gone quiet carries a "Say hi" button (the whole note opens the post box) */
+export const sayHiTo = (n: Notification): string | null => (n.kind === 'gone_quiet' && n.actor ? n.actor.handle : null);
+
 export function describe(n: Notification): string {
   const who = n.actor ? `@${n.actor.handle}` : 'Someone';
   if (n.kind === 'reply') return `${who} replied to your post`;
@@ -27,6 +38,9 @@ export function describe(n: Notification): string {
   if (n.kind === 'seat_offered') return 'A seat opened up for you. Reinstate within 72 hours to keep it.';
   if (n.kind === 'seat_offer_expired') return 'Your seat offer expired. You can rejoin the queue.';
   if (n.kind === 'lurker_warning') return 'You have been quiet for a while. Post or reply twice in 7 days to keep your seat.';
+  // RFC §10.33: someone you talk with has been away; and, for you, the week before the 30-day rule
+  if (n.kind === 'gone_quiet') return `${who} hasn’t been around for ${quietSpan(n.quietDays)}. A hello might be nice.`;
+  if (n.kind === 'seat_kept') return `Your seat is kept for you${n.keptUntil ? ` until ${dayMonth(n.keptUntil)}` : ''}. Come back any time.`;
   const ev = n.event ? `"${n.event.title}"` : 'an event';
   if (n.kind === 'event_rsvp') return `${who} is going to ${ev}`;
   if (n.kind === 'event_promoted') return `A spot opened up: you are now going to ${ev}`;
@@ -93,7 +107,9 @@ export function describe(n: Notification): string {
 
 /** The website address a notification opens, or null when it leads nowhere. */
 export function notificationHref(n: Notification, myHandle: string): string | null {
-  return n.kind === 'seat_request' ? '/admin#seat-requests'
+  return n.kind === 'gone_quiet' ? (n.actor ? `/?say=${encodeURIComponent(n.actor.handle)}#compose` : null)
+    : n.kind === 'seat_kept' ? '/'
+    : n.kind === 'seat_request' ? '/admin#seat-requests'
     : n.kind === 'flag_threshold' || n.kind === 'made_admin' || n.kind === 'consult_reported' || n.kind === 'consult_asked' ? '/admin'
     : n.kind === 'consult_thanks' ? `/u/${myHandle}`
     : n.consultation ? `/consultations/${n.consultation.id}`

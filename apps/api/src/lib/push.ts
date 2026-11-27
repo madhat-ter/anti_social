@@ -88,6 +88,14 @@ type Row = {
   actor: string | null; post_snippet: string | null; root_id: string | null; event_title: string | null;
 };
 
+/** RFC §10.33: "a week", then "2 weeks", "3 weeks"… (the same words as the bell, web/src/lib/notifications.ts) */
+export const quietSpan = (days: unknown) => {
+  const d = Number(days) || 7;
+  return d < 14 ? 'a week' : `${Math.floor(d / 7)} weeks`;
+};
+/** "28 December" */
+export const dayMonth = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+
 /** Text for the push-worthy kinds; null = in-app only (e.g. likes). */
 export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_snippet' | 'root_id' | 'event_title'>): PushMessage | null {
   const p = typeof r.payload === 'string' ? JSON.parse(r.payload) : (r.payload ?? {});
@@ -162,6 +170,11 @@ export function describePush(r: Pick<Row, 'kind' | 'payload' | 'actor' | 'post_s
     case 'file_card_received': return m(`${p.guestName ? `${p.guestName} (not a member)` : `@${r.actor ?? 'someone'}`} made a card for your File`, p.title ? `"${p.title}" is waiting for you.` : 'It is waiting for you.', '/file');
     case 'file_card_removed': return m('A card you made was removed', p.title ? `An admin removed "${p.title}".` : 'An admin removed it.', '/file');
     case 'file_card_placed': return m(`@${r.actor ?? 'someone'} put your card in their File`, p.title ? `"${p.title}"` : '', r.actor ? `/file/${r.actor}` : '/file');
+    // RFC §10.33: someone you talk with has been away; "Say hi" opens the post box with @them typed
+    case 'gone_quiet': return r.actor
+      ? m(`@${r.actor} hasn't been around for ${quietSpan(p.days)}`, 'A hello might be nice.', `/?say=${encodeURIComponent(r.actor)}#compose`)
+      : null;
+    case 'seat_kept': return m('Your seat is kept for you', p.until ? `Until ${dayMonth(p.until)}. Come back any time.` : 'Come back any time.', '/');
     // RFC §10.25: someone outside asked for a seat from the landing page (admins only)
     case 'seat_request': return m(`${p.guestName ?? 'Someone'} asked for a seat`, 'Their request is waiting for you in Admin.', '/admin#seat-requests');
     default: return null;

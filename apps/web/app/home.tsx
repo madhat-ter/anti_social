@@ -148,7 +148,15 @@ function FeedView({ me, onPosted }: { me: Me; onPosted: () => void }) {
     return page;
   });
   const fresh = useNewPosts(p, fv.visit?.mix?.until ?? null);
+  /** RFC §10.33: "Say hi" on a note about someone gone quiet opens the box with @them typed (?say=handle) */
+  const [say, setSay] = useState<string | null>(null);
   useEffect(() => {
+    const s = new URLSearchParams(window.location.search).get('say');
+    if (s && /^[a-zA-Z0-9_]{1,30}$/.test(s)) {
+      setSay(s);
+      window.history.replaceState(null, '', window.location.pathname + window.location.hash);
+      return; // the box focuses itself once the name is in
+    }
     if (window.location.hash !== '#compose') return;
     const ta = document.querySelector<HTMLTextAreaElement>('#compose textarea');
     ta?.focus();
@@ -161,6 +169,7 @@ function FeedView({ me, onPosted }: { me: Me; onPosted: () => void }) {
         <Composer
           collapsible
           record
+          prefill={say ? `@${say} ` : undefined}
           onCreated={(post) => {
             p.setItems((cur) => [post, ...cur.filter((x) => x.id !== post.id)]);
             fresh.forget(post.id);

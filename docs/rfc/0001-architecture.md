@@ -1849,6 +1849,39 @@ rest). Built in `apps/mobile` (Expo SDK 58). Decisions taken from the brief and 
   outside), phone push (APNs/FCM rows in `push_subscriptions`, §14), and the universal-link files
   on tryanti.social that would open `https://tryanti.social/...` links in the app.
 
+### 10.33 When someone goes quiet (added 2026-11-28)
+
+The owner asked what the whole thing was missing. The answer given: anti is for people who feel
+alone, yet when a member goes quiet the site only counts days (archive at 30, the lurker flag) and
+nobody is told, not even them. The owner chose "someone's gone quiet" from four ideas (the others,
+not built: an "I could use company" sign, a real welcome for new members, one shared question a
+week) and accepted all eight proposals in one round.
+
+- **Gone quiet.** Someone who used to come often has not opened anti for **7 days**. "Often":
+  seen on 8 of the 30 days before they were last here, or on half the days since joining when they
+  are newer than that (never more than 8). People who drop in now and then never set it off.
+- **Who hears.** Up to **3 members** with the most back-and-forth in the last 60 days: a reply
+  either way or an @mention either way counts 1, being in the same Collab (not removed, not
+  finished more than 60 days ago) or a File card either way counts 3. Likes do not count. Someone
+  who talks with nobody: **the admins** hear instead.
+- **The note.** "@maya hasn't been around for a week. A hello might be nice." (2 weeks, 3 weeks…
+  when noticed later), with **Say hi**. There are no private messages (§2), so Say hi opens the
+  feed's post box with "@maya " typed (`/?say=maya#compose`; the phone app does the same): the
+  mention reaches her, even on her phone while she is away. The hello is an ordinary post.
+- **How often.** Once per quiet spell; the same person never hears about the same person twice in
+  30 days. Coming back takes away the hellos still unread (they are not needed any more).
+- **The quiet member never sees** that anyone was told. They only get the hellos.
+- **The 30-day rule stays,** with a warning: on **day 23** away the member gets "Your seat is kept
+  for you until 28 December. Come back any time." (the day the rule would archive them). Admins,
+  who never lose a seat that way, get none. Coming back takes the note away.
+- **No off switch.** The note goes only to people they already talk with and says nothing more
+  than "hasn't been around".
+- **As built.** `sweepQuiet` in `apps/api/src/lib/quiet.ts`, the hourly job `quiet`; kinds
+  `gone_quiet` (payload `actorId`, `days`) and `seat_kept` (`until`); `quiet_notices` (migration
+  0042) remembers each noticed spell and who was told. Words: `describe` in
+  `apps/web/src/lib/notifications.ts` and `describePush`. Tests: `apps/api/test/quiet.test.ts`;
+  screenshots: `scripts/screenshots-quiet.ts`.
+
 ## 11. API surface (Elysia)
 
 Guards: **P** public, **U** any signed-in non-banned user, **A** active/flagged_lurker, **O** ops.

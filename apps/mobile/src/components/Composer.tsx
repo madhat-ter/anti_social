@@ -25,12 +25,14 @@ function mentionAt(text: string, caret: number): { start: number; q: string } | 
   return { start: caret - m[2]!.length - 1, q: m[2]! };
 }
 
-export function Composer({ parentId, collabId, eventId, onCreated, placeholder, submitLabel, autoFocus, record, title }: {
+export function Composer({ parentId, collabId, eventId, onCreated, placeholder, submitLabel, autoFocus, record, title, prefill }: {
   parentId?: string; collabId?: string; eventId?: string;
   onCreated: (p: Post) => void; placeholder?: string; submitLabel?: string; autoFocus?: boolean;
   /** the feed's box: Record sits beside + Photo while nothing is written */
   record?: boolean;
   title?: string;
+  /** RFC §10.33: words to start with ("@maya " from a Say hi); put in front of any draft, then the box takes the cursor */
+  prefill?: string;
 }) {
   const { c } = useTheme();
   const [body, setBody] = useState('');
@@ -44,8 +46,15 @@ export function Composer({ parentId, collabId, eventId, onCreated, placeholder, 
   const draftKey = `anti:draft:${parentId ?? (collabId ? `c:${collabId}` : eventId ? `e:${eventId}` : 'feed')}`;
   const restored = useRef(false);
   useEffect(() => {
-    AsyncStorage.getItem(draftKey).then((d) => { if (d) setBody(d); }).finally(() => { restored.current = true; });
-  }, [draftKey]);
+    AsyncStorage.getItem(draftKey).then((d) => {
+      const draft = d ?? '';
+      if (prefill && !draft.includes(prefill.trim())) {
+        setBody(prefill + draft);
+        setCaret((prefill + draft).length);
+        setTimeout(() => input.current?.focus(), 50);
+      } else if (d) setBody(d);
+    }).finally(() => { restored.current = true; });
+  }, [draftKey, prefill]);
   useEffect(() => {
     if (!restored.current) return;
     const t = setTimeout(() => { void (body.trim() ? AsyncStorage.setItem(draftKey, body) : AsyncStorage.removeItem(draftKey)); }, 400);

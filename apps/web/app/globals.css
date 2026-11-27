@@ -913,6 +913,8 @@ input[type=search]::-webkit-search-cancel-button {
 /* notifications with faces */
 .notif-link { flex-direction: row; align-items: flex-start; gap: .9rem; }
 .notif-text { display: flex; flex-direction: column; gap: .15rem; min-width: 0; flex: 1; }
+/* RFC §10.33: "Say hi" on the note about someone gone quiet (the note itself is the link) */
+.notif-act { align-self: flex-start; margin: .35rem 0 .15rem; padding: .3rem .8rem; font-size: .88rem; }
 .notif-sys { width: 40px; height: 40px; display: grid; place-items: center; flex: none; }
 
 /* ─── desktop: the screen becomes a desktop ────────────────────────────────

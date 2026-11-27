@@ -26,7 +26,10 @@ export function Composer({
   collapsible = false,
   autoFocus = false,
   record = false,
+  prefill,
 }: {
+  /** RFC §10.33: words to start with ("@maya " from a Say hi); put in front of any draft, then the box takes the cursor */
+  prefill?: string;
   /**
    * RFC §10.26: the feed's box also starts a monologue. A Record button sits beside + Image while
    * nothing is written, and on phones beside the closed one-line box too, so recording is one tap
@@ -92,6 +95,20 @@ export function Composer({
     }, 400);
     return () => clearTimeout(t);
   }, [body, draftKey, restored]);
+
+  useEffect(() => {
+    if (!restored || !prefill) return;
+    setBody((b) => (b.includes(prefill.trim()) ? b : prefill + b));
+    setOpened(true);
+    const t = setTimeout(() => {
+      const ta = document.getElementById(`${id}-body`) as HTMLTextAreaElement | null;
+      if (!ta) return;
+      ta.scrollIntoView({ block: 'center' });
+      ta.focus();
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+    }, 50);
+    return () => clearTimeout(t);
+  }, [restored, prefill, id]);
 
   const uploading = atts.some((a) => a.status === 'uploading');
   const hasFailed = atts.some((a) => a.status === 'error');

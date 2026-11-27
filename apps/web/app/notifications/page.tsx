@@ -8,7 +8,7 @@ import { ListStatus, PagedFooter } from '@/components/Paged';
 import { ErrorNote } from '@/components/ui';
 import { Avatar } from '@/components/Avatar';
 import { AlertIcon, Dot } from '@/components/retro';
-import { describe, notificationHref, WARNINGS } from '@/lib/notifications';
+import { describe, notificationHref, sayHiTo, WARNINGS } from '@/lib/notifications';
 
 export default function NotificationsPage() {
   useTitle('Notifications');
@@ -67,6 +67,8 @@ function Notifications({ myHandle }: { myHandle: string }) {
                 <span className="notif-text">
                   <span className="notif-title">{!n.readAt && <><span className="dot-unread" aria-hidden="true" /><span className="sr-only">Unread: </span></>}{describe(n)}</span>
                   {n.post?.snippet && <span className="muted small notif-snippet">{n.post.snippet}</span>}
+                  {/* RFC §10.33: the whole note opens the post box with @them typed; this says so */}
+                  {sayHiTo(n) && <span className="btn primary notif-act" aria-hidden="true">Say hi</span>}
                   <time className="muted small" dateTime={n.createdAt} title={fmtDate(n.createdAt)}>{relativeTime(n.createdAt)}</time>
                 </span>
               </>

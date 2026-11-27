@@ -4,7 +4,7 @@
  */
 import { useCallback } from 'react';
 import { View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { api, type Post } from '@/lib/api';
 import { usePaged } from '@/lib/paged';
@@ -33,6 +33,8 @@ function BirthdayLine() {
 
 export default function FeedScreen() {
   const me = useMe();
+  /** RFC §10.33: from "Say hi" on a note about someone gone quiet */
+  const { say } = useLocalSearchParams<{ say?: string }>();
   const fv = useFeedVisit(me.handle);
   const p = usePaged<Post>(['feed'], async (c) => {
     const page = await api.feed(c, 20, c ? {} : fv.params());
@@ -49,7 +51,7 @@ export default function FeedScreen() {
       header={
         <View style={{ gap: 14 }}>
           <Lurker />
-          <Composer record onCreated={(post) => p.setItems((cur) => [post, ...cur])} />
+          <Composer record prefill={say ? `@${say} ` : undefined} onCreated={(post) => p.setItems((cur) => [post, ...cur])} />
           <BirthdayLine />
         </View>
       }

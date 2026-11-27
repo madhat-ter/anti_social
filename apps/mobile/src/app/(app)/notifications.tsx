@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { FlatList, RefreshControl, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { describe, notificationHref, WARNINGS } from '@web/lib/notifications';
+import { describe, notificationHref, sayHiTo, WARNINGS } from '@web/lib/notifications';
 import { api, errorMessage, type Notification, type NotificationPage } from '@/lib/api';
 import { fmtDate, relativeTime } from '@/lib/format';
 import { LIST_PERF } from '@/lib/lists';
@@ -82,6 +82,12 @@ export default function NotificationsScreen() {
             <View style={{ flex: 1, gap: 3 }}>
               <Text v={unread ? 'bold' : 'body'} style={{ fontSize: 16, lineHeight: 22 }}>{describe(n)}</Text>
               {n.post?.snippet ? <Text v="meta" numberOfLines={2}>{n.post.snippet}</Text> : null}
+              {/* RFC §10.33: the whole note opens the post box with @them typed; this says so */}
+              {sayHiTo(n) ? (
+                <View style={{ alignSelf: 'flex-start', marginVertical: 4, paddingVertical: 5, paddingHorizontal: 12, borderRadius: 8, backgroundColor: c.ink }}>
+                  <Text v="bold" style={{ color: c.paper, fontSize: 14 }}>Say hi</Text>
+                </View>
+              ) : null}
               <Text v="meta" accessibilityLabel={fmtDate(n.createdAt)}>{relativeTime(n.createdAt)}</Text>
             </View>
           </Touch>

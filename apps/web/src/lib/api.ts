@@ -342,6 +342,10 @@ export interface Notification {
   checklist?: { done: number; total: number } | null;
   /** requests_waiting: how many people are waiting to join that one thing */
   count?: number | null;
+  /** RFC §10.33 gone_quiet: how many days someone you talk with has been away */
+  quietDays?: number | null;
+  /** RFC §10.33 seat_kept: the day the 30-day rule would take your seat */
+  keptUntil?: string | null;
   /** collab_*: the collab */
   collab?: { id: string; title: string } | null;
   /** collab_removed: its title */

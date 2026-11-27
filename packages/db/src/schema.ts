@@ -126,6 +126,17 @@ export const userSeenDays = pgTable('user_seen_days', {
 }, (t) => [primaryKey({ columns: [t.userId, t.day] })]);
 
 /**
+ * RFC §10.33: a quiet spell that was noticed (the people they talk with, or the admins, were told).
+ * Keyed by when the member was last here, so each spell is noticed once. `toldTo`: who got a note.
+ */
+export const quietNotices = pgTable('quiet_notices', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  lastHere: tstz('last_here').notNull(),
+  toldTo: uuid('told_to').array().notNull().default(sql`'{}'::uuid[]`),
+  noticedAt: tstz('noticed_at').notNull().defaultNow(),
+}, (t) => [primaryKey({ name: 'quiet_notices_pk', columns: [t.userId, t.lastHere] })]);
+
+/**
  * RFC §10.11: one row per feed visit (a visit starts after 30 quiet minutes). The only behavioural
  * log the feed keeps: backlog size and whether the end card was reached, so the owner can tell
  * whether members get through the feed. Pruned after 60 days; gone with the member.

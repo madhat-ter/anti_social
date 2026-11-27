@@ -69,7 +69,7 @@ type NotifRow = {
   c_id: string | null; c_title: string | null; x_project: string | null;
   x_consult: string | null; x_topic: string | null; x_pricing: string | null; x_was: string | null;
   /** requests_waiting: how many people are waiting on that one thing */
-  x_count: string | null; x_guest: string | null;
+  x_count: string | null; x_guest: string | null; x_days: string | null; x_until: string | null;
 };
 
 async function unreadCount(db: Db, userId: string): Promise<number> {
@@ -184,7 +184,8 @@ export const socialRoutes = (deps: Deps) => {
           n.payload->>'to' as x_to, n.payload->>'title' as x_title, n.payload->>'done' as x_done, n.payload->>'total' as x_total,
           co.id as c_id, coalesce(co.title, n.payload->>'title') as c_title, n.payload->>'projectId' as x_project,
           n.payload->>'consultationId' as x_consult, n.payload->>'topic' as x_topic, n.payload->>'pricing' as x_pricing, n.payload->>'was' as x_was,
-          n.payload->>'count' as x_count, n.payload->>'guestName' as x_guest
+          n.payload->>'count' as x_count, n.payload->>'guestName' as x_guest,
+          n.payload->>'days' as x_days, n.payload->>'until' as x_until
         from notifications n
         left join users u on u.id = case when n.payload->>'actorId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'actorId')::uuid end
         left join posts p on p.id = case when n.payload->>'postId' ~ '^[0-9a-f-]{36}$' then (n.payload->>'postId')::uuid end
@@ -216,6 +217,9 @@ export const socialRoutes = (deps: Deps) => {
           consultation: r.x_consult ? { id: r.x_consult, topic: r.x_topic ?? '', pricing: r.x_pricing, was: r.x_was } : null,
           checklist: r.kind === 'checklist_reminder' ? { done: Number(r.x_done ?? 0), total: Number(r.x_total ?? 5) } : null,
           count: r.kind === 'requests_waiting' ? Number(r.x_count ?? 1) : null,
+          // RFC §10.33: how long someone you talk with has been away; until when your seat is kept
+          quietDays: r.kind === 'gone_quiet' ? Number(r.x_days ?? 7) : null,
+          keptUntil: r.kind === 'seat_kept' ? r.x_until : null,
         })),
         nextCursor,
         unreadCount: await unreadCount(db, uid),

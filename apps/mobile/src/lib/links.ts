@@ -13,7 +13,11 @@ export function appRoute(path: string): Href | null {
   const [p] = path.split(/[?#]/);
   const clean = (p ?? '/').replace(/\/+$/, '') || '/';
   let m: RegExpMatchArray | null;
-  if (clean === '/') return '/';
+  if (clean === '/') {
+    // RFC §10.33: "Say hi" opens the feed's box with @them typed
+    const say = path.match(/[?&]say=([a-zA-Z0-9_]{1,30})/)?.[1];
+    return say ? { pathname: '/', params: { say } } : '/';
+  }
   if (clean === '/collab') return '/collab';
   if (clean === '/monologue') return '/monologue';
   if (clean === '/members' || clean === '/search') return '/members';
