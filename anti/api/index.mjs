@@ -62141,7 +62141,7 @@ async function getMade(db, userId, id) {
   return toCard(r, userId);
 }
 var publicMediaUrl = (handle, key) => `/api/public/file/${encodeURIComponent(handle)}/media/${key}`;
-var PUBLIC_CARD = sql`c.hidden_at is null and (c.maker_id = c.for_id or c.public_ok)`;
+var PUBLIC_CARD = sql`c.hidden_at is null`;
 async function getPublicFile(db, handle) {
   const [o] = await rows(db, sql`
     select id, handle, display_name, gender::text as gender from users
