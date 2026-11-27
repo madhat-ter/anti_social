@@ -1522,8 +1522,9 @@ drawer. Tabs stand up at the back and the front, one page lies open, and each pa
   - *How often.* Every time a File is opened.
   - *Order.* "Me" shows for half a second, then every page with a card flips past in drawer order
     (own pages 1–6, then the gift pages 7–11, empty ones skipped), then back to "Me", where it stays.
-  - *Speed.* About ⅓ second a page with the same flip, quicker (`.file-quick`); the flips take
-    3.5 seconds at most however many pages are full.
+  - *Speed.* About ½ second a page with the same flip, a little quicker (`.file-quick`); the
+    flips take 6 seconds at most however many pages are full. (Built at ⅓ second; the owner found
+    it too fast and asked for it a bit slower on 2026-11-28.)
   - *Stopping.* Any tap or key stops it. A tap on a tab or the open card does what it always does;
     anywhere else goes back to "Me".
   - *When it doesn't play.* Only when "Me" is the only card. The owner chose to have it play even

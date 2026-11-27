@@ -26,11 +26,12 @@ const depthOf = (pos: number) => DRAWER.indexOf(pos);
 const FLIP_MS = 1500;
 /**
  * RFC §10.24, the opening run (2026-11-27): "Me" shows for a moment, then each filled page flips
- * past in drawer order, then back to "Me". A third of a second a page, 4 seconds at most in all.
+ * past in drawer order, then back to "Me". About half a second a page (the owner found a third
+ * too fast, 2026-11-28), 6 seconds of flips at most.
  */
-const TOUR_START_MS = 500;
-const TOUR_STEP_MS = 330;
-const TOUR_FLIPS_MS = 3500;
+const TOUR_START_MS = 600;
+const TOUR_STEP_MS = 550;
+const TOUR_FLIPS_MS = 6000;
 
 export function FileDrawer({ handle, pub = false }: {
   handle: string;
